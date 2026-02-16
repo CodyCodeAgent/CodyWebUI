@@ -1,4 +1,4 @@
-# npx `codex-web-local`
+# `npx codex-web-local`
 
 A lightweight web interface for [Codex](https://github.com/openai/codex) that replicates the desktop UI and runs on top of the Codex `app-server`. It exposes Codex through a web application, allowing you to access your local Codex instance remotely from any browser.
 
