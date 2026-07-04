@@ -100,6 +100,7 @@
 .app-dark .sidebar-thread-controls-button:hover,
 .app-dark .thread-composer-attach:hover,
 .app-dark .composer-dropdown-option:hover,
+.app-dark .live-overlay-toggle:hover,
 .app-dark .directory-picker-close:hover,
 .app-dark .new-thread-setup-close:hover,
 .app-dark .new-thread-modal-close:hover,
@@ -154,6 +155,8 @@
 .app-dark .message-list,
 .app-dark .worked-separator-text,
 .app-dark .live-overlay-label,
+.app-dark .live-overlay-hint,
+.app-dark .live-overlay-detail-item,
 .app-dark .live-overlay-reasoning,
 .app-dark .composer-dropdown-trigger,
 .app-dark .directory-picker-selected,
@@ -188,6 +191,14 @@
 .app-dark .message-blockquote {
   border-color: #475569;
   color: #b8c0cc;
+}
+
+.app-dark .live-overlay-details {
+  border-color: #3a4250;
+}
+
+.app-dark .live-overlay-chevron {
+  color: #8b93a1;
 }
 
 .app-dark .message-code-block {

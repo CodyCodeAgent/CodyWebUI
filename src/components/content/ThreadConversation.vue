@@ -201,13 +201,33 @@
         <div class="message-row">
           <div class="message-stack">
             <article class="live-overlay-inline" aria-live="polite">
-              <p class="live-overlay-label">{{ liveOverlay.activityLabel }}</p>
-              <p
-                v-if="liveOverlay.reasoningText"
-                class="live-overlay-reasoning"
+              <button
+                class="live-overlay-toggle"
+                type="button"
+                :aria-expanded="isLiveOverlayExpanded"
+                :disabled="!hasLiveOverlayDetails"
+                @click="toggleLiveOverlay"
               >
-                {{ liveOverlay.reasoningText }}
-              </p>
+                <IconTablerChevronRight class="live-overlay-chevron" :data-expanded="isLiveOverlayExpanded" />
+                <span class="live-overlay-label">{{ liveOverlay.activityLabel }}</span>
+                <span v-if="hasLiveOverlayDetails" class="live-overlay-hint">
+                  {{ isLiveOverlayExpanded ? 'Hide details' : 'Show details' }}
+                </span>
+              </button>
+
+              <div v-if="isLiveOverlayExpanded && hasLiveOverlayDetails" class="live-overlay-details">
+                <ul v-if="liveOverlay.activityDetails.length > 0" class="live-overlay-detail-list">
+                  <li v-for="detail in liveOverlay.activityDetails" :key="detail" class="live-overlay-detail-item">
+                    {{ detail }}
+                  </li>
+                </ul>
+                <p
+                  v-if="liveOverlay.reasoningText"
+                  class="live-overlay-reasoning"
+                >
+                  {{ liveOverlay.reasoningText }}
+                </p>
+              </div>
               <p v-if="liveOverlay.errorText" class="live-overlay-error">{{ liveOverlay.errorText }}</p>
             </article>
           </div>
@@ -228,9 +248,10 @@
 </template>
 
 <script setup lang="ts">
-import { nextTick, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { parseMarkdownBlocks } from '../../composables/useMarkdownBlocks'
 import type { ThreadScrollState, UiLiveOverlay, UiMessage, UiServerRequest } from '../../types/codex'
+import IconTablerChevronRight from '../icons/IconTablerChevronRight.vue'
 import IconTablerCopy from '../icons/IconTablerCopy.vue'
 import IconTablerX from '../icons/IconTablerX.vue'
 
@@ -252,6 +273,7 @@ const conversationListRef = ref<HTMLElement | null>(null)
 const bottomAnchorRef = ref<HTMLElement | null>(null)
 const modalImageUrl = ref('')
 const copiedMessageId = ref('')
+const isLiveOverlayExpanded = ref(false)
 const toolQuestionAnswers = ref<Record<string, string>>({})
 const toolQuestionOtherAnswers = ref<Record<string, string>>({})
 const BOTTOM_THRESHOLD_PX = 16
@@ -269,6 +291,12 @@ type ParsedToolQuestion = {
   isOther: boolean
   options: string[]
 }
+
+const hasLiveOverlayDetails = computed(() => {
+  const overlay = props.liveOverlay
+  if (!overlay) return false
+  return overlay.activityDetails.length > 0 || overlay.reasoningText.trim().length > 0
+})
 
 function asRecord(value: unknown): Record<string, unknown> | null {
   return value !== null && typeof value === 'object' && !Array.isArray(value)
@@ -378,6 +406,11 @@ async function copyMessage(message: UiMessage, messageIndex: number): Promise<vo
     }
     copiedMessageTimer = null
   }, 1400)
+}
+
+function toggleLiveOverlay(): void {
+  if (!hasLiveOverlayDetails.value) return
+  isLiveOverlayExpanded.value = !isLiveOverlayExpanded.value
 }
 
 function formatIsoTime(value: string): string {
@@ -651,6 +684,9 @@ watch(
   () => props.liveOverlay,
   async (overlay) => {
     if (!overlay) return
+    if (!hasLiveOverlayDetails.value) {
+      isLiveOverlayExpanded.value = false
+    }
     await nextTick()
     enforceBottomState()
     scheduleBottomLock(8)
@@ -670,6 +706,7 @@ watch(
   () => props.activeThreadId,
   () => {
     modalImageUrl.value = ''
+    isLiveOverlayExpanded.value = false
   },
   { flush: 'post' },
 )
@@ -806,11 +843,39 @@ onBeforeUnmount(() => {
 }
 
 .live-overlay-inline {
-  @apply w-full max-w-180 px-0 py-1 flex flex-col gap-1;
+  @apply w-full max-w-180 px-0 py-1 flex flex-col gap-2;
+}
+
+.live-overlay-toggle {
+  @apply flex w-fit max-w-full items-center gap-1.5 rounded-md border border-transparent bg-transparent px-1.5 py-1 text-left transition hover:border-zinc-200 hover:bg-zinc-50 disabled:cursor-default disabled:hover:border-transparent disabled:hover:bg-transparent;
+}
+
+.live-overlay-chevron {
+  @apply h-3.5 w-3.5 shrink-0 text-zinc-400 transition-transform;
+}
+
+.live-overlay-chevron[data-expanded='true'] {
+  @apply rotate-90;
 }
 
 .live-overlay-label {
-  @apply m-0 text-sm leading-5 font-medium text-zinc-600;
+  @apply min-w-0 truncate text-sm leading-5 font-medium text-zinc-600;
+}
+
+.live-overlay-hint {
+  @apply shrink-0 text-xs leading-5 text-zinc-400;
+}
+
+.live-overlay-details {
+  @apply ml-6 flex max-w-170 flex-col gap-2 border-l border-zinc-200 pl-3;
+}
+
+.live-overlay-detail-list {
+  @apply m-0 flex list-none flex-col gap-1 p-0;
+}
+
+.live-overlay-detail-item {
+  @apply m-0 text-sm leading-5 text-zinc-500;
 }
 
 .live-overlay-reasoning {
