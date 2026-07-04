@@ -42,7 +42,8 @@
 .app-dark .project-menu-panel,
 .app-dark .thread-menu-panel,
 .app-dark .message-image-button,
-.app-dark .message-copy-button {
+.app-dark .message-copy-button,
+.app-dark .conversation-scroll-bottom {
   background: #181b22;
   border-color: #303643;
   color: #e5e7eb;
@@ -150,6 +151,7 @@
 .app-dark .thread-tree-loading,
 .app-dark .thread-tree-no-results,
 .app-dark .message-copy-button,
+.app-dark .conversation-scroll-bottom,
 .app-dark .message-text,
 .app-dark .message-markdown,
 .app-dark .message-list,

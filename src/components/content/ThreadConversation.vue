@@ -236,6 +236,17 @@
       <li ref="bottomAnchorRef" class="conversation-bottom-anchor" />
     </ul>
 
+    <button
+      v-if="showScrollToBottomButton"
+      class="conversation-scroll-bottom"
+      type="button"
+      aria-label="Scroll to latest message"
+      title="Scroll to latest message"
+      @click="onScrollToBottomClick"
+    >
+      <IconTablerChevronDown class="conversation-scroll-bottom-icon" />
+    </button>
+
     <div v-if="modalImageUrl.length > 0" class="image-modal-backdrop" @click="closeImageModal">
       <div class="image-modal-content" @click.stop>
         <button class="image-modal-close" type="button" aria-label="Close image preview" @click="closeImageModal">
@@ -251,6 +262,7 @@
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { parseMarkdownBlocks } from '../../composables/useMarkdownBlocks'
 import type { ThreadScrollState, UiLiveOverlay, UiMessage, UiServerRequest } from '../../types/codex'
+import IconTablerChevronDown from '../icons/IconTablerChevronDown.vue'
 import IconTablerChevronRight from '../icons/IconTablerChevronRight.vue'
 import IconTablerCopy from '../icons/IconTablerCopy.vue'
 import IconTablerX from '../icons/IconTablerX.vue'
@@ -296,6 +308,12 @@ const hasLiveOverlayDetails = computed(() => {
   const overlay = props.liveOverlay
   if (!overlay) return false
   return overlay.activityDetails.length > 0 || overlay.reasoningText.trim().length > 0
+})
+
+const showScrollToBottomButton = computed(() => {
+  if (!props.activeThreadId || props.isLoading) return false
+  if (props.messages.length === 0 && props.pendingRequests.length === 0 && !props.liveOverlay) return false
+  return props.scrollState?.isAtBottom === false
 })
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -565,6 +583,11 @@ function scrollToBottom(): void {
   anchor.scrollIntoView({ block: 'end' })
 }
 
+function onScrollToBottomClick(): void {
+  enforceBottomState()
+  scheduleBottomLock(3)
+}
+
 function isAtBottom(container: HTMLElement): boolean {
   const distance = container.scrollHeight - (container.scrollTop + container.clientHeight)
   return distance <= BOTTOM_THRESHOLD_PX
@@ -742,7 +765,7 @@ onBeforeUnmount(() => {
 @reference "tailwindcss";
 
 .conversation-root {
-  @apply h-full min-h-0 p-0 flex flex-col overflow-y-hidden overflow-x-visible bg-transparent border-none rounded-none;
+  @apply relative h-full min-h-0 p-0 flex flex-col overflow-y-hidden overflow-x-visible bg-transparent border-none rounded-none;
 }
 
 .conversation-loading {
@@ -784,6 +807,14 @@ onBeforeUnmount(() => {
 
 .conversation-bottom-anchor {
   @apply h-px;
+}
+
+.conversation-scroll-bottom {
+  @apply absolute bottom-3 right-8 z-20 flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 shadow-lg transition hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-300;
+}
+
+.conversation-scroll-bottom-icon {
+  @apply h-5 w-5;
 }
 
 .message-stack {
