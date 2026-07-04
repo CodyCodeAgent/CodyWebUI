@@ -1,6 +1,10 @@
 <template>
   <section class="thread-tree-root">
-    <section v-if="pinnedThreads.length > 0" class="pinned-section">
+    <section
+      v-if="pinnedThreads.length > 0"
+      class="pinned-section"
+      :data-thread-menu-open="hasPinnedThreadMenuOpen"
+    >
       <ul class="thread-list">
         <li v-for="thread in pinnedThreads" :key="thread.id" class="thread-row-item">
           <SidebarMenuRow
@@ -80,6 +84,7 @@
         :data-project-name="group.projectName"
         :data-expanded="!isCollapsed(group.projectName)"
         :data-dragging="isDraggingProject(group.projectName)"
+        :data-thread-menu-open="isThreadMenuOpenInProject(group)"
         :style="projectGroupStyle(group.projectName)"
       >
           <SidebarMenuRow
@@ -409,6 +414,9 @@ const pinnedThreads = computed(() =>
     .filter((thread): thread is UiThread => thread !== null)
     .filter(threadMatchesSearch),
 )
+const hasPinnedThreadMenuOpen = computed(() =>
+  pinnedThreads.value.some((thread) => isThreadMenuOpen(thread.id)),
+)
 
 const projectedDropProjectIndex = computed<number | null>(() => {
   const drag = activeProjectDrag.value
@@ -526,6 +534,10 @@ function onCompactClick(threadId: string): void {
 
 function isThreadMenuOpen(threadId: string): boolean {
   return openThreadMenuId.value === threadId
+}
+
+function isThreadMenuOpenInProject(group: UiProjectGroup): boolean {
+  return group.threads.some((thread) => isThreadMenuOpen(thread.id))
 }
 
 function closeThreadMenu(): void {
@@ -1045,6 +1057,9 @@ function isDraggingProject(projectName: string): boolean {
 function projectGroupStyle(projectName: string): Record<string, string> | undefined {
   const drag = activeProjectDrag.value
   const targetTop = layoutTopByProject.value[projectName] ?? 0
+  const isMenuOpen = props.groups
+    .find((group) => group.projectName === projectName)
+    ?.threads.some((thread) => isThreadMenuOpen(thread.id)) === true
 
   if (!drag || drag.projectName !== projectName) {
     return {
@@ -1052,6 +1067,7 @@ function projectGroupStyle(projectName: string): Record<string, string> | undefi
       top: '0',
       left: '0',
       right: '0',
+      zIndex: isMenuOpen ? '45' : '1',
       transform: `translate3d(0, ${targetTop}px, 0)`,
       willChange: 'transform',
       transition: 'transform 180ms ease',
@@ -1157,7 +1173,11 @@ onBeforeUnmount(() => {
 }
 
 .pinned-section {
-  @apply mb-1;
+  @apply relative z-20 mb-1;
+}
+
+.pinned-section[data-thread-menu-open='true'] {
+  @apply z-50;
 }
 
 .thread-tree-header-row {
@@ -1329,7 +1349,7 @@ onBeforeUnmount(() => {
 }
 
 .thread-menu-panel {
-  @apply absolute right-0 top-full mt-1 z-30 min-w-32 rounded-md border border-zinc-200 bg-white p-1 shadow-md flex flex-col gap-0.5;
+  @apply absolute right-0 top-full mt-1 z-50 min-w-32 rounded-md border border-zinc-200 bg-white p-1 shadow-md flex flex-col gap-0.5;
 }
 
 .thread-menu-item {
