@@ -93,6 +93,18 @@
         <div class="message-row" :data-role="message.role" :data-message-type="message.messageType || ''">
           <div class="message-stack" :data-role="message.role">
             <article class="message-body" :data-role="message.role">
+              <button
+                v-if="isCopyableMessage(message)"
+                class="message-copy-button"
+                type="button"
+                :aria-label="copiedMessageId === message.id ? 'Copied message' : 'Copy message'"
+                :title="copiedMessageId === message.id ? 'Copied' : 'Copy message'"
+                :data-copied="copiedMessageId === message.id"
+                @click="copyMessage(message)"
+              >
+                <IconTablerCopy class="message-copy-icon" />
+              </button>
+
               <ul
                 v-if="message.images && message.images.length > 0"
                 class="message-image-list"
@@ -209,6 +221,7 @@
 import { nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { parseMarkdownBlocks } from '../../composables/useMarkdownBlocks'
 import type { ThreadScrollState, UiLiveOverlay, UiMessage, UiServerRequest } from '../../types/codex'
+import IconTablerCopy from '../icons/IconTablerCopy.vue'
 import IconTablerX from '../icons/IconTablerX.vue'
 
 const props = defineProps<{
@@ -228,6 +241,7 @@ const emit = defineEmits<{
 const conversationListRef = ref<HTMLElement | null>(null)
 const bottomAnchorRef = ref<HTMLElement | null>(null)
 const modalImageUrl = ref('')
+const copiedMessageId = ref('')
 const toolQuestionAnswers = ref<Record<string, string>>({})
 const toolQuestionOtherAnswers = ref<Record<string, string>>({})
 const BOTTOM_THRESHOLD_PX = 16
@@ -235,6 +249,7 @@ const BOTTOM_THRESHOLD_PX = 16
 let scrollRestoreFrame = 0
 let bottomLockFrame = 0
 let bottomLockFramesLeft = 0
+let copiedMessageTimer: number | null = null
 const trackedPendingImages = new WeakSet<HTMLImageElement>()
 
 type ParsedToolQuestion = {
@@ -249,6 +264,61 @@ function asRecord(value: unknown): Record<string, unknown> | null {
   return value !== null && typeof value === 'object' && !Array.isArray(value)
     ? (value as Record<string, unknown>)
     : null
+}
+
+function buildCopyText(message: UiMessage): string {
+  const parts: string[] = []
+  const text = message.text.trim()
+  if (text.length > 0) {
+    parts.push(text)
+  }
+
+  const images = message.images?.filter((imageUrl) => imageUrl.trim().length > 0) ?? []
+  if (images.length > 0) {
+    parts.push(images.join('\n'))
+  }
+
+  return parts.join('\n\n')
+}
+
+function isCopyableMessage(message: UiMessage): boolean {
+  if (message.messageType === 'worked') return false
+  return buildCopyText(message).length > 0
+}
+
+async function writeClipboardText(text: string): Promise<void> {
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(text)
+    return
+  }
+
+  const textarea = document.createElement('textarea')
+  textarea.value = text
+  textarea.setAttribute('readonly', 'true')
+  textarea.style.position = 'fixed'
+  textarea.style.left = '-9999px'
+  document.body.appendChild(textarea)
+  textarea.select()
+  document.execCommand('copy')
+  textarea.remove()
+}
+
+async function copyMessage(message: UiMessage): Promise<void> {
+  const text = buildCopyText(message)
+  if (text.length === 0) return
+
+  await writeClipboardText(text)
+  copiedMessageId.value = message.id
+
+  if (copiedMessageTimer !== null) {
+    window.clearTimeout(copiedMessageTimer)
+  }
+  copiedMessageTimer = window.setTimeout(() => {
+    if (copiedMessageId.value === message.id) {
+      copiedMessageId.value = ''
+    }
+    copiedMessageTimer = null
+  }, 1400)
 }
 
 function formatIsoTime(value: string): string {
@@ -566,6 +636,9 @@ onBeforeUnmount(() => {
   if (bottomLockFrame) {
     cancelAnimationFrame(bottomLockFrame)
   }
+  if (copiedMessageTimer !== null) {
+    window.clearTimeout(copiedMessageTimer)
+  }
 })
 </script>
 
@@ -690,7 +763,7 @@ onBeforeUnmount(() => {
 }
 
 .message-body {
-  @apply flex flex-col max-w-full;
+  @apply relative flex flex-col max-w-full;
   width: fit-content;
 }
 
@@ -721,6 +794,22 @@ onBeforeUnmount(() => {
 
 .message-card {
   @apply max-w-[min(76ch,100%)] px-0 py-0 bg-transparent border-none rounded-none;
+}
+
+.message-copy-button {
+  @apply absolute -top-2 -right-9 z-10 flex h-7 w-7 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-500 opacity-35 shadow-sm transition hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900 hover:opacity-100 focus:opacity-100 focus:outline-none focus:ring-2 focus:ring-slate-300;
+}
+
+.message-body[data-role='user'] .message-copy-button {
+  @apply -left-9 right-auto;
+}
+
+.message-copy-button[data-copied='true'] {
+  @apply border-emerald-300 bg-emerald-50 text-emerald-700 opacity-100;
+}
+
+.message-copy-icon {
+  @apply h-4 w-4;
 }
 
 .message-text {
