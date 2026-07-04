@@ -111,15 +111,65 @@
                   <p class="worked-separator-text">{{ message.text }}</p>
                   <span class="worked-separator-line" aria-hidden="true" />
                 </div>
-                <p v-else class="message-text">
-                  <template v-for="(segment, index) in parseInlineSegments(message.text)" :key="`seg-${index}`">
-                    <span v-if="segment.kind === 'text'">{{ segment.value }}</span>
-                    <a v-else-if="segment.kind === 'file'" class="message-file-link" href="#" @click.prevent>
-                      {{ segment.displayName }}
-                    </a>
-                    <code v-else class="message-inline-code">{{ segment.value }}</code>
+                <div v-else class="message-markdown">
+                  <template v-for="(block, blockIndex) in parseMarkdownBlocks(message.text)" :key="`block-${blockIndex}`">
+                    <p v-if="block.kind === 'paragraph'" class="message-text">
+                      <template v-for="(segment, index) in block.segments" :key="`seg-${blockIndex}-${index}`">
+                        <span v-if="segment.kind === 'text'">{{ segment.value }}</span>
+                        <a v-else-if="segment.kind === 'file'" class="message-file-link" href="#" @click.prevent>
+                          {{ segment.displayName }}
+                        </a>
+                        <code v-else class="message-inline-code">{{ segment.value }}</code>
+                      </template>
+                    </p>
+                    <component
+                      :is="`h${String(block.level)}`"
+                      v-else-if="block.kind === 'heading'"
+                      class="message-heading"
+                      :data-level="block.level"
+                    >
+                      <template v-for="(segment, index) in block.segments" :key="`head-${blockIndex}-${index}`">
+                        <span v-if="segment.kind === 'text'">{{ segment.value }}</span>
+                        <a v-else-if="segment.kind === 'file'" class="message-file-link" href="#" @click.prevent>
+                          {{ segment.displayName }}
+                        </a>
+                        <code v-else class="message-inline-code">{{ segment.value }}</code>
+                      </template>
+                    </component>
+                    <ul v-else-if="block.kind === 'unorderedList'" class="message-list">
+                      <li v-for="(item, itemIndex) in block.items" :key="`ul-${blockIndex}-${itemIndex}`">
+                        <template v-for="(segment, index) in item" :key="`ulseg-${blockIndex}-${itemIndex}-${index}`">
+                          <span v-if="segment.kind === 'text'">{{ segment.value }}</span>
+                          <a v-else-if="segment.kind === 'file'" class="message-file-link" href="#" @click.prevent>
+                            {{ segment.displayName }}
+                          </a>
+                          <code v-else class="message-inline-code">{{ segment.value }}</code>
+                        </template>
+                      </li>
+                    </ul>
+                    <ol v-else-if="block.kind === 'orderedList'" class="message-list message-list-ordered">
+                      <li v-for="(item, itemIndex) in block.items" :key="`ol-${blockIndex}-${itemIndex}`">
+                        <template v-for="(segment, index) in item" :key="`olseg-${blockIndex}-${itemIndex}-${index}`">
+                          <span v-if="segment.kind === 'text'">{{ segment.value }}</span>
+                          <a v-else-if="segment.kind === 'file'" class="message-file-link" href="#" @click.prevent>
+                            {{ segment.displayName }}
+                          </a>
+                          <code v-else class="message-inline-code">{{ segment.value }}</code>
+                        </template>
+                      </li>
+                    </ol>
+                    <blockquote v-else-if="block.kind === 'blockquote'" class="message-blockquote">
+                      <template v-for="(segment, index) in block.segments" :key="`quote-${blockIndex}-${index}`">
+                        <span v-if="segment.kind === 'text'">{{ segment.value }}</span>
+                        <a v-else-if="segment.kind === 'file'" class="message-file-link" href="#" @click.prevent>
+                          {{ segment.displayName }}
+                        </a>
+                        <code v-else class="message-inline-code">{{ segment.value }}</code>
+                      </template>
+                    </blockquote>
+                    <pre v-else class="message-code-block"><code>{{ block.code }}</code></pre>
                   </template>
-                </p>
+                </div>
               </article>
             </article>
           </div>
@@ -157,6 +207,7 @@
 
 <script setup lang="ts">
 import { nextTick, onBeforeUnmount, ref, watch } from 'vue'
+import { parseMarkdownBlocks } from '../../composables/useMarkdownBlocks'
 import type { ThreadScrollState, UiLiveOverlay, UiMessage, UiServerRequest } from '../../types/codex'
 import IconTablerX from '../icons/IconTablerX.vue'
 
@@ -180,10 +231,6 @@ const modalImageUrl = ref('')
 const toolQuestionAnswers = ref<Record<string, string>>({})
 const toolQuestionOtherAnswers = ref<Record<string, string>>({})
 const BOTTOM_THRESHOLD_PX = 16
-type InlineSegment =
-  | { kind: 'text'; value: string }
-  | { kind: 'code'; value: string }
-  | { kind: 'file'; value: string; displayName: string }
 
 let scrollRestoreFrame = 0
 let bottomLockFrame = 0
@@ -196,117 +243,6 @@ type ParsedToolQuestion = {
   question: string
   isOther: boolean
   options: string[]
-}
-
-function isFilePath(value: string): boolean {
-  if (!value || /\s/u.test(value)) return false
-  if (value.endsWith('/') || value.endsWith('\\')) return false
-  if (/^[A-Za-z][A-Za-z0-9+.-]*:\/\//u.test(value)) return false
-
-  const looksLikeUnixAbsolute = value.startsWith('/')
-  const looksLikeWindowsAbsolute = /^[A-Za-z]:[\\/]/u.test(value)
-  const looksLikeRelative = value.startsWith('./') || value.startsWith('../') || value.startsWith('~/')
-  const hasPathSeparator = value.includes('/') || value.includes('\\')
-  return looksLikeUnixAbsolute || looksLikeWindowsAbsolute || looksLikeRelative || hasPathSeparator
-}
-
-function getBasename(pathValue: string): string {
-  const normalized = pathValue.replace(/\\/gu, '/')
-  const name = normalized.split('/').filter(Boolean).pop()
-  return name || pathValue
-}
-
-function parseFileReference(value: string): { path: string; line: number | null } | null {
-  if (!value) return null
-
-  let pathValue = value
-  let line: number | null = null
-
-  const hashLineMatch = pathValue.match(/^(.*)#L(\d+)(?:C\d+)?$/u)
-  if (hashLineMatch) {
-    pathValue = hashLineMatch[1]
-    line = Number(hashLineMatch[2])
-  } else {
-    const colonLineMatch = pathValue.match(/^(.*):(\d+)(?::\d+)?$/u)
-    if (colonLineMatch) {
-      pathValue = colonLineMatch[1]
-      line = Number(colonLineMatch[2])
-    }
-  }
-
-  if (!isFilePath(pathValue)) return null
-  return { path: pathValue, line }
-}
-
-function parseInlineSegments(text: string): InlineSegment[] {
-  if (!text.includes('`')) return [{ kind: 'text', value: text }]
-
-  const segments: InlineSegment[] = []
-  let cursor = 0
-  let textStart = 0
-
-  while (cursor < text.length) {
-    if (text[cursor] !== '`') {
-      cursor += 1
-      continue
-    }
-
-    let openLength = 1
-    while (cursor + openLength < text.length && text[cursor + openLength] === '`') {
-      openLength += 1
-    }
-    const delimiter = '`'.repeat(openLength)
-
-    let searchFrom = cursor + openLength
-    let closingStart = -1
-    while (searchFrom < text.length) {
-      const candidate = text.indexOf(delimiter, searchFrom)
-      if (candidate < 0) break
-
-      const hasBacktickBefore = candidate > 0 && text[candidate - 1] === '`'
-      const hasBacktickAfter =
-        candidate + openLength < text.length && text[candidate + openLength] === '`'
-      const hasNewLineInside = text.slice(cursor + openLength, candidate).includes('\n')
-
-      if (!hasBacktickBefore && !hasBacktickAfter && !hasNewLineInside) {
-        closingStart = candidate
-        break
-      }
-      searchFrom = candidate + 1
-    }
-
-    if (closingStart < 0) {
-      cursor += openLength
-      continue
-    }
-
-    if (cursor > textStart) {
-      segments.push({ kind: 'text', value: text.slice(textStart, cursor) })
-    }
-
-    const token = text.slice(cursor + openLength, closingStart)
-    if (token.length > 0) {
-      const fileReference = parseFileReference(token)
-      if (fileReference) {
-        const basename = getBasename(fileReference.path)
-        const displayName = fileReference.line ? `${basename} (line ${String(fileReference.line)})` : basename
-        segments.push({ kind: 'file', value: token, displayName })
-      } else {
-        segments.push({ kind: 'code', value: token })
-      }
-    } else {
-      segments.push({ kind: 'text', value: `${delimiter}${delimiter}` })
-    }
-
-    cursor = closingStart + openLength
-    textStart = cursor
-  }
-
-  if (textStart < text.length) {
-    segments.push({ kind: 'text', value: text.slice(textStart) })
-  }
-
-  return segments
 }
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -789,6 +725,54 @@ onBeforeUnmount(() => {
 
 .message-text {
   @apply m-0 text-sm leading-relaxed whitespace-pre-wrap text-slate-800;
+}
+
+.message-markdown {
+  @apply flex flex-col gap-3 text-sm leading-relaxed text-slate-800;
+}
+
+.message-heading {
+  @apply m-0 font-semibold leading-snug text-slate-900;
+}
+
+.message-heading[data-level='1'] {
+  @apply text-xl;
+}
+
+.message-heading[data-level='2'] {
+  @apply text-lg;
+}
+
+.message-heading[data-level='3'] {
+  @apply text-base;
+}
+
+.message-list {
+  @apply my-0 pl-5 text-sm leading-relaxed text-slate-800;
+}
+
+.message-list:not(.message-list-ordered) {
+  @apply list-disc;
+}
+
+.message-list-ordered {
+  @apply list-decimal;
+}
+
+.message-list li {
+  @apply my-1 pl-1;
+}
+
+.message-blockquote {
+  @apply my-0 border-l-4 border-slate-200 pl-3 text-sm leading-relaxed text-slate-600;
+}
+
+.message-code-block {
+  @apply my-0 overflow-x-auto rounded-lg border border-slate-200 bg-slate-950 px-3 py-2 text-sm leading-relaxed text-slate-100;
+}
+
+.message-code-block code {
+  @apply font-mono whitespace-pre;
 }
 
 .message-inline-code {
