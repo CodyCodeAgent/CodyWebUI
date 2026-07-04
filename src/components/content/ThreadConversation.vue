@@ -84,7 +84,7 @@
       </li>
 
       <li
-        v-for="message in messages"
+        v-for="(message, messageIndex) in messages"
         :key="message.id"
         class="conversation-item"
         :data-role="message.role"
@@ -93,18 +93,6 @@
         <div class="message-row" :data-role="message.role" :data-message-type="message.messageType || ''">
           <div class="message-stack" :data-role="message.role">
             <article class="message-body" :data-role="message.role">
-              <button
-                v-if="isCopyableMessage(message)"
-                class="message-copy-button"
-                type="button"
-                :aria-label="copiedMessageId === message.id ? 'Copied message' : 'Copy message'"
-                :title="copiedMessageId === message.id ? 'Copied' : 'Copy message'"
-                :data-copied="copiedMessageId === message.id"
-                @click="copyMessage(message)"
-              >
-                <IconTablerCopy class="message-copy-icon" />
-              </button>
-
               <ul
                 v-if="message.skills && message.skills.length > 0"
                 class="message-skill-list"
@@ -193,6 +181,18 @@
                   </template>
                 </div>
               </article>
+
+              <button
+                v-if="shouldShowCopyButton(message, messageIndex)"
+                class="message-copy-button"
+                type="button"
+                :aria-label="copiedMessageId === message.id ? 'Copied message' : 'Copy message'"
+                :title="copiedMessageId === message.id ? 'Copied' : 'Copy message'"
+                :data-copied="copiedMessageId === message.id"
+                @click="copyMessage(message, messageIndex)"
+              >
+                <IconTablerCopy class="message-copy-icon" />
+              </button>
             </article>
           </div>
         </div>
@@ -301,6 +301,50 @@ function isCopyableMessage(message: UiMessage): boolean {
   return buildCopyText(message).length > 0
 }
 
+function isAssistantResponseMessage(message: UiMessage): boolean {
+  return message.role !== 'user' && isCopyableMessage(message)
+}
+
+function findNextCopyableMessageIndex(startIndex: number): number {
+  for (let index = startIndex; index < props.messages.length; index += 1) {
+    if (isCopyableMessage(props.messages[index])) {
+      return index
+    }
+  }
+  return -1
+}
+
+function shouldShowCopyButton(message: UiMessage, messageIndex: number): boolean {
+  if (!isCopyableMessage(message)) return false
+  if (message.role === 'user') return true
+
+  const nextCopyableIndex = findNextCopyableMessageIndex(messageIndex + 1)
+  if (nextCopyableIndex === -1) return true
+  return !isAssistantResponseMessage(props.messages[nextCopyableIndex])
+}
+
+function buildCopyTextAt(message: UiMessage, messageIndex: number): string {
+  if (message.role === 'user') return buildCopyText(message)
+
+  const parts: string[] = []
+  let startIndex = messageIndex
+  while (startIndex > 0 && isAssistantResponseMessage(props.messages[startIndex - 1])) {
+    startIndex -= 1
+  }
+
+  for (let index = startIndex; index <= messageIndex; index += 1) {
+    const currentMessage = props.messages[index]
+    if (!isAssistantResponseMessage(currentMessage)) continue
+
+    const text = buildCopyText(currentMessage)
+    if (text.length > 0) {
+      parts.push(text)
+    }
+  }
+
+  return parts.join('\n\n')
+}
+
 async function writeClipboardText(text: string): Promise<void> {
   if (navigator.clipboard?.writeText) {
     await navigator.clipboard.writeText(text)
@@ -318,8 +362,8 @@ async function writeClipboardText(text: string): Promise<void> {
   textarea.remove()
 }
 
-async function copyMessage(message: UiMessage): Promise<void> {
-  const text = buildCopyText(message)
+async function copyMessage(message: UiMessage, messageIndex: number): Promise<void> {
+  const text = buildCopyTextAt(message, messageIndex)
   if (text.length === 0) return
 
   await writeClipboardText(text)
@@ -824,11 +868,16 @@ onBeforeUnmount(() => {
 }
 
 .message-copy-button {
-  @apply absolute -top-2 -right-9 z-10 flex h-7 w-7 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-500 opacity-35 shadow-sm transition hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900 hover:opacity-100 focus:opacity-100 focus:outline-none focus:ring-2 focus:ring-slate-300;
+  @apply mt-1 flex h-7 w-7 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-500 opacity-45 shadow-sm transition hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900 hover:opacity-100 focus:opacity-100 focus:outline-none focus:ring-2 focus:ring-slate-300;
 }
 
 .message-body[data-role='user'] .message-copy-button {
-  @apply -left-9 right-auto;
+  @apply self-start;
+}
+
+.message-body[data-role='assistant'] .message-copy-button,
+.message-body[data-role='system'] .message-copy-button {
+  @apply self-end;
 }
 
 .message-copy-button[data-copied='true'] {
