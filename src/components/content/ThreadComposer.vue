@@ -118,25 +118,28 @@
         <span v-if="isUploadingImage" class="thread-composer-uploading">Uploading...</span>
         <span v-else-if="uploadError" class="thread-composer-upload-error">{{ uploadError }}</span>
 
-        <button
-          v-if="isTurnInProgress"
-          class="thread-composer-stop"
-          type="button"
-          aria-label="Стоп"
-          :disabled="disabled || !activeThreadId || isInterruptingTurn"
-          @click="onInterrupt"
-        >
-          <IconTablerPlayerStopFilled class="thread-composer-stop-icon" />
-        </button>
-        <button
-          class="thread-composer-submit"
-          type="submit"
-          :aria-label="isTurnInProgress ? 'Steer current response with Control Enter' : 'Send message with Control Enter'"
-          :title="isTurnInProgress ? 'Steer with Control Enter' : 'Send with Control Enter'"
-          :disabled="!canSubmit"
-        >
-          <IconTablerArrowUp class="thread-composer-submit-icon" />
-        </button>
+        <div class="thread-composer-actions">
+          <button
+            v-if="isTurnInProgress"
+            class="thread-composer-stop"
+            type="button"
+            aria-label="Stop current response"
+            title="Stop current response"
+            :disabled="disabled || !activeThreadId || isInterruptingTurn"
+            @click="onInterrupt"
+          >
+            <IconTablerPlayerStopFilled class="thread-composer-stop-icon" />
+          </button>
+          <button
+            class="thread-composer-submit"
+            type="submit"
+            :aria-label="submitButtonLabel"
+            :title="submitButtonLabel"
+            :disabled="!canSubmit"
+          >
+            <IconTablerArrowUp class="thread-composer-submit-icon" />
+          </button>
+        </div>
       </div>
     </div>
   </form>
@@ -220,6 +223,9 @@ const placeholderText = computed(() =>
       ? 'Guide the current response...'
       : 'Type a message...'
     : 'Select a thread to send a message',
+)
+const submitButtonLabel = computed(() =>
+  props.isTurnInProgress ? 'Send guidance with Control Enter' : 'Send message with Control Enter',
 )
 const canAttachImages = computed(() => !props.disabled && Boolean(props.activeThreadId))
 const isDraggingImages = computed(() => canAttachImages.value && dragDepth.value > 0)
@@ -481,8 +487,12 @@ watch(
   @apply min-w-0 flex-1 truncate text-xs text-rose-600;
 }
 
+.thread-composer-actions {
+  @apply ml-auto flex shrink-0 items-center gap-2;
+}
+
 .thread-composer-submit {
-  @apply ml-auto inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border-0 bg-zinc-900 text-white transition hover:bg-black disabled:cursor-not-allowed disabled:bg-zinc-200 disabled:text-zinc-500;
+  @apply inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border-0 bg-zinc-900 text-white transition hover:bg-black disabled:cursor-not-allowed disabled:bg-zinc-200 disabled:text-zinc-500;
 }
 
 .thread-composer-submit-icon {
@@ -490,7 +500,7 @@ watch(
 }
 
 .thread-composer-stop {
-  @apply ml-auto inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border-0 bg-zinc-900 text-white transition hover:bg-black disabled:cursor-not-allowed disabled:bg-zinc-200 disabled:text-zinc-500;
+  @apply inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border-0 bg-zinc-900 text-white transition hover:bg-black disabled:cursor-not-allowed disabled:bg-zinc-200 disabled:text-zinc-500;
 }
 
 .thread-composer-stop-icon {
