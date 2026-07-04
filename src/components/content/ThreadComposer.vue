@@ -99,7 +99,7 @@
           class="thread-composer-control"
           :model-value="selectedModel"
           :options="modelOptions"
-          placeholder="Model"
+          placeholder="Default"
           open-direction="up"
           :disabled="disabled || !activeThreadId || models.length === 0 || isTurnInProgress"
           @update:model-value="onModelSelect"

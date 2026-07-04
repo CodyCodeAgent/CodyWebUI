@@ -61,6 +61,7 @@ const isOpen = ref(false)
 const selectedLabel = computed(() => {
   const selected = props.options.find((option) => option.value === props.modelValue)
   if (selected) return selected.label
+  if (props.modelValue.trim().length > 0) return props.modelValue.trim()
   return props.placeholder?.trim() || ''
 })
 

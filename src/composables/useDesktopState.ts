@@ -681,33 +681,45 @@ export function useDesktopState() {
   }
 
   async function refreshModelPreferences(): Promise<void> {
+    let modelIds: string[] = []
+    let currentConfig: { model: string; reasoningEffort: ReasoningEffort | '' } = {
+      model: '',
+      reasoningEffort: '',
+    }
+
     try {
-      const [modelIds, currentConfig] = await Promise.all([
-        getAvailableModelIds(),
-        getCurrentModelConfig(),
-      ])
-
-      availableModelIds.value = modelIds
-
-      const hasSelectedModel = selectedModelId.value.length > 0 && modelIds.includes(selectedModelId.value)
-      if (!hasSelectedModel) {
-        if (currentConfig.model && modelIds.includes(currentConfig.model)) {
-          selectedModelId.value = currentConfig.model
-        } else if (modelIds.length > 0) {
-          selectedModelId.value = modelIds[0]
-        } else {
-          selectedModelId.value = ''
-        }
-      }
-
-      if (
-        currentConfig.reasoningEffort &&
-        REASONING_EFFORT_OPTIONS.includes(currentConfig.reasoningEffort)
-      ) {
-        selectedReasoningEffort.value = currentConfig.reasoningEffort
-      }
+      modelIds = await getAvailableModelIds()
     } catch {
-      // Keep chat UI usable even if model metadata is temporarily unavailable.
+      modelIds = []
+    }
+
+    try {
+      currentConfig = await getCurrentModelConfig()
+    } catch {
+      currentConfig = { model: '', reasoningEffort: '' }
+    }
+
+    if (currentConfig.model && !modelIds.includes(currentConfig.model)) {
+      modelIds = [currentConfig.model, ...modelIds]
+    }
+    availableModelIds.value = modelIds
+
+    const hasSelectedModel = selectedModelId.value.length > 0 && modelIds.includes(selectedModelId.value)
+    if (!hasSelectedModel) {
+      if (currentConfig.model) {
+        selectedModelId.value = currentConfig.model
+      } else if (modelIds.length > 0) {
+        selectedModelId.value = modelIds[0]
+      } else {
+        selectedModelId.value = ''
+      }
+    }
+
+    if (
+      currentConfig.reasoningEffort &&
+      REASONING_EFFORT_OPTIONS.includes(currentConfig.reasoningEffort)
+    ) {
+      selectedReasoningEffort.value = currentConfig.reasoningEffort
     }
   }
 
