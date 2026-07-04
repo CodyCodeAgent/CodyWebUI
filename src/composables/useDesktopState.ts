@@ -1,6 +1,7 @@
 import { computed, ref } from 'vue'
 import {
   archiveThread,
+  getAccountRateLimits,
   getAvailableModelIds,
   getCurrentModelConfig,
   getPendingServerRequests,
@@ -10,6 +11,7 @@ import {
   getThreadMessages,
   resumeThread,
   startThread,
+  normalizeRateLimitSnapshot,
   subscribeCodexNotifications,
   startThreadTurn,
   steerThreadTurn,
@@ -22,6 +24,7 @@ import type {
   UiLiveOverlay,
   UiMessage,
   UiProjectGroup,
+  UiRateLimitSnapshot,
   UiServerRequest,
   UiServerRequestReply,
   UiThread,
@@ -560,11 +563,13 @@ export function useDesktopState() {
   const turnErrorByThreadId = ref<Record<string, TurnErrorState>>({})
   const activeTurnIdByThreadId = ref<Record<string, string>>({})
   const pendingServerRequestsByThreadId = ref<Record<string, UiServerRequest[]>>({})
+  const rateLimitSnapshot = ref<UiRateLimitSnapshot | null>(null)
 
   const isLoadingThreads = ref(false)
   const isLoadingMessages = ref(false)
   const isSendingMessage = ref(false)
   const isInterruptingTurn = ref(false)
+  const isLoadingRateLimits = ref(false)
   const error = ref('')
   const isPolling = ref(false)
   const hasLoadedThreads = ref(false)
@@ -680,6 +685,17 @@ export function useDesktopState() {
       }
     } catch {
       // Keep chat UI usable even if model metadata is temporarily unavailable.
+    }
+  }
+
+  async function refreshRateLimits(): Promise<void> {
+    isLoadingRateLimits.value = true
+    try {
+      rateLimitSnapshot.value = await getAccountRateLimits()
+    } catch {
+      // Rate limit status is advisory; keep the rest of the app usable if it is unavailable.
+    } finally {
+      isLoadingRateLimits.value = false
     }
   }
 
@@ -1311,7 +1327,25 @@ export function useDesktopState() {
     return false
   }
 
+  function applyRateLimitNotification(notification: RpcNotification): boolean {
+    if (notification.method !== 'account/rateLimits/updated') return false
+
+    const params = asRecord(notification.params)
+    const nextSnapshot = normalizeRateLimitSnapshot(
+      params?.rateLimits as Parameters<typeof normalizeRateLimitSnapshot>[0],
+      rateLimitSnapshot.value?.availableResetCredits ?? null,
+    )
+    if (nextSnapshot) {
+      rateLimitSnapshot.value = nextSnapshot
+    }
+    return true
+  }
+
   function applyRealtimeUpdates(notification: RpcNotification): void {
+    if (applyRateLimitNotification(notification)) {
+      return
+    }
+
     if (handleServerRequestNotification(notification)) {
       return
     }
@@ -1568,6 +1602,7 @@ export function useDesktopState() {
       await Promise.all([
         loadThreads(),
         refreshModelPreferences(),
+        refreshRateLimits(),
       ])
       await loadMessages(selectedThreadId.value)
     } catch (unknownError) {
@@ -1929,6 +1964,7 @@ export function useDesktopState() {
       startAutoRefreshTimer()
     }
     void loadPendingServerRequestsFromBridge()
+    void refreshRateLimits()
     stopNotificationStream = subscribeCodexNotifications((notification) => {
       applyRealtimeUpdates(notification)
       queueEventDrivenSync(notification)
@@ -2039,6 +2075,7 @@ export function useDesktopState() {
     selectedThreadServerRequests,
     selectedLiveOverlay,
     selectedThreadId,
+    rateLimitSnapshot,
     availableModelIds,
     selectedModelId,
     selectedReasoningEffort,
@@ -2047,10 +2084,12 @@ export function useDesktopState() {
     isLoadingMessages,
     isSendingMessage,
     isInterruptingTurn,
+    isLoadingRateLimits,
     isAutoRefreshEnabled,
     autoRefreshSecondsLeft,
     error,
     refreshAll,
+    refreshRateLimits,
     selectThread,
     setThreadScrollState,
     archiveThreadById,

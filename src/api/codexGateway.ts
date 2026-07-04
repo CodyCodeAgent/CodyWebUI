@@ -11,7 +11,10 @@ import {
 } from './codexRpcClient'
 import type {
   ConfigReadResponse,
+  GetAccountRateLimitsResponse,
   ModelListResponse,
+  RateLimitSnapshot,
+  RateLimitWindow,
   ReasoningEffort,
   SkillMetadata,
   SkillsListResponse,
@@ -20,11 +23,24 @@ import type {
 } from './appServerDtos'
 import { normalizeCodexApiError } from './codexErrors'
 import { normalizeThreadGroupsV2, normalizeThreadMessagesV2 } from './normalizers/v2'
-import type { UiComposerImage, UiComposerSkill, UiMessage, UiProjectGroup } from '../types/codex'
+import type {
+  UiComposerImage,
+  UiComposerSkill,
+  UiMessage,
+  UiProjectGroup,
+  UiRateLimitSnapshot,
+  UiRateLimitWindow,
+} from '../types/codex'
 
 type CurrentModelConfig = {
   model: string
   reasoningEffort: ReasoningEffort | ''
+}
+
+type AccountRateLimitsPayload = GetAccountRateLimitsResponse & {
+  rateLimitResetCredits?: {
+    availableCount?: number | null
+  } | null
 }
 
 async function callRpc<T>(method: string, params?: unknown): Promise<T> {
@@ -40,6 +56,45 @@ function normalizeReasoningEffort(value: unknown): ReasoningEffort | '' {
   return typeof value === 'string' && allowed.includes(value as ReasoningEffort)
     ? (value as ReasoningEffort)
     : ''
+}
+
+function normalizeRateLimitWindow(window: RateLimitWindow | null | undefined): UiRateLimitWindow | null {
+  if (!window) return null
+
+  return {
+    usedPercent: Number.isFinite(window.usedPercent)
+      ? Math.min(Math.max(window.usedPercent, 0), 100)
+      : 0,
+    windowDurationMins: typeof window.windowDurationMins === 'number' ? window.windowDurationMins : null,
+    resetsAt: typeof window.resetsAt === 'number' ? window.resetsAt : null,
+  }
+}
+
+export function normalizeRateLimitSnapshot(
+  snapshot: RateLimitSnapshot | null | undefined,
+  availableResetCredits: number | null = null,
+): UiRateLimitSnapshot | null {
+  if (!snapshot) return null
+
+  return {
+    limitId: snapshot.limitId ?? '',
+    limitName: snapshot.limitName ?? '',
+    planType: snapshot.planType ?? '',
+    primary: normalizeRateLimitWindow(snapshot.primary),
+    secondary: normalizeRateLimitWindow(snapshot.secondary),
+    credits: snapshot.credits
+      ? {
+          hasCredits: snapshot.credits.hasCredits,
+          unlimited: snapshot.credits.unlimited,
+          balance: snapshot.credits.balance ?? '',
+        }
+      : null,
+    availableResetCredits,
+  }
+}
+
+function pickPrimaryAccountLimit(payload: AccountRateLimitsPayload): RateLimitSnapshot | null {
+  return payload.rateLimitsByLimitId?.codex ?? payload.rateLimits ?? null
 }
 
 async function getThreadGroupsV2(): Promise<UiProjectGroup[]> {
@@ -88,6 +143,15 @@ export function subscribeCodexNotifications(onNotification: (value: RpcNotificat
 }
 
 export type { RpcNotification }
+
+export async function getAccountRateLimits(): Promise<UiRateLimitSnapshot | null> {
+  const payload = await callRpc<AccountRateLimitsPayload>('account/rateLimits/read')
+  const resetCredits =
+    typeof payload.rateLimitResetCredits?.availableCount === 'number'
+      ? payload.rateLimitResetCredits.availableCount
+      : null
+  return normalizeRateLimitSnapshot(pickPrimaryAccountLimit(payload), resetCredits)
+}
 
 export async function replyToServerRequest(
   id: number,

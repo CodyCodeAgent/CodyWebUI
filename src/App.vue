@@ -74,6 +74,12 @@
           </template>
         </ContentHeader>
 
+        <RateLimitFloatingStatus
+          :snapshot="rateLimitSnapshot"
+          :is-loading="isLoadingRateLimits"
+          @refresh="refreshRateLimits"
+        />
+
         <section class="content-body">
           <template v-if="isHomeRoute">
             <div class="content-grid">
@@ -126,6 +132,7 @@ import ContentHeader from './components/content/ContentHeader.vue'
 import ThreadConversation from './components/content/ThreadConversation.vue'
 import ThreadComposer from './components/content/ThreadComposer.vue'
 import ComposerDropdown from './components/content/ComposerDropdown.vue'
+import RateLimitFloatingStatus from './components/content/RateLimitFloatingStatus.vue'
 import SidebarThreadControls from './components/sidebar/SidebarThreadControls.vue'
 import IconTablerSearch from './components/icons/IconTablerSearch.vue'
 import IconTablerX from './components/icons/IconTablerX.vue'
@@ -142,6 +149,7 @@ const {
   selectedThreadServerRequests,
   selectedLiveOverlay,
   selectedThreadId,
+  rateLimitSnapshot,
   availableModelIds,
   selectedModelId,
   selectedReasoningEffort,
@@ -150,9 +158,11 @@ const {
   isLoadingMessages,
   isSendingMessage,
   isInterruptingTurn,
+  isLoadingRateLimits,
   isAutoRefreshEnabled,
   autoRefreshSecondsLeft,
   refreshAll,
+  refreshRateLimits,
   selectThread,
   setThreadScrollState,
   archiveThreadById,
@@ -486,7 +496,7 @@ async function submitFirstMessageForNewThread(payload: UiComposerSubmitPayload):
 }
 
 .content-root {
-  @apply h-full min-h-0 w-full flex flex-col overflow-y-hidden overflow-x-visible bg-white;
+  @apply relative h-full min-h-0 w-full flex flex-col overflow-y-hidden overflow-x-visible bg-white;
 }
 
 .sidebar-thread-controls-host {

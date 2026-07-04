@@ -102,6 +102,26 @@ export type UiComposerSubmitPayload = {
   skills: UiComposerSkill[]
 }
 
+export type UiRateLimitWindow = {
+  usedPercent: number
+  windowDurationMins: number | null
+  resetsAt: number | null
+}
+
+export type UiRateLimitSnapshot = {
+  limitId: string
+  limitName: string
+  planType: string
+  primary: UiRateLimitWindow | null
+  secondary: UiRateLimitWindow | null
+  credits: {
+    hasCredits: boolean
+    unlimited: boolean
+    balance: string
+  } | null
+  availableResetCredits: number | null
+}
+
 export type UiServerRequest = {
   id: number
   method: string
