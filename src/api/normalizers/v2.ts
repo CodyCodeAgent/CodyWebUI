@@ -5,7 +5,7 @@ import type {
   ThreadListResponse,
   UserInput,
 } from '../appServerDtos'
-import type { UiMessage, UiProjectGroup, UiThread } from '../../types/codex'
+import type { UiComposerSkill, UiMessage, UiProjectGroup, UiThread } from '../../types/codex'
 
 function toIso(seconds: number): string {
   return new Date(seconds * 1000).toISOString()
@@ -47,11 +47,12 @@ function extractCodexUserRequestText(value: string): string {
 function parseUserMessageContent(
   itemId: string,
   content: UserInput[] | undefined,
-): { text: string; images: string[]; rawBlocks: UiMessage[] } {
-  if (!Array.isArray(content)) return { text: '', images: [], rawBlocks: [] }
+): { text: string; images: string[]; skills: UiComposerSkill[]; rawBlocks: UiMessage[] } {
+  if (!Array.isArray(content)) return { text: '', images: [], skills: [], rawBlocks: [] }
 
   const textChunks: string[] = []
   const images: string[] = []
+  const skills: UiComposerSkill[] = []
   const rawBlocks: UiMessage[] = []
 
   for (const [index, block] of content.entries()) {
@@ -64,8 +65,20 @@ function parseUserMessageContent(
     if (block.type === 'localImage' && typeof block.path === 'string' && block.path.trim().length > 0) {
       images.push(toLocalImagePreviewUrl(block.path.trim()))
     }
+    if (block.type === 'skill' && typeof block.name === 'string' && typeof block.path === 'string') {
+      const name = block.name.trim()
+      const path = block.path.trim()
+      if (name && path) {
+        skills.push({
+          name,
+          path,
+          displayName: name,
+          description: '',
+        })
+      }
+    }
 
-    if (block.type !== 'text' && block.type !== 'image' && block.type !== 'localImage') {
+    if (block.type !== 'text' && block.type !== 'image' && block.type !== 'localImage' && block.type !== 'skill') {
       rawBlocks.push({
         id: `${itemId}:user-content:${index}`,
         role: 'user',
@@ -80,6 +93,7 @@ function parseUserMessageContent(
   return {
     text: extractCodexUserRequestText(textChunks.join('\n')),
     images,
+    skills,
     rawBlocks,
   }
 }
@@ -99,7 +113,7 @@ function toUiMessages(item: ThreadItem): UiMessage[] {
   if (item.type === 'userMessage') {
     const parsed = parseUserMessageContent(item.id, item.content as UserInput[] | undefined)
     const messages: UiMessage[] = []
-    const hasRenderableUserContent = parsed.text.length > 0 || parsed.images.length > 0
+    const hasRenderableUserContent = parsed.text.length > 0 || parsed.images.length > 0 || parsed.skills.length > 0
 
     if (hasRenderableUserContent) {
       messages.push({
@@ -107,6 +121,7 @@ function toUiMessages(item: ThreadItem): UiMessage[] {
         role: 'user',
         text: parsed.text,
         images: parsed.images,
+        skills: parsed.skills,
         messageType: item.type,
       })
     }

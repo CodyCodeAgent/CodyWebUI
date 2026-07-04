@@ -23,6 +23,21 @@
         </li>
       </ul>
 
+      <ul v-if="selectedSkills.length > 0" class="thread-composer-skill-list">
+        <li v-for="skill in selectedSkills" :key="`${skill.name}:${skill.path}`" class="thread-composer-skill-item">
+          <span class="thread-composer-skill-name">${{ skill.displayName }}</span>
+          <button
+            class="thread-composer-skill-remove"
+            type="button"
+            aria-label="Remove skill"
+            :disabled="disabled"
+            @click="removeSkill(skill)"
+          >
+            <IconTablerX class="thread-composer-skill-remove-icon" />
+          </button>
+        </li>
+      </ul>
+
       <textarea
         ref="draftInputRef"
         v-model="draft"
@@ -30,10 +45,34 @@
         rows="1"
         :placeholder="placeholderText"
         :disabled="disabled || !activeThreadId"
-        @input="resizeDraftInput"
+        @input="onDraftInput"
+        @click="onDraftCursorChange"
+        @keyup="onDraftCursorChange"
         @paste="onPaste"
-        @keydown.enter="onDraftEnterKeydown"
+        @keydown="onDraftKeydown"
       />
+
+      <div v-if="isSkillMenuOpen" class="thread-composer-skill-menu">
+        <p v-if="isLoadingSkills" class="thread-composer-skill-status">Loading skills...</p>
+        <p v-else-if="skillError" class="thread-composer-skill-status thread-composer-skill-status-error">
+          {{ skillError }}
+        </p>
+        <p v-else-if="filteredSkills.length === 0" class="thread-composer-skill-status">No matching skills</p>
+        <template v-else>
+          <button
+            v-for="skill in filteredSkills"
+            :key="`${skill.name}:${skill.path}`"
+            class="thread-composer-skill-option"
+            type="button"
+            @mousedown.prevent="onSelectSkill(skill)"
+          >
+            <span class="thread-composer-skill-option-name">${{ skill.displayName }}</span>
+            <span v-if="skill.description" class="thread-composer-skill-option-description">
+              {{ skill.description }}
+            </span>
+          </button>
+        </template>
+      </div>
 
       <div class="thread-composer-controls">
         <input
@@ -106,7 +145,8 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue'
 import { hasImageFile, useComposerImages } from '../../composables/useComposerImages'
-import type { ReasoningEffort, UiComposerSubmitPayload } from '../../types/codex'
+import { useComposerSkills } from '../../composables/useComposerSkills'
+import type { ReasoningEffort, UiComposerSkill, UiComposerSubmitPayload } from '../../types/codex'
 import IconTablerArrowUp from '../icons/IconTablerArrowUp.vue'
 import IconTablerPhoto from '../icons/IconTablerPhoto.vue'
 import IconTablerPlayerStopFilled from '../icons/IconTablerPlayerStopFilled.vue'
@@ -118,6 +158,7 @@ const props = defineProps<{
   models: string[]
   selectedModel: string
   selectedReasoningEffort: ReasoningEffort | ''
+  cwd: string
   isTurnInProgress?: boolean
   isInterruptingTurn?: boolean
   disabled?: boolean
@@ -142,6 +183,18 @@ const {
   removeImage,
   resetImages,
 } = useComposerImages()
+const {
+  selectedSkills,
+  filteredSkills,
+  isSkillMenuOpen,
+  isLoadingSkills,
+  skillError,
+  updateSkillTrigger,
+  selectSkill,
+  removeSkill,
+  closeSkillMenu,
+  resetSkills,
+} = useComposerSkills()
 const reasoningOptions: Array<{ value: ReasoningEffort; label: string }> = [
   { value: 'none', label: 'None' },
   { value: 'minimal', label: 'Minimal' },
@@ -158,7 +211,7 @@ const canSubmit = computed(() => {
   if (props.disabled) return false
   if (!props.activeThreadId) return false
   if (isUploadingImage.value) return false
-  return draft.value.trim().length > 0 || attachedImages.value.length > 0
+  return draft.value.trim().length > 0 || attachedImages.value.length > 0 || selectedSkills.value.length > 0
 })
 
 const placeholderText = computed(() =>
@@ -177,16 +230,49 @@ function onSubmit(): void {
   emit('submit', {
     text,
     images: attachedImages.value,
+    skills: selectedSkills.value,
   })
   draft.value = ''
   resetImages()
+  resetSkills()
   void nextTick(resizeDraftInput)
 }
 
-function onDraftEnterKeydown(event: KeyboardEvent): void {
+function getDraftCursor(): number {
+  return draftInputRef.value?.selectionStart ?? draft.value.length
+}
+
+function onDraftInput(): void {
+  resizeDraftInput()
+  void updateSkillTrigger(draft.value, getDraftCursor(), props.cwd)
+}
+
+function onDraftCursorChange(): void {
+  void updateSkillTrigger(draft.value, getDraftCursor(), props.cwd)
+}
+
+function onDraftKeydown(event: KeyboardEvent): void {
+  if (event.key === 'Escape' && isSkillMenuOpen.value) {
+    closeSkillMenu()
+    return
+  }
+
+  if (event.key !== 'Enter') return
   if (!event.ctrlKey && !event.metaKey) return
   event.preventDefault()
   onSubmit()
+}
+
+function onSelectSkill(skill: UiComposerSkill): void {
+  const selected = selectSkill(skill, draft.value)
+  draft.value = selected.text
+  void nextTick(() => {
+    const input = draftInputRef.value
+    if (!input) return
+    input.focus()
+    input.setSelectionRange(selected.cursor, selected.cursor)
+    resizeDraftInput()
+  })
 }
 
 function onInterrupt(): void {
@@ -262,8 +348,16 @@ watch(
   () => {
     draft.value = ''
     resetImages()
+    resetSkills()
     dragDepth.value = 0
     void nextTick(resizeDraftInput)
+  },
+)
+
+watch(
+  () => props.cwd,
+  () => {
+    resetSkills()
   },
 )
 </script>
@@ -303,6 +397,26 @@ watch(
   @apply h-3.5 w-3.5;
 }
 
+.thread-composer-skill-list {
+  @apply mb-2 flex flex-wrap gap-2;
+}
+
+.thread-composer-skill-item {
+  @apply flex max-w-full items-center gap-1 rounded-md border border-slate-300 bg-slate-100 px-2 py-1 text-xs text-slate-800;
+}
+
+.thread-composer-skill-name {
+  @apply min-w-0 truncate font-mono;
+}
+
+.thread-composer-skill-remove {
+  @apply flex h-4 w-4 shrink-0 items-center justify-center rounded text-slate-500 transition hover:bg-slate-200 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-50;
+}
+
+.thread-composer-skill-remove-icon {
+  @apply h-3 w-3;
+}
+
 .thread-composer-input {
   @apply block w-full min-w-0 max-h-35 min-h-11 resize-none overflow-y-auto rounded-xl border-0 bg-transparent px-1 py-3 text-sm leading-5 text-zinc-900 outline-none transition;
 }
@@ -313,6 +427,30 @@ watch(
 
 .thread-composer-input:disabled {
   @apply bg-zinc-100 text-zinc-500 cursor-not-allowed;
+}
+
+.thread-composer-skill-menu {
+  @apply mb-2 max-h-64 overflow-y-auto rounded-lg border border-slate-200 bg-white p-1 shadow-lg;
+}
+
+.thread-composer-skill-status {
+  @apply m-0 px-3 py-2 text-xs text-slate-500;
+}
+
+.thread-composer-skill-status-error {
+  @apply text-rose-600;
+}
+
+.thread-composer-skill-option {
+  @apply flex w-full flex-col gap-0.5 rounded-md px-3 py-2 text-left transition hover:bg-slate-100;
+}
+
+.thread-composer-skill-option-name {
+  @apply text-sm font-medium text-slate-900;
+}
+
+.thread-composer-skill-option-description {
+  @apply line-clamp-2 text-xs leading-4 text-slate-500;
 }
 
 .thread-composer-controls {

@@ -13,12 +13,14 @@ import type {
   ConfigReadResponse,
   ModelListResponse,
   ReasoningEffort,
+  SkillMetadata,
+  SkillsListResponse,
   ThreadListResponse,
   ThreadReadResponse,
 } from './appServerDtos'
 import { normalizeCodexApiError } from './codexErrors'
 import { normalizeThreadGroupsV2, normalizeThreadMessagesV2 } from './normalizers/v2'
-import type { UiComposerImage, UiMessage, UiProjectGroup } from '../types/codex'
+import type { UiComposerImage, UiComposerSkill, UiMessage, UiProjectGroup } from '../types/codex'
 
 type CurrentModelConfig = {
   model: string
@@ -147,13 +149,14 @@ export async function startThreadTurn(
   threadId: string,
   text: string,
   images: UiComposerImage[],
+  skills: UiComposerSkill[],
   model?: string,
   effort?: ReasoningEffort,
 ): Promise<void> {
   try {
     const params: Record<string, unknown> = {
       threadId,
-      input: buildTurnInput(text, images),
+      input: buildTurnInput(text, images, skills),
     }
     if (typeof model === 'string' && model.length > 0) {
       params.model = model
@@ -167,8 +170,19 @@ export async function startThreadTurn(
   }
 }
 
-function buildTurnInput(text: string, images: UiComposerImage[]): Array<Record<string, unknown>> {
+function buildTurnInput(
+  text: string,
+  images: UiComposerImage[],
+  skills: UiComposerSkill[] = [],
+): Array<Record<string, unknown>> {
   const input: Array<Record<string, unknown>> = []
+  for (const skill of skills) {
+    const name = skill.name.trim()
+    const path = skill.path.trim()
+    if (name.length > 0 && path.length > 0) {
+      input.push({ type: 'skill', name, path })
+    }
+  }
   const normalizedText = text.trim()
   if (normalizedText.length > 0) {
     input.push({ type: 'text', text: normalizedText, text_elements: [] })
@@ -187,6 +201,7 @@ export async function steerThreadTurn(
   expectedTurnId: string,
   text: string,
   images: UiComposerImage[],
+  skills: UiComposerSkill[],
 ): Promise<void> {
   const normalizedThreadId = threadId.trim()
   const normalizedTurnId = expectedTurnId.trim()
@@ -199,10 +214,53 @@ export async function steerThreadTurn(
     await callRpc('turn/steer', {
       threadId: normalizedThreadId,
       expectedTurnId: normalizedTurnId,
-      input: buildTurnInput(text, images),
+      input: buildTurnInput(text, images, skills),
     })
   } catch (error) {
     throw normalizeCodexApiError(error, `Failed to steer turn for thread ${normalizedThreadId}`, 'turn/steer')
+  }
+}
+
+function toComposerSkill(skill: SkillMetadata): UiComposerSkill | null {
+  const name = skill.name.trim()
+  const path = skill.path.trim()
+  if (!name || !path || skill.enabled !== true) return null
+
+  const displayName = skill.interface?.displayName?.trim() || name
+  const description =
+    skill.interface?.shortDescription?.trim() ||
+    skill.shortDescription?.trim() ||
+    skill.description.trim()
+
+  return {
+    name,
+    path,
+    displayName,
+    description,
+  }
+}
+
+export async function getAvailableSkills(cwd?: string): Promise<UiComposerSkill[]> {
+  try {
+    const params: Record<string, unknown> = {}
+    const normalizedCwd = cwd?.trim() ?? ''
+    if (normalizedCwd.length > 0) {
+      params.cwds = [normalizedCwd]
+    }
+
+    const payload = await callRpc<SkillsListResponse>('skills/list', params)
+    const byKey = new Map<string, UiComposerSkill>()
+    for (const entry of payload.data) {
+      for (const skill of entry.skills) {
+        const normalized = toComposerSkill(skill)
+        if (!normalized) continue
+        byKey.set(`${normalized.name}\n${normalized.path}`, normalized)
+      }
+    }
+
+    return Array.from(byKey.values()).sort((a, b) => a.name.localeCompare(b.name))
+  } catch (error) {
+    throw normalizeCodexApiError(error, 'Failed to load skills', 'skills/list')
   }
 }
 

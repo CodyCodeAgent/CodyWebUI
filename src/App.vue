@@ -87,7 +87,7 @@
               <ThreadComposer :active-thread-id="composerThreadContextId" :disabled="isSendingMessage"
                 :models="availableModelIds" :selected-model="selectedModelId"
                 :selected-reasoning-effort="selectedReasoningEffort" :is-turn-in-progress="false"
-                :is-interrupting-turn="false" @submit="onSubmitThreadMessage"
+                :is-interrupting-turn="false" :cwd="newThreadCwd" @submit="onSubmitThreadMessage"
                 @update:selected-model="onSelectModel" @update:selected-reasoning-effort="onSelectReasoningEffort" />
             </div>
           </template>
@@ -105,6 +105,7 @@
               <ThreadComposer :active-thread-id="composerThreadContextId"
                 :disabled="isSendingMessage || isLoadingMessages" :models="availableModelIds"
                 :selected-model="selectedModelId" :selected-reasoning-effort="selectedReasoningEffort"
+                :cwd="selectedThread?.cwd ?? ''"
                 :is-turn-in-progress="isSelectedThreadInProgress" :is-interrupting-turn="isInterruptingTurn"
                 @submit="onSubmitThreadMessage" @update:selected-model="onSelectModel"
                 @update:selected-reasoning-effort="onSelectReasoningEffort" @interrupt="onInterruptTurn" />

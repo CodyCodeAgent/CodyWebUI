@@ -75,6 +75,7 @@ export type UiMessage = {
   role: 'user' | 'assistant' | 'system'
   text: string
   images?: string[]
+  skills?: UiComposerSkill[]
   messageType?: string
   rawPayload?: string
   isUnhandled?: boolean
@@ -88,9 +89,17 @@ export type UiComposerImage = {
   mimeType: string
 }
 
+export type UiComposerSkill = {
+  name: string
+  path: string
+  description: string
+  displayName: string
+}
+
 export type UiComposerSubmitPayload = {
   text: string
   images: UiComposerImage[]
+  skills: UiComposerSkill[]
 }
 
 export type UiServerRequest = {

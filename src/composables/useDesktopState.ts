@@ -1602,10 +1602,11 @@ export function useDesktopState() {
     const threadId = selectedThreadId.value
     const nextText = payload.text.trim()
     const nextImages = payload.images
-    if (!threadId || (!nextText && nextImages.length === 0)) return
+    const nextSkills = payload.skills
+    if (!threadId || (!nextText && nextImages.length === 0 && nextSkills.length === 0)) return
 
     if (inProgressById.value[threadId] === true) {
-      await steerActiveTurn(threadId, nextText, nextImages)
+      await steerActiveTurn(threadId, nextText, nextImages, nextSkills)
       return
     }
 
@@ -1621,7 +1622,7 @@ export function useDesktopState() {
     setThreadInProgress(threadId, true)
 
     try {
-      await startTurnForThread(threadId, nextText, nextImages)
+      await startTurnForThread(threadId, nextText, nextImages, nextSkills)
     } catch (unknownError) {
       shouldAutoScrollOnNextAgentEvent = false
       setThreadInProgress(threadId, false)
@@ -1639,6 +1640,7 @@ export function useDesktopState() {
     threadId: string,
     nextText: string,
     nextImages: UiComposerSubmitPayload['images'],
+    nextSkills: UiComposerSubmitPayload['skills'],
   ): Promise<void> {
     const turnId = activeTurnIdByThreadId.value[threadId]
 
@@ -1652,7 +1654,7 @@ export function useDesktopState() {
     setTurnErrorForThread(threadId, null)
 
     try {
-      await steerThreadTurn(threadId, turnId, nextText, nextImages)
+      await steerThreadTurn(threadId, turnId, nextText, nextImages, nextSkills)
       pendingThreadMessageRefresh.add(threadId)
       pendingThreadsRefresh = true
       await syncFromNotifications()
@@ -1670,9 +1672,10 @@ export function useDesktopState() {
   async function sendMessageToNewThread(payload: UiComposerSubmitPayload, cwd: string): Promise<string> {
     const nextText = payload.text.trim()
     const nextImages = payload.images
+    const nextSkills = payload.skills
     const targetCwd = cwd.trim()
     const selectedModel = selectedModelId.value.trim()
-    if (!nextText && nextImages.length === 0) return ''
+    if (!nextText && nextImages.length === 0 && nextSkills.length === 0) return ''
 
     isSendingMessage.value = true
     error.value = ''
@@ -1696,7 +1699,7 @@ export function useDesktopState() {
       setTurnErrorForThread(threadId, null)
       setThreadInProgress(threadId, true)
 
-      await startTurnForThread(threadId, nextText, nextImages)
+      await startTurnForThread(threadId, nextText, nextImages, nextSkills)
       return threadId
     } catch (unknownError) {
       shouldAutoScrollOnNextAgentEvent = false
@@ -1719,6 +1722,7 @@ export function useDesktopState() {
     threadId: string,
     nextText: string,
     nextImages: UiComposerSubmitPayload['images'],
+    nextSkills: UiComposerSubmitPayload['skills'],
   ): Promise<void> {
     const modelId = selectedModelId.value.trim()
     const reasoningEffort = selectedReasoningEffort.value
@@ -1732,6 +1736,7 @@ export function useDesktopState() {
         threadId,
         nextText,
         nextImages,
+        nextSkills,
         modelId || undefined,
         reasoningEffort || undefined,
       )

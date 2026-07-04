@@ -106,6 +106,16 @@
               </button>
 
               <ul
+                v-if="message.skills && message.skills.length > 0"
+                class="message-skill-list"
+                :data-role="message.role"
+              >
+                <li v-for="skill in message.skills" :key="`${skill.name}:${skill.path}`" class="message-skill-item">
+                  ${{ skill.displayName || skill.name }}
+                </li>
+              </ul>
+
+              <ul
                 v-if="message.images && message.images.length > 0"
                 class="message-image-list"
                 :data-role="message.role"
@@ -271,6 +281,11 @@ function buildCopyText(message: UiMessage): string {
   const text = message.text.trim()
   if (text.length > 0) {
     parts.push(text)
+  }
+
+  const skills = message.skills?.filter((skill) => skill.name.trim().length > 0) ?? []
+  if (skills.length > 0) {
+    parts.push(skills.map((skill) => `$${skill.name}`).join('\n'))
   }
 
   const images = message.images?.filter((imageUrl) => imageUrl.trim().length > 0) ?? []
@@ -774,6 +789,18 @@ onBeforeUnmount(() => {
 
 .message-image-list {
   @apply list-none m-0 mb-2 p-0 flex flex-wrap gap-2;
+}
+
+.message-skill-list {
+  @apply list-none m-0 mb-2 p-0 flex flex-wrap gap-2;
+}
+
+.message-skill-list[data-role='user'] {
+  @apply ml-auto justify-end;
+}
+
+.message-skill-item {
+  @apply m-0 rounded-md border border-slate-300 bg-slate-100 px-2 py-1 font-mono text-xs text-slate-800;
 }
 
 .message-image-list[data-role='user'] {
