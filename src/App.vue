@@ -149,6 +149,14 @@
     @close="isDirectoryPickerOpen = false"
     @select="onSelectProjectDirectory"
   />
+
+  <NewThreadSetupModal
+    v-if="isNewThreadDialogOpen"
+    :projects="newThreadProjectOptions"
+    :initial-cwd="newThreadDialogInitialCwd"
+    @close="isNewThreadDialogOpen = false"
+    @create="onCreateNewThreadFromDialog"
+  />
 </template>
 
 <script setup lang="ts">
@@ -161,6 +169,7 @@ import ThreadConversation from './components/content/ThreadConversation.vue'
 import ThreadComposer from './components/content/ThreadComposer.vue'
 import ComposerDropdown from './components/content/ComposerDropdown.vue'
 import DirectoryPickerModal from './components/content/DirectoryPickerModal.vue'
+import NewThreadSetupModal, { type NewThreadProjectOption } from './components/content/NewThreadSetupModal.vue'
 import RateLimitFloatingStatus from './components/content/RateLimitFloatingStatus.vue'
 import SidebarThreadControls from './components/sidebar/SidebarThreadControls.vue'
 import IconTablerFolder from './components/icons/IconTablerFolder.vue'
@@ -221,6 +230,9 @@ const router = useRouter()
 const isRouteSyncInProgress = ref(false)
 const hasInitialized = ref(false)
 const newThreadCwd = ref('')
+const pendingNewThreadName = ref('')
+const newThreadDialogInitialCwd = ref('')
+const isNewThreadDialogOpen = ref(false)
 const isDirectoryPickerOpen = ref(false)
 const isSidebarCollapsed = ref(loadSidebarCollapsed())
 const sidebarSearchQuery = ref('')
@@ -264,6 +276,12 @@ const liveOverlay = computed(() => selectedLiveOverlay.value)
 const composerThreadContextId = computed(() => (isHomeRoute.value ? '__new-thread__' : selectedThreadId.value))
 const isSelectedThreadInProgress = computed(() => !isHomeRoute.value && selectedThread.value?.inProgress === true)
 const directoryPickerInitialPath = computed(() => newThreadCwd.value || selectedThread.value?.cwd || '')
+const newThreadProjectOptions = computed<NewThreadProjectOption[]>(() =>
+  newThreadFolderOptions.value.map((option) => ({
+    cwd: option.value,
+    label: option.label,
+  })),
+)
 const newThreadFolderOptions = computed(() => {
   const options: Array<{ value: string; label: string }> = []
   const seenCwds = new Set<string>()
@@ -282,7 +300,7 @@ const newThreadFolderOptions = computed(() => {
   if (selectedCwd && !seenCwds.has(selectedCwd)) {
     options.unshift({
       value: selectedCwd,
-      label: basenameFromPath(selectedCwd),
+      label: projectDisplayNameById.value[selectedCwd] ?? basenameFromPath(selectedCwd),
     })
   }
 
@@ -333,8 +351,28 @@ function onSelectProjectDirectory(path: string): void {
   const normalizedPath = path.trim()
   if (!normalizedPath) return
 
-  newThreadCwd.value = normalizedPath
+  openNewThreadDialog(normalizedPath)
   isDirectoryPickerOpen.value = false
+}
+
+function openNewThreadDialog(initialCwd = ''): void {
+  newThreadDialogInitialCwd.value = initialCwd.trim() || newThreadCwd.value || selectedThread.value?.cwd || ''
+  isNewThreadDialogOpen.value = true
+}
+
+function onCreateNewThreadFromDialog(payload: { cwd: string; projectName: string; threadName: string }): void {
+  const cwd = payload.cwd.trim()
+  if (!cwd) return
+
+  const projectName = payload.projectName.trim()
+  if (projectName) {
+    renameProject(cwd, projectName)
+  }
+
+  newThreadCwd.value = cwd
+  pendingNewThreadName.value = payload.threadName.trim()
+  isNewThreadDialogOpen.value = false
+
   if (isHomeRoute.value) return
   void router.push({ name: 'home' })
 }
@@ -382,20 +420,11 @@ function onRenameThread(payload: { threadId: string; title: string }): void {
 function onStartNewThread(projectName: string): void {
   const projectGroup = projectGroups.value.find((group) => group.projectName === projectName)
   const projectCwd = projectGroup?.threads[0]?.cwd?.trim() ?? ''
-  if (projectCwd) {
-    newThreadCwd.value = projectCwd
-  }
-  if (isHomeRoute.value) return
-  void router.push({ name: 'home' })
+  openNewThreadDialog(projectCwd)
 }
 
 function onStartNewThreadFromToolbar(): void {
-  const cwd = selectedThread.value?.cwd?.trim() ?? ''
-  if (cwd) {
-    newThreadCwd.value = cwd
-  }
-  if (isHomeRoute.value) return
-  void router.push({ name: 'home' })
+  openNewThreadDialog(selectedThread.value?.cwd?.trim() ?? '')
 }
 
 function onRenameProject(payload: { projectName: string; displayName: string }): void {
@@ -568,8 +597,13 @@ watch(
 
 async function submitFirstMessageForNewThread(payload: UiComposerSubmitPayload): Promise<void> {
   try {
+    const threadName = pendingNewThreadName.value.trim()
     const threadId = await sendMessageToNewThread(payload, newThreadCwd.value)
     if (!threadId) return
+    pendingNewThreadName.value = ''
+    if (threadName) {
+      await renameThreadById(threadId, threadName)
+    }
     await router.replace({ name: 'thread', params: { threadId } })
   } catch {
     // Error is already reflected in state.
