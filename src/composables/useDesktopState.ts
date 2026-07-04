@@ -9,6 +9,7 @@ import {
   replyToServerRequest,
   getThreadGroups,
   getThreadMessages,
+  renameThread,
   resumeThread,
   startThread,
   normalizeRateLimitSnapshot,
@@ -537,6 +538,29 @@ function mergeThreadGroups(
   })
 
   return areGroupArraysEqual(previous, mergedGroups) ? previous : mergedGroups
+}
+
+function renameThreadInGroups(groups: UiProjectGroup[], threadId: string, title: string): UiProjectGroup[] {
+  let didChange = false
+  const nextGroups = groups.map((group) => {
+    let didChangeGroup = false
+    const nextThreads = group.threads.map((thread) => {
+      if (thread.id !== threadId) return thread
+      if (thread.title === title && thread.preview === title) return thread
+
+      didChange = true
+      didChangeGroup = true
+      return {
+        ...thread,
+        title,
+        preview: title,
+      }
+    })
+
+    return didChangeGroup ? { ...group, threads: nextThreads } : group
+  })
+
+  return didChange ? nextGroups : groups
 }
 
 export function useDesktopState() {
@@ -1633,6 +1657,28 @@ export function useDesktopState() {
     }
   }
 
+  async function renameThreadById(threadId: string, title: string): Promise<void> {
+    const normalizedThreadId = threadId.trim()
+    const normalizedTitle = title.trim()
+    if (!normalizedThreadId || !normalizedTitle) return
+
+    const previousSourceGroups = sourceGroups.value
+    const previousProjectGroups = projectGroups.value
+
+    sourceGroups.value = renameThreadInGroups(sourceGroups.value, normalizedThreadId, normalizedTitle)
+    projectGroups.value = renameThreadInGroups(projectGroups.value, normalizedThreadId, normalizedTitle)
+
+    try {
+      await renameThread(normalizedThreadId, normalizedTitle)
+      await loadThreads()
+    } catch (unknownError) {
+      sourceGroups.value = previousSourceGroups
+      projectGroups.value = previousProjectGroups
+      error.value = unknownError instanceof Error ? unknownError.message : 'Failed to rename thread'
+      throw unknownError
+    }
+  }
+
   async function sendMessageToSelectedThread(payload: UiComposerSubmitPayload): Promise<void> {
     const threadId = selectedThreadId.value
     const nextText = payload.text.trim()
@@ -2093,6 +2139,7 @@ export function useDesktopState() {
     selectThread,
     setThreadScrollState,
     archiveThreadById,
+    renameThreadById,
     sendMessageToSelectedThread,
     sendMessageToNewThread,
     interruptSelectedThreadTurn,

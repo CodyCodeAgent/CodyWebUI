@@ -17,13 +17,33 @@
                 </button>
               </span>
             </template>
-            <button class="thread-main-button" type="button" @click="onSelect(thread.id)">
+            <input
+              v-if="isRenamingThread(thread.id)"
+              :ref="(el) => setThreadRenameInputRef(thread.id, el)"
+              v-model="threadRenameDraft"
+              class="thread-rename-input"
+              type="text"
+              @click.stop
+              @mousedown.stop
+              @blur="submitThreadRename(thread)"
+              @keydown.enter.prevent="submitThreadRename(thread)"
+              @keydown.esc.stop.prevent="cancelThreadRename"
+            />
+            <button v-else class="thread-main-button" type="button" @click="onSelect(thread.id)">
               <span class="thread-row-title">{{ thread.title }}</span>
             </button>
             <template #right>
               <span class="thread-row-time">{{ formatRelative(thread.createdAtIso || thread.updatedAtIso) }}</span>
             </template>
             <template #right-hover>
+              <button
+                class="thread-action-button"
+                type="button"
+                title="edit_name"
+                @click.stop="startThreadRename(thread)"
+              >
+                <IconTablerFilePencil class="thread-icon" />
+              </button>
               <button
                 class="thread-archive-button"
                 :data-confirm="archiveConfirmThreadId === thread.id"
@@ -158,13 +178,33 @@
                     </button>
                   </span>
                 </template>
-                <button class="thread-main-button" type="button" @click="onSelect(thread.id)">
+                <input
+                  v-if="isRenamingThread(thread.id)"
+                  :ref="(el) => setThreadRenameInputRef(thread.id, el)"
+                  v-model="threadRenameDraft"
+                  class="thread-rename-input"
+                  type="text"
+                  @click.stop
+                  @mousedown.stop
+                  @blur="submitThreadRename(thread)"
+                  @keydown.enter.prevent="submitThreadRename(thread)"
+                  @keydown.esc.stop.prevent="cancelThreadRename"
+                />
+                <button v-else class="thread-main-button" type="button" @click="onSelect(thread.id)">
                   <span class="thread-row-title">{{ thread.title }}</span>
                 </button>
                 <template #right>
                   <span class="thread-row-time">{{ formatRelative(thread.createdAtIso || thread.updatedAtIso) }}</span>
                 </template>
                 <template #right-hover>
+                  <button
+                    class="thread-action-button"
+                    type="button"
+                    title="edit_name"
+                    @click.stop="startThreadRename(thread)"
+                  >
+                    <IconTablerFilePencil class="thread-icon" />
+                  </button>
                   <button
                     class="thread-archive-button"
                     :data-confirm="archiveConfirmThreadId === thread.id"
@@ -201,7 +241,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import type { ComponentPublicInstance } from 'vue'
 import type { UiProjectGroup, UiThread } from '../../types/codex'
 import IconTablerArchive from '../icons/IconTablerArchive.vue'
@@ -225,6 +265,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   select: [threadId: string]
   archive: [threadId: string]
+  'rename-thread': [payload: { threadId: string; title: string }]
   'start-new-thread': [projectName: string]
   'rename-project': [payload: { projectName: string; displayName: string }]
   'remove-project': [projectName: string]
@@ -266,6 +307,8 @@ const expandedProjects = ref<Record<string, boolean>>({})
 const collapsedProjects = ref<Record<string, boolean>>({})
 const pinnedThreadIds = ref<string[]>([])
 const archiveConfirmThreadId = ref('')
+const renamingThreadId = ref('')
+const threadRenameDraft = ref('')
 const openProjectMenuId = ref('')
 const projectMenuMode = ref<'actions' | 'rename'>('actions')
 const projectRenameDraft = ref('')
@@ -278,6 +321,7 @@ const suppressNextProjectToggleId = ref('')
 const measuredHeightByProject = ref<Record<string, number>>({})
 const projectGroupElementByName = new Map<string, HTMLElement>()
 const projectMenuWrapElementByName = new Map<string, HTMLElement>()
+const threadRenameInputElementById = new Map<string, HTMLInputElement>()
 const projectNameByElement = new WeakMap<HTMLElement, string>()
 const projectGroupResizeObserver =
   typeof window !== 'undefined'
@@ -442,6 +486,7 @@ function togglePin(threadId: string): void {
 }
 
 function onSelect(threadId: string): void {
+  if (renamingThreadId.value === threadId) return
   emit('select', threadId)
 }
 
@@ -454,6 +499,55 @@ function onArchiveClick(threadId: string): void {
   archiveConfirmThreadId.value = ''
   pinnedThreadIds.value = pinnedThreadIds.value.filter((id) => id !== threadId)
   emit('archive', threadId)
+}
+
+function isRenamingThread(threadId: string): boolean {
+  return renamingThreadId.value === threadId
+}
+
+function setThreadRenameInputRef(threadId: string, element: Element | ComponentPublicInstance | null): void {
+  const htmlElement =
+    element instanceof HTMLInputElement
+      ? element
+      : element && '$el' in element && element.$el instanceof HTMLInputElement
+        ? element.$el
+        : null
+
+  if (htmlElement) {
+    threadRenameInputElementById.set(threadId, htmlElement)
+    return
+  }
+
+  threadRenameInputElementById.delete(threadId)
+}
+
+function startThreadRename(thread: UiThread): void {
+  archiveConfirmThreadId.value = ''
+  renamingThreadId.value = thread.id
+  threadRenameDraft.value = thread.title
+  void nextTick(() => {
+    const input = threadRenameInputElementById.get(thread.id)
+    input?.focus()
+    input?.select()
+  })
+}
+
+function cancelThreadRename(): void {
+  renamingThreadId.value = ''
+  threadRenameDraft.value = ''
+}
+
+function submitThreadRename(thread: UiThread): void {
+  if (renamingThreadId.value !== thread.id) return
+
+  const nextTitle = threadRenameDraft.value.trim()
+  cancelThreadRename()
+  if (!nextTitle || nextTitle === thread.title) return
+
+  emit('rename-thread', {
+    threadId: thread.id,
+    title: nextTitle,
+  })
 }
 
 function getNewThreadButtonAriaLabel(projectName: string): string {
@@ -1082,6 +1176,10 @@ onBeforeUnmount(() => {
   @apply block text-sm leading-5 font-normal text-zinc-800 truncate whitespace-nowrap;
 }
 
+.thread-rename-input {
+  @apply block h-5 w-full min-w-0 rounded border border-zinc-300 bg-white px-1 text-sm leading-5 text-zinc-900 outline-none focus:border-zinc-500;
+}
+
 .thread-status-indicator {
   @apply w-2.5 h-2.5 rounded-full;
 }
@@ -1092,6 +1190,10 @@ onBeforeUnmount(() => {
 
 .thread-archive-button {
   @apply h-4 w-4 rounded p-0 text-xs text-zinc-600 flex items-center justify-center;
+}
+
+.thread-action-button {
+  @apply h-4 w-4 rounded p-0 text-xs text-zinc-600 flex items-center justify-center hover:text-zinc-900;
 }
 
 .thread-archive-button[data-confirm='true'] {

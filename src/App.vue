@@ -51,7 +51,7 @@
           :selected-thread-id="selectedThreadId" :is-loading="isLoadingThreads"
           :search-query="sidebarSearchQuery"
           @select="onSelectThread"
-          @archive="onArchiveThread" @start-new-thread="onStartNewThread" @rename-project="onRenameProject"
+          @archive="onArchiveThread" @rename-thread="onRenameThread" @start-new-thread="onStartNewThread" @rename-project="onRenameProject"
           @remove-project="onRemoveProject" @reorder-project="onReorderProject" />
       </section>
     </template>
@@ -166,6 +166,7 @@ const {
   selectThread,
   setThreadScrollState,
   archiveThreadById,
+  renameThreadById,
   sendMessageToSelectedThread,
   sendMessageToNewThread,
   interruptSelectedThreadTurn,
@@ -282,6 +283,10 @@ function onSelectThread(threadId: string): void {
 
 function onArchiveThread(threadId: string): void {
   void archiveThreadById(threadId)
+}
+
+function onRenameThread(payload: { threadId: string; title: string }): void {
+  void renameThreadById(payload.threadId, payload.title)
 }
 
 function onStartNewThread(projectName: string): void {

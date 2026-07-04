@@ -142,7 +142,8 @@ function toUiMessages(item: ThreadItem): UiMessage[] {
 }
 
 function pickThreadName(summary: Thread): string {
-  const direct = [summary.preview]
+  const rawSummary = summary as Thread & { name?: unknown; title?: unknown }
+  const direct = [rawSummary.name, rawSummary.title, summary.preview]
   for (const candidate of direct) {
     if (typeof candidate === 'string' && candidate.trim().length > 0) {
       return candidate.trim()

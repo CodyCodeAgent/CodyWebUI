@@ -1,6 +1,7 @@
 export type { ThreadListResponse } from '../../documentation/app-server-schemas/typescript/v2/ThreadListResponse'
 export type { ThreadReadResponse } from '../../documentation/app-server-schemas/typescript/v2/ThreadReadResponse'
 export type { ThreadLoadedListResponse } from '../../documentation/app-server-schemas/typescript/v2/ThreadLoadedListResponse'
+export type { ThreadSetNameResponse } from '../../documentation/app-server-schemas/typescript/v2/ThreadSetNameResponse'
 export type { Thread } from '../../documentation/app-server-schemas/typescript/v2/Thread'
 export type { ThreadItem } from '../../documentation/app-server-schemas/typescript/v2/ThreadItem'
 export type { Turn } from '../../documentation/app-server-schemas/typescript/v2/Turn'

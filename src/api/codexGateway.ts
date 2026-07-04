@@ -20,6 +20,7 @@ import type {
   SkillsListResponse,
   ThreadListResponse,
   ThreadReadResponse,
+  ThreadSetNameResponse,
 } from './appServerDtos'
 import { normalizeCodexApiError } from './codexErrors'
 import { normalizeThreadGroupsV2, normalizeThreadMessagesV2 } from './normalizers/v2'
@@ -173,6 +174,17 @@ export async function resumeThread(threadId: string): Promise<void> {
 
 export async function archiveThread(threadId: string): Promise<void> {
   await callRpc('thread/archive', { threadId })
+}
+
+export async function renameThread(threadId: string, name: string): Promise<void> {
+  const normalizedThreadId = threadId.trim()
+  const normalizedName = name.trim()
+  if (!normalizedThreadId || !normalizedName) return
+
+  await callRpc<ThreadSetNameResponse>('thread/name/set', {
+    threadId: normalizedThreadId,
+    name: normalizedName,
+  })
 }
 
 function normalizeThreadIdFromPayload(payload: unknown): string {
