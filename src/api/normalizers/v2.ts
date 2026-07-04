@@ -161,7 +161,7 @@ function toUiThread(summary: Thread): UiThread {
   return {
     id: summary.id,
     title: toThreadTitle(summary),
-    projectName: toProjectName(summary.cwd),
+    projectName: summary.cwd || toProjectName(summary.cwd),
     cwd: summary.cwd,
     createdAtIso: toIso(summary.createdAt),
     updatedAtIso: toIso(summary.updatedAt),
@@ -182,6 +182,7 @@ function groupThreadsByProject(threads: UiThread[]): UiProjectGroup[] {
   return Array.from(grouped.entries())
     .map(([projectName, projectThreads]) => ({
       projectName,
+      cwd: projectName,
       threads: projectThreads.sort(
         (a, b) => new Date(b.updatedAtIso).getTime() - new Date(a.updatedAtIso).getTime(),
       ),

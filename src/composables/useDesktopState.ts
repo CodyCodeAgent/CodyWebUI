@@ -220,6 +220,7 @@ function orderGroupsByProjectOrder(incoming: UiProjectGroup[], projectOrder: str
     }
     return {
       projectName,
+      cwd: projectName,
       threads: [],
     }
   })
@@ -536,6 +537,7 @@ function mergeThreadGroups(
 
     return {
       projectName: incomingGroup.projectName,
+      cwd: incomingGroup.cwd,
       threads: mergedThreads,
     }
   })
@@ -730,6 +732,7 @@ export function useDesktopState() {
   function applyThreadFlags(): void {
     const flaggedGroups: UiProjectGroup[] = sourceGroups.value.map((group) => ({
       projectName: group.projectName,
+      cwd: group.cwd,
       threads: group.threads.map((thread) => {
         const inProgress = inProgressById.value[thread.id] === true
         const isSelected = selectedThreadId.value === thread.id

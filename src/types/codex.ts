@@ -150,6 +150,7 @@ export type UiLiveOverlay = {
 
 export type UiProjectGroup = {
   projectName: string
+  cwd: string
   threads: UiThread[]
 }
 

@@ -114,7 +114,12 @@
               :data-dragging-handle="isDraggingProject(group.projectName)"
               @mousedown.left="onProjectHandleMouseDown($event, group.projectName)"
             >
-              <span class="project-title">{{ getProjectDisplayName(group.projectName) }}</span>
+              <span class="project-title" :title="getProjectTitleText(group)">
+                <span class="project-title-name">{{ getProjectDisplayName(group.projectName) }}</span>
+                <span v-if="getProjectPath(group)" class="project-title-path">
+                  ({{ getProjectPath(group) }})
+                </span>
+              </span>
             </span>
             <template #right-hover>
               <div class="project-hover-controls">
@@ -642,7 +647,22 @@ function onThreadRowLeave(threadId: string): void {
 }
 
 function getProjectDisplayName(projectName: string): string {
-  return props.projectDisplayNameById[projectName] ?? projectName
+  return props.projectDisplayNameById[projectName] ?? basenameFromPath(projectName)
+}
+
+function getProjectPath(group: UiProjectGroup): string {
+  return group.cwd || group.threads[0]?.cwd || group.projectName
+}
+
+function getProjectTitleText(group: UiProjectGroup): string {
+  const displayName = getProjectDisplayName(group.projectName)
+  const path = getProjectPath(group)
+  return path ? `${displayName} (${path})` : displayName
+}
+
+function basenameFromPath(value: string): string {
+  const parts = value.split('/').filter(Boolean)
+  return parts.at(-1) ?? value
 }
 
 function isProjectMenuOpen(projectName: string): boolean {
@@ -1241,7 +1261,15 @@ onBeforeUnmount(() => {
 }
 
 .project-title {
-  @apply text-sm font-normal text-zinc-700 truncate select-none;
+  @apply min-w-0 text-sm font-normal text-zinc-700 truncate select-none;
+}
+
+.project-title-name {
+  @apply align-baseline;
+}
+
+.project-title-path {
+  @apply ml-1 align-baseline text-xs text-zinc-400;
 }
 
 .project-menu-wrap {

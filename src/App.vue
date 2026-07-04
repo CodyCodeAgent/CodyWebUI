@@ -244,12 +244,17 @@ const newThreadFolderOptions = computed(() => {
     seenCwds.add(cwd)
     options.push({
       value: cwd,
-      label: projectDisplayNameById.value[group.projectName] ?? group.projectName,
+      label: projectDisplayNameById.value[group.projectName] ?? basenameFromPath(group.projectName),
     })
   }
 
   return options
 })
+
+function basenameFromPath(value: string): string {
+  const parts = value.split('/').filter(Boolean)
+  return parts.at(-1) ?? value
+}
 
 onMounted(() => {
   window.addEventListener('keydown', onWindowKeyDown)
