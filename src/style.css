@@ -133,6 +133,7 @@
 .app-dark .content-title,
 .app-dark .new-thread-hero,
 .app-dark .message-heading,
+.app-dark .message-strong,
 .app-dark .composer-dropdown-option,
 .app-dark .thread-composer-skill-option-name,
 .app-dark .directory-picker-title,
@@ -189,6 +190,30 @@
 .app-dark .message-card[data-role='assistant'],
 .app-dark .message-card[data-role='system'] {
   color: #dbe1ea;
+}
+
+.app-dark .message-markdown .message-text,
+.app-dark .message-markdown .message-list,
+.app-dark .message-markdown .message-heading,
+.app-dark .message-markdown .message-strong {
+  color: #f3f4f6;
+}
+
+.app-dark .message-markdown .message-blockquote {
+  border-color: #475569;
+  color: #b8c0cc;
+}
+
+.app-dark .message-markdown .message-inline-code {
+  background: #252b36;
+  border-color: #3a4250;
+  color: #f4f4f5;
+}
+
+.app-dark .message-markdown .message-code-block {
+  background: #05070c;
+  border-color: #303643;
+  color: #e5e7eb;
 }
 
 .app-dark .message-inline-code,

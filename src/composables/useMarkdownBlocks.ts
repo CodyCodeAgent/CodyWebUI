@@ -1,5 +1,6 @@
 type InlineSegment =
   | { kind: 'text'; value: string }
+  | { kind: 'strong'; value: string }
   | { kind: 'code'; value: string }
   | { kind: 'file'; value: string; displayName: string }
 
@@ -51,8 +52,44 @@ function parseFileReference(value: string): { path: string; line: number | null 
   return { path: pathValue, line }
 }
 
+function parseStrongSegments(text: string): InlineSegment[] {
+  if (!text.includes('**')) return [{ kind: 'text', value: text }]
+
+  const segments: InlineSegment[] = []
+  let cursor = 0
+
+  while (cursor < text.length) {
+    const start = text.indexOf('**', cursor)
+    if (start < 0) break
+
+    const end = text.indexOf('**', start + 2)
+    if (end < 0) break
+
+    const strongText = text.slice(start + 2, end)
+    if (strongText.trim().length === 0) {
+      break
+    }
+
+    if (start > cursor) {
+      segments.push({ kind: 'text', value: text.slice(cursor, start) })
+    }
+    segments.push({ kind: 'strong', value: strongText })
+    cursor = end + 2
+  }
+
+  if (cursor < text.length) {
+    segments.push({ kind: 'text', value: text.slice(cursor) })
+  }
+
+  return segments.length > 0 ? segments : [{ kind: 'text', value: text }]
+}
+
+function pushTextSegments(segments: InlineSegment[], text: string): void {
+  segments.push(...parseStrongSegments(text))
+}
+
 export function parseInlineSegments(text: string): InlineSegment[] {
-  if (!text.includes('`')) return [{ kind: 'text', value: text }]
+  if (!text.includes('`')) return parseStrongSegments(text)
 
   const segments: InlineSegment[] = []
   let cursor = 0
@@ -94,7 +131,7 @@ export function parseInlineSegments(text: string): InlineSegment[] {
     }
 
     if (cursor > textStart) {
-      segments.push({ kind: 'text', value: text.slice(textStart, cursor) })
+      pushTextSegments(segments, text.slice(textStart, cursor))
     }
 
     const token = text.slice(cursor + openLength, closingStart)
@@ -116,10 +153,15 @@ export function parseInlineSegments(text: string): InlineSegment[] {
   }
 
   if (textStart < text.length) {
-    segments.push({ kind: 'text', value: text.slice(textStart) })
+    pushTextSegments(segments, text.slice(textStart))
   }
 
   return segments
+}
+
+function stripFenceIndent(line: string, indent: string): string {
+  if (!indent) return line
+  return line.startsWith(indent) ? line.slice(indent.length) : line
 }
 
 function flushParagraph(lines: string[], blocks: MarkdownBlock[]): void {
@@ -150,10 +192,11 @@ export function parseMarkdownBlocks(text: string): MarkdownBlock[] {
   const blocks: MarkdownBlock[] = []
   const paragraphLines: string[] = []
   let codeLanguage = ''
+  let codeFenceIndent = ''
   let codeLines: string[] | null = null
 
   for (const line of lines) {
-    const fenceMatch = line.match(/^```([A-Za-z0-9_-]+)?\s*$/u)
+    const fenceMatch = line.match(/^(\s*)```([A-Za-z0-9_-]+)?\s*$/u)
     if (fenceMatch) {
       if (codeLines) {
         blocks.push({
@@ -163,16 +206,18 @@ export function parseMarkdownBlocks(text: string): MarkdownBlock[] {
         })
         codeLines = null
         codeLanguage = ''
+        codeFenceIndent = ''
       } else {
         flushParagraph(paragraphLines, blocks)
-        codeLanguage = fenceMatch[1] ?? ''
+        codeFenceIndent = fenceMatch[1] ?? ''
+        codeLanguage = fenceMatch[2] ?? ''
         codeLines = []
       }
       continue
     }
 
     if (codeLines) {
-      codeLines.push(line)
+      codeLines.push(stripFenceIndent(line, codeFenceIndent))
       continue
     }
 
