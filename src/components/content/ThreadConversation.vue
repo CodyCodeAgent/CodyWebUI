@@ -115,11 +115,20 @@
                 </li>
               </ul>
 
-              <article v-if="message.text.length > 0" class="message-card" :data-role="message.role">
+              <article
+                v-if="message.text.length > 0"
+                class="message-card"
+                :data-role="message.role"
+                :data-message-type="message.messageType || ''"
+              >
                 <div v-if="message.messageType === 'worked'" class="worked-separator" aria-live="polite">
                   <span class="worked-separator-line" aria-hidden="true" />
                   <p class="worked-separator-text">{{ message.text }}</p>
                   <span class="worked-separator-line" aria-hidden="true" />
+                </div>
+                <div v-else-if="message.messageType === 'plan' || message.messageType === 'plan.live'" class="plan-message">
+                  <p class="plan-message-title">Plan</p>
+                  <MessageMarkdown :text="message.text" />
                 </div>
                 <MessageMarkdown v-else :text="message.text" />
               </article>
@@ -945,6 +954,14 @@ onBeforeUnmount(() => {
 .message-card[data-role='assistant'],
 .message-card[data-role='system'] {
   @apply px-0 py-0 bg-transparent border-none rounded-none;
+}
+
+.plan-message {
+  @apply border-l-2 border-slate-300 pl-3;
+}
+
+.plan-message-title {
+  @apply mb-2 mt-0 text-xs font-semibold uppercase tracking-normal text-slate-500;
 }
 
 .conversation-item[data-message-type='worked'] .message-stack,

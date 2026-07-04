@@ -110,6 +110,17 @@ function toUiMessages(item: ThreadItem): UiMessage[] {
     ]
   }
 
+  if (item.type === 'plan') {
+    return [
+      {
+        id: item.id,
+        role: 'assistant',
+        text: item.text,
+        messageType: item.type,
+      },
+    ]
+  }
+
   if (item.type === 'userMessage') {
     const parsed = parseUserMessageContent(item.id, item.content as UserInput[] | undefined)
     const messages: UiMessage[] = []

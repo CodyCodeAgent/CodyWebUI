@@ -135,9 +135,13 @@
 
               <ThreadComposer :active-thread-id="composerThreadContextId" :disabled="isSendingMessage"
                 :models="availableModelIds" :selected-model="selectedModelId"
-                :selected-reasoning-effort="selectedReasoningEffort" :is-turn-in-progress="false"
+                :selected-reasoning-effort="selectedReasoningEffort"
+                :collaboration-modes="collaborationModeOptions"
+                :selected-collaboration-mode="selectedCollaborationModeName"
+                :is-turn-in-progress="false"
                 :is-interrupting-turn="false" :cwd="newThreadCwd" @submit="onSubmitThreadMessage"
-                @update:selected-model="onSelectModel" @update:selected-reasoning-effort="onSelectReasoningEffort" />
+                @update:selected-model="onSelectModel" @update:selected-reasoning-effort="onSelectReasoningEffort"
+                @update:selected-collaboration-mode="onSelectCollaborationMode" />
             </div>
           </template>
           <template v-else>
@@ -154,10 +158,13 @@
               <ThreadComposer :active-thread-id="composerThreadContextId"
                 :disabled="isSendingMessage || isLoadingMessages" :models="availableModelIds"
                 :selected-model="selectedModelId" :selected-reasoning-effort="selectedReasoningEffort"
+                :collaboration-modes="collaborationModeOptions"
+                :selected-collaboration-mode="selectedCollaborationModeName"
                 :cwd="selectedThread?.cwd ?? ''"
                 :is-turn-in-progress="isSelectedThreadInProgress" :is-interrupting-turn="isInterruptingTurn"
                 @submit="onSubmitThreadMessage" @update:selected-model="onSelectModel"
-                @update:selected-reasoning-effort="onSelectReasoningEffort" @interrupt="onInterruptTurn" />
+                @update:selected-reasoning-effort="onSelectReasoningEffort"
+                @update:selected-collaboration-mode="onSelectCollaborationMode" @interrupt="onInterruptTurn" />
             </div>
           </template>
         </section>
@@ -218,6 +225,8 @@ const {
   availableModelIds,
   selectedModelId,
   selectedReasoningEffort,
+  collaborationModeOptions,
+  selectedCollaborationModeName,
   messages,
   isLoadingThreads,
   isLoadingMessages,
@@ -241,6 +250,7 @@ const {
   interruptSelectedThreadTurn,
   setSelectedModelId,
   setSelectedReasoningEffort,
+  setSelectedCollaborationModeName,
   respondToPendingServerRequest,
   renameProject,
   removeProject,
@@ -515,6 +525,10 @@ function onSelectModel(modelId: string): void {
 
 function onSelectReasoningEffort(effort: ReasoningEffort | ''): void {
   setSelectedReasoningEffort(effort)
+}
+
+function onSelectCollaborationMode(name: string): void {
+  setSelectedCollaborationModeName(name)
 }
 
 function onInterruptTurn(): void {

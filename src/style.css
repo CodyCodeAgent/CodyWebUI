@@ -229,6 +229,14 @@
   color: #b8c0cc;
 }
 
+.app-dark .plan-message {
+  border-color: #475569;
+}
+
+.app-dark .plan-message-title {
+  color: #9ca3af;
+}
+
 .app-dark .live-overlay-details {
   border-color: #3a4250;
 }

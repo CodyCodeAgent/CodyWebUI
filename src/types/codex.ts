@@ -3,6 +3,7 @@ export type RpcEnvelope<T> = {
 }
 
 export type ReasoningEffort = 'none' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh'
+export type UiCollaborationModeKind = 'default' | 'plan'
 
 export type RpcMethodCatalog = {
   data: string[]
@@ -94,6 +95,15 @@ export type UiComposerSkill = {
   path: string
   description: string
   displayName: string
+}
+
+export type UiCollaborationModeOption = {
+  name: string
+  mode: UiCollaborationModeKind
+  label: string
+  model: string
+  reasoningEffort: ReasoningEffort | ''
+  developerInstructions: string | null
 }
 
 export type UiComposerSubmitPayload = {

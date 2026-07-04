@@ -10,6 +10,7 @@ import {
   type UploadedLocalImage,
 } from './codexRpcClient'
 import type {
+  CollaborationModeListResponse,
   ConfigReadResponse,
   GetAccountRateLimitsResponse,
   ModelListResponse,
@@ -31,6 +32,7 @@ import { normalizeThreadGroupsV2, normalizeThreadMessagesV2 } from './normalizer
 import type {
   UiComposerImage,
   UiComposerSkill,
+  UiCollaborationModeOption,
   UiMessage,
   UiProjectGroup,
   UiRateLimitSnapshot,
@@ -48,6 +50,15 @@ type AccountRateLimitsPayload = GetAccountRateLimitsResponse & {
   } | null
 }
 
+type TurnCollaborationMode = {
+  mode: UiCollaborationModeOption['mode']
+  settings: {
+    model: string
+    reasoning_effort: ReasoningEffort | null
+    developer_instructions: string | null
+  }
+}
+
 async function callRpc<T>(method: string, params?: unknown): Promise<T> {
   try {
     return await rpcCall<T>(method, params)
@@ -61,6 +72,30 @@ function normalizeReasoningEffort(value: unknown): ReasoningEffort | '' {
   return typeof value === 'string' && allowed.includes(value as ReasoningEffort)
     ? (value as ReasoningEffort)
     : ''
+}
+
+function normalizeCollaborationModeLabel(name: string, mode: UiCollaborationModeOption['mode']): string {
+  const normalizedName = name.trim()
+  if (normalizedName.length > 0) {
+    return normalizedName
+      .replace(/[-_]+/gu, ' ')
+      .replace(/\b\w/gu, (letter) => letter.toUpperCase())
+  }
+  return mode === 'plan' ? 'Plan' : 'Default'
+}
+
+function normalizeCollaborationModeOption(row: CollaborationModeListResponse['data'][number]): UiCollaborationModeOption | null {
+  const mode = row.mode === 'plan' || row.mode === 'default' ? row.mode : null
+  if (!mode) return null
+  const name = row.name.trim() || mode
+  return {
+    name,
+    mode,
+    label: normalizeCollaborationModeLabel(name, mode),
+    model: row.model?.trim() ?? '',
+    reasoningEffort: normalizeReasoningEffort(row.reasoning_effort),
+    developerInstructions: row.developer_instructions,
+  }
 }
 
 function normalizeRateLimitWindow(window: RateLimitWindow | null | undefined): UiRateLimitWindow | null {
@@ -156,6 +191,22 @@ export async function getAccountRateLimits(): Promise<UiRateLimitSnapshot | null
       ? payload.rateLimitResetCredits.availableCount
       : null
   return normalizeRateLimitSnapshot(pickPrimaryAccountLimit(payload), resetCredits)
+}
+
+export async function getCollaborationModes(): Promise<UiCollaborationModeOption[]> {
+  const payload = await callRpc<CollaborationModeListResponse>('collaborationMode/list', {})
+  const options: UiCollaborationModeOption[] = []
+  const seen = new Set<string>()
+
+  for (const row of payload.data) {
+    const option = normalizeCollaborationModeOption(row)
+    if (!option) continue
+    if (seen.has(option.name)) continue
+    seen.add(option.name)
+    options.push(option)
+  }
+
+  return options
 }
 
 export async function replyToServerRequest(
@@ -257,6 +308,7 @@ export async function startThreadTurn(
   skills: UiComposerSkill[],
   model?: string,
   effort?: ReasoningEffort,
+  collaborationMode?: TurnCollaborationMode | null,
 ): Promise<string> {
   try {
     const params: Record<string, unknown> = {
@@ -268,6 +320,9 @@ export async function startThreadTurn(
     }
     if (typeof effort === 'string' && effort.length > 0) {
       params.effort = effort
+    }
+    if (collaborationMode && collaborationMode.mode === 'plan') {
+      params.collaborationMode = collaborationMode
     }
     const payload = await callRpc<TurnStartResponse>('turn/start', params)
     const turnId = payload.turn.id.trim()

@@ -97,6 +97,16 @@
 
         <ComposerDropdown
           class="thread-composer-control"
+          :model-value="selectedCollaborationMode"
+          :options="collaborationModeOptions"
+          placeholder="Mode"
+          open-direction="up"
+          :disabled="disabled || !activeThreadId || collaborationModes.length === 0 || isTurnInProgress"
+          @update:model-value="onCollaborationModeSelect"
+        />
+
+        <ComposerDropdown
+          class="thread-composer-control"
           :model-value="selectedModel"
           :options="modelOptions"
           placeholder="Default"
@@ -149,7 +159,12 @@
 import { computed, nextTick, ref, watch } from 'vue'
 import { hasImageFile, useComposerImages } from '../../composables/useComposerImages'
 import { useComposerSkills } from '../../composables/useComposerSkills'
-import type { ReasoningEffort, UiComposerSkill, UiComposerSubmitPayload } from '../../types/codex'
+import type {
+  ReasoningEffort,
+  UiCollaborationModeOption,
+  UiComposerSkill,
+  UiComposerSubmitPayload,
+} from '../../types/codex'
 import IconTablerArrowUp from '../icons/IconTablerArrowUp.vue'
 import IconTablerPhoto from '../icons/IconTablerPhoto.vue'
 import IconTablerPlayerStopFilled from '../icons/IconTablerPlayerStopFilled.vue'
@@ -161,6 +176,8 @@ const props = defineProps<{
   models: string[]
   selectedModel: string
   selectedReasoningEffort: ReasoningEffort | ''
+  collaborationModes: UiCollaborationModeOption[]
+  selectedCollaborationMode: string
   cwd: string
   isTurnInProgress?: boolean
   isInterruptingTurn?: boolean
@@ -172,6 +189,7 @@ const emit = defineEmits<{
   interrupt: []
   'update:selected-model': [modelId: string]
   'update:selected-reasoning-effort': [effort: ReasoningEffort | '']
+  'update:selected-collaboration-mode': [name: string]
 }>()
 
 const draft = ref('')
@@ -208,6 +226,9 @@ const reasoningOptions: Array<{ value: ReasoningEffort; label: string }> = [
 ]
 const modelOptions = computed(() =>
   props.models.map((modelId) => ({ value: modelId, label: modelId })),
+)
+const collaborationModeOptions = computed(() =>
+  props.collaborationModes.map((mode) => ({ value: mode.name, label: mode.label })),
 )
 
 const canSubmit = computed(() => {
@@ -291,6 +312,10 @@ function onModelSelect(value: string): void {
 
 function onReasoningEffortSelect(value: string): void {
   emit('update:selected-reasoning-effort', value as ReasoningEffort)
+}
+
+function onCollaborationModeSelect(value: string): void {
+  emit('update:selected-collaboration-mode', value)
 }
 
 function openFilePicker(): void {
