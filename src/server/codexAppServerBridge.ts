@@ -275,6 +275,9 @@ class AppServerProcess {
         name: 'codex-web-local',
         version: '0.1.0',
       },
+      capabilities: {
+        experimentalApi: true,
+      },
     })
 
     this.initialized = true
