@@ -12,6 +12,7 @@ import {
   startThread,
   subscribeCodexNotifications,
   startThreadTurn,
+  steerThreadTurn,
   type RpcNotification,
 } from '../api/codexGateway'
 import type {
@@ -1603,6 +1604,11 @@ export function useDesktopState() {
     const nextImages = payload.images
     if (!threadId || (!nextText && nextImages.length === 0)) return
 
+    if (inProgressById.value[threadId] === true) {
+      await steerActiveTurn(threadId, nextText, nextImages)
+      return
+    }
+
     isSendingMessage.value = true
     error.value = ''
     shouldAutoScrollOnNextAgentEvent = true
@@ -1621,6 +1627,38 @@ export function useDesktopState() {
       setThreadInProgress(threadId, false)
       setTurnActivityForThread(threadId, null)
       const errorMessage = unknownError instanceof Error ? unknownError.message : 'Unknown application error'
+      setTurnErrorForThread(threadId, errorMessage)
+      error.value = errorMessage
+      throw unknownError
+    } finally {
+      isSendingMessage.value = false
+    }
+  }
+
+  async function steerActiveTurn(
+    threadId: string,
+    nextText: string,
+    nextImages: UiComposerSubmitPayload['images'],
+  ): Promise<void> {
+    const turnId = activeTurnIdByThreadId.value[threadId]
+
+    isSendingMessage.value = true
+    error.value = ''
+    shouldAutoScrollOnNextAgentEvent = true
+    setTurnActivityForThread(
+      threadId,
+      { label: 'Steering response', details: buildPendingTurnDetails(selectedModelId.value, selectedReasoningEffort.value) },
+    )
+    setTurnErrorForThread(threadId, null)
+
+    try {
+      await steerThreadTurn(threadId, turnId, nextText, nextImages)
+      pendingThreadMessageRefresh.add(threadId)
+      pendingThreadsRefresh = true
+      await syncFromNotifications()
+    } catch (unknownError) {
+      shouldAutoScrollOnNextAgentEvent = false
+      const errorMessage = unknownError instanceof Error ? unknownError.message : 'Failed to steer active turn'
       setTurnErrorForThread(threadId, errorMessage)
       error.value = errorMessage
       throw unknownError

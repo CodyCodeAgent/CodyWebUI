@@ -15,7 +15,7 @@
             class="thread-composer-image-remove"
             type="button"
             aria-label="Remove image"
-            :disabled="disabled || isTurnInProgress"
+            :disabled="disabled"
             @click="removeImage(image.id)"
           >
             <IconTablerX class="thread-composer-image-remove-icon" />
@@ -29,7 +29,7 @@
         class="thread-composer-input"
         rows="1"
         :placeholder="placeholderText"
-        :disabled="disabled || !activeThreadId || isTurnInProgress"
+        :disabled="disabled || !activeThreadId"
         @input="resizeDraftInput"
         @paste="onPaste"
         @keydown.enter="onDraftEnterKeydown"
@@ -50,7 +50,7 @@
           type="button"
           aria-label="Attach images"
           title="Attach images"
-          :disabled="disabled || !activeThreadId || isTurnInProgress || isUploadingImage"
+          :disabled="disabled || !activeThreadId || isUploadingImage"
           @click="openFilePicker"
         >
           <IconTablerPhoto class="thread-composer-attach-icon" />
@@ -90,11 +90,10 @@
           <IconTablerPlayerStopFilled class="thread-composer-stop-icon" />
         </button>
         <button
-          v-else
           class="thread-composer-submit"
           type="submit"
-          aria-label="Send message with Control Enter"
-          title="Send with Control Enter"
+          :aria-label="isTurnInProgress ? 'Steer current response with Control Enter' : 'Send message with Control Enter'"
+          :title="isTurnInProgress ? 'Steer with Control Enter' : 'Send with Control Enter'"
           :disabled="!canSubmit"
         >
           <IconTablerArrowUp class="thread-composer-submit-icon" />
@@ -158,15 +157,18 @@ const modelOptions = computed(() =>
 const canSubmit = computed(() => {
   if (props.disabled) return false
   if (!props.activeThreadId) return false
-  if (props.isTurnInProgress) return false
   if (isUploadingImage.value) return false
   return draft.value.trim().length > 0 || attachedImages.value.length > 0
 })
 
 const placeholderText = computed(() =>
-  props.activeThreadId ? 'Type a message...' : 'Select a thread to send a message',
+  props.activeThreadId
+    ? props.isTurnInProgress
+      ? 'Guide the current response...'
+      : 'Type a message...'
+    : 'Select a thread to send a message',
 )
-const canAttachImages = computed(() => !props.disabled && Boolean(props.activeThreadId) && props.isTurnInProgress !== true)
+const canAttachImages = computed(() => !props.disabled && Boolean(props.activeThreadId))
 const isDraggingImages = computed(() => canAttachImages.value && dragDepth.value > 0)
 
 function onSubmit(): void {

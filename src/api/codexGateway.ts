@@ -151,21 +151,9 @@ export async function startThreadTurn(
   effort?: ReasoningEffort,
 ): Promise<void> {
   try {
-    const input: Array<Record<string, unknown>> = []
-    const normalizedText = text.trim()
-    if (normalizedText.length > 0) {
-      input.push({ type: 'text', text: normalizedText, text_elements: [] })
-    }
-    for (const image of images) {
-      const path = image.path.trim()
-      if (path.length > 0) {
-        input.push({ type: 'localImage', path })
-      }
-    }
-
     const params: Record<string, unknown> = {
       threadId,
-      input,
+      input: buildTurnInput(text, images),
     }
     if (typeof model === 'string' && model.length > 0) {
       params.model = model
@@ -176,6 +164,45 @@ export async function startThreadTurn(
     await callRpc('turn/start', params)
   } catch (error) {
     throw normalizeCodexApiError(error, `Failed to start turn for thread ${threadId}`, 'turn/start')
+  }
+}
+
+function buildTurnInput(text: string, images: UiComposerImage[]): Array<Record<string, unknown>> {
+  const input: Array<Record<string, unknown>> = []
+  const normalizedText = text.trim()
+  if (normalizedText.length > 0) {
+    input.push({ type: 'text', text: normalizedText, text_elements: [] })
+  }
+  for (const image of images) {
+    const path = image.path.trim()
+    if (path.length > 0) {
+      input.push({ type: 'localImage', path })
+    }
+  }
+  return input
+}
+
+export async function steerThreadTurn(
+  threadId: string,
+  expectedTurnId: string,
+  text: string,
+  images: UiComposerImage[],
+): Promise<void> {
+  const normalizedThreadId = threadId.trim()
+  const normalizedTurnId = expectedTurnId.trim()
+  if (!normalizedThreadId) return
+
+  try {
+    if (!normalizedTurnId) {
+      throw new Error('turn/steer requires an active turn id')
+    }
+    await callRpc('turn/steer', {
+      threadId: normalizedThreadId,
+      expectedTurnId: normalizedTurnId,
+      input: buildTurnInput(text, images),
+    })
+  } catch (error) {
+    throw normalizeCodexApiError(error, `Failed to steer turn for thread ${normalizedThreadId}`, 'turn/steer')
   }
 }
 
