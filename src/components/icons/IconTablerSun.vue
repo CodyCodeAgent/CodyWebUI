@@ -1,0 +1,21 @@
+<template>
+  <svg
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    stroke-width="2"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+    aria-hidden="true"
+  >
+    <circle cx="12" cy="12" r="4" />
+    <path d="M3 12h1" />
+    <path d="M20 12h1" />
+    <path d="M12 3v1" />
+    <path d="M12 20v1" />
+    <path d="m5.6 5.6.7.7" />
+    <path d="m17.7 17.7.7.7" />
+    <path d="m18.4 5.6-.7.7" />
+    <path d="m6.3 17.7-.7.7" />
+  </svg>
+</template>

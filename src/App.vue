@@ -1,5 +1,5 @@
 <template>
-  <DesktopLayout :is-sidebar-collapsed="isSidebarCollapsed">
+  <DesktopLayout :is-sidebar-collapsed="isSidebarCollapsed" :class="{ 'app-dark': isDarkMode }">
     <template #sidebar>
       <section class="sidebar-root">
         <SidebarThreadControls
@@ -13,6 +13,17 @@
           @toggle-auto-refresh="onToggleAutoRefreshTimer"
           @start-new-thread="onStartNewThreadFromToolbar"
         >
+          <button
+            class="sidebar-search-toggle"
+            type="button"
+            :aria-pressed="isDarkMode"
+            :aria-label="isDarkMode ? 'Switch to light mode' : 'Switch to dark mode'"
+            :title="isDarkMode ? 'Light mode' : 'Dark mode'"
+            @click="toggleDarkMode"
+          >
+            <IconTablerSun v-if="isDarkMode" class="sidebar-search-toggle-icon" />
+            <IconTablerMoon v-else class="sidebar-search-toggle-icon" />
+          </button>
           <button
             class="sidebar-search-toggle"
             type="button"
@@ -82,6 +93,17 @@
               @toggle-auto-refresh="onToggleAutoRefreshTimer"
               @start-new-thread="onStartNewThreadFromToolbar"
             >
+              <button
+                class="sidebar-search-toggle"
+                type="button"
+                :aria-pressed="isDarkMode"
+                :aria-label="isDarkMode ? 'Switch to light mode' : 'Switch to dark mode'"
+                :title="isDarkMode ? 'Light mode' : 'Dark mode'"
+                @click="toggleDarkMode"
+              >
+                <IconTablerSun v-if="isDarkMode" class="sidebar-search-toggle-icon" />
+                <IconTablerMoon v-else class="sidebar-search-toggle-icon" />
+              </button>
               <button
                 class="sidebar-search-toggle"
                 type="button"
@@ -173,12 +195,15 @@ import NewThreadSetupModal, { type NewThreadProjectOption } from './components/c
 import RateLimitFloatingStatus from './components/content/RateLimitFloatingStatus.vue'
 import SidebarThreadControls from './components/sidebar/SidebarThreadControls.vue'
 import IconTablerFolder from './components/icons/IconTablerFolder.vue'
+import IconTablerMoon from './components/icons/IconTablerMoon.vue'
 import IconTablerSearch from './components/icons/IconTablerSearch.vue'
+import IconTablerSun from './components/icons/IconTablerSun.vue'
 import IconTablerX from './components/icons/IconTablerX.vue'
 import { useDesktopState } from './composables/useDesktopState'
 import type { ReasoningEffort, ThreadScrollState, UiComposerSubmitPayload } from './types/codex'
 
 const SIDEBAR_COLLAPSED_STORAGE_KEY = 'codex-web-local.sidebar-collapsed.v1'
+const DARK_MODE_STORAGE_KEY = 'codex-web-local.dark-mode.v1'
 
 const {
   projectGroups,
@@ -235,6 +260,7 @@ const newThreadDialogInitialCwd = ref('')
 const isNewThreadDialogOpen = ref(false)
 const isDirectoryPickerOpen = ref(false)
 const isSidebarCollapsed = ref(loadSidebarCollapsed())
+const isDarkMode = ref(loadDarkMode())
 const sidebarSearchQuery = ref('')
 const isSidebarSearchVisible = ref(false)
 const sidebarSearchInputRef = ref<HTMLInputElement | null>(null)
@@ -457,6 +483,11 @@ function setSidebarCollapsed(nextValue: boolean): void {
   saveSidebarCollapsed(nextValue)
 }
 
+function toggleDarkMode(): void {
+  isDarkMode.value = !isDarkMode.value
+  saveDarkMode(isDarkMode.value)
+}
+
 function onWindowKeyDown(event: KeyboardEvent): void {
   if (event.defaultPrevented) return
   if (!event.ctrlKey && !event.metaKey) return
@@ -498,6 +529,16 @@ function loadSidebarCollapsed(): boolean {
 function saveSidebarCollapsed(value: boolean): void {
   if (typeof window === 'undefined') return
   window.localStorage.setItem(SIDEBAR_COLLAPSED_STORAGE_KEY, value ? '1' : '0')
+}
+
+function loadDarkMode(): boolean {
+  if (typeof window === 'undefined') return false
+  return window.localStorage.getItem(DARK_MODE_STORAGE_KEY) === '1'
+}
+
+function saveDarkMode(value: boolean): void {
+  if (typeof window === 'undefined') return
+  window.localStorage.setItem(DARK_MODE_STORAGE_KEY, value ? '1' : '0')
 }
 
 function normalizeMessageType(rawType: string | undefined, role: string): string {
