@@ -23,6 +23,15 @@
           >
             <IconTablerSearch class="sidebar-search-toggle-icon" />
           </button>
+          <button
+            class="sidebar-search-toggle"
+            type="button"
+            aria-label="Add project"
+            title="Add project"
+            @click="openDirectoryPicker"
+          >
+            <IconTablerFolder class="sidebar-search-toggle-icon" />
+          </button>
         </SidebarThreadControls>
 
         <div v-if="!isSidebarCollapsed && isSidebarSearchVisible" class="sidebar-search-bar">
@@ -72,7 +81,17 @@
               @toggle-sidebar="setSidebarCollapsed(!isSidebarCollapsed)"
               @toggle-auto-refresh="onToggleAutoRefreshTimer"
               @start-new-thread="onStartNewThreadFromToolbar"
-            />
+            >
+              <button
+                class="sidebar-search-toggle"
+                type="button"
+                aria-label="Add project"
+                title="Add project"
+                @click="openDirectoryPicker"
+              >
+                <IconTablerFolder class="sidebar-search-toggle-icon" />
+              </button>
+            </SidebarThreadControls>
           </template>
         </ContentHeader>
 
@@ -123,6 +142,13 @@
       </section>
     </template>
   </DesktopLayout>
+
+  <DirectoryPickerModal
+    v-if="isDirectoryPickerOpen"
+    :initial-path="directoryPickerInitialPath"
+    @close="isDirectoryPickerOpen = false"
+    @select="onSelectProjectDirectory"
+  />
 </template>
 
 <script setup lang="ts">
@@ -134,8 +160,10 @@ import ContentHeader from './components/content/ContentHeader.vue'
 import ThreadConversation from './components/content/ThreadConversation.vue'
 import ThreadComposer from './components/content/ThreadComposer.vue'
 import ComposerDropdown from './components/content/ComposerDropdown.vue'
+import DirectoryPickerModal from './components/content/DirectoryPickerModal.vue'
 import RateLimitFloatingStatus from './components/content/RateLimitFloatingStatus.vue'
 import SidebarThreadControls from './components/sidebar/SidebarThreadControls.vue'
+import IconTablerFolder from './components/icons/IconTablerFolder.vue'
 import IconTablerSearch from './components/icons/IconTablerSearch.vue'
 import IconTablerX from './components/icons/IconTablerX.vue'
 import { useDesktopState } from './composables/useDesktopState'
@@ -193,6 +221,7 @@ const router = useRouter()
 const isRouteSyncInProgress = ref(false)
 const hasInitialized = ref(false)
 const newThreadCwd = ref('')
+const isDirectoryPickerOpen = ref(false)
 const isSidebarCollapsed = ref(loadSidebarCollapsed())
 const sidebarSearchQuery = ref('')
 const isSidebarSearchVisible = ref(false)
@@ -234,6 +263,7 @@ const filteredMessages = computed(() =>
 const liveOverlay = computed(() => selectedLiveOverlay.value)
 const composerThreadContextId = computed(() => (isHomeRoute.value ? '__new-thread__' : selectedThreadId.value))
 const isSelectedThreadInProgress = computed(() => !isHomeRoute.value && selectedThread.value?.inProgress === true)
+const directoryPickerInitialPath = computed(() => newThreadCwd.value || selectedThread.value?.cwd || '')
 const newThreadFolderOptions = computed(() => {
   const options: Array<{ value: string; label: string }> = []
   const seenCwds = new Set<string>()
@@ -245,6 +275,14 @@ const newThreadFolderOptions = computed(() => {
     options.push({
       value: cwd,
       label: projectDisplayNameById.value[group.projectName] ?? basenameFromPath(group.projectName),
+    })
+  }
+
+  const selectedCwd = newThreadCwd.value.trim()
+  if (selectedCwd && !seenCwds.has(selectedCwd)) {
+    options.unshift({
+      value: selectedCwd,
+      label: basenameFromPath(selectedCwd),
     })
   }
 
@@ -285,6 +323,20 @@ function onSidebarSearchKeydown(event: KeyboardEvent): void {
     isSidebarSearchVisible.value = false
     sidebarSearchQuery.value = ''
   }
+}
+
+function openDirectoryPicker(): void {
+  isDirectoryPickerOpen.value = true
+}
+
+function onSelectProjectDirectory(path: string): void {
+  const normalizedPath = path.trim()
+  if (!normalizedPath) return
+
+  newThreadCwd.value = normalizedPath
+  isDirectoryPickerOpen.value = false
+  if (isHomeRoute.value) return
+  void router.push({ name: 'home' })
 }
 
 function onSelectThread(threadId: string): void {
@@ -504,7 +556,6 @@ watch(
   () => newThreadFolderOptions.value,
   (options) => {
     if (options.length === 0) {
-      newThreadCwd.value = ''
       return
     }
     const hasSelected = options.some((option) => option.value === newThreadCwd.value)

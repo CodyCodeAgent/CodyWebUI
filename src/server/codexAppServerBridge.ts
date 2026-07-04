@@ -3,6 +3,7 @@ import { mkdtemp, readFile } from 'node:fs/promises'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { handleDirectoryList } from './directoryBrowser.js'
 import { handleImageUpload, handleLocalImage } from './imageUploads.js'
 
 type JsonRpcCall = {
@@ -534,6 +535,11 @@ export function createCodexBridgeMiddleware(): CodexBridgeMiddleware {
 
       if ((req.method === 'GET' || req.method === 'HEAD') && url.pathname === '/codex-api/local-image') {
         await handleLocalImage(url, res, req.method)
+        return
+      }
+
+      if (req.method === 'GET' && url.pathname === '/codex-api/fs/directories') {
+        await handleDirectoryList(url, res)
         return
       }
 

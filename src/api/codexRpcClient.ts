@@ -1,4 +1,4 @@
-import type { RpcEnvelope, RpcMethodCatalog } from '../types/codex'
+import type { RpcEnvelope, RpcMethodCatalog, UiDirectoryListing } from '../types/codex'
 import { CodexApiError, extractErrorMessage } from './codexErrors'
 
 type RpcRequestBody = {
@@ -250,6 +250,53 @@ export async function fetchPendingServerRequests(): Promise<unknown[]> {
   const record = asRecord(payload)
   const data = record?.data
   return Array.isArray(data) ? data : []
+}
+
+export async function fetchDirectoryListing(path: string): Promise<UiDirectoryListing> {
+  const params = new URLSearchParams()
+  const normalizedPath = path.trim()
+  if (normalizedPath.length > 0) {
+    params.set('path', normalizedPath)
+  }
+
+  const response = await fetch(`/codex-api/fs/directories?${params.toString()}`)
+
+  let payload: unknown = null
+  try {
+    payload = await response.json()
+  } catch {
+    payload = null
+  }
+
+  if (!response.ok) {
+    throw new CodexApiError(
+      extractErrorMessage(payload, `Directory listing failed with HTTP ${response.status}`),
+      {
+        code: 'http_error',
+        method: 'fs/directories',
+        status: response.status,
+      },
+    )
+  }
+
+  const envelope = asRecord(payload)
+  const result = asRecord(envelope?.result)
+  const directories = Array.isArray(result?.directories) ? result.directories : []
+  const pathValue = typeof result?.path === 'string' ? result.path : ''
+  const parentPath = typeof result?.parentPath === 'string' ? result.parentPath : pathValue
+
+  return {
+    path: pathValue,
+    parentPath,
+    directories: directories
+      .map((entry) => {
+        const record = asRecord(entry)
+        const name = typeof record?.name === 'string' ? record.name : ''
+        const entryPath = typeof record?.path === 'string' ? record.path : ''
+        return name && entryPath ? { name, path: entryPath } : null
+      })
+      .filter((entry): entry is { name: string; path: string } => entry !== null),
+  }
 }
 
 export async function uploadLocalImage(file: File): Promise<UploadedLocalImage> {

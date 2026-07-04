@@ -102,6 +102,17 @@ export type UiComposerSubmitPayload = {
   skills: UiComposerSkill[]
 }
 
+export type UiDirectoryEntry = {
+  name: string
+  path: string
+}
+
+export type UiDirectoryListing = {
+  path: string
+  parentPath: string
+  directories: UiDirectoryEntry[]
+}
+
 export type UiRateLimitWindow = {
   usedPercent: number
   windowDurationMins: number | null
