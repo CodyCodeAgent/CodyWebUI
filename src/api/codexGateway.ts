@@ -24,6 +24,7 @@ import type {
   ThreadReadResponse,
   ThreadSetNameResponse,
   ThreadUnarchiveResponse,
+  TurnStartResponse,
 } from './appServerDtos'
 import { normalizeCodexApiError } from './codexErrors'
 import { normalizeThreadGroupsV2, normalizeThreadMessagesV2 } from './normalizers/v2'
@@ -256,7 +257,7 @@ export async function startThreadTurn(
   skills: UiComposerSkill[],
   model?: string,
   effort?: ReasoningEffort,
-): Promise<void> {
+): Promise<string> {
   try {
     const params: Record<string, unknown> = {
       threadId,
@@ -268,7 +269,12 @@ export async function startThreadTurn(
     if (typeof effort === 'string' && effort.length > 0) {
       params.effort = effort
     }
-    await callRpc('turn/start', params)
+    const payload = await callRpc<TurnStartResponse>('turn/start', params)
+    const turnId = payload.turn.id.trim()
+    if (!turnId) {
+      throw new Error('turn/start did not return a turn id')
+    }
+    return turnId
   } catch (error) {
     throw normalizeCodexApiError(error, `Failed to start turn for thread ${threadId}`, 'turn/start')
   }

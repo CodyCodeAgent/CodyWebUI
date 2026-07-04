@@ -1800,6 +1800,12 @@ export function useDesktopState() {
     nextSkills: UiComposerSubmitPayload['skills'],
   ): Promise<void> {
     const turnId = activeTurnIdByThreadId.value[threadId]
+    if (!turnId) {
+      const errorMessage = 'The current turn is still starting. Wait a moment and try again.'
+      setTurnErrorForThread(threadId, errorMessage)
+      error.value = errorMessage
+      throw new Error(errorMessage)
+    }
 
     isSendingMessage.value = true
     error.value = ''
@@ -1889,7 +1895,7 @@ export function useDesktopState() {
         await resumeThread(threadId)
       }
 
-      await startThreadTurn(
+      const turnId = await startThreadTurn(
         threadId,
         nextText,
         nextImages,
@@ -1897,6 +1903,10 @@ export function useDesktopState() {
         modelId || undefined,
         reasoningEffort || undefined,
       )
+      activeTurnIdByThreadId.value = {
+        ...activeTurnIdByThreadId.value,
+        [threadId]: turnId,
+      }
 
       resumedThreadById.value = {
         ...resumedThreadById.value,
@@ -1916,6 +1926,12 @@ export function useDesktopState() {
     if (!threadId) return
     if (inProgressById.value[threadId] !== true) return
     const turnId = activeTurnIdByThreadId.value[threadId]
+    if (!turnId) {
+      const errorMessage = 'The current turn is still starting. Wait a moment before interrupting.'
+      setTurnErrorForThread(threadId, errorMessage)
+      error.value = errorMessage
+      return
+    }
 
     isInterruptingTurn.value = true
     error.value = ''
