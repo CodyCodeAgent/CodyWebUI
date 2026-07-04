@@ -18,9 +18,12 @@ import type {
   ReasoningEffort,
   SkillMetadata,
   SkillsListResponse,
+  ThreadCompactStartResponse,
+  ThreadForkResponse,
   ThreadListResponse,
   ThreadReadResponse,
   ThreadSetNameResponse,
+  ThreadUnarchiveResponse,
 } from './appServerDtos'
 import { normalizeCodexApiError } from './codexErrors'
 import { normalizeThreadGroupsV2, normalizeThreadMessagesV2 } from './normalizers/v2'
@@ -98,9 +101,9 @@ function pickPrimaryAccountLimit(payload: AccountRateLimitsPayload): RateLimitSn
   return payload.rateLimitsByLimitId?.codex ?? payload.rateLimits ?? null
 }
 
-async function getThreadGroupsV2(): Promise<UiProjectGroup[]> {
+async function getThreadGroupsV2(archived = false): Promise<UiProjectGroup[]> {
   const payload = await callRpc<ThreadListResponse>('thread/list', {
-    archived: false,
+    archived,
     limit: 100,
     sortKey: 'updated_at',
   })
@@ -115,9 +118,9 @@ async function getThreadMessagesV2(threadId: string): Promise<UiMessage[]> {
   return normalizeThreadMessagesV2(payload)
 }
 
-export async function getThreadGroups(): Promise<UiProjectGroup[]> {
+export async function getThreadGroups(archived = false): Promise<UiProjectGroup[]> {
   try {
-    return await getThreadGroupsV2()
+    return await getThreadGroupsV2(archived)
   } catch (error) {
     throw normalizeCodexApiError(error, 'Failed to load thread groups', 'thread/list')
   }
@@ -176,6 +179,12 @@ export async function archiveThread(threadId: string): Promise<void> {
   await callRpc('thread/archive', { threadId })
 }
 
+export async function unarchiveThread(threadId: string): Promise<void> {
+  const normalizedThreadId = threadId.trim()
+  if (!normalizedThreadId) return
+  await callRpc<ThreadUnarchiveResponse>('thread/unarchive', { threadId: normalizedThreadId })
+}
+
 export async function renameThread(threadId: string, name: string): Promise<void> {
   const normalizedThreadId = threadId.trim()
   const normalizedName = name.trim()
@@ -184,6 +193,25 @@ export async function renameThread(threadId: string, name: string): Promise<void
   await callRpc<ThreadSetNameResponse>('thread/name/set', {
     threadId: normalizedThreadId,
     name: normalizedName,
+  })
+}
+
+export async function forkThread(threadId: string): Promise<string> {
+  const normalizedThreadId = threadId.trim()
+  if (!normalizedThreadId) return ''
+
+  const payload = await callRpc<ThreadForkResponse>('thread/fork', {
+    threadId: normalizedThreadId,
+    persistExtendedHistory: true,
+  })
+  return payload.thread.id
+}
+
+export async function compactThread(threadId: string): Promise<void> {
+  const normalizedThreadId = threadId.trim()
+  if (!normalizedThreadId) return
+  await callRpc<ThreadCompactStartResponse>('thread/compact/start', {
+    threadId: normalizedThreadId,
   })
 }
 

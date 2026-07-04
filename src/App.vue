@@ -49,9 +49,11 @@
         <SidebarThreadTree :groups="projectGroups" :project-display-name-by-id="projectDisplayNameById"
           v-if="!isSidebarCollapsed"
           :selected-thread-id="selectedThreadId" :is-loading="isLoadingThreads"
-          :search-query="sidebarSearchQuery"
+          :search-query="sidebarSearchQuery" :is-archive-view="isArchiveView"
           @select="onSelectThread"
-          @archive="onArchiveThread" @rename-thread="onRenameThread" @start-new-thread="onStartNewThread" @rename-project="onRenameProject"
+          @archive="onArchiveThread" @unarchive="onUnarchiveThread" @fork="onForkThread"
+          @compact="onCompactThread" @toggle-archive-view="onToggleArchiveView"
+          @rename-thread="onRenameThread" @start-new-thread="onStartNewThread" @rename-project="onRenameProject"
           @remove-project="onRemoveProject" @reorder-project="onReorderProject" />
       </section>
     </template>
@@ -149,6 +151,7 @@ const {
   selectedThreadServerRequests,
   selectedLiveOverlay,
   selectedThreadId,
+  isArchiveView,
   rateLimitSnapshot,
   availableModelIds,
   selectedModelId,
@@ -166,6 +169,10 @@ const {
   selectThread,
   setThreadScrollState,
   archiveThreadById,
+  unarchiveThreadById,
+  forkThreadById,
+  compactThreadById,
+  setArchiveView,
   renameThreadById,
   sendMessageToSelectedThread,
   sendMessageToNewThread,
@@ -283,6 +290,32 @@ function onSelectThread(threadId: string): void {
 
 function onArchiveThread(threadId: string): void {
   void archiveThreadById(threadId)
+}
+
+function onUnarchiveThread(threadId: string): void {
+  void unarchiveThreadById(threadId)
+}
+
+function onForkThread(threadId: string): void {
+  void forkThreadById(threadId).then((forkedThreadId) => {
+    if (forkedThreadId) {
+      void router.push({ name: 'thread', params: { threadId: forkedThreadId } })
+    }
+  })
+}
+
+function onCompactThread(threadId: string): void {
+  void compactThreadById(threadId)
+}
+
+function onToggleArchiveView(nextValue: boolean): void {
+  void setArchiveView(nextValue).then(() => {
+    if (selectedThreadId.value) {
+      void router.replace({ name: 'thread', params: { threadId: selectedThreadId.value } })
+      return
+    }
+    void router.replace({ name: 'home' })
+  })
 }
 
 function onRenameThread(payload: { threadId: string; title: string }): void {

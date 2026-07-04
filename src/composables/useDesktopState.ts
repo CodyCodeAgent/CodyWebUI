@@ -1,6 +1,8 @@
 import { computed, ref } from 'vue'
 import {
   archiveThread,
+  compactThread,
+  forkThread,
   getAccountRateLimits,
   getAvailableModelIds,
   getCurrentModelConfig,
@@ -16,6 +18,7 @@ import {
   subscribeCodexNotifications,
   startThreadTurn,
   steerThreadTurn,
+  unarchiveThread,
   type RpcNotification,
 } from '../api/codexGateway'
 import type {
@@ -567,6 +570,7 @@ export function useDesktopState() {
   const projectGroups = ref<UiProjectGroup[]>([])
   const sourceGroups = ref<UiProjectGroup[]>([])
   const selectedThreadId = ref(loadSelectedThreadId())
+  const isArchiveView = ref(false)
   const persistedMessagesByThreadId = ref<Record<string, UiMessage[]>>({})
   const liveAgentMessagesByThreadId = ref<Record<string, UiMessage[]>>({})
   const liveReasoningTextByThreadId = ref<Record<string, string>>({})
@@ -1433,6 +1437,15 @@ export function useDesktopState() {
       setTurnErrorForThread(completedTurn.threadId, null)
     }
 
+    if (notification.method === 'thread/compacted') {
+      const compactedThreadId = extractThreadIdFromNotification(notification)
+      if (compactedThreadId) {
+        setThreadInProgress(compactedThreadId, false)
+        setTurnActivityForThread(compactedThreadId, null)
+        setTurnErrorForThread(compactedThreadId, null)
+      }
+    }
+
     const notificationThreadId = extractThreadIdFromNotification(notification)
     if (!notificationThreadId || notificationThreadId !== selectedThreadId.value) return
 
@@ -1538,7 +1551,7 @@ export function useDesktopState() {
     }
 
     try {
-      const groups = await getThreadGroups()
+      const groups = await getThreadGroups(isArchiveView.value)
 
       const nextProjectOrder = mergeProjectOrder(projectOrder.value, groups)
       if (!areStringArraysEqual(projectOrder.value, nextProjectOrder)) {
@@ -1652,6 +1665,73 @@ export function useDesktopState() {
       if (selectedThreadId.value === threadId) {
         await loadMessages(selectedThreadId.value)
       }
+    } catch (unknownError) {
+      error.value = unknownError instanceof Error ? unknownError.message : 'Unknown application error'
+    }
+  }
+
+  async function unarchiveThreadById(threadId: string): Promise<void> {
+    try {
+      await unarchiveThread(threadId)
+      await loadThreads()
+
+      if (selectedThreadId.value === threadId) {
+        await loadMessages(selectedThreadId.value)
+      }
+    } catch (unknownError) {
+      error.value = unknownError instanceof Error ? unknownError.message : 'Failed to restore thread'
+    }
+  }
+
+  async function forkThreadById(threadId: string): Promise<string> {
+    try {
+      const forkedThreadId = await forkThread(threadId)
+      await loadThreads()
+      if (forkedThreadId) {
+        setSelectedThreadId(forkedThreadId)
+        await loadMessages(forkedThreadId)
+      }
+      return forkedThreadId
+    } catch (unknownError) {
+      error.value = unknownError instanceof Error ? unknownError.message : 'Failed to fork thread'
+      return ''
+    }
+  }
+
+  async function compactThreadById(threadId: string): Promise<void> {
+    try {
+      setTurnSummaryForThread(threadId, null)
+      setTurnActivityForThread(threadId, { label: 'Compacting context', details: [] })
+      setTurnErrorForThread(threadId, null)
+      setThreadInProgress(threadId, true)
+      await compactThread(threadId)
+      pendingThreadMessageRefresh.add(threadId)
+      pendingThreadsRefresh = true
+      await syncFromNotifications()
+    } catch (unknownError) {
+      setThreadInProgress(threadId, false)
+      setTurnActivityForThread(threadId, null)
+      const errorMessage = unknownError instanceof Error ? unknownError.message : 'Failed to compact thread'
+      setTurnErrorForThread(threadId, errorMessage)
+      error.value = errorMessage
+    }
+  }
+
+  async function setArchiveView(nextValue: boolean): Promise<void> {
+    if (isArchiveView.value === nextValue) return
+    isArchiveView.value = nextValue
+    sourceGroups.value = []
+    projectGroups.value = []
+    loadedMessagesByThreadId.value = {}
+    persistedMessagesByThreadId.value = {}
+    liveAgentMessagesByThreadId.value = {}
+    liveReasoningTextByThreadId.value = {}
+    activeReasoningItemId = ''
+    shouldAutoScrollOnNextAgentEvent = false
+
+    try {
+      await loadThreads()
+      await loadMessages(selectedThreadId.value)
     } catch (unknownError) {
       error.value = unknownError instanceof Error ? unknownError.message : 'Unknown application error'
     }
@@ -2121,6 +2201,7 @@ export function useDesktopState() {
     selectedThreadServerRequests,
     selectedLiveOverlay,
     selectedThreadId,
+    isArchiveView,
     rateLimitSnapshot,
     availableModelIds,
     selectedModelId,
@@ -2139,6 +2220,10 @@ export function useDesktopState() {
     selectThread,
     setThreadScrollState,
     archiveThreadById,
+    unarchiveThreadById,
+    forkThreadById,
+    compactThreadById,
+    setArchiveView,
     renameThreadById,
     sendMessageToSelectedThread,
     sendMessageToNewThread,

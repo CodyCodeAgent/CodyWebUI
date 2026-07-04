@@ -7,6 +7,7 @@
             class="thread-row"
             :data-active="thread.id === selectedThreadId"
             :data-pinned="isPinned(thread.id)"
+            :force-right-hover="isThreadMenuOpen(thread.id)"
             @mouseleave="onThreadRowLeave(thread.id)"
           >
             <template #left>
@@ -36,24 +37,21 @@
               <span class="thread-row-time">{{ formatRelative(thread.createdAtIso || thread.updatedAtIso) }}</span>
             </template>
             <template #right-hover>
-              <button
-                class="thread-action-button"
-                type="button"
-                title="edit_name"
-                @click.stop="startThreadRename(thread)"
-              >
-                <IconTablerFilePencil class="thread-icon" />
-              </button>
-              <button
-                class="thread-archive-button"
-                :data-confirm="archiveConfirmThreadId === thread.id"
-                type="button"
-                title="archive_thread"
-                @click="onArchiveClick(thread.id)"
-              >
-                <span v-if="archiveConfirmThreadId === thread.id">confirm</span>
-                <IconTablerArchive v-else class="thread-icon" />
-              </button>
+              <div :ref="(el) => setThreadMenuWrapRef(thread.id, el)" class="thread-menu-wrap">
+                <button class="thread-menu-trigger" type="button" title="thread_menu" @click.stop="toggleThreadMenu(thread.id)">
+                  <IconTablerDots class="thread-icon" />
+                </button>
+
+                <div v-if="isThreadMenuOpen(thread.id)" class="thread-menu-panel" @click.stop>
+                  <button class="thread-menu-item" type="button" @click="startThreadRenameFromMenu(thread)">Rename</button>
+                  <button v-if="!isArchiveView" class="thread-menu-item" type="button" @click="onForkClick(thread.id)">Fork</button>
+                  <button v-if="!isArchiveView" class="thread-menu-item" type="button" @click="onCompactClick(thread.id)">Compact</button>
+                  <button v-if="isArchiveView" class="thread-menu-item" type="button" @click="onUnarchiveClick(thread.id)">Restore</button>
+                  <button v-else class="thread-menu-item thread-menu-item-danger" type="button" @click="onArchiveClick(thread.id)">
+                    {{ archiveConfirmThreadId === thread.id ? 'Confirm archive' : 'Archive' }}
+                  </button>
+                </div>
+              </div>
             </template>
           </SidebarMenuRow>
         </li>
@@ -61,7 +59,12 @@
     </section>
 
     <SidebarMenuRow as="header" class="thread-tree-header-row">
-      <span class="thread-tree-header">Threads</span>
+      <span class="thread-tree-header">{{ isArchiveView ? 'Archived' : 'Threads' }}</span>
+      <template #right>
+        <button class="thread-archive-view-toggle" type="button" @click="$emit('toggle-archive-view', !isArchiveView)">
+          {{ isArchiveView ? 'Active' : 'Archived' }}
+        </button>
+      </template>
     </SidebarMenuRow>
 
     <p v-if="isSearchActive && filteredGroups.length === 0" class="thread-tree-no-results">No matching threads</p>
@@ -164,6 +167,7 @@
                 class="thread-row"
                 :data-active="thread.id === selectedThreadId"
                 :data-pinned="isPinned(thread.id)"
+                :force-right-hover="isThreadMenuOpen(thread.id)"
                 @mouseleave="onThreadRowLeave(thread.id)"
               >
                 <template #left>
@@ -197,24 +201,21 @@
                   <span class="thread-row-time">{{ formatRelative(thread.createdAtIso || thread.updatedAtIso) }}</span>
                 </template>
                 <template #right-hover>
-                  <button
-                    class="thread-action-button"
-                    type="button"
-                    title="edit_name"
-                    @click.stop="startThreadRename(thread)"
-                  >
-                    <IconTablerFilePencil class="thread-icon" />
-                  </button>
-                  <button
-                    class="thread-archive-button"
-                    :data-confirm="archiveConfirmThreadId === thread.id"
-                    type="button"
-                    title="archive_thread"
-                    @click="onArchiveClick(thread.id)"
-                  >
-                    <span v-if="archiveConfirmThreadId === thread.id">confirm</span>
-                    <IconTablerArchive v-else class="thread-icon" />
-                  </button>
+                  <div :ref="(el) => setThreadMenuWrapRef(thread.id, el)" class="thread-menu-wrap">
+                    <button class="thread-menu-trigger" type="button" title="thread_menu" @click.stop="toggleThreadMenu(thread.id)">
+                      <IconTablerDots class="thread-icon" />
+                    </button>
+
+                    <div v-if="isThreadMenuOpen(thread.id)" class="thread-menu-panel" @click.stop>
+                      <button class="thread-menu-item" type="button" @click="startThreadRenameFromMenu(thread)">Rename</button>
+                      <button v-if="!isArchiveView" class="thread-menu-item" type="button" @click="onForkClick(thread.id)">Fork</button>
+                      <button v-if="!isArchiveView" class="thread-menu-item" type="button" @click="onCompactClick(thread.id)">Compact</button>
+                      <button v-if="isArchiveView" class="thread-menu-item" type="button" @click="onUnarchiveClick(thread.id)">Restore</button>
+                      <button v-else class="thread-menu-item thread-menu-item-danger" type="button" @click="onArchiveClick(thread.id)">
+                        {{ archiveConfirmThreadId === thread.id ? 'Confirm archive' : 'Archive' }}
+                      </button>
+                    </div>
+                  </div>
                 </template>
               </SidebarMenuRow>
             </li>
@@ -244,7 +245,6 @@
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import type { ComponentPublicInstance } from 'vue'
 import type { UiProjectGroup, UiThread } from '../../types/codex'
-import IconTablerArchive from '../icons/IconTablerArchive.vue'
 import IconTablerChevronDown from '../icons/IconTablerChevronDown.vue'
 import IconTablerChevronRight from '../icons/IconTablerChevronRight.vue'
 import IconTablerDots from '../icons/IconTablerDots.vue'
@@ -260,11 +260,16 @@ const props = defineProps<{
   selectedThreadId: string
   isLoading: boolean
   searchQuery: string
+  isArchiveView: boolean
 }>()
 
 const emit = defineEmits<{
   select: [threadId: string]
   archive: [threadId: string]
+  unarchive: [threadId: string]
+  fork: [threadId: string]
+  compact: [threadId: string]
+  'toggle-archive-view': [value: boolean]
   'rename-thread': [payload: { threadId: string; title: string }]
   'start-new-thread': [projectName: string]
   'rename-project': [payload: { projectName: string; displayName: string }]
@@ -309,6 +314,7 @@ const pinnedThreadIds = ref<string[]>([])
 const archiveConfirmThreadId = ref('')
 const renamingThreadId = ref('')
 const threadRenameDraft = ref('')
+const openThreadMenuId = ref('')
 const openProjectMenuId = ref('')
 const projectMenuMode = ref<'actions' | 'rename'>('actions')
 const projectRenameDraft = ref('')
@@ -321,6 +327,7 @@ const suppressNextProjectToggleId = ref('')
 const measuredHeightByProject = ref<Record<string, number>>({})
 const projectGroupElementByName = new Map<string, HTMLElement>()
 const projectMenuWrapElementByName = new Map<string, HTMLElement>()
+const threadMenuWrapElementById = new Map<string, HTMLElement>()
 const threadRenameInputElementById = new Map<string, HTMLInputElement>()
 const projectNameByElement = new WeakMap<HTMLElement, string>()
 const projectGroupResizeObserver =
@@ -498,7 +505,59 @@ function onArchiveClick(threadId: string): void {
 
   archiveConfirmThreadId.value = ''
   pinnedThreadIds.value = pinnedThreadIds.value.filter((id) => id !== threadId)
+  closeThreadMenu()
   emit('archive', threadId)
+}
+
+function onUnarchiveClick(threadId: string): void {
+  closeThreadMenu()
+  emit('unarchive', threadId)
+}
+
+function onForkClick(threadId: string): void {
+  closeThreadMenu()
+  emit('fork', threadId)
+}
+
+function onCompactClick(threadId: string): void {
+  closeThreadMenu()
+  emit('compact', threadId)
+}
+
+function isThreadMenuOpen(threadId: string): boolean {
+  return openThreadMenuId.value === threadId
+}
+
+function closeThreadMenu(): void {
+  openThreadMenuId.value = ''
+  archiveConfirmThreadId.value = ''
+}
+
+function toggleThreadMenu(threadId: string): void {
+  if (openThreadMenuId.value === threadId) {
+    closeThreadMenu()
+    return
+  }
+
+  closeProjectMenu()
+  openThreadMenuId.value = threadId
+  archiveConfirmThreadId.value = ''
+}
+
+function setThreadMenuWrapRef(threadId: string, element: Element | ComponentPublicInstance | null): void {
+  const htmlElement =
+    element instanceof HTMLElement
+      ? element
+      : element && '$el' in element && element.$el instanceof HTMLElement
+        ? element.$el
+        : null
+
+  if (htmlElement) {
+    threadMenuWrapElementById.set(threadId, htmlElement)
+    return
+  }
+
+  threadMenuWrapElementById.delete(threadId)
 }
 
 function isRenamingThread(threadId: string): boolean {
@@ -523,6 +582,7 @@ function setThreadRenameInputRef(threadId: string, element: Element | ComponentP
 
 function startThreadRename(thread: UiThread): void {
   archiveConfirmThreadId.value = ''
+  openThreadMenuId.value = ''
   renamingThreadId.value = thread.id
   threadRenameDraft.value = thread.title
   void nextTick(() => {
@@ -530,6 +590,11 @@ function startThreadRename(thread: UiThread): void {
     input?.focus()
     input?.select()
   })
+}
+
+function startThreadRenameFromMenu(thread: UiThread): void {
+  closeThreadMenu()
+  startThreadRename(thread)
 }
 
 function cancelThreadRename(): void {
@@ -584,6 +649,7 @@ function toggleProjectMenu(projectName: string): void {
     return
   }
 
+  closeThreadMenu()
   openProjectMenuId.value = projectName
   projectMenuMode.value = 'actions'
   projectRenameDraft.value = getProjectDisplayName(projectName)
@@ -600,6 +666,49 @@ function onProjectNameInput(projectName: string): void {
     projectName,
     displayName: projectRenameDraft.value,
   })
+}
+
+function isEventInsideOpenThreadMenu(event: Event): boolean {
+  const threadId = openThreadMenuId.value
+  if (!threadId) return false
+
+  const openMenuWrapElement = threadMenuWrapElementById.get(threadId)
+  if (!openMenuWrapElement) return false
+
+  const eventPath = typeof event.composedPath === 'function' ? event.composedPath() : []
+  if (eventPath.includes(openMenuWrapElement)) return true
+
+  const target = event.target
+  return target instanceof Node ? openMenuWrapElement.contains(target) : false
+}
+
+function onThreadMenuPointerDown(event: PointerEvent): void {
+  if (!openThreadMenuId.value) return
+  if (isEventInsideOpenThreadMenu(event)) return
+  closeThreadMenu()
+}
+
+function onThreadMenuFocusIn(event: FocusEvent): void {
+  if (!openThreadMenuId.value) return
+  if (isEventInsideOpenThreadMenu(event)) return
+  closeThreadMenu()
+}
+
+function onWindowBlurForThreadMenu(): void {
+  if (!openThreadMenuId.value) return
+  closeThreadMenu()
+}
+
+function bindThreadMenuDismissListeners(): void {
+  window.addEventListener('pointerdown', onThreadMenuPointerDown, { capture: true })
+  window.addEventListener('focusin', onThreadMenuFocusIn, { capture: true })
+  window.addEventListener('blur', onWindowBlurForThreadMenu)
+}
+
+function unbindThreadMenuDismissListeners(): void {
+  window.removeEventListener('pointerdown', onThreadMenuPointerDown, { capture: true })
+  window.removeEventListener('focusin', onThreadMenuFocusIn, { capture: true })
+  window.removeEventListener('blur', onWindowBlurForThreadMenu)
 }
 
 function onRemoveProject(projectName: string): void {
@@ -1018,13 +1127,24 @@ watch(openProjectMenuId, (projectName) => {
   unbindProjectMenuDismissListeners()
 })
 
+watch(openThreadMenuId, (threadId) => {
+  if (threadId) {
+    bindThreadMenuDismissListeners()
+    return
+  }
+
+  unbindThreadMenuDismissListeners()
+})
+
 onBeforeUnmount(() => {
   for (const element of projectGroupElementByName.values()) {
     projectGroupResizeObserver?.unobserve(element)
   }
   projectGroupElementByName.clear()
   projectMenuWrapElementByName.clear()
+  threadMenuWrapElementById.clear()
   unbindProjectMenuDismissListeners()
+  unbindThreadMenuDismissListeners()
   resetProjectDragState()
 })
 </script>
@@ -1046,6 +1166,10 @@ onBeforeUnmount(() => {
 
 .thread-tree-header {
   @apply text-sm font-normal text-zinc-500 select-none;
+}
+
+.thread-archive-view-toggle {
+  @apply rounded px-1.5 py-0.5 text-xs text-zinc-500 transition hover:bg-zinc-200 hover:text-zinc-800;
 }
 
 .thread-start-button {
@@ -1194,6 +1318,26 @@ onBeforeUnmount(() => {
 
 .thread-action-button {
   @apply h-4 w-4 rounded p-0 text-xs text-zinc-600 flex items-center justify-center hover:text-zinc-900;
+}
+
+.thread-menu-wrap {
+  @apply relative;
+}
+
+.thread-menu-trigger {
+  @apply h-4 w-4 rounded p-0 text-zinc-600 flex items-center justify-center hover:text-zinc-900;
+}
+
+.thread-menu-panel {
+  @apply absolute right-0 top-full mt-1 z-30 min-w-32 rounded-md border border-zinc-200 bg-white p-1 shadow-md flex flex-col gap-0.5;
+}
+
+.thread-menu-item {
+  @apply rounded px-2 py-1 text-left text-sm text-zinc-700 hover:bg-zinc-100;
+}
+
+.thread-menu-item-danger {
+  @apply text-rose-700 hover:bg-rose-50;
 }
 
 .thread-archive-button[data-confirm='true'] {
