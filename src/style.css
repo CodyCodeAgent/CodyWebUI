@@ -34,6 +34,7 @@
 .app-dark .thread-composer-shell,
 .app-dark .sidebar-search-bar,
 .app-dark .composer-dropdown-menu,
+.app-dark .thread-composer-skill-menu,
 .app-dark .directory-picker,
 .app-dark .new-thread-modal,
 .app-dark .request-card,
@@ -120,6 +121,8 @@
 .app-dark .sidebar-search-toggle[aria-pressed='true'],
 .app-dark .sidebar-thread-controls-button[aria-pressed='true'],
 .app-dark .composer-dropdown-option[data-selected='true'],
+.app-dark .composer-dropdown-option.is-selected,
+.app-dark .thread-composer-skill-option:hover,
 .app-dark .directory-picker-row.is-selected,
 .app-dark .thread-row[data-active='true'] {
   background: #2a303d;
@@ -131,6 +134,7 @@
 .app-dark .new-thread-hero,
 .app-dark .message-heading,
 .app-dark .composer-dropdown-option,
+.app-dark .thread-composer-skill-option-name,
 .app-dark .directory-picker-title,
 .app-dark .new-thread-modal-title,
 .app-dark .project-title,
@@ -170,6 +174,11 @@
 .app-dark .rate-limit-reset,
 .app-dark .rate-limit-details {
   color: #c7ccd6;
+}
+
+.app-dark .thread-composer-skill-status,
+.app-dark .thread-composer-skill-option-description {
+  color: #9ca3af;
 }
 
 .app-dark .message-card[data-role='user'] {
