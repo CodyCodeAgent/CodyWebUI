@@ -200,7 +200,8 @@ function saveProjectDisplayNames(displayNames: Record<string, string>): void {
 }
 
 function mergeProjectOrder(previousOrder: string[], incomingGroups: UiProjectGroup[]): string[] {
-  const nextOrder = [...previousOrder]
+  const incomingNames = new Set(incomingGroups.map((group) => group.projectName))
+  const nextOrder = previousOrder.filter((projectName) => incomingNames.has(projectName))
 
   for (const group of incomingGroups) {
     if (!nextOrder.includes(group.projectName)) {
@@ -213,17 +214,9 @@ function mergeProjectOrder(previousOrder: string[], incomingGroups: UiProjectGro
 
 function orderGroupsByProjectOrder(incoming: UiProjectGroup[], projectOrder: string[]): UiProjectGroup[] {
   const incomingByName = new Map(incoming.map((group) => [group.projectName, group]))
-  const ordered: UiProjectGroup[] = projectOrder.map((projectName) => {
-    const incomingGroup = incomingByName.get(projectName)
-    if (incomingGroup) {
-      return incomingGroup
-    }
-    return {
-      projectName,
-      cwd: projectName,
-      threads: [],
-    }
-  })
+  const ordered: UiProjectGroup[] = projectOrder
+    .map((projectName) => incomingByName.get(projectName) ?? null)
+    .filter((group): group is UiProjectGroup => group !== null)
 
   for (const group of incoming) {
     if (!projectOrder.includes(group.projectName)) {
