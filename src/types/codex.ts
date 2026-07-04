@@ -80,6 +80,19 @@ export type UiMessage = {
   isUnhandled?: boolean
 }
 
+export type UiComposerImage = {
+  id: string
+  name: string
+  path: string
+  url: string
+  mimeType: string
+}
+
+export type UiComposerSubmitPayload = {
+  text: string
+  images: UiComposerImage[]
+}
+
 export type UiServerRequest = {
   id: number
   method: string

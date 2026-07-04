@@ -24,6 +24,10 @@ function toRawPayload(value: unknown): string {
   }
 }
 
+function toLocalImagePreviewUrl(path: string): string {
+  return `/codex-api/local-image?path=${encodeURIComponent(path)}`
+}
+
 function extractCodexUserRequestText(value: string): string {
   const markerRegex = /(?:^|\n)\s{0,3}#{0,6}\s*my request for codex\s*:?\s*/giu
   const matches = Array.from(value.matchAll(markerRegex))
@@ -57,8 +61,11 @@ function parseUserMessageContent(
     if (block.type === 'image' && typeof block.url === 'string' && block.url.trim().length > 0) {
       images.push(block.url.trim())
     }
+    if (block.type === 'localImage' && typeof block.path === 'string' && block.path.trim().length > 0) {
+      images.push(toLocalImagePreviewUrl(block.path.trim()))
+    }
 
-    if (block.type !== 'text' && block.type !== 'image') {
+    if (block.type !== 'text' && block.type !== 'image' && block.type !== 'localImage') {
       rawBlocks.push({
         id: `${itemId}:user-content:${index}`,
         role: 'user',

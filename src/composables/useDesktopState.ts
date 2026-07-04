@@ -16,6 +16,7 @@ import {
 } from '../api/codexGateway'
 import type {
   ReasoningEffort,
+  UiComposerSubmitPayload,
   ThreadScrollState,
   UiLiveOverlay,
   UiMessage,
@@ -1596,10 +1597,11 @@ export function useDesktopState() {
     }
   }
 
-  async function sendMessageToSelectedThread(text: string): Promise<void> {
+  async function sendMessageToSelectedThread(payload: UiComposerSubmitPayload): Promise<void> {
     const threadId = selectedThreadId.value
-    const nextText = text.trim()
-    if (!threadId || !nextText) return
+    const nextText = payload.text.trim()
+    const nextImages = payload.images
+    if (!threadId || (!nextText && nextImages.length === 0)) return
 
     isSendingMessage.value = true
     error.value = ''
@@ -1613,7 +1615,7 @@ export function useDesktopState() {
     setThreadInProgress(threadId, true)
 
     try {
-      await startTurnForThread(threadId, nextText)
+      await startTurnForThread(threadId, nextText, nextImages)
     } catch (unknownError) {
       shouldAutoScrollOnNextAgentEvent = false
       setThreadInProgress(threadId, false)
@@ -1627,11 +1629,12 @@ export function useDesktopState() {
     }
   }
 
-  async function sendMessageToNewThread(text: string, cwd: string): Promise<string> {
-    const nextText = text.trim()
+  async function sendMessageToNewThread(payload: UiComposerSubmitPayload, cwd: string): Promise<string> {
+    const nextText = payload.text.trim()
+    const nextImages = payload.images
     const targetCwd = cwd.trim()
     const selectedModel = selectedModelId.value.trim()
-    if (!nextText) return ''
+    if (!nextText && nextImages.length === 0) return ''
 
     isSendingMessage.value = true
     error.value = ''
@@ -1655,7 +1658,7 @@ export function useDesktopState() {
       setTurnErrorForThread(threadId, null)
       setThreadInProgress(threadId, true)
 
-      await startTurnForThread(threadId, nextText)
+      await startTurnForThread(threadId, nextText, nextImages)
       return threadId
     } catch (unknownError) {
       shouldAutoScrollOnNextAgentEvent = false
@@ -1674,7 +1677,11 @@ export function useDesktopState() {
     }
   }
 
-  async function startTurnForThread(threadId: string, nextText: string): Promise<void> {
+  async function startTurnForThread(
+    threadId: string,
+    nextText: string,
+    nextImages: UiComposerSubmitPayload['images'],
+  ): Promise<void> {
     const modelId = selectedModelId.value.trim()
     const reasoningEffort = selectedReasoningEffort.value
 
@@ -1686,6 +1693,7 @@ export function useDesktopState() {
       await startThreadTurn(
         threadId,
         nextText,
+        nextImages,
         modelId || undefined,
         reasoningEffort || undefined,
       )

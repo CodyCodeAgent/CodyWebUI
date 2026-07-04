@@ -129,7 +129,7 @@ import SidebarThreadControls from './components/sidebar/SidebarThreadControls.vu
 import IconTablerSearch from './components/icons/IconTablerSearch.vue'
 import IconTablerX from './components/icons/IconTablerX.vue'
 import { useDesktopState } from './composables/useDesktopState'
-import type { ReasoningEffort, ThreadScrollState } from './types/codex'
+import type { ReasoningEffort, ThreadScrollState, UiComposerSubmitPayload } from './types/codex'
 
 const SIDEBAR_COLLAPSED_STORAGE_KEY = 'codex-web-local.sidebar-collapsed.v1'
 
@@ -331,12 +331,12 @@ function onWindowKeyDown(event: KeyboardEvent): void {
   setSidebarCollapsed(!isSidebarCollapsed.value)
 }
 
-function onSubmitThreadMessage(text: string): void {
+function onSubmitThreadMessage(payload: UiComposerSubmitPayload): void {
   if (isHomeRoute.value) {
-    void submitFirstMessageForNewThread(text)
+    void submitFirstMessageForNewThread(payload)
     return
   }
-  void sendMessageToSelectedThread(text)
+  void sendMessageToSelectedThread(payload)
 }
 
 function onSelectNewThreadFolder(cwd: string): void {
@@ -461,9 +461,9 @@ watch(
   { immediate: true },
 )
 
-async function submitFirstMessageForNewThread(text: string): Promise<void> {
+async function submitFirstMessageForNewThread(payload: UiComposerSubmitPayload): Promise<void> {
   try {
-    const threadId = await sendMessageToNewThread(text, newThreadCwd.value)
+    const threadId = await sendMessageToNewThread(payload, newThreadCwd.value)
     if (!threadId) return
     await router.replace({ name: 'thread', params: { threadId } })
   } catch {

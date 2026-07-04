@@ -21,10 +21,35 @@ type ServerRequestReplyBody = {
   }
 }
 
+export type UploadedLocalImage = {
+  id: string
+  name: string
+  path: string
+  url: string
+  mimeType: string
+}
+
 function asRecord(value: unknown): Record<string, unknown> | null {
   return value !== null && typeof value === 'object' && !Array.isArray(value)
     ? (value as Record<string, unknown>)
     : null
+}
+
+function readFileAsDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => {
+      if (typeof reader.result === 'string') {
+        resolve(reader.result)
+        return
+      }
+      reject(new Error('Image file could not be read'))
+    }
+    reader.onerror = () => {
+      reject(reader.error ?? new Error('Image file could not be read'))
+    }
+    reader.readAsDataURL(file)
+  })
 }
 
 export async function rpcCall<T>(method: string, params?: unknown): Promise<T> {
@@ -225,4 +250,64 @@ export async function fetchPendingServerRequests(): Promise<unknown[]> {
   const record = asRecord(payload)
   const data = record?.data
   return Array.isArray(data) ? data : []
+}
+
+export async function uploadLocalImage(file: File): Promise<UploadedLocalImage> {
+  const dataUrl = await readFileAsDataUrl(file)
+
+  let response: Response
+  try {
+    response = await fetch('/codex-api/uploads/images', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        name: file.name,
+        mimeType: file.type,
+        dataUrl,
+      }),
+    })
+  } catch (error) {
+    throw new CodexApiError(
+      error instanceof Error ? error.message : 'Image upload failed before request was sent',
+      { code: 'network_error', method: 'uploads/images' },
+    )
+  }
+
+  let payload: unknown = null
+  try {
+    payload = await response.json()
+  } catch {
+    payload = null
+  }
+
+  if (!response.ok) {
+    throw new CodexApiError(
+      extractErrorMessage(payload, `Image upload failed with HTTP ${response.status}`),
+      {
+        code: 'http_error',
+        method: 'uploads/images',
+        status: response.status,
+      },
+    )
+  }
+
+  const envelope = asRecord(payload)
+  const result = asRecord(envelope?.result)
+  const id = typeof result?.id === 'string' ? result.id : ''
+  const name = typeof result?.name === 'string' ? result.name : file.name
+  const path = typeof result?.path === 'string' ? result.path : ''
+  const url = typeof result?.url === 'string' ? result.url : ''
+  const mimeType = typeof result?.mimeType === 'string' ? result.mimeType : file.type
+
+  if (!id || !path || !url) {
+    throw new CodexApiError('Image upload returned malformed response', {
+      code: 'invalid_response',
+      method: 'uploads/images',
+      status: response.status,
+    })
+  }
+
+  return { id, name, path, url, mimeType }
 }

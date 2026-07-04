@@ -3,6 +3,7 @@ import { mkdtemp, readFile } from 'node:fs/promises'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { handleImageUpload, handleLocalImage } from './imageUploads.js'
 
 type JsonRpcCall = {
   jsonrpc: '2.0'
@@ -77,7 +78,8 @@ async function readJsonBody(req: IncomingMessage): Promise<unknown> {
   const chunks: Uint8Array[] = []
 
   for await (const chunk of req) {
-    chunks.push(typeof chunk === 'string' ? Buffer.from(chunk) : chunk)
+    const buffer = typeof chunk === 'string' ? Buffer.from(chunk) : chunk
+    chunks.push(buffer)
   }
 
   if (chunks.length === 0) return null
@@ -522,6 +524,16 @@ export function createCodexBridgeMiddleware(): CodexBridgeMiddleware {
 
         const result = await appServer.rpc(body.method, body.params ?? null)
         setJson(res, 200, { result })
+        return
+      }
+
+      if (req.method === 'POST' && url.pathname === '/codex-api/uploads/images') {
+        await handleImageUpload(req, res)
+        return
+      }
+
+      if ((req.method === 'GET' || req.method === 'HEAD') && url.pathname === '/codex-api/local-image') {
+        await handleLocalImage(url, res, req.method)
         return
       }
 

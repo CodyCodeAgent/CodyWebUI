@@ -5,7 +5,9 @@ import {
   rpcCall,
   respondServerRequest,
   subscribeRpcNotifications,
+  uploadLocalImage,
   type RpcNotification,
+  type UploadedLocalImage,
 } from './codexRpcClient'
 import type {
   ConfigReadResponse,
@@ -16,7 +18,7 @@ import type {
 } from './appServerDtos'
 import { normalizeCodexApiError } from './codexErrors'
 import { normalizeThreadGroupsV2, normalizeThreadMessagesV2 } from './normalizers/v2'
-import type { UiMessage, UiProjectGroup } from '../types/codex'
+import type { UiComposerImage, UiMessage, UiProjectGroup } from '../types/codex'
 
 type CurrentModelConfig = {
   model: string
@@ -144,13 +146,26 @@ export async function startThread(cwd?: string, model?: string): Promise<string>
 export async function startThreadTurn(
   threadId: string,
   text: string,
+  images: UiComposerImage[],
   model?: string,
   effort?: ReasoningEffort,
 ): Promise<void> {
   try {
+    const input: Array<Record<string, unknown>> = []
+    const normalizedText = text.trim()
+    if (normalizedText.length > 0) {
+      input.push({ type: 'text', text: normalizedText, text_elements: [] })
+    }
+    for (const image of images) {
+      const path = image.path.trim()
+      if (path.length > 0) {
+        input.push({ type: 'localImage', path })
+      }
+    }
+
     const params: Record<string, unknown> = {
       threadId,
-      input: [{ type: 'text', text }],
+      input,
     }
     if (typeof model === 'string' && model.length > 0) {
       params.model = model
@@ -161,6 +176,14 @@ export async function startThreadTurn(
     await callRpc('turn/start', params)
   } catch (error) {
     throw normalizeCodexApiError(error, `Failed to start turn for thread ${threadId}`, 'turn/start')
+  }
+}
+
+export async function uploadComposerImage(file: File): Promise<UploadedLocalImage> {
+  try {
+    return await uploadLocalImage(file)
+  } catch (error) {
+    throw normalizeCodexApiError(error, `Failed to upload ${file.name || 'image'}`, 'uploads/images')
   }
 }
 
