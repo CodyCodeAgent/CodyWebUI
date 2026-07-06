@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  buildThreadCommandEntries,
   buildThreadActivityEntries,
   buildThreadActivitySummary,
   isToolFailureStatus,
@@ -21,7 +22,7 @@ const messages: UiMessage[] = [
       title: 'Command execution',
       status: 'completed',
       summary: 'npm test',
-      details: ['exit: 0'],
+      details: ['cwd: /workspace/app', 'exit: 0', 'duration: 1.2s'],
     },
   },
   {
@@ -82,6 +83,18 @@ describe('thread activity helpers', () => {
       failedCount: 1,
       pendingRequestCount: 1,
     })
+  })
+
+  it('extracts command entries with runnable details', () => {
+    expect(buildThreadCommandEntries(messages)).toEqual([
+      expect.objectContaining({
+        messageId: 'cmd-1',
+        summary: 'npm test',
+        cwd: '/workspace/app',
+        exitCode: 0,
+        duration: '1.2s',
+      }),
+    ])
   })
 
   it('treats failure-like statuses as failed evidence', () => {

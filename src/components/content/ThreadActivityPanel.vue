@@ -1,123 +1,172 @@
 <template>
-  <aside class="thread-activity-panel" aria-label="Thread activity and evidence">
+  <aside class="thread-activity-panel" aria-label="Thread work log">
     <header class="thread-activity-header">
       <div>
-        <h2 class="thread-activity-title">Activity</h2>
+        <h2 class="thread-activity-title">Work log</h2>
         <p class="thread-activity-subtitle">{{ statusText }}</p>
       </div>
     </header>
 
-    <section class="thread-activity-metrics" aria-label="Activity summary">
+    <section class="thread-activity-metrics" aria-label="Work log summary">
       <div class="thread-activity-metric">
-        <span class="thread-activity-metric-value">{{ summary.toolCount }}</span>
-        <span class="thread-activity-metric-label">tools</span>
+        <span class="thread-activity-metric-value">{{ diffReview.summary.fileCount }}</span>
+        <span class="thread-activity-metric-label">files</span>
       </div>
       <div class="thread-activity-metric">
-        <span class="thread-activity-metric-value">{{ summary.commandCount }}</span>
+        <span class="thread-activity-metric-value">{{ commandEntries.length }}</span>
         <span class="thread-activity-metric-label">commands</span>
       </div>
       <div class="thread-activity-metric">
-        <span class="thread-activity-metric-value">{{ summary.fileChangeCount }}</span>
-        <span class="thread-activity-metric-label">diffs</span>
+        <span class="thread-activity-metric-value">+{{ diffReview.summary.addedLines }}</span>
+        <span class="thread-activity-metric-label">added</span>
       </div>
-      <div class="thread-activity-metric" :data-alert="summary.failedCount > 0">
-        <span class="thread-activity-metric-value">{{ summary.failedCount }}</span>
-        <span class="thread-activity-metric-label">failed</span>
+      <div class="thread-activity-metric">
+        <span class="thread-activity-metric-value">-{{ diffReview.summary.removedLines }}</span>
+        <span class="thread-activity-metric-label">removed</span>
       </div>
     </section>
 
-    <section v-if="pendingRequests.length > 0" class="thread-activity-section">
-      <h3 class="thread-activity-section-title">Pending approvals</h3>
-      <article v-for="request in pendingRequests" :key="request.id" class="activity-request-card">
-        <p class="activity-request-method">{{ approvalSummary(request).title }}</p>
-        <p class="activity-request-meta">#{{ request.id }} · {{ formatIsoTime(request.receivedAtIso) }}</p>
-        <p class="activity-request-subject">{{ approvalSummary(request).subject }}</p>
-        <div class="approval-risk-line">
-          <span class="approval-risk-badge" :data-level="approvalSummary(request).level">
-            {{ approvalSummary(request).level }}
-          </span>
-          <span
-            v-for="label in approvalSummary(request).riskLabels"
-            :key="`${request.id}:${label}`"
-            class="approval-risk-label"
-          >
-            {{ label }}
-          </span>
+    <section v-if="pendingRequests.length > 0" class="thread-action-required-float" aria-label="Action required">
+      <header class="thread-action-required-header">
+        <div>
+          <h3 class="thread-action-required-title">Action required</h3>
+          <p class="thread-action-required-subtitle">
+            {{ pendingRequests.length }} approval{{ pendingRequests.length === 1 ? '' : 's' }} waiting
+          </p>
         </div>
-        <p class="activity-request-reason">{{ approvalSummary(request).description }}</p>
-        <ul class="approval-impact-list">
-          <li v-for="impact in approvalSummary(request).impacts" :key="`${request.id}:${impact}`">
-            {{ impact }}
-          </li>
-        </ul>
-        <div class="approval-scope-line" aria-label="Approval scopes">
-          <span
-            v-for="scope in approvalScopeOptions"
-            :key="`${request.id}:${scope.scope}`"
-            class="approval-scope"
-            :data-enabled="scope.enabled"
-            :title="scope.description"
-          >
-            {{ scope.label }}
-          </span>
-        </div>
-        <p class="approval-recommendation">{{ approvalSummary(request).recommendation }}</p>
+      </header>
 
-        <div class="activity-request-actions">
-          <template v-if="isApprovalRequest(request)">
-            <button
+      <div class="thread-action-required-list">
+        <article v-for="request in pendingRequests" :key="request.id" class="activity-request-card">
+          <p class="activity-request-method">{{ approvalSummary(request).title }}</p>
+          <p class="activity-request-meta">#{{ request.id }} · {{ formatIsoTime(request.receivedAtIso) }}</p>
+          <p class="activity-request-subject">{{ approvalSummary(request).subject }}</p>
+          <div class="approval-risk-line">
+            <span class="approval-risk-badge" :data-level="approvalSummary(request).level">
+              {{ approvalSummary(request).level }}
+            </span>
+            <span
+              v-for="label in approvalSummary(request).riskLabels"
+              :key="`${request.id}:${label}`"
+              class="approval-risk-label"
+            >
+              {{ label }}
+            </span>
+          </div>
+          <p class="activity-request-reason">{{ approvalSummary(request).description }}</p>
+          <ul class="approval-impact-list">
+            <li v-for="impact in approvalSummary(request).impacts" :key="`${request.id}:${impact}`">
+              {{ impact }}
+            </li>
+          </ul>
+          <div class="approval-scope-line" aria-label="Approval scopes">
+            <span
               v-for="scope in approvalScopeOptions"
-              :key="`${request.id}:action:${scope.scope}`"
-              class="activity-request-button"
-              :class="{ 'activity-request-button-primary': scope.scope === 'single', 'activity-request-button-danger': scope.scope === 'permanent' }"
-              type="button"
-              @click="onRespondApprovalScope(request.id, scope.scope)"
+              :key="`${request.id}:${scope.scope}`"
+              class="approval-scope"
+              :data-enabled="scope.enabled"
+              :title="scope.description"
             >
               {{ scope.label }}
-            </button>
-            <button class="activity-request-button" type="button" @click="onRespondApproval(request.id, 'decline')">
-              Decline
-            </button>
-          </template>
-          <template v-else>
-            <button class="activity-request-button activity-request-button-primary" type="button" @click="onRespondEmptyResult(request.id)">
-              Empty result
-            </button>
-            <button class="activity-request-button" type="button" @click="onRejectRequest(request.id)">
-              Reject
-            </button>
-          </template>
-        </div>
-      </article>
+            </span>
+          </div>
+          <p class="approval-recommendation">{{ approvalSummary(request).recommendation }}</p>
+
+          <div class="activity-request-actions">
+            <template v-if="isApprovalRequest(request)">
+              <button
+                v-for="scope in approvalScopeOptions"
+                :key="`${request.id}:action:${scope.scope}`"
+                class="activity-request-button"
+                :class="{ 'activity-request-button-primary': scope.scope === 'single', 'activity-request-button-danger': scope.scope === 'permanent' }"
+                type="button"
+                @click="onRespondApprovalScope(request.id, scope.scope)"
+              >
+                {{ scope.label }}
+              </button>
+              <button class="activity-request-button" type="button" @click="onRespondApproval(request.id, 'decline')">
+                Decline
+              </button>
+            </template>
+            <template v-else>
+              <button class="activity-request-button activity-request-button-primary" type="button" @click="onRespondEmptyResult(request.id)">
+                Empty result
+              </button>
+              <button class="activity-request-button" type="button" @click="onRejectRequest(request.id)">
+                Reject
+              </button>
+            </template>
+          </div>
+        </article>
+      </div>
     </section>
 
-    <ThreadValidationPanel :messages="messages" />
-    <ThreadSessionReplayPanel :cwd="cwd" :thread-id="threadId" />
-    <ThreadDiffReviewPanel :messages="messages" :cwd="cwd" @rollback-completed="onRollbackCompleted" />
-
     <section class="thread-activity-section thread-activity-section-scroll">
-      <h3 class="thread-activity-section-title">Evidence timeline</h3>
-      <p v-if="activityEntries.length === 0" class="thread-activity-empty">No tool evidence yet.</p>
+      <h3 class="thread-activity-section-title">Changed files</h3>
+      <p v-if="diffReview.files.length === 0" class="thread-activity-empty">No file changes recorded yet.</p>
 
-      <article
-        v-for="entry in activityEntries"
+      <details
+        v-for="file in diffReview.files"
+        :key="file.filePath"
+        class="work-log-card"
+      >
+        <summary class="work-log-summary">
+          <span class="work-log-primary">{{ file.filePath }}</span>
+          <span class="work-log-status">{{ file.status }}</span>
+          <span class="work-log-stat">+{{ file.addedLines }} / -{{ file.removedLines }}</span>
+        </summary>
+        <p v-if="file.oldPath" class="work-log-meta">from {{ file.oldPath }}</p>
+        <div v-if="file.hunks.length > 0" class="work-log-diff" aria-label="File diff">
+          <section v-for="hunk in file.hunks" :key="`${file.filePath}:${hunk.header}`" class="work-log-hunk">
+            <div class="work-log-diff-row work-log-diff-row-hunk">
+              <span class="work-log-line-number" />
+              <span class="work-log-line-number" />
+              <span class="work-log-line-prefix" />
+              <code class="work-log-line-code">{{ hunk.header }}</code>
+            </div>
+            <div
+              v-for="(line, index) in hunk.lines"
+              :key="`${file.filePath}:${hunk.header}:${index}`"
+              class="work-log-diff-row"
+              :data-kind="line.kind"
+            >
+              <span class="work-log-line-number">{{ formatLineNumber(line.oldLineNumber) }}</span>
+              <span class="work-log-line-number">{{ formatLineNumber(line.newLineNumber) }}</span>
+              <span class="work-log-line-prefix">{{ diffLinePrefix(line.kind) }}</span>
+              <code class="work-log-line-code">{{ line.content }}</code>
+            </div>
+          </section>
+        </div>
+        <pre v-else-if="file.patch" class="work-log-output"><code>{{ file.patch }}</code></pre>
+      </details>
+
+      <h3 class="thread-activity-section-title thread-activity-section-title-spaced">Commands</h3>
+      <p v-if="commandEntries.length === 0" class="thread-activity-empty">No commands recorded yet.</p>
+
+      <details
+        v-for="entry in commandEntries"
         :key="entry.messageId"
-        class="activity-entry-card"
+        class="work-log-card"
         :data-tone="toolStatusTone(entry.status)"
       >
-        <header class="activity-entry-header">
-          <span class="activity-entry-kind">{{ entry.title }}</span>
-          <span class="activity-entry-status">{{ formatToolStatus(entry.status) }}</span>
-        </header>
-        <p class="activity-entry-summary">{{ entry.summary }}</p>
-        <ul v-if="entry.details.length > 0" class="activity-entry-detail-list">
-          <li v-for="detail in entry.details" :key="detail" class="activity-entry-detail">{{ detail }}</li>
-        </ul>
-        <details v-if="entry.output" class="activity-entry-output">
-          <summary>{{ entry.outputLabel || 'Output' }}</summary>
-          <pre><code>{{ entry.output }}</code></pre>
-        </details>
-      </article>
+        <summary class="work-log-summary">
+          <span class="work-log-primary">{{ entry.summary }}</span>
+          <span class="work-log-status">{{ formatToolStatus(entry.status) }}</span>
+          <span v-if="entry.exitCode !== null" class="work-log-stat">exit {{ entry.exitCode }}</span>
+        </summary>
+        <dl class="work-log-details">
+          <div v-if="entry.cwd">
+            <dt>cwd</dt>
+            <dd>{{ entry.cwd }}</dd>
+          </div>
+          <div v-if="entry.duration">
+            <dt>duration</dt>
+            <dd>{{ entry.duration }}</dd>
+          </div>
+        </dl>
+        <pre v-if="entry.output" class="work-log-output"><code>{{ entry.output }}</code></pre>
+        <p v-else class="work-log-meta">No output captured for this command.</p>
+      </details>
     </section>
   </aside>
 </template>
@@ -125,7 +174,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import {
-  buildThreadActivityEntries,
+  buildThreadCommandEntries,
   buildThreadActivitySummary,
   isToolFailureStatus,
 } from '../../composables/useThreadActivity'
@@ -136,10 +185,8 @@ import {
   buildApprovalRiskSummary,
   type UiApprovalDecision,
 } from '../../composables/useApprovalRisk'
+import { buildDiffReview } from '../../composables/useDiffReview'
 import type { UiApprovalDecisionScope, UiMessage, UiServerRequest, UiServerRequestReply, UiToolingRollbackFileResult } from '../../types/codex'
-import ThreadDiffReviewPanel from './ThreadDiffReviewPanel.vue'
-import ThreadSessionReplayPanel from './ThreadSessionReplayPanel.vue'
-import ThreadValidationPanel from './ThreadValidationPanel.vue'
 
 const props = defineProps<{
   messages: UiMessage[]
@@ -154,13 +201,15 @@ const emit = defineEmits<{
 }>()
 const approvalScopeOptions = APPROVAL_SCOPE_OPTIONS
 
-const activityEntries = computed(() => buildThreadActivityEntries(props.messages))
+const commandEntries = computed(() => buildThreadCommandEntries(props.messages))
+const diffReview = computed(() => buildDiffReview(props.messages))
 const summary = computed(() => buildThreadActivitySummary(props.messages, props.pendingRequests))
 const statusText = computed(() => {
   if (summary.value.pendingRequestCount > 0) return `${summary.value.pendingRequestCount} waiting`
-  if (summary.value.failedCount > 0) return `${summary.value.failedCount} failed`
-  if (summary.value.toolCount > 0) return `${summary.value.toolCount} recorded`
-  return 'No evidence yet'
+  if (diffReview.value.summary.fileCount > 0 || commandEntries.value.length > 0) {
+    return `${diffReview.value.summary.fileCount} changed file${diffReview.value.summary.fileCount === 1 ? '' : 's'} · ${commandEntries.value.length} command${commandEntries.value.length === 1 ? '' : 's'}`
+  }
+  return 'No changes or commands recorded yet'
 })
 
 function formatIsoTime(value: string): string {
@@ -213,16 +262,22 @@ function onRejectRequest(requestId: number): void {
   })
 }
 
-function onRollbackCompleted(result: UiToolingRollbackFileResult): void {
-  emit('rollbackCompleted', result)
-}
-
 function formatToolStatus(status: string): string {
   const normalized = status.trim()
   if (!normalized) return 'unknown'
   return normalized
     .replace(/[-_]+/gu, ' ')
     .replace(/\b\w/gu, (letter) => letter.toUpperCase())
+}
+
+function formatLineNumber(value: number | null): string {
+  return typeof value === 'number' ? String(value) : ''
+}
+
+function diffLinePrefix(kind: string): string {
+  if (kind === 'add') return '+'
+  if (kind === 'remove') return '-'
+  return ''
 }
 
 function toolStatusTone(status: string): 'success' | 'danger' | 'working' | 'neutral' {
@@ -300,13 +355,205 @@ function toolStatusTone(status: string): 'success' | 'danger' | 'working' | 'neu
   @apply m-0 text-xs font-semibold uppercase tracking-normal text-slate-500;
 }
 
+.thread-activity-section-title-spaced {
+  @apply mt-3;
+}
+
 .thread-activity-empty {
   @apply m-0 rounded-md border border-dashed border-slate-200 px-3 py-2 text-xs text-slate-500;
+}
+
+.thread-action-required-float {
+  @apply fixed bottom-4 right-4 z-50 flex max-h-[min(72vh,42rem)] w-[min(28rem,calc(100vw-2rem))] flex-col gap-2 overflow-hidden rounded-lg border border-amber-300 bg-amber-50 p-3 shadow-2xl;
+}
+
+.thread-action-required-header {
+  @apply flex shrink-0 items-start justify-between gap-3 border-b border-amber-200 pb-2;
+}
+
+.thread-action-required-title {
+  @apply m-0 text-xs font-semibold uppercase tracking-normal text-amber-900;
+}
+
+.thread-action-required-subtitle {
+  @apply m-0 mt-0.5 text-xs text-amber-800;
+}
+
+.thread-action-required-list {
+  @apply min-h-0 overflow-y-auto pr-0.5;
+}
+
+.thread-action-required-list .activity-request-card + .activity-request-card {
+  @apply mt-2;
+}
+
+.work-log-card {
+  @apply rounded-lg border border-slate-200 bg-slate-50 px-3 py-2;
+}
+
+.work-log-card + .work-log-card {
+  @apply mt-2;
+}
+
+.work-log-card[data-tone='success'] {
+  @apply border-emerald-200 bg-emerald-50;
+}
+
+.work-log-card[data-tone='danger'] {
+  @apply border-rose-200 bg-rose-50;
+}
+
+.work-log-card[data-tone='working'] {
+  @apply border-blue-200 bg-blue-50;
+}
+
+.work-log-summary {
+  @apply grid cursor-pointer grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-2 text-xs;
+}
+
+.work-log-primary {
+  @apply min-w-0 truncate font-mono font-semibold text-slate-900;
+}
+
+.work-log-status,
+.work-log-stat {
+  @apply shrink-0 rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[0.68rem] font-medium leading-4 text-slate-600;
+}
+
+.work-log-card[data-tone='success'] .work-log-status {
+  @apply border-emerald-200 bg-emerald-100 text-emerald-800;
+}
+
+.work-log-card[data-tone='danger'] .work-log-status {
+  @apply border-rose-200 bg-rose-100 text-rose-800;
+}
+
+.work-log-card[data-tone='working'] .work-log-status {
+  @apply border-blue-200 bg-blue-100 text-blue-800;
+}
+
+.work-log-meta {
+  @apply m-0 mt-2 break-words text-xs leading-4 text-slate-600;
+}
+
+.work-log-details {
+  @apply m-0 mt-2 grid gap-1;
+}
+
+.work-log-details div {
+  @apply grid grid-cols-[4rem_minmax(0,1fr)] gap-2;
+}
+
+.work-log-details dt {
+  @apply text-[0.68rem] font-semibold uppercase leading-4 text-slate-500;
+}
+
+.work-log-details dd {
+  @apply m-0 min-w-0 truncate font-mono text-[0.68rem] leading-4 text-slate-600;
+}
+
+.work-log-output {
+  @apply m-0 mt-2 max-h-80 overflow-auto rounded-md border border-slate-200 bg-white px-2 py-1.5 text-xs leading-5 text-slate-800;
+}
+
+.work-log-output code {
+  @apply whitespace-pre font-mono;
+}
+
+.work-log-diff {
+  @apply mt-2 overflow-auto rounded-md border border-slate-200 bg-white;
+}
+
+.work-log-hunk + .work-log-hunk {
+  @apply border-t border-slate-200;
+}
+
+.work-log-diff-row {
+  @apply grid min-w-max grid-cols-[3.25rem_3.25rem_1.5rem_minmax(34rem,1fr)] border-b border-slate-100 font-mono text-xs leading-5;
+}
+
+.work-log-diff-row:last-child {
+  @apply border-b-0;
+}
+
+.work-log-diff-row[data-kind='add'] {
+  background: #e6ffec;
+}
+
+.work-log-diff-row[data-kind='remove'] {
+  background: #ffebe9;
+}
+
+.work-log-diff-row[data-kind='meta'],
+.work-log-diff-row-hunk {
+  background: #ddf4ff;
+}
+
+.work-log-line-number {
+  @apply select-none border-r border-slate-200 px-2 text-right text-[0.68rem] text-slate-500;
+  background: rgb(248 250 252 / 0.82);
+}
+
+.work-log-diff-row[data-kind='add'] .work-log-line-number {
+  background: #ccffd8;
+}
+
+.work-log-diff-row[data-kind='remove'] .work-log-line-number {
+  background: #ffd7d5;
+}
+
+.work-log-diff-row-hunk .work-log-line-number,
+.work-log-diff-row[data-kind='meta'] .work-log-line-number {
+  background: #b6e3ff;
+}
+
+.work-log-line-prefix {
+  @apply select-none px-2 text-slate-600;
+}
+
+.work-log-diff-row[data-kind='add'] .work-log-line-prefix {
+  @apply text-emerald-800;
+}
+
+.work-log-diff-row[data-kind='remove'] .work-log-line-prefix {
+  @apply text-rose-800;
+}
+
+.work-log-line-code {
+  @apply whitespace-pre px-2 text-slate-900;
+}
+
+.work-log-diff-row-hunk .work-log-line-code {
+  @apply text-blue-900;
 }
 
 .activity-request-card,
 .activity-entry-card {
   @apply rounded-lg border border-slate-200 bg-slate-50 px-3 py-2;
+}
+
+.thread-action-required-list .activity-request-card {
+  @apply border-amber-200 bg-white;
+}
+
+:global(.app-dark) .thread-action-required-float {
+  border-color: #92400e;
+  background: #2f2412;
+  color: #fef3c7;
+}
+
+:global(.app-dark) .thread-action-required-header {
+  border-color: #78350f;
+}
+
+:global(.app-dark) .thread-action-required-title,
+:global(.app-dark) .thread-action-required-subtitle {
+  color: #fde68a;
+}
+
+:global(.app-dark) .thread-action-required-list .activity-request-card {
+  border-color: #92400e;
+  background: #181b22;
 }
 
 .activity-request-method {

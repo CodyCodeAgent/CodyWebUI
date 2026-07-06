@@ -1,11 +1,18 @@
 <template>
   <aside
     v-if="snapshot"
+    ref="cardRef"
     class="rate-limit-card"
+    :class="{ 'is-dragging': dragState !== null }"
+    :style="cardPositionStyle"
     :title="detailsTitle"
     aria-label="Codex rate limit status"
   >
-    <div class="rate-limit-heading">
+    <div
+      class="rate-limit-heading"
+      title="Drag to move"
+      @pointerdown="startDrag"
+    >
       <span class="rate-limit-title">Codex</span>
       <button
         class="rate-limit-refresh"
@@ -13,6 +20,7 @@
         aria-label="Refresh rate limits"
         title="Refresh rate limits"
         :disabled="isLoading"
+        @pointerdown.stop
         @click="$emit('refresh')"
       >
         <IconTablerRefresh class="rate-limit-refresh-icon" :class="{ 'is-spinning': isLoading }" />
@@ -58,7 +66,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import IconTablerRefresh from '../icons/IconTablerRefresh.vue'
 import type { UiRateLimitSnapshot, UiRateLimitWindow } from '../../types/codex'
 
@@ -79,7 +87,27 @@ type RateLimitRow = {
   color: string
 }
 
+type CardPosition = {
+  x: number
+  y: number
+}
+
+type DragState = {
+  pointerId: number
+  startClientX: number
+  startClientY: number
+  startX: number
+  startY: number
+}
+
+const POSITION_STORAGE_KEY = 'codex-web-local.rate-limit-position.v1'
+const DEFAULT_CARD_WIDTH = 224
+const CARD_MARGIN = 12
+
 const nowSeconds = ref(Math.floor(Date.now() / 1000))
+const cardRef = ref<HTMLElement | null>(null)
+const position = ref<CardPosition | null>(null)
+const dragState = ref<DragState | null>(null)
 let clockTimer: number | null = null
 
 const primaryRow = computed(() => buildRow(props.snapshot?.primary ?? null))
@@ -100,6 +128,13 @@ const detailsTitle = computed(() => {
     resetCreditsText.value ? `Credits: ${resetCreditsText.value}` : '',
   ].filter(Boolean)
   return parts.join('\n')
+})
+const cardPositionStyle = computed(() => {
+  if (!position.value) return {}
+  return {
+    left: `${position.value.x}px`,
+    top: `${position.value.y}px`,
+  }
 })
 
 function buildRow(window: UiRateLimitWindow | null): RateLimitRow | null {
@@ -150,25 +185,127 @@ function colorForPercent(percent: number): string {
   return '#16a34a'
 }
 
+function readStoredPosition(): CardPosition | null {
+  try {
+    const raw = window.localStorage.getItem(POSITION_STORAGE_KEY)
+    if (!raw) return null
+    const parsed = JSON.parse(raw) as Partial<CardPosition>
+    if (typeof parsed.x !== 'number' || typeof parsed.y !== 'number') return null
+    return parsed as CardPosition
+  } catch {
+    return null
+  }
+}
+
+function writeStoredPosition(nextPosition: CardPosition): void {
+  try {
+    window.localStorage.setItem(POSITION_STORAGE_KEY, JSON.stringify(nextPosition))
+  } catch {
+    // Ignore storage failures; dragging should still work for the current session.
+  }
+}
+
+function defaultPosition(): CardPosition {
+  return {
+    x: Math.max(CARD_MARGIN, window.innerWidth - DEFAULT_CARD_WIDTH - 16),
+    y: 12,
+  }
+}
+
+function clampPosition(candidate: CardPosition): CardPosition {
+  const rect = cardRef.value?.getBoundingClientRect()
+  const width = rect?.width || DEFAULT_CARD_WIDTH
+  const height = rect?.height || 120
+  const maxX = Math.max(CARD_MARGIN, window.innerWidth - width - CARD_MARGIN)
+  const maxY = Math.max(CARD_MARGIN, window.innerHeight - height - CARD_MARGIN)
+
+  return {
+    x: clamp(candidate.x, CARD_MARGIN, maxX),
+    y: clamp(candidate.y, CARD_MARGIN, maxY),
+  }
+}
+
+function ensurePosition(): void {
+  const stored = readStoredPosition()
+  position.value = clampPosition(stored ?? defaultPosition())
+  if (position.value) writeStoredPosition(position.value)
+}
+
+function startDrag(event: PointerEvent): void {
+  if (event.button !== 0 || !position.value) return
+  const target = event.target instanceof HTMLElement ? event.target : null
+  if (target?.closest('button')) return
+
+  event.preventDefault()
+  cardRef.value?.setPointerCapture(event.pointerId)
+  dragState.value = {
+    pointerId: event.pointerId,
+    startClientX: event.clientX,
+    startClientY: event.clientY,
+    startX: position.value.x,
+    startY: position.value.y,
+  }
+  window.addEventListener('pointermove', onPointerMove)
+  window.addEventListener('pointerup', stopDrag)
+  window.addEventListener('pointercancel', stopDrag)
+}
+
+function onPointerMove(event: PointerEvent): void {
+  const drag = dragState.value
+  if (!drag || event.pointerId !== drag.pointerId) return
+  position.value = clampPosition({
+    x: drag.startX + event.clientX - drag.startClientX,
+    y: drag.startY + event.clientY - drag.startClientY,
+  })
+}
+
+function stopDrag(event: PointerEvent): void {
+  const drag = dragState.value
+  if (!drag || event.pointerId !== drag.pointerId) return
+  if (position.value) writeStoredPosition(position.value)
+  cardRef.value?.releasePointerCapture(event.pointerId)
+  dragState.value = null
+  window.removeEventListener('pointermove', onPointerMove)
+  window.removeEventListener('pointerup', stopDrag)
+  window.removeEventListener('pointercancel', stopDrag)
+}
+
+function onWindowResize(): void {
+  if (!position.value) return
+  position.value = clampPosition(position.value)
+  writeStoredPosition(position.value)
+}
+
 onMounted(() => {
+  ensurePosition()
+  window.addEventListener('resize', onWindowResize)
   clockTimer = window.setInterval(() => {
     nowSeconds.value = Math.floor(Date.now() / 1000)
   }, 60000)
 })
 
 onUnmounted(() => {
+  window.removeEventListener('resize', onWindowResize)
+  window.removeEventListener('pointermove', onPointerMove)
+  window.removeEventListener('pointerup', stopDrag)
+  window.removeEventListener('pointercancel', stopDrag)
   if (clockTimer !== null) {
     window.clearInterval(clockTimer)
     clockTimer = null
   }
 })
+
+watch(
+  () => props.snapshot,
+  () => {
+    if (!position.value) ensurePosition()
+  },
+)
 </script>
 
 <style scoped>
 .rate-limit-card {
-  position: absolute;
-  top: 0.75rem;
-  right: 1rem;
+  position: fixed;
   z-index: 30;
   width: 14rem;
   flex-direction: column;
@@ -181,6 +318,7 @@ onUnmounted(() => {
   box-shadow: 0 1px 2px rgb(0 0 0 / 0.05);
   backdrop-filter: blur(8px);
   display: none;
+  touch-action: none;
 }
 
 @media (min-width: 1024px) {
@@ -194,6 +332,12 @@ onUnmounted(() => {
   align-items: center;
   justify-content: space-between;
   gap: 0.5rem;
+  cursor: grab;
+  user-select: none;
+}
+
+.rate-limit-card.is-dragging .rate-limit-heading {
+  cursor: grabbing;
 }
 
 .rate-limit-title {

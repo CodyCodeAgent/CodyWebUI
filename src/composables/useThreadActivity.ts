@@ -13,6 +13,13 @@ export type UiThreadActivitySummary = {
   pendingRequestCount: number
 }
 
+export type UiThreadCommandEntry = UiToolTimelineEntry & {
+  messageId: string
+  cwd: string
+  exitCode: number | null
+  duration: string
+}
+
 export function isToolFailureStatus(status: string): boolean {
   const normalized = status.trim().toLowerCase()
   return (
@@ -29,6 +36,31 @@ export function buildThreadActivityEntries(messages: UiMessage[]): UiThreadActiv
     .map((message) => ({
       ...message.tool,
       messageId: message.id,
+    }))
+}
+
+function parseDetailValue(details: string[], key: string): string {
+  const prefix = `${key}:`
+  const row = details.find((detail) => detail.trim().toLowerCase().startsWith(prefix))
+  if (!row) return ''
+  return row.slice(prefix.length).trim()
+}
+
+function parseExitCode(details: string[]): number | null {
+  const raw = parseDetailValue(details, 'exit')
+  if (!raw) return null
+  const value = Number(raw)
+  return Number.isFinite(value) ? value : null
+}
+
+export function buildThreadCommandEntries(messages: UiMessage[]): UiThreadCommandEntry[] {
+  return buildThreadActivityEntries(messages)
+    .filter((entry) => entry.kind === 'command')
+    .map((entry) => ({
+      ...entry,
+      cwd: parseDetailValue(entry.details, 'cwd'),
+      exitCode: parseExitCode(entry.details),
+      duration: parseDetailValue(entry.details, 'duration'),
     }))
 }
 

@@ -72,6 +72,7 @@
 .app-dark .thread-activity-panel,
 .app-dark .activity-request-card,
 .app-dark .activity-entry-card,
+.app-dark .work-log-card,
 .app-dark .thread-activity-metric,
 .app-dark .thread-validation-panel,
 .app-dark .thread-validation-card,
@@ -269,6 +270,8 @@
 .app-dark .thread-activity-metric-value,
 .app-dark .activity-request-method,
 .app-dark .activity-entry-summary,
+.app-dark .work-log-primary,
+.app-dark .work-log-line-code,
 .app-dark .thread-validation-command,
 .app-dark .workspace-dashboard-title,
 .app-dark .workspace-dashboard-metric-value,
@@ -633,6 +636,7 @@
 
 .app-dark .thread-activity-metric[data-alert='true'],
 .app-dark .activity-entry-card[data-tone='danger'],
+.app-dark .work-log-card[data-tone='danger'],
 .app-dark .thread-validation-card[data-tone='failed'],
 .app-dark .thread-validation-pill[data-tone='danger'] {
   background: #2b1519;
@@ -640,6 +644,7 @@
 }
 
 .app-dark .activity-entry-card[data-tone='success'],
+.app-dark .work-log-card[data-tone='success'],
 .app-dark .thread-validation-card[data-tone='passed'],
 .app-dark .thread-validation-pill[data-tone='success'],
 .app-dark .workspace-dashboard-metric[data-tone='success'],
@@ -650,6 +655,7 @@
 }
 
 .app-dark .activity-entry-card[data-tone='working'],
+.app-dark .work-log-card[data-tone='working'],
 .app-dark .thread-validation-card[data-tone='running'],
 .app-dark .thread-validation-pill[data-tone='working'],
 .app-dark .workspace-dashboard-metric[data-tone='working'] {
@@ -758,6 +764,8 @@
 }
 
 .app-dark .activity-entry-status,
+.app-dark .work-log-status,
+.app-dark .work-log-stat,
 .app-dark .thread-validation-status {
   background: #252b36;
   border-color: #3a4250;
@@ -765,6 +773,7 @@
 }
 
 .app-dark .activity-entry-card[data-tone='success'] .activity-entry-status,
+.app-dark .work-log-card[data-tone='success'] .work-log-status,
 .app-dark .thread-validation-card[data-tone='passed'] .thread-validation-status {
   background: #164532;
   border-color: #1f8f63;
@@ -772,6 +781,7 @@
 }
 
 .app-dark .activity-entry-card[data-tone='danger'] .activity-entry-status,
+.app-dark .work-log-card[data-tone='danger'] .work-log-status,
 .app-dark .thread-validation-card[data-tone='failed'] .thread-validation-status {
   background: #4a171d;
   border-color: #991b1b;
@@ -779,6 +789,7 @@
 }
 
 .app-dark .activity-entry-card[data-tone='working'] .activity-entry-status,
+.app-dark .work-log-card[data-tone='working'] .work-log-status,
 .app-dark .thread-validation-card[data-tone='running'] .thread-validation-status {
   background: #172c4f;
   border-color: #2563eb;
@@ -787,6 +798,9 @@
 
 .app-dark .activity-entry-output,
 .app-dark .activity-entry-output pre,
+.app-dark .work-log-output,
+.app-dark .work-log-diff,
+.app-dark .work-log-hunk,
 .app-dark .thread-validation-output,
 .app-dark .thread-validation-output pre,
 .app-dark .thread-validation-failure-list {
@@ -794,9 +808,65 @@
 }
 
 .app-dark .activity-entry-output pre,
+.app-dark .work-log-output,
 .app-dark .thread-validation-output pre {
   background: #05070c;
   color: #e5e7eb;
+}
+
+.app-dark .work-log-meta,
+.app-dark .work-log-details dt,
+.app-dark .work-log-details dd,
+.app-dark .work-log-line-number,
+.app-dark .work-log-line-prefix {
+  color: #8b93a1;
+}
+
+.app-dark .work-log-diff-row {
+  border-color: #20242c;
+}
+
+.app-dark .work-log-diff-row[data-kind='add'] {
+  background: #10261f;
+}
+
+.app-dark .work-log-diff-row[data-kind='remove'] {
+  background: #2b1519;
+}
+
+.app-dark .work-log-diff-row[data-kind='meta'],
+.app-dark .work-log-diff-row-hunk {
+  background: #172c4f;
+}
+
+.app-dark .work-log-line-number {
+  background: #111827;
+  border-color: #303643;
+}
+
+.app-dark .work-log-diff-row[data-kind='add'] .work-log-line-number {
+  background: #123326;
+}
+
+.app-dark .work-log-diff-row[data-kind='remove'] .work-log-line-number {
+  background: #4a171d;
+}
+
+.app-dark .work-log-diff-row-hunk .work-log-line-number,
+.app-dark .work-log-diff-row[data-kind='meta'] .work-log-line-number {
+  background: #1e3a5f;
+}
+
+.app-dark .work-log-diff-row[data-kind='add'] .work-log-line-prefix {
+  color: #86efac;
+}
+
+.app-dark .work-log-diff-row[data-kind='remove'] .work-log-line-prefix {
+  color: #fca5a5;
+}
+
+.app-dark .work-log-diff-row-hunk .work-log-line-code {
+  color: #bfdbfe;
 }
 
 .app-dark .thread-validation-failure-list {
@@ -1161,6 +1231,7 @@ button {
 .workspace-files-browser,
 .workspace-file-viewer,
 .activity-entry-card,
+.work-log-card,
 .thread-validation-card,
 .tool-timeline-card {
   background: var(--color-surface);
