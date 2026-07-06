@@ -1,8 +1,9 @@
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
+import type { Server as HttpServer } from 'node:http'
 import express, { type Express } from 'express'
-import { createCodexBridgeMiddleware } from './codexAppServerBridge.js'
-import { createAuthMiddleware } from './authMiddleware.js'
+import { attachCodexBridgeWebSocketServer, createCodexBridgeMiddleware } from './codexAppServerBridge.js'
+import { createAuthMiddleware, type AuthMiddleware } from './authMiddleware.js'
 import { buildSecurityAccessSnapshot } from './securityAccess.js'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
@@ -16,6 +17,7 @@ export type ServerOptions = {
 
 export type ServerInstance = {
   app: Express
+  attachWebSocketServer: (server: HttpServer) => () => void
   dispose: () => void
 }
 
@@ -23,10 +25,12 @@ export function createServer(options: ServerOptions = {}): ServerInstance {
   const app = express()
   const bridge = createCodexBridgeMiddleware()
   const authEnabled = Boolean(options.password)
+  let authMiddleware: AuthMiddleware | null = null
 
   // 1. Auth middleware (if password is set)
   if (options.password) {
-    app.use(createAuthMiddleware(options.password))
+    authMiddleware = createAuthMiddleware(options.password)
+    app.use(authMiddleware)
   }
 
   // 2. Security access status
@@ -53,6 +57,9 @@ export function createServer(options: ServerOptions = {}): ServerInstance {
 
   return {
     app,
+    attachWebSocketServer: (server) => attachCodexBridgeWebSocketServer(server, {
+      authorizeUpgrade: authMiddleware?.authorizeUpgrade,
+    }),
     dispose: () => bridge.dispose(),
   }
 }

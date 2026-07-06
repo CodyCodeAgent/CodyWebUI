@@ -25,8 +25,9 @@ if (opts.password === false) {
   password = generatePassword()
 }
 
-const { app, dispose } = createApp({ password, host, port })
+const { app, attachWebSocketServer, dispose } = createApp({ password, host, port })
 const server = createServer(app)
+const disposeWebSocketServer = attachWebSocketServer(server)
 
 server.listen(port, host, () => {
   const lines = [
@@ -55,11 +56,13 @@ server.listen(port, host, () => {
 function shutdown() {
   console.log('\nShutting down...')
   server.close(() => {
+    disposeWebSocketServer()
     dispose()
     process.exit(0)
   })
   // Force exit after timeout
   setTimeout(() => {
+    disposeWebSocketServer()
     dispose()
     process.exit(1)
   }, 5000).unref()

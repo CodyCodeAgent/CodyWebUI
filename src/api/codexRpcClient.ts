@@ -93,6 +93,22 @@ type ServerRequestReplyBody = {
   }
 }
 
+type BridgeWebSocketMessage =
+  | {
+      type: 'ready'
+      atIso?: string
+    }
+  | {
+      type: 'rpc'
+      notification?: unknown
+      atIso?: string
+    }
+  | {
+      type: 'product'
+      notification?: unknown
+      atIso?: string
+    }
+
 export type UploadedLocalImage = {
   id: string
   name: string
@@ -605,51 +621,130 @@ function toProductNotification(value: unknown): ProductNotification | null {
   }
 }
 
+const rpcNotificationListeners = new Set<(value: RpcNotification) => void>()
+const productNotificationListeners = new Set<(value: ProductNotification) => void>()
+let bridgeSocket: WebSocket | null = null
+let bridgeSocketReconnectTimer: number | null = null
+let bridgeSocketReconnectDelayMs = 500
+
+function hasBridgeSocketListeners(): boolean {
+  return rpcNotificationListeners.size > 0 || productNotificationListeners.size > 0
+}
+
+function bridgeWebSocketUrl(): string {
+  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+  return `${protocol}//${window.location.host}/codex-api/ws`
+}
+
+function clearBridgeSocketReconnect(): void {
+  if (bridgeSocketReconnectTimer === null || typeof window === 'undefined') return
+  window.clearTimeout(bridgeSocketReconnectTimer)
+  bridgeSocketReconnectTimer = null
+}
+
+function scheduleBridgeSocketReconnect(): void {
+  if (typeof window === 'undefined') return
+  if (!hasBridgeSocketListeners()) return
+  if (bridgeSocketReconnectTimer !== null) return
+
+  const delayMs = bridgeSocketReconnectDelayMs
+  bridgeSocketReconnectDelayMs = Math.min(10_000, bridgeSocketReconnectDelayMs * 1.6)
+  bridgeSocketReconnectTimer = window.setTimeout(() => {
+    bridgeSocketReconnectTimer = null
+    ensureBridgeSocket()
+  }, delayMs)
+}
+
+function closeBridgeSocketIfIdle(): void {
+  if (hasBridgeSocketListeners()) return
+  clearBridgeSocketReconnect()
+  bridgeSocket?.close()
+  bridgeSocket = null
+}
+
+function handleBridgeSocketMessage(rawData: MessageEvent['data']): void {
+  try {
+    const parsed = JSON.parse(String(rawData)) as BridgeWebSocketMessage
+    if (parsed.type === 'rpc') {
+      const notification = toNotification({
+        ...(asRecord(parsed.notification) ?? {}),
+        atIso: parsed.atIso,
+      })
+      if (!notification) return
+      for (const listener of rpcNotificationListeners) {
+        listener(notification)
+      }
+      return
+    }
+
+    if (parsed.type === 'product') {
+      const notification = toProductNotification(parsed.notification)
+      if (!notification) return
+      for (const listener of productNotificationListeners) {
+        listener(notification)
+      }
+    }
+  } catch {
+    // Ignore malformed websocket payloads and keep the connection alive.
+  }
+}
+
+function ensureBridgeSocket(): void {
+  if (typeof window === 'undefined' || typeof WebSocket === 'undefined') return
+  if (!hasBridgeSocketListeners()) return
+  if (bridgeSocket && (bridgeSocket.readyState === WebSocket.OPEN || bridgeSocket.readyState === WebSocket.CONNECTING)) {
+    return
+  }
+
+  clearBridgeSocketReconnect()
+  const socket = new WebSocket(bridgeWebSocketUrl())
+  bridgeSocket = socket
+
+  socket.addEventListener('open', () => {
+    bridgeSocketReconnectDelayMs = 500
+  })
+
+  socket.addEventListener('message', (event) => {
+    handleBridgeSocketMessage(event.data)
+  })
+
+  socket.addEventListener('close', () => {
+    if (bridgeSocket === socket) {
+      bridgeSocket = null
+    }
+    scheduleBridgeSocketReconnect()
+  })
+
+  socket.addEventListener('error', () => {
+    socket.close()
+  })
+}
+
 export function subscribeRpcNotifications(onNotification: (value: RpcNotification) => void): () => void {
-  if (typeof window === 'undefined' || typeof EventSource === 'undefined') {
+  if (typeof window === 'undefined' || typeof WebSocket === 'undefined') {
     return () => {}
   }
 
-  const source = new EventSource('/codex-api/events')
-
-  source.onmessage = (event) => {
-    try {
-      const parsed = JSON.parse(event.data) as unknown
-      const notification = toNotification(parsed)
-      if (notification) {
-        onNotification(notification)
-      }
-    } catch {
-      // Ignore malformed event payloads and keep stream alive.
-    }
-  }
+  rpcNotificationListeners.add(onNotification)
+  ensureBridgeSocket()
 
   return () => {
-    source.close()
+    rpcNotificationListeners.delete(onNotification)
+    closeBridgeSocketIfIdle()
   }
 }
 
 export function subscribeProductNotifications(onNotification: (value: ProductNotification) => void): () => void {
-  if (typeof window === 'undefined' || typeof EventSource === 'undefined') {
+  if (typeof window === 'undefined' || typeof WebSocket === 'undefined') {
     return () => {}
   }
 
-  const source = new EventSource('/codex-api/product-events')
-
-  source.onmessage = (event) => {
-    try {
-      const parsed = JSON.parse(event.data) as unknown
-      const notification = toProductNotification(parsed)
-      if (notification) {
-        onNotification(notification)
-      }
-    } catch {
-      // Ignore malformed event payloads and keep stream alive.
-    }
-  }
+  productNotificationListeners.add(onNotification)
+  ensureBridgeSocket()
 
   return () => {
-    source.close()
+    productNotificationListeners.delete(onNotification)
+    closeBridgeSocketIfIdle()
   }
 }
 

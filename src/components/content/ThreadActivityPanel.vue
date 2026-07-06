@@ -1,12 +1,13 @@
 <template>
   <div class="thread-activity-host">
     <button
-      v-if="!isWorkLogOpen"
       class="thread-work-log-float-button"
       type="button"
-      aria-label="Open work log"
-      title="Open work log"
-      @click="openWorkLog"
+      :aria-expanded="isWorkLogOpen"
+      aria-controls="thread-work-log-panel"
+      :aria-label="isWorkLogOpen ? 'Close work log' : 'Open work log'"
+      :title="isWorkLogOpen ? 'Close work log' : 'Open work log'"
+      @click="toggleWorkLog"
     >
       <span class="thread-work-log-float-title">Work log</span>
       <span class="thread-work-log-float-summary">
@@ -17,7 +18,7 @@
       </span>
     </button>
 
-    <aside v-if="isWorkLogOpen" class="thread-activity-panel" aria-label="Thread work log">
+    <aside v-if="isWorkLogOpen" id="thread-work-log-panel" class="thread-activity-panel" aria-label="Thread work log">
       <header class="thread-activity-header">
         <div>
           <h2 class="thread-activity-title">Work log</h2>
@@ -392,12 +393,12 @@ function closeFullscreenDiff(): void {
   fullscreenFilePath.value = ''
 }
 
-function openWorkLog(): void {
-  isWorkLogOpen.value = true
-}
-
 function closeWorkLog(): void {
   isWorkLogOpen.value = false
+}
+
+function toggleWorkLog(): void {
+  isWorkLogOpen.value = !isWorkLogOpen.value
 }
 
 function toolStatusTone(status: string): 'success' | 'danger' | 'working' | 'neutral' {
@@ -435,11 +436,15 @@ watch(diffReview, (review) => {
 @reference "tailwindcss";
 
 .thread-activity-host {
-  display: contents;
+  position: sticky;
+  top: 0;
+  z-index: 35;
+  align-self: flex-start;
+  margin: 0 0 0.5rem 1.5rem;
 }
 
 .thread-work-log-float-button {
-  @apply fixed bottom-4 right-4 z-40 grid max-w-[calc(100vw-2rem)] grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 rounded-lg border border-slate-200 bg-white px-3 py-2 text-left text-slate-800 shadow-xl transition hover:border-blue-300 hover:bg-blue-50;
+  @apply grid max-w-[calc(100vw-2rem)] grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 rounded-lg border border-slate-200 bg-white px-4 py-2 text-left text-slate-800 shadow-lg transition hover:border-blue-300 hover:bg-blue-50;
   width: min(18rem, calc(100vw - 2rem));
 }
 
@@ -456,7 +461,7 @@ watch(diffReview, (review) => {
 }
 
 .thread-activity-panel {
-  @apply fixed bottom-4 right-4 z-50 flex max-h-[min(76vh,48rem)] min-h-0 w-[min(34rem,calc(100vw-2rem))] flex-col gap-3 overflow-hidden rounded-lg border border-slate-200 bg-white p-3 shadow-2xl;
+  @apply absolute left-0 top-[calc(100%+0.5rem)] z-50 flex max-h-[min(72vh,48rem)] min-h-0 w-[min(34rem,calc(100vw-3rem))] flex-col gap-3 overflow-hidden rounded-lg border border-slate-200 bg-white p-3 shadow-2xl;
 }
 
 .thread-activity-header {

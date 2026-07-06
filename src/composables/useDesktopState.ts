@@ -601,6 +601,50 @@ function mergeThreadGroups(
   return areGroupArraysEqual(previous, mergedGroups) ? previous : mergedGroups
 }
 
+function upsertThreadInGroups(groups: UiProjectGroup[], thread: UiThread): UiProjectGroup[] {
+  let didInsert = false
+  let didUpdate = false
+
+  const nextGroups = groups.map((group) => {
+    if (group.projectName !== thread.projectName) return group
+
+    didInsert = true
+    const existingIndex = group.threads.findIndex((row) => row.id === thread.id)
+    if (existingIndex === -1) {
+      return {
+        ...group,
+        cwd: group.cwd || thread.cwd || thread.projectName,
+        threads: [thread, ...group.threads],
+      }
+    }
+
+    const existing = group.threads[existingIndex]
+    if (existing && areThreadFieldsEqual(existing, thread)) return group
+
+    didUpdate = true
+    const nextThreads = group.threads.slice()
+    nextThreads[existingIndex] = {
+      ...existing,
+      ...thread,
+    }
+    return {
+      ...group,
+      threads: nextThreads,
+    }
+  })
+
+  if (didInsert) return didUpdate ? nextGroups : nextGroups
+
+  return [
+    {
+      projectName: thread.projectName,
+      cwd: thread.cwd || thread.projectName,
+      threads: [thread],
+    },
+    ...groups,
+  ]
+}
+
 function renameThreadInGroups(groups: UiProjectGroup[], threadId: string, title: string): UiProjectGroup[] {
   let didChange = false
   const nextGroups = groups.map((group) => {
@@ -627,6 +671,7 @@ function renameThreadInGroups(groups: UiProjectGroup[], threadId: string, title:
 export function useDesktopState() {
   const projectGroups = ref<UiProjectGroup[]>([])
   const sourceGroups = ref<UiProjectGroup[]>([])
+  const optimisticThreadById = ref<Record<string, UiThread>>({})
   const selectedThreadId = ref(loadSelectedThreadId())
   const isArchiveView = ref(false)
   const persistedMessagesByThreadId = ref<Record<string, UiMessage[]>>({})
@@ -906,6 +951,53 @@ export function useDesktopState() {
       }),
     }))
     projectGroups.value = mergeThreadGroups(projectGroups.value, flaggedGroups)
+  }
+
+  function mergeOptimisticThreads(groups: UiProjectGroup[]): UiProjectGroup[] {
+    const serverThreadIds = new Set(flattenThreads(groups).map((thread) => thread.id))
+    let nextOptimistic = optimisticThreadById.value
+    let nextGroups = groups
+
+    for (const [threadId, optimisticThread] of Object.entries(optimisticThreadById.value)) {
+      if (serverThreadIds.has(threadId)) {
+        if (nextOptimistic === optimisticThreadById.value) {
+          nextOptimistic = { ...optimisticThreadById.value }
+        }
+        delete nextOptimistic[threadId]
+        continue
+      }
+
+      nextGroups = upsertThreadInGroups(nextGroups, optimisticThread)
+    }
+
+    if (nextOptimistic !== optimisticThreadById.value) {
+      optimisticThreadById.value = nextOptimistic
+    }
+
+    return nextGroups
+  }
+
+  function addOptimisticThread(thread: UiThread): void {
+    optimisticThreadById.value = {
+      ...optimisticThreadById.value,
+      [thread.id]: thread,
+    }
+    sourceGroups.value = upsertThreadInGroups(sourceGroups.value, thread)
+    applyThreadFlags()
+  }
+
+  function updateOptimisticThreadTitle(threadId: string, title: string): void {
+    const optimisticThread = optimisticThreadById.value[threadId]
+    if (!optimisticThread) return
+
+    optimisticThreadById.value = {
+      ...optimisticThreadById.value,
+      [threadId]: {
+        ...optimisticThread,
+        title,
+        preview: title,
+      },
+    }
   }
 
   function pruneThreadScopedState(flatThreads: UiThread[]): void {
@@ -1853,7 +1945,8 @@ export function useDesktopState() {
       }
 
       const orderedGroups = orderGroupsByProjectOrder(groups, projectOrder.value)
-      sourceGroups.value = mergeThreadGroups(sourceGroups.value, orderedGroups)
+      const groupsWithOptimisticThreads = mergeOptimisticThreads(orderedGroups)
+      sourceGroups.value = mergeThreadGroups(sourceGroups.value, groupsWithOptimisticThreads)
       inProgressById.value = pruneThreadStateMap(
         inProgressById.value,
         new Set(flattenThreads(sourceGroups.value).map((thread) => thread.id)),
@@ -2038,7 +2131,9 @@ export function useDesktopState() {
 
     const previousSourceGroups = sourceGroups.value
     const previousProjectGroups = projectGroups.value
+    const previousOptimisticThreads = optimisticThreadById.value
 
+    updateOptimisticThreadTitle(normalizedThreadId, normalizedTitle)
     sourceGroups.value = renameThreadInGroups(sourceGroups.value, normalizedThreadId, normalizedTitle)
     projectGroups.value = renameThreadInGroups(projectGroups.value, normalizedThreadId, normalizedTitle)
 
@@ -2046,6 +2141,7 @@ export function useDesktopState() {
       await renameThread(normalizedThreadId, normalizedTitle)
       await loadThreads()
     } catch (unknownError) {
+      optimisticThreadById.value = previousOptimisticThreads
       sourceGroups.value = previousSourceGroups
       projectGroups.value = previousProjectGroups
       error.value = unknownError instanceof Error ? unknownError.message : 'Failed to rename thread'
@@ -2207,6 +2303,21 @@ export function useDesktopState() {
       threadId = await startThread(targetCwd || undefined, selectedModel || undefined)
       if (!threadId) return ''
 
+      const createdAtIso = new Date().toISOString()
+      setSelectedThreadId(threadId)
+      addOptimisticThread({
+        id: threadId,
+        title: 'Untitled thread',
+        projectName: targetCwd || 'unknown-project',
+        cwd: targetCwd,
+        createdAtIso,
+        updatedAtIso: createdAtIso,
+        preview: nextText,
+        unread: false,
+        inProgress: false,
+      })
+      setThreadInProgress(threadId, true)
+
       try {
         await loadThreads()
       } catch {
@@ -2217,7 +2328,6 @@ export function useDesktopState() {
         ...resumedThreadById.value,
         [threadId]: true,
       }
-      setSelectedThreadId(threadId)
       shouldAutoScrollOnNextAgentEvent = true
       setTurnSummaryForThread(threadId, null)
       setTurnActivityForThread(
@@ -2232,7 +2342,6 @@ export function useDesktopState() {
         },
       )
       setTurnErrorForThread(threadId, null)
-      setThreadInProgress(threadId, true)
 
       await startTurnForThread(threadId, nextText, nextImages, nextSkills)
       return threadId
@@ -2510,7 +2619,7 @@ export function useDesktopState() {
     }
   }
 
-  function startPolling(): void {
+  function startRealtimeSync(): void {
     if (typeof window === 'undefined') return
 
     if (stopNotificationStream) return
@@ -2596,7 +2705,7 @@ export function useDesktopState() {
     startAutoRefreshTimer()
   }
 
-  function stopPolling(): void {
+  function stopRealtimeSync(): void {
     stopAutoRefreshTimer({ updatePreference: false })
 
     if (stopNotificationStream) {
@@ -2672,7 +2781,7 @@ export function useDesktopState() {
     removeProject,
     reorderProject,
     toggleAutoRefreshTimer,
-    startPolling,
-    stopPolling,
+    startRealtimeSync,
+    stopRealtimeSync,
   }
 }

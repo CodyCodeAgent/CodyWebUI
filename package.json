@@ -43,12 +43,14 @@
     "commander": "^13.1.0",
     "express": "^5.1.0",
     "monaco-editor": "^0.55.1",
+    "ws": "^8.21.0",
     "yaml": "^2.9.0"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.1.18",
     "@types/express": "^5.0.0",
     "@types/node": "^22.13.2",
+    "@types/ws": "^8.18.1",
     "@vitejs/plugin-vue": "^5.2.1",
     "tailwindcss": "^4.1.18",
     "tsup": "^8.4.0",

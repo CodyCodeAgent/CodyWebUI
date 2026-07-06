@@ -182,6 +182,16 @@
             <div class="content-grid">
               <div class="content-workbench">
                 <div class="content-thread">
+                  <ThreadActivityPanel
+                    class="content-activity"
+                    :messages="filteredMessages"
+                    :pending-requests="selectedThreadServerRequests"
+                    :cwd="selectedThread?.cwd ?? ''"
+                    :thread-id="selectedThreadId"
+                    @respond-server-request="onRespondServerRequest"
+                    @rollback-completed="onRollbackCompleted"
+                  />
+
                   <ThreadConversation :messages="filteredMessages" :is-loading="isLoadingMessages"
                     :active-thread-id="composerThreadContextId" :scroll-state="selectedThreadScrollState"
                     :live-overlay="liveOverlay"
@@ -189,16 +199,6 @@
                     @update-scroll-state="onUpdateThreadScrollState"
                     @respond-server-request="onRespondServerRequest" />
                 </div>
-
-                <ThreadActivityPanel
-                  class="content-activity"
-                  :messages="filteredMessages"
-                  :pending-requests="selectedThreadServerRequests"
-                  :cwd="selectedThread?.cwd ?? ''"
-                  :thread-id="selectedThreadId"
-                  @respond-server-request="onRespondServerRequest"
-                  @rollback-completed="onRollbackCompleted"
-                />
               </div>
 
               <ThreadComposer :active-thread-id="composerThreadContextId"
@@ -317,8 +317,8 @@ const {
   removeProject,
   reorderProject,
   toggleAutoRefreshTimer,
-  startPolling,
-  stopPolling,
+  startRealtimeSync,
+  stopRealtimeSync,
   recordRollbackAudit,
 } = useDesktopState()
 const browserNotifications = useBrowserNotifications()
@@ -443,7 +443,7 @@ onUnmounted(() => {
   window.removeEventListener('keydown', onWindowKeyDown)
   window.removeEventListener('resize', updateMobileViewport)
   browserNotifications.stop()
-  stopPolling()
+  stopRealtimeSync()
 })
 
 function updateMobileViewport(): void {
@@ -547,7 +547,7 @@ function onRenameThread(payload: { threadId: string; title: string }): void {
 
 function onStartNewThread(projectName: string): void {
   const projectGroup = projectGroups.value.find((group) => group.projectName === projectName)
-  const projectCwd = projectGroup?.threads[0]?.cwd?.trim() ?? ''
+  const projectCwd = projectGroup?.cwd?.trim() || projectGroup?.threads[0]?.cwd?.trim() || ''
   openNewThreadDialog(projectCwd)
 }
 
@@ -683,7 +683,7 @@ async function initialize(): Promise<void> {
   await ensureNewThreadWorkspace()
   hasInitialized.value = true
   await syncThreadSelectionWithRoute()
-  startPolling()
+  startRealtimeSync()
 }
 
 async function ensureNewThreadWorkspace(): Promise<void> {
@@ -877,11 +877,15 @@ async function submitFirstMessageForNewThread(payload: UiComposerSubmitPayload):
 }
 
 .content-thread {
-  @apply flex-1 min-h-0;
+  @apply flex flex-1 flex-col min-h-0 overflow-visible;
 }
 
 .content-activity {
-  display: contents;
+  @apply shrink-0;
+}
+
+.content-thread :deep(.conversation-root) {
+  @apply flex-1;
 }
 
 .new-thread-empty {

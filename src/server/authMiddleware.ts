@@ -1,4 +1,5 @@
 import { randomBytes, timingSafeEqual } from 'node:crypto'
+import type { IncomingMessage } from 'node:http'
 import type { RequestHandler, Request, Response, NextFunction } from 'express'
 
 const TOKEN_COOKIE = 'codex_web_local_token'
@@ -35,6 +36,10 @@ export type AuthMiddlewareOptions = {
   rateLimitBlockMs?: number
   maxFailedAttempts?: number
   now?: () => number
+}
+
+export type AuthMiddleware = RequestHandler & {
+  authorizeUpgrade: (req: IncomingMessage) => boolean
 }
 
 function constantTimeCompare(a: string, b: string): boolean {
@@ -120,7 +125,7 @@ form.addEventListener('submit',async e=>{
 </body>
 </html>`
 
-export function createAuthMiddleware(password: string, options: AuthMiddlewareOptions = {}): RequestHandler {
+export function createAuthMiddleware(password: string, options: AuthMiddlewareOptions = {}): AuthMiddleware {
   const sessions = new Map<string, AuthSession>()
   const trustedDevices = new Map<string, TrustedDevice>()
   const rateLimits = new Map<string, LoginRateLimitState>()
@@ -138,9 +143,9 @@ export function createAuthMiddleware(password: string, options: AuthMiddlewareOp
     }
   }
 
-  function readSession(req: Request, nowMs: number): AuthSession | null {
+  function readSessionFromCookie(cookieHeader: string | undefined, nowMs: number): AuthSession | null {
     deleteExpiredSessions(nowMs)
-    const cookies = parseCookies(req.headers.cookie)
+    const cookies = parseCookies(cookieHeader)
     const token = cookies[TOKEN_COOKIE]
     if (!token) return null
     const session = sessions.get(token)
@@ -150,6 +155,10 @@ export function createAuthMiddleware(password: string, options: AuthMiddlewareOp
     }
     session.lastSeenAtMs = nowMs
     return session
+  }
+
+  function readSession(req: Request, nowMs: number): AuthSession | null {
+    return readSessionFromCookie(req.headers.cookie, nowMs)
   }
 
   function readRateLimit(ip: string, nowMs: number): LoginRateLimitState {
@@ -176,7 +185,7 @@ export function createAuthMiddleware(password: string, options: AuthMiddlewareOp
     rateLimits.delete(ip)
   }
 
-  return (req: Request, res: Response, next: NextFunction): void => {
+  const middleware = ((req: Request, res: Response, next: NextFunction): void => {
     const nowMs = now()
     const ip = requestIp(req)
 
@@ -340,5 +349,10 @@ export function createAuthMiddleware(password: string, options: AuthMiddlewareOp
     // No valid session — serve login page
     res.setHeader('Content-Type', 'text/html; charset=utf-8')
     res.status(200).send(LOGIN_PAGE_HTML)
-  }
+  }) as AuthMiddleware
+
+  middleware.authorizeUpgrade = (req: IncomingMessage): boolean =>
+    Boolean(readSessionFromCookie(req.headers.cookie, now()))
+
+  return middleware
 }

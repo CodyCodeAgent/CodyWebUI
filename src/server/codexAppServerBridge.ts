@@ -1,9 +1,11 @@
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process'
 import { mkdtemp, readFile } from 'node:fs/promises'
-import type { IncomingMessage, ServerResponse } from 'node:http'
+import type { Server as HttpServer, IncomingMessage, ServerResponse } from 'node:http'
+import type { Socket } from 'node:net'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { cwd as getProcessCwd } from 'node:process'
+import { WebSocket, WebSocketServer } from 'ws'
 import { handleDirectoryList } from './directoryBrowser.js'
 import { handleImageUpload, handleLocalImage } from './imageUploads.js'
 import { NotificationDispatcher, type NotificationDispatchEvent } from './notificationDispatchService.js'
@@ -1452,6 +1454,26 @@ type SharedBridgeState = {
   productEventHub: ProductEventHub
 }
 
+export type CodexBridgeWebSocketOptions = {
+  authorizeUpgrade?: (req: IncomingMessage) => boolean
+}
+
+type BridgeWebSocketMessage =
+  | {
+      type: 'ready'
+      atIso: string
+    }
+  | {
+      type: 'rpc'
+      notification: unknown
+      atIso: string
+    }
+  | {
+      type: 'product'
+      notification: NotificationDispatchEvent
+      atIso: string
+    }
+
 type ProductEventListener = (event: NotificationDispatchEvent) => void
 
 class ProductEventHub {
@@ -1473,6 +1495,11 @@ class ProductEventHub {
   clear(): void {
     this.listeners.clear()
   }
+}
+
+function sendBridgeWebSocketMessage(socket: WebSocket, message: BridgeWebSocketMessage): void {
+  if (socket.readyState !== WebSocket.OPEN) return
+  socket.send(JSON.stringify(message))
 }
 
 const SHARED_BRIDGE_KEY = '__codexRemoteSharedBridge__'
@@ -1949,70 +1976,6 @@ export function createCodexBridgeMiddleware(): CodexBridgeMiddleware {
         return
       }
 
-      if (req.method === 'GET' && url.pathname === '/codex-api/events') {
-        res.statusCode = 200
-        res.setHeader('Content-Type', 'text/event-stream; charset=utf-8')
-        res.setHeader('Cache-Control', 'no-cache, no-transform')
-        res.setHeader('Connection', 'keep-alive')
-        res.setHeader('X-Accel-Buffering', 'no')
-
-        const unsubscribe = appServer.onNotification((notification) => {
-          if (res.writableEnded || res.destroyed) return
-          const payload = {
-            ...notification,
-            atIso: new Date().toISOString(),
-          }
-          res.write(`data: ${JSON.stringify(payload)}\n\n`)
-        })
-
-        res.write(`event: ready\ndata: ${JSON.stringify({ ok: true })}\n\n`)
-        const keepAlive = setInterval(() => {
-          res.write(': ping\n\n')
-        }, 15000)
-
-        const close = () => {
-          clearInterval(keepAlive)
-          unsubscribe()
-          if (!res.writableEnded) {
-            res.end()
-          }
-        }
-
-        req.on('close', close)
-        req.on('aborted', close)
-        return
-      }
-
-      if (req.method === 'GET' && url.pathname === '/codex-api/product-events') {
-        res.statusCode = 200
-        res.setHeader('Content-Type', 'text/event-stream; charset=utf-8')
-        res.setHeader('Cache-Control', 'no-cache, no-transform')
-        res.setHeader('Connection', 'keep-alive')
-        res.setHeader('X-Accel-Buffering', 'no')
-
-        const unsubscribe = productEventHub.subscribe((event) => {
-          if (res.writableEnded || res.destroyed) return
-          res.write(`data: ${JSON.stringify(event)}\n\n`)
-        })
-
-        res.write(`event: ready\ndata: ${JSON.stringify({ ok: true })}\n\n`)
-        const keepAlive = setInterval(() => {
-          res.write(': ping\n\n')
-        }, 15000)
-
-        const close = () => {
-          clearInterval(keepAlive)
-          unsubscribe()
-          if (!res.writableEnded) {
-            res.end()
-          }
-        }
-
-        req.on('close', close)
-        req.on('aborted', close)
-        return
-      }
-
       next()
     } catch (error) {
       const message = getErrorMessage(error, 'Unknown bridge error')
@@ -2033,4 +1996,69 @@ export function createCodexBridgeMiddleware(): CodexBridgeMiddleware {
   }
 
   return middleware
+}
+
+export function attachCodexBridgeWebSocketServer(
+  server: HttpServer,
+  options: CodexBridgeWebSocketOptions = {},
+): () => void {
+  const { appServer, productEventHub } = getSharedBridgeState()
+  const webSocketServer = new WebSocketServer({ noServer: true })
+  const clients = new Set<WebSocket>()
+
+  const onUpgrade = (req: IncomingMessage, socket: Socket, head: Buffer): void => {
+    const url = new URL(req.url ?? '/', 'http://localhost')
+    if (url.pathname !== '/codex-api/ws') return
+
+    if (options.authorizeUpgrade && !options.authorizeUpgrade(req)) {
+      socket.write('HTTP/1.1 401 Unauthorized\r\nConnection: close\r\n\r\n')
+      socket.destroy()
+      return
+    }
+
+    webSocketServer.handleUpgrade(req, socket, head, (webSocket) => {
+      webSocketServer.emit('connection', webSocket, req)
+    })
+  }
+
+  webSocketServer.on('connection', (socket) => {
+    clients.add(socket)
+    sendBridgeWebSocketMessage(socket, {
+      type: 'ready',
+      atIso: new Date().toISOString(),
+    })
+
+    const unsubscribeNotifications = appServer.onNotification((notification) => {
+      sendBridgeWebSocketMessage(socket, {
+        type: 'rpc',
+        notification,
+        atIso: new Date().toISOString(),
+      })
+    })
+
+    const unsubscribeProductEvents = productEventHub.subscribe((event) => {
+      sendBridgeWebSocketMessage(socket, {
+        type: 'product',
+        notification: event,
+        atIso: new Date().toISOString(),
+      })
+    })
+
+    socket.on('close', () => {
+      unsubscribeNotifications()
+      unsubscribeProductEvents()
+      clients.delete(socket)
+    })
+  })
+
+  server.on('upgrade', onUpgrade)
+
+  return () => {
+    server.off('upgrade', onUpgrade)
+    for (const client of clients) {
+      client.close()
+    }
+    clients.clear()
+    webSocketServer.close()
+  }
 }
