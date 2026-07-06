@@ -112,6 +112,15 @@
       >
         <summary class="work-log-summary">
           <span class="work-log-primary">{{ file.filePath }}</span>
+          <button
+            class="work-log-fullscreen-button"
+            type="button"
+            aria-label="Open diff fullscreen"
+            title="Open diff fullscreen"
+            @click.stop.prevent="openFullscreenDiff(file.filePath)"
+          >
+            ⛶
+          </button>
           <span class="work-log-status">{{ file.status }}</span>
           <span class="work-log-stat">+{{ file.addedLines }} / -{{ file.removedLines }}</span>
         </summary>
@@ -151,8 +160,10 @@
       >
         <summary class="work-log-summary">
           <span class="work-log-primary">{{ entry.summary }}</span>
+          <span class="work-log-summary-spacer" />
           <span class="work-log-status">{{ formatToolStatus(entry.status) }}</span>
           <span v-if="entry.exitCode !== null" class="work-log-stat">exit {{ entry.exitCode }}</span>
+          <span v-else class="work-log-summary-spacer" />
         </summary>
         <dl class="work-log-details">
           <div v-if="entry.cwd">
@@ -168,11 +179,70 @@
         <p v-else class="work-log-meta">No output captured for this command.</p>
       </details>
     </section>
+
+    <Teleport to="body">
+      <div
+        v-if="fullscreenFile"
+        class="work-log-fullscreen-backdrop"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Fullscreen diff"
+        @click.self="closeFullscreenDiff"
+      >
+        <section class="work-log-fullscreen-panel">
+          <header class="work-log-fullscreen-header">
+            <div class="work-log-fullscreen-copy">
+              <h3>{{ fullscreenFile.filePath }}</h3>
+              <p>
+                {{ fullscreenFile.status }} · +{{ fullscreenFile.addedLines }} / -{{ fullscreenFile.removedLines }}
+              </p>
+            </div>
+            <button
+              class="work-log-fullscreen-close"
+              type="button"
+              aria-label="Close fullscreen diff"
+              title="Close"
+              @click="closeFullscreenDiff"
+            >
+              ×
+            </button>
+          </header>
+
+          <div v-if="fullscreenFile.oldPath" class="work-log-fullscreen-meta">
+            from {{ fullscreenFile.oldPath }}
+          </div>
+
+          <div v-if="fullscreenFile.hunks.length > 0" class="work-log-diff work-log-diff-fullscreen" aria-label="Fullscreen file diff">
+            <section v-for="hunk in fullscreenFile.hunks" :key="`fullscreen:${fullscreenFile.filePath}:${hunk.header}`" class="work-log-hunk">
+              <div class="work-log-diff-row work-log-diff-row-hunk">
+                <span class="work-log-line-number" />
+                <span class="work-log-line-number" />
+                <span class="work-log-line-prefix" />
+                <code class="work-log-line-code">{{ hunk.header }}</code>
+              </div>
+              <div
+                v-for="(line, index) in hunk.lines"
+                :key="`fullscreen:${fullscreenFile.filePath}:${hunk.header}:${index}`"
+                class="work-log-diff-row"
+                :data-kind="line.kind"
+              >
+                <span class="work-log-line-number">{{ formatLineNumber(line.oldLineNumber) }}</span>
+                <span class="work-log-line-number">{{ formatLineNumber(line.newLineNumber) }}</span>
+                <span class="work-log-line-prefix">{{ diffLinePrefix(line.kind) }}</span>
+                <code class="work-log-line-code">{{ line.content }}</code>
+              </div>
+            </section>
+          </div>
+          <pre v-else-if="fullscreenFile.patch" class="work-log-output work-log-output-fullscreen"><code>{{ fullscreenFile.patch }}</code></pre>
+          <p v-else class="work-log-fullscreen-empty">No diff content captured for this file.</p>
+        </section>
+      </div>
+    </Teleport>
   </aside>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref, watch } from 'vue'
 import {
   buildThreadCommandEntries,
   buildThreadActivitySummary,
@@ -185,7 +255,7 @@ import {
   buildApprovalRiskSummary,
   type UiApprovalDecision,
 } from '../../composables/useApprovalRisk'
-import { buildDiffReview } from '../../composables/useDiffReview'
+import { buildDiffReview, type UiDiffReviewFile } from '../../composables/useDiffReview'
 import type { UiApprovalDecisionScope, UiMessage, UiServerRequest, UiServerRequestReply, UiToolingRollbackFileResult } from '../../types/codex'
 
 const props = defineProps<{
@@ -203,6 +273,10 @@ const approvalScopeOptions = APPROVAL_SCOPE_OPTIONS
 
 const commandEntries = computed(() => buildThreadCommandEntries(props.messages))
 const diffReview = computed(() => buildDiffReview(props.messages))
+const fullscreenFilePath = ref('')
+const fullscreenFile = computed<UiDiffReviewFile | null>(() =>
+  diffReview.value.files.find((file) => file.filePath === fullscreenFilePath.value) ?? null
+)
 const summary = computed(() => buildThreadActivitySummary(props.messages, props.pendingRequests))
 const statusText = computed(() => {
   if (summary.value.pendingRequestCount > 0) return `${summary.value.pendingRequestCount} waiting`
@@ -280,6 +354,14 @@ function diffLinePrefix(kind: string): string {
   return ''
 }
 
+function openFullscreenDiff(filePath: string): void {
+  fullscreenFilePath.value = filePath
+}
+
+function closeFullscreenDiff(): void {
+  fullscreenFilePath.value = ''
+}
+
 function toolStatusTone(status: string): 'success' | 'danger' | 'working' | 'neutral' {
   const normalized = status.trim().toLowerCase()
   if (!normalized) return 'neutral'
@@ -302,6 +384,13 @@ function toolStatusTone(status: string): 'success' | 'danger' | 'working' | 'neu
   }
   return 'neutral'
 }
+
+watch(diffReview, (review) => {
+  if (!fullscreenFilePath.value) return
+  if (!review.files.some((file) => file.filePath === fullscreenFilePath.value)) {
+    fullscreenFilePath.value = ''
+  }
+})
 </script>
 
 <style scoped>
@@ -408,7 +497,7 @@ function toolStatusTone(status: string): 'success' | 'danger' | 'working' | 'neu
 }
 
 .work-log-summary {
-  @apply grid cursor-pointer grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-2 text-xs;
+  @apply grid cursor-pointer grid-cols-[minmax(0,1fr)_2rem_auto_auto] items-center gap-2 text-xs;
 }
 
 .work-log-primary {
@@ -418,6 +507,10 @@ function toolStatusTone(status: string): 'success' | 'danger' | 'working' | 'neu
 .work-log-status,
 .work-log-stat {
   @apply shrink-0 rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[0.68rem] font-medium leading-4 text-slate-600;
+}
+
+.work-log-fullscreen-button {
+  @apply inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-slate-200 bg-white text-sm leading-none text-slate-600 transition hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700;
 }
 
 .work-log-card[data-tone='success'] .work-log-status {
@@ -462,6 +555,10 @@ function toolStatusTone(status: string): 'success' | 'danger' | 'working' | 'neu
 
 .work-log-diff {
   @apply mt-2 overflow-auto rounded-md border border-slate-200 bg-white;
+}
+
+.work-log-diff-fullscreen {
+  @apply m-0 min-h-0 flex-1 rounded-none border-0;
 }
 
 .work-log-hunk + .work-log-hunk {
@@ -527,6 +624,48 @@ function toolStatusTone(status: string): 'success' | 'danger' | 'working' | 'neu
   @apply text-blue-900;
 }
 
+.work-log-fullscreen-backdrop {
+  @apply fixed inset-0 z-[70] flex bg-slate-950/70 p-4 backdrop-blur-sm;
+}
+
+.work-log-fullscreen-panel {
+  @apply flex min-h-0 w-full flex-col overflow-hidden rounded-lg border border-slate-300 bg-white shadow-2xl;
+}
+
+.work-log-fullscreen-header {
+  @apply flex shrink-0 items-start justify-between gap-3 border-b border-slate-200 bg-slate-50 px-4 py-3;
+}
+
+.work-log-fullscreen-copy {
+  @apply min-w-0;
+}
+
+.work-log-fullscreen-copy h3 {
+  @apply m-0 truncate font-mono text-sm font-semibold text-slate-950;
+}
+
+.work-log-fullscreen-copy p,
+.work-log-fullscreen-meta,
+.work-log-fullscreen-empty {
+  @apply m-0 mt-1 text-xs text-slate-600;
+}
+
+.work-log-fullscreen-close {
+  @apply inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-slate-200 bg-white text-lg leading-none text-slate-600 transition hover:bg-slate-100 hover:text-slate-950;
+}
+
+.work-log-fullscreen-meta {
+  @apply mt-0 shrink-0 border-b border-slate-200 bg-white px-4 py-2 font-mono;
+}
+
+.work-log-output-fullscreen {
+  @apply m-0 min-h-0 flex-1 rounded-none border-0;
+}
+
+.work-log-fullscreen-empty {
+  @apply px-4 py-3;
+}
+
 .activity-request-card,
 .activity-entry-card {
   @apply rounded-lg border border-slate-200 bg-slate-50 px-3 py-2;
@@ -554,6 +693,39 @@ function toolStatusTone(status: string): 'success' | 'danger' | 'working' | 'neu
 :global(.app-dark) .thread-action-required-list .activity-request-card {
   border-color: #92400e;
   background: #181b22;
+}
+
+:global(.app-dark) .work-log-fullscreen-panel {
+  border-color: #303643;
+  background: #181b22;
+  color: #e5e7eb;
+}
+
+:global(.app-dark) .work-log-fullscreen-header,
+:global(.app-dark) .work-log-fullscreen-meta {
+  border-color: #303643;
+  background: #20242c;
+}
+
+:global(.app-dark) .work-log-fullscreen-copy h3,
+:global(.app-dark) .work-log-fullscreen-copy p,
+:global(.app-dark) .work-log-fullscreen-meta,
+:global(.app-dark) .work-log-fullscreen-empty {
+  color: #c7ccd6;
+}
+
+:global(.app-dark) .work-log-fullscreen-close,
+:global(.app-dark) .work-log-fullscreen-button {
+  border-color: #3a4250;
+  background: #252b36;
+  color: #d1d5db;
+}
+
+:global(.app-dark) .work-log-fullscreen-close:hover,
+:global(.app-dark) .work-log-fullscreen-button:hover {
+  border-color: #2563eb;
+  background: #172c4f;
+  color: #bfdbfe;
 }
 
 .activity-request-method {
