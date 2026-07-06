@@ -1077,7 +1077,7 @@ function isDraggingProject(projectName: string): boolean {
 function projectGroupStyle(projectName: string): Record<string, string> | undefined {
   const drag = activeProjectDrag.value
   const targetTop = layoutTopByProject.value[projectName] ?? 0
-  const isMenuOpen = props.groups
+  const isMenuOpen = isProjectMenuOpen(projectName) || props.groups
     .find((group) => group.projectName === projectName)
     ?.threads.some((thread) => isThreadMenuOpen(thread.id)) === true
 
@@ -1285,7 +1285,7 @@ onBeforeUnmount(() => {
 }
 
 .project-menu-panel {
-  @apply absolute right-0 top-full mt-1 z-20 min-w-36 rounded-md border border-zinc-200 bg-white p-1 shadow-md flex flex-col gap-0.5;
+  @apply absolute right-0 top-full mt-1 z-50 min-w-36 rounded-md border border-zinc-200 bg-white p-1 shadow-md flex flex-col gap-0.5;
 }
 
 .project-menu-item {

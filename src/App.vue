@@ -860,12 +860,6 @@ async function submitFirstMessageForNewThread(payload: UiComposerSubmitPayload):
   @apply flex items-center;
 }
 
-@media (min-width: 1024px) {
-  .content-notifications-host {
-    margin-right: 15rem;
-  }
-}
-
 .content-body {
   @apply flex-1 min-h-0 w-full flex flex-col gap-3 pt-1 pb-4 overflow-y-hidden overflow-x-visible;
 }
@@ -887,20 +881,7 @@ async function submitFirstMessageForNewThread(payload: UiComposerSubmitPayload):
 }
 
 .content-activity {
-  @apply shrink-0;
-  width: clamp(22rem, 36vw, 30rem);
-}
-
-@media (max-width: 1320px) {
-  .content-workbench {
-    @apply flex-col;
-  }
-
-  .content-activity {
-    width: auto;
-    max-height: 24rem;
-    @apply mx-6;
-  }
+  display: contents;
 }
 
 .new-thread-empty {

@@ -161,27 +161,35 @@
                 </li>
               </ul>
 
-              <article
+              <details
                 v-if="message.tool"
                 class="tool-timeline-card"
                 :data-kind="message.tool.kind"
                 :data-tone="toolStatusTone(message.tool.status)"
+                :open="isToolTimelineExpandedByDefault(message.tool)"
               >
-                <header class="tool-timeline-header">
-                  <span class="tool-timeline-title">{{ message.tool.title }}</span>
-                  <span class="tool-timeline-status">{{ formatToolStatus(message.tool.status) }}</span>
-                </header>
-                <p class="tool-timeline-summary">{{ message.tool.summary }}</p>
-                <ul v-if="message.tool.details.length > 0" class="tool-timeline-detail-list">
-                  <li v-for="detail in message.tool.details" :key="detail" class="tool-timeline-detail">
-                    {{ detail }}
-                  </li>
-                </ul>
-                <section v-if="message.tool.output" class="tool-timeline-output">
-                  <p class="tool-timeline-output-label">{{ message.tool.outputLabel || 'Output' }}</p>
-                  <pre class="tool-timeline-output-block"><code>{{ message.tool.output }}</code></pre>
-                </section>
-              </article>
+                <summary class="tool-timeline-summary-row">
+                  <span class="tool-timeline-chevron" aria-hidden="true">›</span>
+                  <span class="tool-timeline-summary-copy">
+                    <span class="tool-timeline-header">
+                      <span class="tool-timeline-title">{{ message.tool.title }}</span>
+                      <span class="tool-timeline-status">{{ formatToolStatus(message.tool.status) }}</span>
+                    </span>
+                    <span class="tool-timeline-summary">{{ message.tool.summary }}</span>
+                  </span>
+                </summary>
+                <div class="tool-timeline-body">
+                  <ul v-if="message.tool.details.length > 0" class="tool-timeline-detail-list">
+                    <li v-for="detail in message.tool.details" :key="detail" class="tool-timeline-detail">
+                      {{ detail }}
+                    </li>
+                  </ul>
+                  <section v-if="message.tool.output" class="tool-timeline-output">
+                    <p class="tool-timeline-output-label">{{ message.tool.outputLabel || 'Output' }}</p>
+                    <pre class="tool-timeline-output-block"><code>{{ message.tool.output }}</code></pre>
+                  </section>
+                </div>
+              </details>
 
               <article
                 v-if="message.text.length > 0"
@@ -423,6 +431,10 @@ function toolStatusTone(status: string): 'success' | 'danger' | 'working' | 'neu
     return 'success'
   }
   return 'neutral'
+}
+
+function isToolTimelineExpandedByDefault(tool: NonNullable<UiMessage['tool']>): boolean {
+  return tool.kind !== 'fileChange'
 }
 
 function isCopyableMessage(message: UiMessage): boolean {
@@ -1105,6 +1117,10 @@ onBeforeUnmount(() => {
   @apply w-full max-w-[min(760px,100%)] rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-slate-800;
 }
 
+.tool-timeline-card summary::-webkit-details-marker {
+  display: none;
+}
+
 .tool-timeline-card[data-tone='success'] {
   @apply border-emerald-200 bg-emerald-50;
 }
@@ -1115,6 +1131,22 @@ onBeforeUnmount(() => {
 
 .tool-timeline-card[data-tone='working'] {
   @apply border-blue-200 bg-blue-50;
+}
+
+.tool-timeline-summary-row {
+  @apply grid cursor-pointer list-none grid-cols-[1rem_minmax(0,1fr)] items-start gap-2;
+}
+
+.tool-timeline-chevron {
+  @apply mt-0.5 select-none text-base leading-4 text-slate-500 transition-transform;
+}
+
+.tool-timeline-card[open] .tool-timeline-chevron {
+  transform: rotate(90deg);
+}
+
+.tool-timeline-summary-copy {
+  @apply min-w-0;
 }
 
 .tool-timeline-header {
@@ -1142,7 +1174,11 @@ onBeforeUnmount(() => {
 }
 
 .tool-timeline-summary {
-  @apply mt-1 mb-0 max-w-full whitespace-pre-wrap break-words font-mono text-xs leading-5 text-slate-900;
+  @apply mt-1 block max-w-full whitespace-pre-wrap break-words font-mono text-xs leading-5 text-slate-900;
+}
+
+.tool-timeline-body {
+  @apply ml-6;
 }
 
 .tool-timeline-detail-list {

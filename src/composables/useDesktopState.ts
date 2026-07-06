@@ -2207,6 +2207,12 @@ export function useDesktopState() {
       threadId = await startThread(targetCwd || undefined, selectedModel || undefined)
       if (!threadId) return ''
 
+      try {
+        await loadThreads()
+      } catch {
+        pendingThreadsRefresh = true
+      }
+
       resumedThreadById.value = {
         ...resumedThreadById.value,
         [threadId]: true,

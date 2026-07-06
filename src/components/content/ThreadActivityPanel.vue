@@ -1,30 +1,137 @@
 <template>
-  <aside class="thread-activity-panel" aria-label="Thread work log">
-    <header class="thread-activity-header">
-      <div>
-        <h2 class="thread-activity-title">Work log</h2>
-        <p class="thread-activity-subtitle">{{ statusText }}</p>
-      </div>
-    </header>
+  <div class="thread-activity-host">
+    <button
+      v-if="!isWorkLogOpen"
+      class="thread-work-log-float-button"
+      type="button"
+      aria-label="Open work log"
+      title="Open work log"
+      @click="openWorkLog"
+    >
+      <span class="thread-work-log-float-title">Work log</span>
+      <span class="thread-work-log-float-summary">
+        {{ diffReview.summary.fileCount }} files · {{ commandEntries.length }} commands
+      </span>
+      <span v-if="workLogBadgeCount > 0" class="thread-work-log-float-badge">
+        {{ workLogBadgeCount }}
+      </span>
+    </button>
 
-    <section class="thread-activity-metrics" aria-label="Work log summary">
-      <div class="thread-activity-metric">
-        <span class="thread-activity-metric-value">{{ diffReview.summary.fileCount }}</span>
-        <span class="thread-activity-metric-label">files</span>
-      </div>
-      <div class="thread-activity-metric">
-        <span class="thread-activity-metric-value">{{ commandEntries.length }}</span>
-        <span class="thread-activity-metric-label">commands</span>
-      </div>
-      <div class="thread-activity-metric">
-        <span class="thread-activity-metric-value">+{{ diffReview.summary.addedLines }}</span>
-        <span class="thread-activity-metric-label">added</span>
-      </div>
-      <div class="thread-activity-metric">
-        <span class="thread-activity-metric-value">-{{ diffReview.summary.removedLines }}</span>
-        <span class="thread-activity-metric-label">removed</span>
-      </div>
-    </section>
+    <aside v-if="isWorkLogOpen" class="thread-activity-panel" aria-label="Thread work log">
+      <header class="thread-activity-header">
+        <div>
+          <h2 class="thread-activity-title">Work log</h2>
+          <p class="thread-activity-subtitle">{{ statusText }}</p>
+        </div>
+        <button
+          class="thread-activity-close"
+          type="button"
+          aria-label="Close work log"
+          title="Close work log"
+          @click="closeWorkLog"
+        >
+          ×
+        </button>
+      </header>
+
+      <section class="thread-activity-metrics" aria-label="Work log summary">
+        <div class="thread-activity-metric">
+          <span class="thread-activity-metric-value">{{ diffReview.summary.fileCount }}</span>
+          <span class="thread-activity-metric-label">files</span>
+        </div>
+        <div class="thread-activity-metric">
+          <span class="thread-activity-metric-value">{{ commandEntries.length }}</span>
+          <span class="thread-activity-metric-label">commands</span>
+        </div>
+        <div class="thread-activity-metric">
+          <span class="thread-activity-metric-value">+{{ diffReview.summary.addedLines }}</span>
+          <span class="thread-activity-metric-label">added</span>
+        </div>
+        <div class="thread-activity-metric">
+          <span class="thread-activity-metric-value">-{{ diffReview.summary.removedLines }}</span>
+          <span class="thread-activity-metric-label">removed</span>
+        </div>
+      </section>
+
+      <section class="thread-activity-section thread-activity-section-scroll">
+        <h3 class="thread-activity-section-title">Changed files</h3>
+        <p v-if="diffReview.files.length === 0" class="thread-activity-empty">No file changes recorded yet.</p>
+
+        <details
+          v-for="file in diffReview.files"
+          :key="file.filePath"
+          class="work-log-card"
+        >
+          <summary class="work-log-summary">
+            <span class="work-log-primary">{{ file.filePath }}</span>
+            <button
+              class="work-log-fullscreen-button"
+              type="button"
+              aria-label="Open diff fullscreen"
+              title="Open diff fullscreen"
+              @click.stop.prevent="openFullscreenDiff(file.filePath)"
+            >
+              ⛶
+            </button>
+            <span class="work-log-status">{{ file.status }}</span>
+            <span class="work-log-stat">+{{ file.addedLines }} / -{{ file.removedLines }}</span>
+          </summary>
+          <p v-if="file.oldPath" class="work-log-meta">from {{ file.oldPath }}</p>
+          <div v-if="file.hunks.length > 0" class="work-log-diff" aria-label="File diff">
+            <section v-for="hunk in file.hunks" :key="`${file.filePath}:${hunk.header}`" class="work-log-hunk">
+              <div class="work-log-diff-row work-log-diff-row-hunk">
+                <span class="work-log-line-number" />
+                <span class="work-log-line-number" />
+                <span class="work-log-line-prefix" />
+                <code class="work-log-line-code">{{ hunk.header }}</code>
+              </div>
+              <div
+                v-for="(line, index) in hunk.lines"
+                :key="`${file.filePath}:${hunk.header}:${index}`"
+                class="work-log-diff-row"
+                :data-kind="line.kind"
+              >
+                <span class="work-log-line-number">{{ formatLineNumber(line.oldLineNumber) }}</span>
+                <span class="work-log-line-number">{{ formatLineNumber(line.newLineNumber) }}</span>
+                <span class="work-log-line-prefix">{{ diffLinePrefix(line.kind) }}</span>
+                <code class="work-log-line-code">{{ line.content }}</code>
+              </div>
+            </section>
+          </div>
+          <pre v-else-if="file.patch" class="work-log-output"><code>{{ file.patch }}</code></pre>
+        </details>
+
+        <h3 class="thread-activity-section-title thread-activity-section-title-spaced">Commands</h3>
+        <p v-if="commandEntries.length === 0" class="thread-activity-empty">No commands recorded yet.</p>
+
+        <details
+          v-for="entry in commandEntries"
+          :key="entry.messageId"
+          class="work-log-card"
+          :data-tone="toolStatusTone(entry.status)"
+        >
+          <summary class="work-log-summary">
+            <span class="work-log-primary">{{ entry.summary }}</span>
+            <span class="work-log-summary-spacer" />
+            <span class="work-log-status">{{ formatToolStatus(entry.status) }}</span>
+            <span v-if="entry.exitCode !== null" class="work-log-stat">exit {{ entry.exitCode }}</span>
+            <span v-else class="work-log-summary-spacer" />
+          </summary>
+          <dl class="work-log-details">
+            <div v-if="entry.cwd">
+              <dt>cwd</dt>
+              <dd>{{ entry.cwd }}</dd>
+            </div>
+            <div v-if="entry.duration">
+              <dt>duration</dt>
+              <dd>{{ entry.duration }}</dd>
+            </div>
+          </dl>
+          <pre v-if="entry.output" class="work-log-output"><code>{{ entry.output }}</code></pre>
+          <p v-else class="work-log-meta">No output captured for this command.</p>
+        </details>
+      </section>
+    </aside>
 
     <section v-if="pendingRequests.length > 0" class="thread-action-required-float" aria-label="Action required">
       <header class="thread-action-required-header">
@@ -101,85 +208,6 @@
       </div>
     </section>
 
-    <section class="thread-activity-section thread-activity-section-scroll">
-      <h3 class="thread-activity-section-title">Changed files</h3>
-      <p v-if="diffReview.files.length === 0" class="thread-activity-empty">No file changes recorded yet.</p>
-
-      <details
-        v-for="file in diffReview.files"
-        :key="file.filePath"
-        class="work-log-card"
-      >
-        <summary class="work-log-summary">
-          <span class="work-log-primary">{{ file.filePath }}</span>
-          <button
-            class="work-log-fullscreen-button"
-            type="button"
-            aria-label="Open diff fullscreen"
-            title="Open diff fullscreen"
-            @click.stop.prevent="openFullscreenDiff(file.filePath)"
-          >
-            ⛶
-          </button>
-          <span class="work-log-status">{{ file.status }}</span>
-          <span class="work-log-stat">+{{ file.addedLines }} / -{{ file.removedLines }}</span>
-        </summary>
-        <p v-if="file.oldPath" class="work-log-meta">from {{ file.oldPath }}</p>
-        <div v-if="file.hunks.length > 0" class="work-log-diff" aria-label="File diff">
-          <section v-for="hunk in file.hunks" :key="`${file.filePath}:${hunk.header}`" class="work-log-hunk">
-            <div class="work-log-diff-row work-log-diff-row-hunk">
-              <span class="work-log-line-number" />
-              <span class="work-log-line-number" />
-              <span class="work-log-line-prefix" />
-              <code class="work-log-line-code">{{ hunk.header }}</code>
-            </div>
-            <div
-              v-for="(line, index) in hunk.lines"
-              :key="`${file.filePath}:${hunk.header}:${index}`"
-              class="work-log-diff-row"
-              :data-kind="line.kind"
-            >
-              <span class="work-log-line-number">{{ formatLineNumber(line.oldLineNumber) }}</span>
-              <span class="work-log-line-number">{{ formatLineNumber(line.newLineNumber) }}</span>
-              <span class="work-log-line-prefix">{{ diffLinePrefix(line.kind) }}</span>
-              <code class="work-log-line-code">{{ line.content }}</code>
-            </div>
-          </section>
-        </div>
-        <pre v-else-if="file.patch" class="work-log-output"><code>{{ file.patch }}</code></pre>
-      </details>
-
-      <h3 class="thread-activity-section-title thread-activity-section-title-spaced">Commands</h3>
-      <p v-if="commandEntries.length === 0" class="thread-activity-empty">No commands recorded yet.</p>
-
-      <details
-        v-for="entry in commandEntries"
-        :key="entry.messageId"
-        class="work-log-card"
-        :data-tone="toolStatusTone(entry.status)"
-      >
-        <summary class="work-log-summary">
-          <span class="work-log-primary">{{ entry.summary }}</span>
-          <span class="work-log-summary-spacer" />
-          <span class="work-log-status">{{ formatToolStatus(entry.status) }}</span>
-          <span v-if="entry.exitCode !== null" class="work-log-stat">exit {{ entry.exitCode }}</span>
-          <span v-else class="work-log-summary-spacer" />
-        </summary>
-        <dl class="work-log-details">
-          <div v-if="entry.cwd">
-            <dt>cwd</dt>
-            <dd>{{ entry.cwd }}</dd>
-          </div>
-          <div v-if="entry.duration">
-            <dt>duration</dt>
-            <dd>{{ entry.duration }}</dd>
-          </div>
-        </dl>
-        <pre v-if="entry.output" class="work-log-output"><code>{{ entry.output }}</code></pre>
-        <p v-else class="work-log-meta">No output captured for this command.</p>
-      </details>
-    </section>
-
     <Teleport to="body">
       <div
         v-if="fullscreenFile"
@@ -238,7 +266,7 @@
         </section>
       </div>
     </Teleport>
-  </aside>
+  </div>
 </template>
 
 <script setup lang="ts">
@@ -274,9 +302,11 @@ const approvalScopeOptions = APPROVAL_SCOPE_OPTIONS
 const commandEntries = computed(() => buildThreadCommandEntries(props.messages))
 const diffReview = computed(() => buildDiffReview(props.messages))
 const fullscreenFilePath = ref('')
+const isWorkLogOpen = ref(false)
 const fullscreenFile = computed<UiDiffReviewFile | null>(() =>
   diffReview.value.files.find((file) => file.filePath === fullscreenFilePath.value) ?? null
 )
+const workLogBadgeCount = computed(() => diffReview.value.summary.fileCount + commandEntries.value.length)
 const summary = computed(() => buildThreadActivitySummary(props.messages, props.pendingRequests))
 const statusText = computed(() => {
   if (summary.value.pendingRequestCount > 0) return `${summary.value.pendingRequestCount} waiting`
@@ -362,6 +392,14 @@ function closeFullscreenDiff(): void {
   fullscreenFilePath.value = ''
 }
 
+function openWorkLog(): void {
+  isWorkLogOpen.value = true
+}
+
+function closeWorkLog(): void {
+  isWorkLogOpen.value = false
+}
+
 function toolStatusTone(status: string): 'success' | 'danger' | 'working' | 'neutral' {
   const normalized = status.trim().toLowerCase()
   if (!normalized) return 'neutral'
@@ -396,12 +434,37 @@ watch(diffReview, (review) => {
 <style scoped>
 @reference "tailwindcss";
 
+.thread-activity-host {
+  display: contents;
+}
+
+.thread-work-log-float-button {
+  @apply fixed bottom-4 right-4 z-40 grid max-w-[calc(100vw-2rem)] grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 rounded-lg border border-slate-200 bg-white px-3 py-2 text-left text-slate-800 shadow-xl transition hover:border-blue-300 hover:bg-blue-50;
+  width: min(18rem, calc(100vw - 2rem));
+}
+
+.thread-work-log-float-title {
+  @apply min-w-0 text-xs font-semibold uppercase tracking-normal text-slate-600;
+}
+
+.thread-work-log-float-summary {
+  @apply col-start-1 min-w-0 truncate text-xs text-slate-500;
+}
+
+.thread-work-log-float-badge {
+  @apply col-start-2 row-span-2 row-start-1 inline-flex h-6 min-w-6 items-center justify-center rounded-full bg-blue-600 px-2 text-xs font-semibold text-white;
+}
+
 .thread-activity-panel {
-  @apply flex h-full min-h-0 w-full flex-col gap-3 overflow-hidden rounded-lg border border-slate-200 bg-white p-3;
+  @apply fixed bottom-4 right-4 z-50 flex max-h-[min(76vh,48rem)] min-h-0 w-[min(34rem,calc(100vw-2rem))] flex-col gap-3 overflow-hidden rounded-lg border border-slate-200 bg-white p-3 shadow-2xl;
 }
 
 .thread-activity-header {
   @apply flex shrink-0 items-start justify-between gap-3;
+}
+
+.thread-activity-close {
+  @apply inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-slate-200 bg-white text-lg leading-none text-slate-600 transition hover:bg-slate-100 hover:text-slate-950;
 }
 
 .thread-activity-title {
@@ -693,6 +756,25 @@ watch(diffReview, (review) => {
 :global(.app-dark) .thread-action-required-list .activity-request-card {
   border-color: #92400e;
   background: #181b22;
+}
+
+:global(.app-dark) .thread-work-log-float-button,
+:global(.app-dark) .thread-activity-close {
+  border-color: #3a4250;
+  background: #252b36;
+  color: #d1d5db;
+}
+
+:global(.app-dark) .thread-work-log-float-button:hover,
+:global(.app-dark) .thread-activity-close:hover {
+  border-color: #2563eb;
+  background: #172c4f;
+  color: #bfdbfe;
+}
+
+:global(.app-dark) .thread-work-log-float-title,
+:global(.app-dark) .thread-work-log-float-summary {
+  color: #c7ccd6;
 }
 
 :global(.app-dark) .work-log-fullscreen-panel {
