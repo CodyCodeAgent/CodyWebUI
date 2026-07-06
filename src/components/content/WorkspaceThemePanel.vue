@@ -1,0 +1,290 @@
+<template>
+  <section class="workspace-theme-panel" aria-label="Theme settings">
+    <header class="workspace-theme-panel-header">
+      <div>
+        <h3 class="workspace-theme-panel-title">Theme</h3>
+        <p class="workspace-theme-panel-subtitle">{{ activeSkin.name }} · {{ activeLayoutPreset.name }}</p>
+      </div>
+      <button class="workspace-theme-panel-reset" type="button" @click="resetTheme">Reset</button>
+    </header>
+
+    <p
+      v-if="hasWorkspaceThemeBinding"
+      class="workspace-theme-panel-workspace-binding"
+      data-testid="theme-workspace-binding"
+    >
+      Workspace binding active · {{ workspaceThemeSummary }}
+    </p>
+
+    <div class="workspace-theme-panel-grid">
+      <label>
+        <span>Skin</span>
+        <select
+          data-testid="theme-skin-select"
+          :value="effectivePreferences.skinId"
+          :disabled="effectivePreferences.followSystem || hasWorkspaceThemeBinding"
+          @change="onSkinSelect"
+        >
+          <option v-for="skin in availableSkins" :key="skin.id" :value="skin.id">{{ skin.name }}</option>
+        </select>
+      </label>
+
+      <label>
+        <span>Layout</span>
+        <select
+          data-testid="theme-layout-select"
+          :value="effectivePreferences.layoutPresetId"
+          :disabled="hasWorkspaceThemeBinding"
+          @change="onLayoutSelect"
+        >
+          <option v-for="preset in layoutPresets" :key="preset.id" :value="preset.id">{{ preset.name }}</option>
+        </select>
+      </label>
+
+      <label>
+        <span>Density</span>
+        <select
+          data-testid="theme-density-select"
+          :value="effectivePreferences.density"
+          :disabled="hasWorkspaceThemeBinding"
+          @change="onDensitySelect"
+        >
+          <option value="compact">Compact</option>
+          <option value="comfortable">Comfortable</option>
+          <option value="spacious">Spacious</option>
+        </select>
+      </label>
+
+      <label>
+        <span>Accent</span>
+        <input
+          data-testid="theme-accent-input"
+          :value="accentDraft"
+          :disabled="hasWorkspaceThemeBinding"
+          type="color"
+          @input="onAccentInput"
+        />
+      </label>
+    </div>
+
+    <label class="workspace-theme-panel-follow">
+      <input
+        data-testid="theme-follow-system"
+        type="checkbox"
+        :checked="effectivePreferences.followSystem"
+        :disabled="hasWorkspaceThemeBinding"
+        @change="onFollowSystemChange"
+      />
+      <span>Follow system</span>
+    </label>
+
+    <details class="workspace-theme-panel-advanced">
+      <summary>Skin JSON</summary>
+      <div class="workspace-theme-panel-json-actions">
+        <button type="button" @click="exportSkin">Export</button>
+        <button type="button" @click="importSkinDraft">Import</button>
+      </div>
+      <textarea v-model="skinJsonDraft" spellcheck="false" />
+      <p v-if="skinJsonMessage" class="workspace-theme-panel-message" :data-tone="skinJsonMessageTone">
+        {{ skinJsonMessage }}
+      </p>
+    </details>
+  </section>
+</template>
+
+<script setup lang="ts">
+import { computed, ref, watch } from 'vue'
+import { LAYOUT_PRESETS } from '../../theme/themeRegistry'
+import { useTheme } from '../../theme/useTheme'
+import type { LayoutPresetId, ThemeDensity } from '../../theme/tokens'
+import type { UiWorkspaceConfig } from '../../types/codex'
+
+const props = defineProps<{
+  workspaceTheme?: UiWorkspaceConfig['theme'] | null
+}>()
+
+const {
+  effectivePreferences,
+  availableSkins,
+  activeSkin,
+  activeLayoutPreset,
+  workspacePreferences,
+  setSkin,
+  setAccentColor,
+  setDensity,
+  setLayoutPreset,
+  setFollowSystem,
+  setWorkspaceThemePreferences,
+  clearWorkspaceThemePreferences,
+  resetTheme,
+  exportActiveSkin,
+  importSkin,
+} = useTheme()
+
+const layoutPresets = LAYOUT_PRESETS
+const skinJsonDraft = ref('')
+const skinJsonMessage = ref('')
+const skinJsonMessageTone = ref<'success' | 'danger'>('success')
+const accentDraft = computed(() => effectivePreferences.value.accentColor || activeSkin.value.tokens.color.accent)
+const hasWorkspaceThemeBinding = computed(() => workspacePreferences.value !== null)
+const workspaceThemeSummary = computed(() => {
+  const theme = workspacePreferences.value
+  if (!theme) return 'personal defaults'
+  const parts = [
+    theme.skinId ? `skin ${theme.skinId}` : '',
+    theme.layoutPresetId ? `layout ${theme.layoutPresetId}` : '',
+    theme.density ? `density ${theme.density}` : '',
+    theme.accentColor ? `accent ${theme.accentColor}` : '',
+    theme.followSystem !== null ? `system ${theme.followSystem ? 'on' : 'off'}` : '',
+  ].filter(Boolean)
+  return parts.join(' · ') || 'workspace defaults'
+})
+
+function onSkinSelect(event: Event): void {
+  setSkin((event.target as HTMLSelectElement).value)
+}
+
+function onLayoutSelect(event: Event): void {
+  setLayoutPreset((event.target as HTMLSelectElement).value as LayoutPresetId)
+}
+
+function onDensitySelect(event: Event): void {
+  setDensity((event.target as HTMLSelectElement).value as ThemeDensity)
+}
+
+function onAccentInput(event: Event): void {
+  setAccentColor((event.target as HTMLInputElement).value)
+}
+
+function onFollowSystemChange(event: Event): void {
+  setFollowSystem((event.target as HTMLInputElement).checked)
+}
+
+function exportSkin(): void {
+  skinJsonDraft.value = exportActiveSkin()
+  skinJsonMessage.value = 'Exported active skin JSON.'
+  skinJsonMessageTone.value = 'success'
+}
+
+function importSkinDraft(): void {
+  try {
+    const skin = importSkin(skinJsonDraft.value)
+    skinJsonMessage.value = `Imported ${skin.name}.`
+    skinJsonMessageTone.value = 'success'
+  } catch (error) {
+    skinJsonMessage.value = error instanceof Error ? error.message : 'Failed to import skin JSON.'
+    skinJsonMessageTone.value = 'danger'
+  }
+}
+
+watch(activeSkin, () => {
+  skinJsonMessage.value = ''
+})
+
+watch(() => props.workspaceTheme, (theme) => {
+  if (theme) {
+    setWorkspaceThemePreferences(theme)
+    return
+  }
+  clearWorkspaceThemePreferences()
+}, { immediate: true, deep: true })
+</script>
+
+<style scoped>
+@reference "tailwindcss";
+
+.workspace-theme-panel {
+  @apply rounded-lg border border-zinc-200 bg-white p-3;
+}
+
+.workspace-theme-panel-header {
+  @apply flex items-start justify-between gap-3;
+}
+
+.workspace-theme-panel-title {
+  @apply m-0 text-xs font-semibold uppercase tracking-normal text-zinc-500;
+}
+
+.workspace-theme-panel-subtitle {
+  @apply m-0 mt-1 text-xs text-zinc-600;
+}
+
+.workspace-theme-panel-workspace-binding {
+  @apply m-0 mt-3 rounded-md border border-sky-200 bg-sky-50 px-2 py-1 text-xs font-medium text-sky-700;
+}
+
+.workspace-theme-panel-reset,
+.workspace-theme-panel-json-actions button {
+  @apply inline-flex h-7 shrink-0 items-center rounded-md border border-zinc-200 bg-white px-2 text-xs font-medium text-zinc-700 transition hover:bg-zinc-50;
+}
+
+.workspace-theme-panel-grid {
+  @apply mt-3 grid grid-cols-4 gap-2;
+}
+
+.workspace-theme-panel-grid label {
+  @apply grid gap-1;
+}
+
+.workspace-theme-panel-grid span,
+.workspace-theme-panel-follow span {
+  @apply text-[0.68rem] font-semibold uppercase leading-4 text-zinc-500;
+}
+
+.workspace-theme-panel-grid select,
+.workspace-theme-panel-grid input {
+  @apply h-8 min-w-0 rounded-md border border-zinc-200 bg-white px-2 text-xs text-zinc-900 outline-none transition focus:border-blue-300;
+}
+
+.workspace-theme-panel-grid input[type='color'] {
+  @apply p-1;
+}
+
+.workspace-theme-panel-follow {
+  @apply mt-3 flex items-center gap-2;
+}
+
+.workspace-theme-panel-follow input {
+  @apply h-4 w-4;
+}
+
+.workspace-theme-panel-advanced {
+  @apply mt-3 border-t border-zinc-200 pt-2;
+}
+
+.workspace-theme-panel-advanced summary {
+  @apply cursor-pointer text-xs font-medium text-zinc-700;
+}
+
+.workspace-theme-panel-json-actions {
+  @apply mt-2 flex gap-2;
+}
+
+.workspace-theme-panel-advanced textarea {
+  @apply mt-2 h-36 w-full resize-y rounded-md border border-zinc-200 bg-zinc-950 p-2 font-mono text-[0.68rem] leading-4 text-zinc-100 outline-none;
+}
+
+.workspace-theme-panel-message {
+  @apply m-0 mt-2 rounded-md border px-2 py-1 text-xs;
+}
+
+.workspace-theme-panel-message[data-tone='success'] {
+  @apply border-emerald-200 bg-emerald-50 text-emerald-700;
+}
+
+.workspace-theme-panel-message[data-tone='danger'] {
+  @apply border-rose-200 bg-rose-50 text-rose-700;
+}
+
+@media (max-width: 920px) {
+  .workspace-theme-panel-grid {
+    @apply grid-cols-2;
+  }
+}
+
+@media (max-width: 560px) {
+  .workspace-theme-panel-grid {
+    @apply grid-cols-1;
+  }
+}
+</style>

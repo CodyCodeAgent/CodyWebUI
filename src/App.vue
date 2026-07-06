@@ -1,11 +1,15 @@
 <template>
-  <DesktopLayout :is-sidebar-collapsed="isSidebarCollapsed" :class="{ 'app-dark': isDarkMode }">
+  <DesktopLayout
+    :is-sidebar-collapsed="isEffectiveSidebarCollapsed"
+    :class="themeRootClass"
+    v-bind="themeAttributes"
+  >
     <template #sidebar>
       <section class="sidebar-root">
         <SidebarThreadControls
-          v-if="!isSidebarCollapsed"
+          v-if="!isEffectiveSidebarCollapsed"
           class="sidebar-thread-controls-host"
-          :is-sidebar-collapsed="isSidebarCollapsed"
+          :is-sidebar-collapsed="isEffectiveSidebarCollapsed"
           :is-auto-refresh-enabled="isAutoRefreshEnabled"
           :auto-refresh-button-label="autoRefreshButtonLabel"
           :show-new-thread-button="true"
@@ -45,7 +49,7 @@
           </button>
         </SidebarThreadControls>
 
-        <div v-if="!isSidebarCollapsed && isSidebarSearchVisible" class="sidebar-search-bar">
+        <div v-if="!isEffectiveSidebarCollapsed && isSidebarSearchVisible" class="sidebar-search-bar">
           <IconTablerSearch class="sidebar-search-bar-icon" />
           <input
             ref="sidebarSearchInputRef"
@@ -67,7 +71,7 @@
         </div>
 
         <SidebarThreadTree :groups="projectGroups" :project-display-name-by-id="projectDisplayNameById"
-          v-if="!isSidebarCollapsed"
+          v-if="!isEffectiveSidebarCollapsed"
           :selected-thread-id="selectedThreadId" :is-loading="isLoadingThreads"
           :search-query="sidebarSearchQuery" :is-archive-view="isArchiveView"
           @select="onSelectThread"
@@ -83,9 +87,9 @@
         <ContentHeader :title="contentTitle">
           <template #leading>
             <SidebarThreadControls
-              v-if="isSidebarCollapsed"
+              v-if="isEffectiveSidebarCollapsed"
               class="sidebar-thread-controls-header-host"
-              :is-sidebar-collapsed="isSidebarCollapsed"
+              :is-sidebar-collapsed="isEffectiveSidebarCollapsed"
               :is-auto-refresh-enabled="isAutoRefreshEnabled"
               :auto-refresh-button-label="autoRefreshButtonLabel"
               :show-new-thread-button="true"
@@ -115,6 +119,21 @@
               </button>
             </SidebarThreadControls>
           </template>
+          <template #actions>
+            <div class="content-notifications-host">
+              <BrowserNotificationsPanel
+                :preference="browserNotifications.preference.value"
+                :permission="browserNotifications.permission.value"
+                :events="browserNotifications.events.value"
+                :unread-count="browserNotifications.unreadCount.value"
+                :is-supported="browserNotifications.isSupported.value"
+                :last-error="browserNotifications.lastError.value"
+                @update:preference="browserNotifications.setPreference"
+                @request-permission="browserNotifications.requestPermission"
+                @clear="browserNotifications.clearEvents"
+              />
+            </div>
+          </template>
         </ContentHeader>
 
         <RateLimitFloatingStatus
@@ -126,6 +145,21 @@
         <section class="content-body">
           <template v-if="isHomeRoute">
             <div class="content-grid">
+              <WorkspaceDashboard
+                :cwd="newThreadCwd"
+                :project-label="newThreadProjectLabel"
+                :threads="newThreadWorkspaceThreads"
+                :pending-requests="allPendingServerRequests"
+                :rate-limit-snapshot="rateLimitSnapshot"
+                :is-mobile-action-busy="isSendingMessage || isInterruptingTurn"
+                @select-thread="onSelectThread"
+                @respond-server-request="onRespondServerRequest"
+                @mobile-follow-up="onMobileFollowUp"
+                @mobile-pause="onMobilePause"
+                @mobile-interrupt="onMobileInterrupt"
+                @mobile-archive="onMobileArchive"
+              />
+
               <div class="new-thread-empty">
                 <p class="new-thread-hero">Let's build</p>
                 <ComposerDropdown class="new-thread-folder-dropdown" :model-value="newThreadCwd"
@@ -146,13 +180,25 @@
           </template>
           <template v-else>
             <div class="content-grid">
-              <div class="content-thread">
-                <ThreadConversation :messages="filteredMessages" :is-loading="isLoadingMessages"
-                  :active-thread-id="composerThreadContextId" :scroll-state="selectedThreadScrollState"
-                  :live-overlay="liveOverlay"
+              <div class="content-workbench">
+                <div class="content-thread">
+                  <ThreadConversation :messages="filteredMessages" :is-loading="isLoadingMessages"
+                    :active-thread-id="composerThreadContextId" :scroll-state="selectedThreadScrollState"
+                    :live-overlay="liveOverlay"
+                    :pending-requests="selectedThreadServerRequests"
+                    @update-scroll-state="onUpdateThreadScrollState"
+                    @respond-server-request="onRespondServerRequest" />
+                </div>
+
+                <ThreadActivityPanel
+                  class="content-activity"
+                  :messages="filteredMessages"
                   :pending-requests="selectedThreadServerRequests"
-                  @update-scroll-state="onUpdateThreadScrollState"
-                  @respond-server-request="onRespondServerRequest" />
+                  :cwd="selectedThread?.cwd ?? ''"
+                  :thread-id="selectedThreadId"
+                  @respond-server-request="onRespondServerRequest"
+                  @rollback-completed="onRollbackCompleted"
+                />
               </div>
 
               <ThreadComposer :active-thread-id="composerThreadContextId"
@@ -195,22 +241,34 @@ import DesktopLayout from './components/layout/DesktopLayout.vue'
 import SidebarThreadTree from './components/sidebar/SidebarThreadTree.vue'
 import ContentHeader from './components/content/ContentHeader.vue'
 import ThreadConversation from './components/content/ThreadConversation.vue'
+import ThreadActivityPanel from './components/content/ThreadActivityPanel.vue'
 import ThreadComposer from './components/content/ThreadComposer.vue'
 import ComposerDropdown from './components/content/ComposerDropdown.vue'
 import DirectoryPickerModal from './components/content/DirectoryPickerModal.vue'
 import NewThreadSetupModal, { type NewThreadProjectOption } from './components/content/NewThreadSetupModal.vue'
 import RateLimitFloatingStatus from './components/content/RateLimitFloatingStatus.vue'
+import WorkspaceDashboard from './components/content/WorkspaceDashboard.vue'
+import BrowserNotificationsPanel from './components/content/BrowserNotificationsPanel.vue'
 import SidebarThreadControls from './components/sidebar/SidebarThreadControls.vue'
 import IconTablerFolder from './components/icons/IconTablerFolder.vue'
 import IconTablerMoon from './components/icons/IconTablerMoon.vue'
 import IconTablerSearch from './components/icons/IconTablerSearch.vue'
 import IconTablerSun from './components/icons/IconTablerSun.vue'
 import IconTablerX from './components/icons/IconTablerX.vue'
+import { fetchDefaultWorkspace } from './api/codexRpcClient'
+import { useBrowserNotifications } from './composables/useBrowserNotifications'
 import { useDesktopState } from './composables/useDesktopState'
-import type { ReasoningEffort, ThreadScrollState, UiComposerSubmitPayload } from './types/codex'
+import { useTheme } from './theme/useTheme'
+import type {
+  ReasoningEffort,
+  ThreadScrollState,
+  UiComposerSubmitPayload,
+  UiServerRequestReply,
+  UiToolingRollbackFileResult,
+} from './types/codex'
 
 const SIDEBAR_COLLAPSED_STORAGE_KEY = 'codex-web-local.sidebar-collapsed.v1'
-const DARK_MODE_STORAGE_KEY = 'codex-web-local.dark-mode.v1'
+const MOBILE_SIDEBAR_BREAKPOINT = 700
 
 const {
   projectGroups,
@@ -218,6 +276,7 @@ const {
   selectedThread,
   selectedThreadScrollState,
   selectedThreadServerRequests,
+  allPendingServerRequests,
   selectedLiveOverlay,
   selectedThreadId,
   isArchiveView,
@@ -246,8 +305,10 @@ const {
   setArchiveView,
   renameThreadById,
   sendMessageToSelectedThread,
+  sendTextToThreadById,
   sendMessageToNewThread,
   interruptSelectedThreadTurn,
+  interruptThreadTurnById,
   setSelectedModelId,
   setSelectedReasoningEffort,
   setSelectedCollaborationModeName,
@@ -258,7 +319,16 @@ const {
   toggleAutoRefreshTimer,
   startPolling,
   stopPolling,
+  recordRollbackAudit,
 } = useDesktopState()
+const browserNotifications = useBrowserNotifications()
+const {
+  isDarkTheme: isDarkMode,
+  themeRootClass,
+  themeAttributes,
+  applyCurrentTheme,
+  toggleLightDark,
+} = useTheme()
 
 const route = useRoute()
 const router = useRouter()
@@ -270,7 +340,7 @@ const newThreadDialogInitialCwd = ref('')
 const isNewThreadDialogOpen = ref(false)
 const isDirectoryPickerOpen = ref(false)
 const isSidebarCollapsed = ref(loadSidebarCollapsed())
-const isDarkMode = ref(loadDarkMode())
+const isMobileViewport = ref(false)
 const sidebarSearchQuery = ref('')
 const isSidebarSearchVisible = ref(false)
 const sidebarSearchInputRef = ref<HTMLInputElement | null>(null)
@@ -291,6 +361,7 @@ const knownThreadIdSet = computed(() => {
 })
 
 const isHomeRoute = computed(() => route.name === 'home')
+const isEffectiveSidebarCollapsed = computed(() => isSidebarCollapsed.value || isMobileViewport.value)
 const contentTitle = computed(() => {
   if (isHomeRoute.value) return 'New thread'
   return selectedThread.value?.title ?? 'Choose a thread'
@@ -342,6 +413,17 @@ const newThreadFolderOptions = computed(() => {
 
   return options
 })
+const newThreadWorkspaceGroup = computed(() =>
+  projectGroups.value.find((group) =>
+    group.cwd === newThreadCwd.value || group.threads.some((thread) => thread.cwd === newThreadCwd.value),
+  ) ?? null
+)
+const newThreadWorkspaceThreads = computed(() => newThreadWorkspaceGroup.value?.threads ?? [])
+const newThreadProjectLabel = computed(() => {
+  const group = newThreadWorkspaceGroup.value
+  if (!group) return basenameFromPath(newThreadCwd.value)
+  return projectDisplayNameById.value[group.projectName] ?? basenameFromPath(group.projectName)
+})
 
 function basenameFromPath(value: string): string {
   const parts = value.split('/').filter(Boolean)
@@ -349,14 +431,24 @@ function basenameFromPath(value: string): string {
 }
 
 onMounted(() => {
+  applyCurrentTheme()
+  updateMobileViewport()
   window.addEventListener('keydown', onWindowKeyDown)
+  window.addEventListener('resize', updateMobileViewport)
+  browserNotifications.start()
   void initialize()
 })
 
 onUnmounted(() => {
   window.removeEventListener('keydown', onWindowKeyDown)
+  window.removeEventListener('resize', updateMobileViewport)
+  browserNotifications.stop()
   stopPolling()
 })
+
+function updateMobileViewport(): void {
+  isMobileViewport.value = window.innerWidth <= MOBILE_SIDEBAR_BREAKPOINT
+}
 
 function toggleSidebarSearch(): void {
   isSidebarSearchVisible.value = !isSidebarSearchVisible.value
@@ -479,8 +571,12 @@ function onUpdateThreadScrollState(payload: { threadId: string; state: ThreadScr
   setThreadScrollState(payload.threadId, payload.state)
 }
 
-function onRespondServerRequest(payload: { id: number; result?: unknown; error?: { code?: number; message: string } }): void {
+function onRespondServerRequest(payload: UiServerRequestReply): void {
   void respondToPendingServerRequest(payload)
+}
+
+function onRollbackCompleted(result: UiToolingRollbackFileResult): void {
+  recordRollbackAudit(result)
 }
 
 function onToggleAutoRefreshTimer(): void {
@@ -494,8 +590,7 @@ function setSidebarCollapsed(nextValue: boolean): void {
 }
 
 function toggleDarkMode(): void {
-  isDarkMode.value = !isDarkMode.value
-  saveDarkMode(isDarkMode.value)
+  toggleLightDark()
 }
 
 function onWindowKeyDown(event: KeyboardEvent): void {
@@ -535,6 +630,36 @@ function onInterruptTurn(): void {
   void interruptSelectedThreadTurn()
 }
 
+function onMobileFollowUp(payload: { threadId: string; text: string }): void {
+  const threadId = payload.threadId.trim()
+  const text = payload.text.trim()
+  if (!threadId || !text) return
+  void sendTextToThreadById(threadId, text).then(() => {
+    onSelectThread(threadId)
+  })
+}
+
+function onMobilePause(threadId: string): void {
+  const normalizedThreadId = threadId.trim()
+  if (!normalizedThreadId) return
+  void sendTextToThreadById(
+    normalizedThreadId,
+    'Pause at the next safe checkpoint, summarize the current state, and wait for my next instruction.',
+  ).then(() => {
+    onSelectThread(normalizedThreadId)
+  })
+}
+
+function onMobileInterrupt(threadId: string): void {
+  const normalizedThreadId = threadId.trim()
+  if (!normalizedThreadId) return
+  void interruptThreadTurnById(normalizedThreadId)
+}
+
+function onMobileArchive(threadId: string): void {
+  onArchiveThread(threadId)
+}
+
 function loadSidebarCollapsed(): boolean {
   if (typeof window === 'undefined') return false
   return window.localStorage.getItem(SIDEBAR_COLLAPSED_STORAGE_KEY) === '1'
@@ -543,16 +668,6 @@ function loadSidebarCollapsed(): boolean {
 function saveSidebarCollapsed(value: boolean): void {
   if (typeof window === 'undefined') return
   window.localStorage.setItem(SIDEBAR_COLLAPSED_STORAGE_KEY, value ? '1' : '0')
-}
-
-function loadDarkMode(): boolean {
-  if (typeof window === 'undefined') return false
-  return window.localStorage.getItem(DARK_MODE_STORAGE_KEY) === '1'
-}
-
-function saveDarkMode(value: boolean): void {
-  if (typeof window === 'undefined') return
-  window.localStorage.setItem(DARK_MODE_STORAGE_KEY, value ? '1' : '0')
 }
 
 function normalizeMessageType(rawType: string | undefined, role: string): string {
@@ -565,9 +680,27 @@ function normalizeMessageType(rawType: string | undefined, role: string): string
 
 async function initialize(): Promise<void> {
   await refreshAll()
+  await ensureNewThreadWorkspace()
   hasInitialized.value = true
   await syncThreadSelectionWithRoute()
   startPolling()
+}
+
+async function ensureNewThreadWorkspace(): Promise<void> {
+  if (newThreadCwd.value.trim()) return
+
+  const firstKnownWorkspace = newThreadFolderOptions.value[0]?.value?.trim() ?? ''
+  if (firstKnownWorkspace) {
+    newThreadCwd.value = firstKnownWorkspace
+    return
+  }
+
+  try {
+    const workspace = await fetchDefaultWorkspace()
+    newThreadCwd.value = workspace.cwd.trim()
+  } catch {
+    // Keep the home route usable even if the dev server cannot expose its cwd.
+  }
 }
 
 async function syncThreadSelectionWithRoute(): Promise<void> {
@@ -591,9 +724,7 @@ async function syncThreadSelectionWithRoute(): Promise<void> {
         return
       }
 
-      if (selectedThreadId.value !== threadId) {
-        await selectThread(threadId)
-      }
+      await selectThread(threadId)
       return
     }
 
@@ -640,6 +771,9 @@ watch(
   () => newThreadFolderOptions.value,
   (options) => {
     if (options.length === 0) {
+      if (!newThreadCwd.value.trim()) {
+        void ensureNewThreadWorkspace()
+      }
       return
     }
     const hasSelected = options.some((option) => option.value === newThreadCwd.value)
@@ -722,6 +856,16 @@ async function submitFirstMessageForNewThread(payload: UiComposerSubmitPayload):
   @apply ml-1;
 }
 
+.content-notifications-host {
+  @apply flex items-center;
+}
+
+@media (min-width: 1024px) {
+  .content-notifications-host {
+    margin-right: 15rem;
+  }
+}
+
 .content-body {
   @apply flex-1 min-h-0 w-full flex flex-col gap-3 pt-1 pb-4 overflow-y-hidden overflow-x-visible;
 }
@@ -734,8 +878,29 @@ async function submitFirstMessageForNewThread(payload: UiComposerSubmitPayload):
   @apply flex-1 min-h-0 flex flex-col gap-3;
 }
 
+.content-workbench {
+  @apply flex-1 min-h-0 flex gap-3 px-0;
+}
+
 .content-thread {
   @apply flex-1 min-h-0;
+}
+
+.content-activity {
+  @apply shrink-0;
+  width: clamp(22rem, 36vw, 30rem);
+}
+
+@media (max-width: 1320px) {
+  .content-workbench {
+    @apply flex-col;
+  }
+
+  .content-activity {
+    width: auto;
+    max-height: 24rem;
+    @apply mx-6;
+  }
 }
 
 .new-thread-empty {

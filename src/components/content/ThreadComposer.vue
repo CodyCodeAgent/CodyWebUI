@@ -38,6 +38,21 @@
         </li>
       </ul>
 
+      <ul v-if="selectedContexts.length > 0" class="thread-composer-context-list">
+        <li v-for="context in selectedContexts" :key="context.id" class="thread-composer-context-item">
+          <span class="thread-composer-context-name">{{ context.label }}</span>
+          <button
+            class="thread-composer-context-remove"
+            type="button"
+            aria-label="Remove context"
+            :disabled="disabled"
+            @click="removeContext(context)"
+          >
+            <IconTablerX class="thread-composer-context-remove-icon" />
+          </button>
+        </li>
+      </ul>
+
       <textarea
         ref="draftInputRef"
         v-model="draft"
@@ -70,6 +85,26 @@
             <span v-if="skill.description" class="thread-composer-skill-option-description">
               {{ skill.description }}
             </span>
+          </button>
+        </template>
+      </div>
+
+      <div v-if="isContextMenuOpen" class="thread-composer-context-menu">
+        <p v-if="isLoadingContext" class="thread-composer-context-status">Loading context...</p>
+        <p v-else-if="contextError" class="thread-composer-context-status thread-composer-context-status-error">
+          {{ contextError }}
+        </p>
+        <p v-else-if="filteredContexts.length === 0" class="thread-composer-context-status">No matching context</p>
+        <template v-else>
+          <button
+            v-for="context in filteredContexts"
+            :key="context.kind"
+            class="thread-composer-context-option"
+            type="button"
+            @mousedown.prevent="onSelectContext(context)"
+          >
+            <span class="thread-composer-context-option-name">{{ context.label }}</span>
+            <span class="thread-composer-context-option-description">{{ context.description }}</span>
           </button>
         </template>
       </div>
@@ -157,6 +192,11 @@
 
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue'
+import {
+  materializeComposerContextText,
+  useComposerContext,
+  type UiComposerContextOption,
+} from '../../composables/useComposerContext'
 import { hasImageFile, useComposerImages } from '../../composables/useComposerImages'
 import { useComposerSkills } from '../../composables/useComposerSkills'
 import type {
@@ -216,6 +256,18 @@ const {
   closeSkillMenu,
   resetSkills,
 } = useComposerSkills()
+const {
+  selectedContexts,
+  filteredContexts,
+  isContextMenuOpen,
+  isLoadingContext,
+  contextError,
+  updateContextTrigger,
+  selectContext,
+  removeContext,
+  closeContextMenu,
+  resetContexts,
+} = useComposerContext()
 const reasoningOptions: Array<{ value: ReasoningEffort; label: string }> = [
   { value: 'none', label: 'None' },
   { value: 'minimal', label: 'Minimal' },
@@ -235,7 +287,12 @@ const canSubmit = computed(() => {
   if (props.disabled) return false
   if (!props.activeThreadId) return false
   if (isUploadingImage.value) return false
-  return draft.value.trim().length > 0 || attachedImages.value.length > 0 || selectedSkills.value.length > 0
+  return (
+    draft.value.trim().length > 0 ||
+    attachedImages.value.length > 0 ||
+    selectedSkills.value.length > 0 ||
+    selectedContexts.value.length > 0
+  )
 })
 
 const placeholderText = computed(() =>
@@ -252,16 +309,18 @@ const canAttachImages = computed(() => !props.disabled && Boolean(props.activeTh
 const isDraggingImages = computed(() => canAttachImages.value && dragDepth.value > 0)
 
 function onSubmit(): void {
-  const text = draft.value.trim()
+  const text = materializeComposerContextText(draft.value, selectedContexts.value)
   if (!canSubmit.value) return
   emit('submit', {
     text,
     images: attachedImages.value,
     skills: selectedSkills.value,
+    contexts: selectedContexts.value,
   })
   draft.value = ''
   resetImages()
   resetSkills()
+  resetContexts()
   void nextTick(resizeDraftInput)
 }
 
@@ -272,13 +331,20 @@ function getDraftCursor(): number {
 function onDraftInput(): void {
   resizeDraftInput()
   void updateSkillTrigger(draft.value, getDraftCursor(), props.cwd)
+  updateContextTrigger(draft.value, getDraftCursor())
 }
 
 function onDraftCursorChange(): void {
   void updateSkillTrigger(draft.value, getDraftCursor(), props.cwd)
+  updateContextTrigger(draft.value, getDraftCursor())
 }
 
 function onDraftKeydown(event: KeyboardEvent): void {
+  if (event.key === 'Escape' && isContextMenuOpen.value) {
+    closeContextMenu()
+    return
+  }
+
   if (event.key === 'Escape' && isSkillMenuOpen.value) {
     closeSkillMenu()
     return
@@ -299,6 +365,19 @@ function onSelectSkill(skill: UiComposerSkill): void {
     input.focus()
     input.setSelectionRange(selected.cursor, selected.cursor)
     resizeDraftInput()
+  })
+}
+
+function onSelectContext(context: UiComposerContextOption): void {
+  void selectContext(context, draft.value, props.cwd).then((selected) => {
+    draft.value = selected.text
+    void nextTick(() => {
+      const input = draftInputRef.value
+      if (!input) return
+      input.focus()
+      input.setSelectionRange(selected.cursor, selected.cursor)
+      resizeDraftInput()
+    })
   })
 }
 
@@ -380,6 +459,7 @@ watch(
     draft.value = ''
     resetImages()
     resetSkills()
+    resetContexts()
     dragDepth.value = 0
     void nextTick(resizeDraftInput)
   },
@@ -389,6 +469,7 @@ watch(
   () => props.cwd,
   () => {
     resetSkills()
+    resetContexts()
   },
 )
 </script>
@@ -448,6 +529,26 @@ watch(
   @apply h-3 w-3;
 }
 
+.thread-composer-context-list {
+  @apply mb-2 flex flex-wrap gap-2;
+}
+
+.thread-composer-context-item {
+  @apply flex max-w-full items-center gap-1 rounded-md border border-emerald-300 bg-emerald-50 px-2 py-1 text-xs text-emerald-900;
+}
+
+.thread-composer-context-name {
+  @apply min-w-0 truncate font-mono;
+}
+
+.thread-composer-context-remove {
+  @apply flex h-4 w-4 shrink-0 items-center justify-center rounded text-emerald-600 transition hover:bg-emerald-100 hover:text-emerald-950 disabled:cursor-not-allowed disabled:opacity-50;
+}
+
+.thread-composer-context-remove-icon {
+  @apply h-3 w-3;
+}
+
 .thread-composer-input {
   @apply block w-full min-w-0 max-h-35 min-h-11 resize-none overflow-y-auto rounded-xl border-0 bg-transparent px-1 py-3 text-sm leading-5 text-zinc-900 outline-none transition;
 }
@@ -482,6 +583,30 @@ watch(
 
 .thread-composer-skill-option-description {
   @apply line-clamp-2 text-xs leading-4 text-slate-500;
+}
+
+.thread-composer-context-menu {
+  @apply mb-2 max-h-64 overflow-y-auto rounded-lg border border-emerald-200 bg-white p-1 shadow-lg;
+}
+
+.thread-composer-context-status {
+  @apply m-0 px-3 py-2 text-xs text-emerald-700;
+}
+
+.thread-composer-context-status-error {
+  @apply text-rose-600;
+}
+
+.thread-composer-context-option {
+  @apply flex w-full flex-col gap-0.5 rounded-md px-3 py-2 text-left transition hover:bg-emerald-50;
+}
+
+.thread-composer-context-option-name {
+  @apply text-sm font-medium text-emerald-950;
+}
+
+.thread-composer-context-option-description {
+  @apply line-clamp-2 text-xs leading-4 text-emerald-700;
 }
 
 .thread-composer-controls {

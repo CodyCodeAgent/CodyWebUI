@@ -1,11 +1,14 @@
 import {
   fetchRpcMethodCatalog,
   fetchRpcNotificationCatalog,
+  fetchGatewayDiagnostics,
   fetchPendingServerRequests,
   rpcCall,
   respondServerRequest,
+  subscribeProductNotifications,
   subscribeRpcNotifications,
   uploadLocalImage,
+  type ProductNotification,
   type RpcNotification,
   type UploadedLocalImage,
 } from './codexRpcClient'
@@ -30,6 +33,7 @@ import type {
 import { normalizeCodexApiError } from './codexErrors'
 import { normalizeThreadGroupsV2, normalizeThreadMessagesV2 } from './normalizers/v2'
 import type {
+  UiApprovalDecisionScope,
   UiComposerImage,
   UiComposerSkill,
   UiCollaborationModeOption,
@@ -178,11 +182,19 @@ export async function getNotificationCatalog(): Promise<string[]> {
   return fetchRpcNotificationCatalog()
 }
 
+export async function getGatewayDiagnostics() {
+  return fetchGatewayDiagnostics()
+}
+
 export function subscribeCodexNotifications(onNotification: (value: RpcNotification) => void): () => void {
   return subscribeRpcNotifications(onNotification)
 }
 
-export type { RpcNotification }
+export function subscribeLocalProductNotifications(onNotification: (value: ProductNotification) => void): () => void {
+  return subscribeProductNotifications(onNotification)
+}
+
+export type { ProductNotification, RpcNotification }
 
 export async function getAccountRateLimits(): Promise<UiRateLimitSnapshot | null> {
   const payload = await callRpc<AccountRateLimitsPayload>('account/rateLimits/read')
@@ -211,7 +223,7 @@ export async function getCollaborationModes(): Promise<UiCollaborationModeOption
 
 export async function replyToServerRequest(
   id: number,
-  payload: { result?: unknown; error?: { code?: number; message: string } },
+  payload: { approvalScope?: UiApprovalDecisionScope; result?: unknown; error?: { code?: number; message: string } },
 ): Promise<void> {
   await respondServerRequest({
     id,

@@ -1,0 +1,271 @@
+import { execFile } from 'node:child_process'
+import { mkdtemp, realpath, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { promisify } from 'node:util'
+import { afterEach, describe, expect, it } from 'vitest'
+import {
+  appendCodexSessionEvent,
+  codexSessionEventFromNotification,
+  listCodexSessionEvents,
+  listCodexWorkspaceSessions,
+} from './sessionEventStore'
+
+const execFileAsync = promisify(execFile)
+const tempDirs: string[] = []
+
+async function git(cwd: string, args: string[]): Promise<string> {
+  const result = await execFileAsync('git', args, { cwd, encoding: 'utf8' })
+  return result.stdout
+}
+
+async function createRepo(): Promise<string> {
+  const dir = await mkdtemp(join(tmpdir(), 'codex-web-session-events-'))
+  tempDirs.push(dir)
+  await git(dir, ['init'])
+  return dir
+}
+
+afterEach(async () => {
+  await Promise.all(tempDirs.splice(0).map((dir) => rm(dir, {
+    recursive: true,
+    force: true,
+    maxRetries: 3,
+    retryDelay: 100,
+  })))
+})
+
+describe('codexSessionEventFromNotification', () => {
+  it('maps Codex notifications into replayable session events', () => {
+    const event = codexSessionEventFromNotification(
+      { cwd: '/repo', repoRoot: '/repo' },
+      {
+        method: 'server/request',
+        atIso: '2026-07-05T10:00:00.000Z',
+        params: {
+          request: {
+            method: 'item/commandExecution/requestApproval',
+            threadId: 'thread-1',
+            turnId: 'turn-1',
+          },
+        },
+      },
+    )
+
+    expect(event).toMatchObject({
+      cwd: '/repo',
+      repoRoot: '/repo',
+      createdAtIso: '2026-07-05T10:00:00.000Z',
+      threadId: 'thread-1',
+      turnId: 'turn-1',
+      kind: 'approval_required',
+      severity: 'warning',
+      title: 'Approval required',
+      metadata: {
+        requestMethod: 'item/commandExecution/requestApproval',
+      },
+    })
+  })
+
+  it('includes automatic checkpoint evidence in turn lifecycle metadata', () => {
+    expect(codexSessionEventFromNotification(
+      { cwd: '/repo', repoRoot: '/repo' },
+      {
+        method: 'turn/started',
+        atIso: '2026-07-05T10:00:00.000Z',
+        params: { turn: { id: 'turn-1', threadId: 'thread-1' } },
+        metadata: {
+          beforeCheckpointId: 'checkpoint-before',
+          beforeCheckpointHasPatch: true,
+          beforeCheckpointPatchBytes: 123,
+        },
+      },
+    )).toMatchObject({
+      kind: 'task_started',
+      metadata: {
+        beforeCheckpointId: 'checkpoint-before',
+        beforeCheckpointHasPatch: true,
+        beforeCheckpointPatchBytes: 123,
+      },
+    })
+
+    expect(codexSessionEventFromNotification(
+      { cwd: '/repo', repoRoot: '/repo' },
+      {
+        method: 'turn/completed',
+        atIso: '2026-07-05T10:01:00.000Z',
+        params: { turn: { id: 'turn-1', threadId: 'thread-1' } },
+        metadata: {
+          afterCheckpointId: 'checkpoint-after',
+          afterCheckpointHasPatch: true,
+          afterCheckpointPatchBytes: 456,
+        },
+      },
+    )).toMatchObject({
+      kind: 'task_completed',
+      metadata: {
+        afterCheckpointId: 'checkpoint-after',
+        afterCheckpointHasPatch: true,
+        afterCheckpointPatchBytes: 456,
+      },
+    })
+  })
+
+  it('uses rate limit usage to choose warning severity', () => {
+    expect(codexSessionEventFromNotification(
+      { cwd: '/repo', repoRoot: '/repo' },
+      {
+        method: 'account/rateLimits/updated',
+        params: {
+          rateLimits: {
+            primary: {
+              usedPercent: 94.2,
+            },
+          },
+        },
+      },
+    )).toMatchObject({
+      kind: 'rate_limit',
+      severity: 'warning',
+      summary: 'Codex usage is at 94%.',
+      metadata: {
+        usedPercent: 94.2,
+      },
+    })
+  })
+})
+
+describe('session event store', () => {
+  it('persists JSONL events and replays them by thread', async () => {
+    const repo = await createRepo()
+
+    await appendCodexSessionEvent(repo, {
+      method: 'turn/started',
+      atIso: '2026-07-05T10:00:00.000Z',
+      params: { turn: { id: 'turn-a', threadId: 'thread-a' } },
+    })
+    await appendCodexSessionEvent(repo, {
+      method: 'turn/started',
+      atIso: '2026-07-05T10:01:00.000Z',
+      params: { turn: { id: 'turn-b', threadId: 'thread-b' } },
+    })
+    await appendCodexSessionEvent(repo, {
+      method: 'turn/completed',
+      atIso: '2026-07-05T10:02:00.000Z',
+      params: { turn: { id: 'turn-a', threadId: 'thread-a' } },
+    })
+
+    const trail = await listCodexSessionEvents({
+      cwd: repo,
+      threadId: 'thread-a',
+      limit: 10,
+    })
+    const resolvedRepo = await realpath(repo)
+
+    expect(trail.cwd).toBe(resolvedRepo)
+    expect(trail.repoRoot).toBe(resolvedRepo)
+    expect(trail.truncated).toBe(false)
+    expect(trail.events.map((event) => event.kind)).toEqual(['task_completed', 'task_started'])
+    expect(trail.events.every((event) => event.threadId === 'thread-a')).toBe(true)
+  })
+
+  it('returns an empty trail when no events have been persisted yet', async () => {
+    const repo = await createRepo()
+    const trail = await listCodexSessionEvents({ cwd: repo, threadId: 'missing', limit: 5 })
+
+    expect(trail.events).toEqual([])
+    expect(trail.truncated).toBe(false)
+  })
+
+  it('summarizes recent workspace sessions by thread', async () => {
+    const repo = await createRepo()
+
+    await appendCodexSessionEvent(repo, {
+      method: 'turn/started',
+      atIso: '2026-07-05T10:00:00.000Z',
+      params: { turn: { id: 'turn-a', threadId: 'thread-a' } },
+    })
+    await appendCodexSessionEvent(repo, {
+      method: 'turn/plan/updated',
+      atIso: '2026-07-05T10:01:00.000Z',
+      params: { turn: { id: 'turn-a', threadId: 'thread-a' } },
+    })
+    await appendCodexSessionEvent(repo, {
+      method: 'turn/completed',
+      atIso: '2026-07-05T10:02:00.000Z',
+      params: {
+        turn: { id: 'turn-a', threadId: 'thread-a' },
+        usage: {
+          input_tokens: 1200,
+          output_tokens: 340,
+          total_tokens: 1540,
+          cost_usd: 0.0125,
+        },
+      },
+    })
+    await appendCodexSessionEvent(repo, {
+      method: 'turn/started',
+      atIso: '2026-07-05T10:03:00.000Z',
+      params: { turn: { id: 'turn-b', threadId: 'thread-b' } },
+    })
+    await appendCodexSessionEvent(repo, {
+      method: 'server/request',
+      atIso: '2026-07-05T10:04:00.000Z',
+      params: {
+        request: {
+          method: 'item/commandExecution/requestApproval',
+          threadId: 'thread-b',
+          turnId: 'turn-b',
+        },
+      },
+    })
+
+    const trail = await listCodexWorkspaceSessions({ cwd: repo, limit: 10 })
+
+    expect(trail.truncated).toBe(false)
+    expect(trail.sessions.map((session) => session.threadId)).toEqual(['thread-b', 'thread-a'])
+    expect(trail.sessions[0]).toMatchObject({
+      threadId: 'thread-b',
+      status: 'waiting_for_approval',
+      severity: 'warning',
+      eventCount: 2,
+      approvalCount: 1,
+      latestEventKind: 'approval_required',
+    })
+    expect(trail.sessions[1]).toMatchObject({
+      threadId: 'thread-a',
+      status: 'completed',
+      severity: 'success',
+      eventCount: 3,
+      planUpdateCount: 1,
+      latestEventKind: 'task_completed',
+      inputTokens: 1200,
+      outputTokens: 340,
+      totalTokens: 1540,
+      tokenUsageEventCount: 1,
+      costUsd: 0.0125,
+      costEventCount: 1,
+    })
+  })
+
+  it('limits workspace session summaries and marks truncation', async () => {
+    const repo = await createRepo()
+
+    await appendCodexSessionEvent(repo, {
+      method: 'turn/started',
+      atIso: '2026-07-05T10:00:00.000Z',
+      params: { turn: { id: 'turn-a', threadId: 'thread-a' } },
+    })
+    await appendCodexSessionEvent(repo, {
+      method: 'turn/started',
+      atIso: '2026-07-05T10:01:00.000Z',
+      params: { turn: { id: 'turn-b', threadId: 'thread-b' } },
+    })
+
+    const trail = await listCodexWorkspaceSessions({ cwd: repo, limit: 1 })
+
+    expect(trail.sessions).toHaveLength(1)
+    expect(trail.sessions[0]?.threadId).toBe('thread-b')
+    expect(trail.truncated).toBe(true)
+  })
+})

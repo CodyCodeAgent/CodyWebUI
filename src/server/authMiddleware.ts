@@ -2,6 +2,40 @@ import { randomBytes, timingSafeEqual } from 'node:crypto'
 import type { RequestHandler, Request, Response, NextFunction } from 'express'
 
 const TOKEN_COOKIE = 'codex_web_local_token'
+const DEVICE_COOKIE = 'codex_web_local_device'
+const DEFAULT_SESSION_TTL_MS = 8 * 60 * 60 * 1000
+const DEFAULT_RATE_LIMIT_WINDOW_MS = 5 * 60 * 1000
+const DEFAULT_RATE_LIMIT_BLOCK_MS = 15 * 60 * 1000
+const DEFAULT_MAX_FAILED_ATTEMPTS = 5
+
+type AuthSession = {
+  token: string
+  deviceId: string
+  createdAtMs: number
+  expiresAtMs: number
+  lastSeenAtMs: number
+  ip: string
+}
+
+type TrustedDevice = {
+  deviceId: string
+  trustedAtMs: number
+  lastSeenAtMs: number
+  ip: string
+}
+
+type LoginRateLimitState = {
+  failedAtMs: number[]
+  blockedUntilMs: number
+}
+
+export type AuthMiddlewareOptions = {
+  sessionTtlMs?: number
+  rateLimitWindowMs?: number
+  rateLimitBlockMs?: number
+  maxFailedAttempts?: number
+  now?: () => number
+}
 
 function constantTimeCompare(a: string, b: string): boolean {
   const bufA = Buffer.from(a)
@@ -21,6 +55,27 @@ function parseCookies(header: string | undefined): Record<string, string> {
     cookies[key] = value
   }
   return cookies
+}
+
+function requestIp(req: Request): string {
+  const forwarded = req.headers['x-forwarded-for']
+  if (typeof forwarded === 'string' && forwarded.trim()) {
+    return forwarded.split(',')[0]?.trim() || req.ip || req.socket.remoteAddress || 'unknown'
+  }
+  return req.ip || req.socket.remoteAddress || 'unknown'
+}
+
+function cookieAttributes(maxAgeSeconds: number): string {
+  return `Path=/; HttpOnly; SameSite=Strict; Max-Age=${String(Math.max(0, Math.floor(maxAgeSeconds)))}`
+}
+
+function clearCookie(name: string): string {
+  return `${name}=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0`
+}
+
+function readDeviceCookie(cookies: Record<string, string>): string {
+  const value = cookies[DEVICE_COOKIE]?.trim() ?? ''
+  return /^[a-f0-9]{32}$/u.test(value) ? value : ''
 }
 
 const LOGIN_PAGE_HTML = `<!DOCTYPE html>
@@ -65,12 +120,164 @@ form.addEventListener('submit',async e=>{
 </body>
 </html>`
 
-export function createAuthMiddleware(password: string): RequestHandler {
-  const validTokens = new Set<string>()
+export function createAuthMiddleware(password: string, options: AuthMiddlewareOptions = {}): RequestHandler {
+  const sessions = new Map<string, AuthSession>()
+  const trustedDevices = new Map<string, TrustedDevice>()
+  const rateLimits = new Map<string, LoginRateLimitState>()
+  const sessionTtlMs = Math.max(60_000, options.sessionTtlMs ?? DEFAULT_SESSION_TTL_MS)
+  const rateLimitWindowMs = Math.max(1_000, options.rateLimitWindowMs ?? DEFAULT_RATE_LIMIT_WINDOW_MS)
+  const rateLimitBlockMs = Math.max(1_000, options.rateLimitBlockMs ?? DEFAULT_RATE_LIMIT_BLOCK_MS)
+  const maxFailedAttempts = Math.max(1, options.maxFailedAttempts ?? DEFAULT_MAX_FAILED_ATTEMPTS)
+  const now = options.now ?? (() => Date.now())
+
+  function deleteExpiredSessions(nowMs: number): void {
+    for (const [token, session] of sessions) {
+      if (session.expiresAtMs <= nowMs) {
+        sessions.delete(token)
+      }
+    }
+  }
+
+  function readSession(req: Request, nowMs: number): AuthSession | null {
+    deleteExpiredSessions(nowMs)
+    const cookies = parseCookies(req.headers.cookie)
+    const token = cookies[TOKEN_COOKIE]
+    if (!token) return null
+    const session = sessions.get(token)
+    if (!session || session.expiresAtMs <= nowMs) {
+      sessions.delete(token)
+      return null
+    }
+    session.lastSeenAtMs = nowMs
+    return session
+  }
+
+  function readRateLimit(ip: string, nowMs: number): LoginRateLimitState {
+    const current = rateLimits.get(ip) ?? { failedAtMs: [], blockedUntilMs: 0 }
+    current.failedAtMs = current.failedAtMs.filter((value) => value > nowMs - rateLimitWindowMs)
+    if (current.blockedUntilMs <= nowMs) {
+      current.blockedUntilMs = 0
+    }
+    rateLimits.set(ip, current)
+    return current
+  }
+
+  function recordFailedLogin(ip: string, nowMs: number): LoginRateLimitState {
+    const current = readRateLimit(ip, nowMs)
+    current.failedAtMs.push(nowMs)
+    if (current.failedAtMs.length >= maxFailedAttempts) {
+      current.blockedUntilMs = nowMs + rateLimitBlockMs
+    }
+    rateLimits.set(ip, current)
+    return current
+  }
+
+  function resetRateLimit(ip: string): void {
+    rateLimits.delete(ip)
+  }
 
   return (req: Request, res: Response, next: NextFunction): void => {
+    const nowMs = now()
+    const ip = requestIp(req)
+
+    if (req.method === 'GET' && req.path === '/auth/session') {
+      const session = readSession(req, nowMs)
+      if (!session) {
+        res.status(401).json({ authenticated: false })
+        return
+      }
+      const trustedDevice = trustedDevices.get(session.deviceId) ?? null
+      if (trustedDevice) trustedDevice.lastSeenAtMs = nowMs
+      res.json({
+        authenticated: true,
+        deviceId: session.deviceId,
+        trustedDevice: Boolean(trustedDevice),
+        trustedAtIso: trustedDevice ? new Date(trustedDevice.trustedAtMs).toISOString() : null,
+        createdAtIso: new Date(session.createdAtMs).toISOString(),
+        expiresAtIso: new Date(session.expiresAtMs).toISOString(),
+        lastSeenAtIso: new Date(session.lastSeenAtMs).toISOString(),
+      })
+      return
+    }
+
+    if (req.method === 'GET' && req.path === '/auth/devices') {
+      const session = readSession(req, nowMs)
+      if (!session) {
+        res.status(401).json({ authenticated: false })
+        return
+      }
+      res.json({
+        devices: Array.from(trustedDevices.values())
+          .sort((a, b) => b.trustedAtMs - a.trustedAtMs)
+          .map((device) => ({
+            deviceId: device.deviceId,
+            trustedAtIso: new Date(device.trustedAtMs).toISOString(),
+            lastSeenAtIso: new Date(device.lastSeenAtMs).toISOString(),
+            current: device.deviceId === session.deviceId,
+          })),
+      })
+      return
+    }
+
+    if (req.method === 'POST' && req.path === '/auth/device/trust') {
+      const session = readSession(req, nowMs)
+      if (!session) {
+        res.status(401).json({ authenticated: false })
+        return
+      }
+      const trustedDevice: TrustedDevice = {
+        deviceId: session.deviceId,
+        trustedAtMs: nowMs,
+        lastSeenAtMs: nowMs,
+        ip,
+      }
+      trustedDevices.set(session.deviceId, trustedDevice)
+      res.json({
+        ok: true,
+        deviceId: session.deviceId,
+        trustedDevice: true,
+        trustedAtIso: new Date(trustedDevice.trustedAtMs).toISOString(),
+      })
+      return
+    }
+
+    if (req.method === 'POST' && req.path === '/auth/device/revoke') {
+      const session = readSession(req, nowMs)
+      if (!session) {
+        res.status(401).json({ authenticated: false })
+        return
+      }
+      trustedDevices.delete(session.deviceId)
+      res.json({
+        ok: true,
+        deviceId: session.deviceId,
+        trustedDevice: false,
+      })
+      return
+    }
+
+    if (req.method === 'POST' && req.path === '/auth/logout') {
+      const cookies = parseCookies(req.headers.cookie)
+      const token = cookies[TOKEN_COOKIE]
+      if (token) sessions.delete(token)
+      res.setHeader('Set-Cookie', [
+        clearCookie(TOKEN_COOKIE),
+      ])
+      res.json({ ok: true })
+      return
+    }
+
     // Handle login POST
     if (req.method === 'POST' && req.path === '/auth/login') {
+      const rateLimit = readRateLimit(ip, nowMs)
+      if (rateLimit.blockedUntilMs > nowMs) {
+        res.status(429).json({
+          error: 'Too many failed login attempts',
+          retryAfterMs: rateLimit.blockedUntilMs - nowMs,
+        })
+        return
+      }
+
       let body = ''
       req.setEncoding('utf8')
       req.on('data', (chunk: string) => { body += chunk })
@@ -80,15 +287,43 @@ export function createAuthMiddleware(password: string): RequestHandler {
           const provided = typeof parsed.password === 'string' ? parsed.password : ''
 
           if (!constantTimeCompare(provided, password)) {
-            res.status(401).json({ error: 'Invalid password' })
+            const nextRateLimit = recordFailedLogin(ip, nowMs)
+            const blocked = nextRateLimit.blockedUntilMs > nowMs
+            res.status(blocked ? 429 : 401).json({
+              error: blocked ? 'Too many failed login attempts' : 'Invalid password',
+              remainingAttempts: blocked ? 0 : Math.max(0, maxFailedAttempts - nextRateLimit.failedAtMs.length),
+              retryAfterMs: blocked ? nextRateLimit.blockedUntilMs - nowMs : 0,
+            })
             return
           }
 
           const token = randomBytes(32).toString('hex')
-          validTokens.add(token)
+          const cookies = parseCookies(req.headers.cookie)
+          const deviceId = readDeviceCookie(cookies) || randomBytes(16).toString('hex')
+          const session: AuthSession = {
+            token,
+            deviceId,
+            createdAtMs: nowMs,
+            expiresAtMs: nowMs + sessionTtlMs,
+            lastSeenAtMs: nowMs,
+            ip,
+          }
+          sessions.set(token, session)
+          resetRateLimit(ip)
+          const trustedDevice = trustedDevices.get(deviceId) ?? null
+          if (trustedDevice) trustedDevice.lastSeenAtMs = nowMs
 
-          res.setHeader('Set-Cookie', `${TOKEN_COOKIE}=${token}; Path=/; HttpOnly; SameSite=Strict`)
-          res.json({ ok: true })
+          res.setHeader('Set-Cookie', [
+            `${TOKEN_COOKIE}=${token}; ${cookieAttributes(sessionTtlMs / 1000)}`,
+            `${DEVICE_COOKIE}=${deviceId}; ${cookieAttributes(365 * 24 * 60 * 60)}`,
+          ])
+          res.json({
+            ok: true,
+            expiresAtIso: new Date(session.expiresAtMs).toISOString(),
+            deviceId,
+            trustedDevice: Boolean(trustedDevice),
+            trustedAtIso: trustedDevice ? new Date(trustedDevice.trustedAtMs).toISOString() : null,
+          })
         } catch {
           res.status(400).json({ error: 'Invalid request body' })
         }
@@ -97,10 +332,7 @@ export function createAuthMiddleware(password: string): RequestHandler {
     }
 
     // Check for valid token cookie
-    const cookies = parseCookies(req.headers.cookie)
-    const token = cookies[TOKEN_COOKIE]
-
-    if (token && validTokens.has(token)) {
+    if (readSession(req, nowMs)) {
       next()
       return
     }

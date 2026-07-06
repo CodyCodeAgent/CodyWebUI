@@ -34,6 +34,7 @@ import type {
   UiServerRequest,
   UiServerRequestReply,
   UiThread,
+  UiToolingRollbackFileResult,
 } from '../types/codex'
 
 function flattenThreads(groups: UiProjectGroup[]): UiThread[] {
@@ -255,6 +256,22 @@ function areStringArraysEqual(first?: string[], second?: string[]): boolean {
   return true
 }
 
+function areMessageToolsEqual(first: UiMessage['tool'], second: UiMessage['tool']): boolean {
+  if (!first && !second) return true
+  if (!first || !second) return false
+  if (
+    first.kind !== second.kind ||
+    first.title !== second.title ||
+    first.status !== second.status ||
+    first.summary !== second.summary ||
+    first.output !== second.output ||
+    first.outputLabel !== second.outputLabel
+  ) {
+    return false
+  }
+  return areStringArraysEqual(first.details, second.details)
+}
+
 function reorderStringArray(items: string[], fromIndex: number, toIndex: number): string[] {
   if (fromIndex < 0 || fromIndex >= items.length || toIndex < 0 || toIndex >= items.length) {
     return items
@@ -276,6 +293,7 @@ function areMessageFieldsEqual(first: UiMessage, second: UiMessage): boolean {
     first.role === second.role &&
     first.text === second.text &&
     areStringArraysEqual(first.images, second.images) &&
+    areMessageToolsEqual(first.tool, second.tool) &&
     first.messageType === second.messageType &&
     first.rawPayload === second.rawPayload &&
     first.isUnhandled === second.isUnhandled
@@ -452,6 +470,33 @@ function buildTurnSummaryMessage(summary: TurnSummaryState): UiMessage {
     role: 'system',
     text: `Worked for ${formatTurnDuration(summary.durationMs)}`,
     messageType: WORKED_MESSAGE_TYPE,
+  }
+}
+
+export function buildRollbackAuditMessage(result: UiToolingRollbackFileResult): UiMessage {
+  const remainingStatus = result.remainingStatus.trim()
+  const checkpoint = result.checkpoint
+  return {
+    id: `tooling.rollback:${checkpoint.id}:${result.relativePath}`,
+    role: 'system',
+    text: '',
+    messageType: 'tool.rollback',
+    tool: {
+      kind: 'rollback',
+      title: 'File rollback',
+      status: result.rollbackApplied ? 'completed' : 'no changes',
+      summary: result.rollbackApplied
+        ? `Rolled back ${result.relativePath}`
+        : `No local changes found for ${result.relativePath}`,
+      details: [
+        `file: ${result.relativePath}`,
+        `checkpoint: ${checkpoint.id}`,
+        `patch bytes: ${String(checkpoint.patchBytes)}`,
+        `remaining status: ${remainingStatus || 'clean'}`,
+      ],
+      output: checkpoint.patchPath,
+      outputLabel: 'Checkpoint patch',
+    },
   }
 }
 
@@ -648,6 +693,10 @@ export function useDesktopState() {
     if (Array.isArray(pendingServerRequestsByThreadId.value[GLOBAL_SERVER_REQUEST_SCOPE])) {
       rows.push(...pendingServerRequestsByThreadId.value[GLOBAL_SERVER_REQUEST_SCOPE])
     }
+    return rows.sort((first, second) => first.receivedAtIso.localeCompare(second.receivedAtIso))
+  })
+  const allPendingServerRequests = computed<UiServerRequest[]>(() => {
+    const rows = Object.values(pendingServerRequestsByThreadId.value).flat()
     return rows.sort((first, second) => first.receivedAtIso.localeCompare(second.receivedAtIso))
   })
   const selectedCollaborationMode = computed<UiCollaborationModeOption>(() => {
@@ -1047,6 +1096,14 @@ export function useDesktopState() {
       ...liveAgentMessagesByThreadId.value,
       [threadId]: nextMessages,
     }
+  }
+
+  function recordRollbackAudit(result: UiToolingRollbackFileResult): void {
+    const threadId = selectedThreadId.value
+    if (!threadId) return
+
+    const previous = persistedMessagesByThreadId.value[threadId] ?? []
+    setPersistedMessagesForThread(threadId, upsertMessage(previous, buildRollbackAuditMessage(result)))
   }
 
   function upsertLiveAgentMessage(threadId: string, nextMessage: UiMessage): void {
@@ -2041,6 +2098,53 @@ export function useDesktopState() {
     }
   }
 
+  async function sendTextToThreadById(threadId: string, text: string): Promise<void> {
+    const normalizedThreadId = threadId.trim()
+    const nextText = text.trim()
+    if (!normalizedThreadId || !nextText) return
+
+    if (!allThreads.value.some((thread) => thread.id === normalizedThreadId)) {
+      throw new Error('Thread was not found')
+    }
+
+    if (inProgressById.value[normalizedThreadId] === true) {
+      await steerActiveTurn(normalizedThreadId, nextText, [], [])
+      return
+    }
+
+    isSendingMessage.value = true
+    error.value = ''
+    shouldAutoScrollOnNextAgentEvent = true
+    setTurnSummaryForThread(normalizedThreadId, null)
+    setTurnActivityForThread(
+      normalizedThreadId,
+      {
+        label: 'Thinking',
+        details: buildPendingTurnDetails(
+          selectedModelId.value,
+          selectedReasoningEffort.value,
+          selectedCollaborationMode.value,
+        ),
+      },
+    )
+    setTurnErrorForThread(normalizedThreadId, null)
+    setThreadInProgress(normalizedThreadId, true)
+
+    try {
+      await startTurnForThread(normalizedThreadId, nextText, [], [])
+    } catch (unknownError) {
+      shouldAutoScrollOnNextAgentEvent = false
+      setThreadInProgress(normalizedThreadId, false)
+      setTurnActivityForThread(normalizedThreadId, null)
+      const errorMessage = unknownError instanceof Error ? unknownError.message : 'Unknown application error'
+      setTurnErrorForThread(normalizedThreadId, errorMessage)
+      error.value = errorMessage
+      throw unknownError
+    } finally {
+      isSendingMessage.value = false
+    }
+  }
+
   async function steerActiveTurn(
     threadId: string,
     nextText: string,
@@ -2223,6 +2327,44 @@ export function useDesktopState() {
     }
   }
 
+  async function interruptThreadTurnById(threadId: string): Promise<void> {
+    const normalizedThreadId = threadId.trim()
+    if (!normalizedThreadId) return
+    if (selectedThreadId.value === normalizedThreadId) {
+      await interruptSelectedThreadTurn()
+      return
+    }
+    if (inProgressById.value[normalizedThreadId] !== true) return
+    const turnId = activeTurnIdByThreadId.value[normalizedThreadId]
+    if (!turnId) {
+      const errorMessage = 'The current turn is still starting. Wait a moment before interrupting.'
+      setTurnErrorForThread(normalizedThreadId, errorMessage)
+      error.value = errorMessage
+      return
+    }
+
+    isInterruptingTurn.value = true
+    error.value = ''
+    try {
+      await interruptThreadTurn(normalizedThreadId, turnId)
+      setThreadInProgress(normalizedThreadId, false)
+      setTurnActivityForThread(normalizedThreadId, null)
+      setTurnErrorForThread(normalizedThreadId, null)
+      if (activeTurnIdByThreadId.value[normalizedThreadId]) {
+        activeTurnIdByThreadId.value = omitKey(activeTurnIdByThreadId.value, normalizedThreadId)
+      }
+      pendingThreadMessageRefresh.add(normalizedThreadId)
+      pendingThreadsRefresh = true
+      await syncFromNotifications()
+    } catch (unknownError) {
+      const errorMessage = unknownError instanceof Error ? unknownError.message : 'Failed to interrupt active turn'
+      setTurnErrorForThread(normalizedThreadId, errorMessage)
+      error.value = errorMessage
+    } finally {
+      isInterruptingTurn.value = false
+    }
+  }
+
   function renameProject(projectName: string, displayName: string): void {
     if (projectName.length === 0) return
 
@@ -2394,6 +2536,7 @@ export function useDesktopState() {
   async function respondToPendingServerRequest(reply: UiServerRequestReply): Promise<void> {
     try {
       await replyToServerRequest(reply.id, {
+        approvalScope: reply.approvalScope,
         result: reply.result,
         error: reply.error,
       })
@@ -2480,6 +2623,7 @@ export function useDesktopState() {
     selectedThread,
     selectedThreadScrollState,
     selectedThreadServerRequests,
+    allPendingServerRequests,
     selectedLiveOverlay,
     selectedThreadId,
     isArchiveView,
@@ -2509,12 +2653,15 @@ export function useDesktopState() {
     setArchiveView,
     renameThreadById,
     sendMessageToSelectedThread,
+    sendTextToThreadById,
     sendMessageToNewThread,
     interruptSelectedThreadTurn,
+    interruptThreadTurnById,
     setSelectedModelId,
     setSelectedReasoningEffort,
     setSelectedCollaborationModeName,
     respondToPendingServerRequest,
+    recordRollbackAudit,
     renameProject,
     removeProject,
     reorderProject,

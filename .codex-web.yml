@@ -1,0 +1,71 @@
+workspace:
+  trust: trusted
+  sandboxMode: workspace-write
+  approvalPolicy: on-request
+  collaborationMode: default
+
+commands:
+  allow:
+    - test
+    - build
+    - build:*
+    - dev
+    - preview
+    - prepublishOnly
+  deny:
+    - deploy*
+    - publish*
+
+validation:
+  commands:
+    - name: test
+      command: npm test
+    - name: build
+      command: npm run build
+
+ports:
+  policy:
+    deny:
+      - 0-1023
+    allowExternal: false
+    allowWildcard: false
+  known:
+    - name: Vite dev server
+      port: 5173
+      url: http://127.0.0.1:5173/
+      required: false
+
+notifications:
+  enabled: false
+  events:
+    - approval_required
+    - task_failed
+    - task_completed
+    - rate_limit
+  channels:
+    - name: Remote supervision webhook
+      type: webhook
+      enabled: false
+      urlEnv: CODEX_WEB_NOTIFICATION_WEBHOOK_URL
+      events:
+        - approval_required
+        - task_failed
+        - task_completed
+
+theme:
+  skin: control-tower
+  layout: ops-dashboard
+  density: compact
+  accent: "#38bdf8"
+  followSystem: false
+
+security:
+  sensitivePaths:
+    - .env*
+    - "**/*.pem"
+    - "**/*.key"
+  ignorePatterns:
+    - node_modules/**
+    - dist/**
+    - dist-cli/**
+    - coverage/**

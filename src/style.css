@@ -2,6 +2,36 @@
 
 :root {
   color-scheme: light;
+  --color-background: #f4f4f5;
+  --color-surface: #ffffff;
+  --color-panel: #ffffff;
+  --color-elevated: #ffffff;
+  --color-text: #18181b;
+  --color-text-muted: #71717a;
+  --color-border: #e4e4e7;
+  --color-accent: #2563eb;
+  --color-danger: #dc2626;
+  --color-warning: #d97706;
+  --color-success: #16a34a;
+  --color-info: #2563eb;
+  --color-code-background: #18181b;
+  --color-terminal-background: #101216;
+  --font-sans: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-mono: "SFMono-Regular", "Cascadia Code", "Roboto Mono", ui-monospace, monospace;
+  --space-xs: 0.25rem;
+  --space-sm: 0.5rem;
+  --space-md: 0.75rem;
+  --space-lg: 1rem;
+  --radius-sm: 0.375rem;
+  --radius-md: 0.5rem;
+  --radius-lg: 0.75rem;
+  --shadow-panel: 0 1px 2px rgb(15 23 42 / 0.08);
+  --shadow-floating: 0 18px 42px rgb(15 23 42 / 0.18);
+  --shadow-focus: 0 0 0 3px rgb(59 130 246 / 0.24);
+  --motion-fast: 120ms;
+  --motion-normal: 180ms;
+  --motion-slow: 280ms;
+  --density-scale: 1;
 }
 
 .app-dark {
@@ -39,9 +69,106 @@
 .app-dark .new-thread-modal,
 .app-dark .request-card,
 .app-dark .rate-limit-card,
+.app-dark .thread-activity-panel,
+.app-dark .activity-request-card,
+.app-dark .activity-entry-card,
+.app-dark .thread-activity-metric,
+.app-dark .thread-validation-panel,
+.app-dark .thread-validation-card,
+.app-dark .thread-validation-pill,
+.app-dark .workspace-dashboard-panel,
+.app-dark .workspace-dashboard-refresh,
+.app-dark .workspace-dashboard-metric,
+.app-dark .workspace-dashboard-status-list div,
+.app-dark .workspace-dashboard-file-list li,
+.app-dark .workspace-dashboard-script-list li,
+.app-dark .workspace-dashboard-script-summary span,
+.app-dark .workspace-dashboard-config-grid span,
+.app-dark .workspace-dashboard-policy-list div,
+.app-dark .workspace-dashboard-config-command-list li,
+.app-dark .workspace-dashboard-thread-list button,
+.app-dark .workspace-workflow-panel,
+.app-dark .workspace-workflow-refresh,
+.app-dark .workspace-workflow-form select,
+.app-dark .workspace-workflow-form textarea,
+.app-dark .workspace-workflow-template,
+.app-dark .workspace-workflow-template-meta span,
+.app-dark .workspace-workflow-run,
+.app-dark .workspace-workflow-run-status,
+.app-dark .workspace-workflow-run-meta span,
+.app-dark .workspace-workflow-risk-list span,
+.app-dark .workspace-workflow-agent,
+.app-dark .workspace-workflow-agent dl div,
+.app-dark .workspace-workflow-agent-status,
+.app-dark .workspace-workflow-agent-actions button,
+.app-dark .workspace-workflow-run-actions button,
+.app-dark .workspace-workflow-validation-actions button,
+.app-dark .workspace-workflow-replay-summary span,
+.app-dark .workspace-workflow-replay-agents span,
+.app-dark .workspace-workflow-replay-events li,
+.app-dark .workspace-workflow-validation-result,
+.app-dark .workspace-git-panel,
+.app-dark .workspace-git-panel-refresh,
+.app-dark .workspace-git-panel-metric,
+.app-dark .workspace-git-panel-file-list li,
+.app-dark .workspace-git-panel-file-list button,
+.app-dark .workspace-git-panel-draft-button,
+.app-dark .workspace-git-panel-draft,
+.app-dark .workspace-git-panel-draft textarea,
+.app-dark .workspace-security-panel,
+.app-dark .workspace-security-panel-refresh,
+.app-dark .workspace-security-panel-metrics span,
+.app-dark .workspace-security-panel-finding,
+.app-dark .workspace-security-panel-finding-severity,
+.app-dark .workspace-security-panel-evidence,
+.app-dark .workspace-worktrees-panel,
+.app-dark .workspace-worktrees-panel-refresh,
+.app-dark .workspace-worktrees-panel-form input,
+.app-dark .workspace-worktrees-panel-form button,
+.app-dark .workspace-worktrees-panel-list li,
+.app-dark .workspace-worktrees-panel-list button,
+.app-dark .workspace-worktrees-panel-flags span,
+.app-dark .workspace-ports-panel,
+.app-dark .workspace-ports-panel-refresh,
+.app-dark .workspace-ports-panel-list li,
+.app-dark .workspace-ports-panel-known-list li,
+.app-dark .workspace-ports-panel-list a,
+.app-dark .workspace-ports-panel-known-list a,
+.app-dark .workspace-commands-panel,
+.app-dark .workspace-commands-panel-refresh,
+.app-dark .workspace-commands-panel-script-list li,
+.app-dark .workspace-commands-panel-session,
+.app-dark .workspace-commands-panel-script-list button,
+.app-dark .workspace-commands-panel-session header button,
+.app-dark .workspace-audit-panel,
+.app-dark .workspace-audit-panel-refresh,
+.app-dark .workspace-audit-panel-event,
+.app-dark .workspace-problems-panel,
+.app-dark .workspace-problems-panel-metrics span,
+.app-dark .workspace-problems-panel-item,
+.app-dark .workspace-problems-panel-source,
+.app-dark .workspace-files-panel,
+.app-dark .workspace-files-button,
+.app-dark .workspace-files-browser,
+.app-dark .workspace-file-viewer,
+.app-dark .workspace-files-entry[data-selected='true'],
+.app-dark .workspace-file-code,
+.app-dark .workspace-file-editor,
+.app-dark .thread-diff-review-panel,
+.app-dark .thread-diff-file,
+.app-dark .thread-diff-copy-button,
+.app-dark .thread-diff-rollback-all-button,
+.app-dark .thread-diff-workspace-rollback-note,
+.app-dark .thread-diff-rollback-button,
+.app-dark .thread-diff-hunk-rollback-button,
+.app-dark .thread-diff-hunk-stage-button,
+.app-dark .thread-checkpoint-section,
+.app-dark .thread-checkpoint-item,
+.app-dark .thread-checkpoint-refresh,
 .app-dark .thread-message-type-menu,
 .app-dark .project-menu-panel,
 .app-dark .thread-menu-panel,
+.app-dark .tool-timeline-card,
 .app-dark .message-image-button,
 .app-dark .message-copy-button,
 .app-dark .conversation-scroll-bottom {
@@ -138,10 +265,44 @@
 .app-dark .thread-composer-skill-option-name,
 .app-dark .directory-picker-title,
 .app-dark .new-thread-modal-title,
+.app-dark .thread-activity-title,
+.app-dark .thread-activity-metric-value,
+.app-dark .activity-request-method,
+.app-dark .activity-entry-summary,
+.app-dark .thread-validation-command,
+.app-dark .workspace-dashboard-title,
+.app-dark .workspace-dashboard-metric-value,
+.app-dark .workspace-dashboard-status-list dd,
+.app-dark .workspace-dashboard-script-name,
+.app-dark .workspace-dashboard-policy-list dd,
+.app-dark .workspace-dashboard-config-command-list span,
+.app-dark .workspace-dashboard-thread-title,
+.app-dark .workspace-git-panel-metric span,
+.app-dark .workspace-git-panel-column h4,
+.app-dark .workspace-git-panel-file-path,
+.app-dark .workspace-git-panel-delivery h4,
+.app-dark .workspace-git-panel-draft label span,
+.app-dark .workspace-git-panel-draft h5,
+.app-dark .workspace-git-panel-draft textarea,
+.app-dark .workspace-worktrees-panel-branch,
+.app-dark .workspace-worktrees-panel-form input,
+.app-dark .workspace-ports-panel-port span,
+.app-dark .workspace-ports-panel-process span,
+.app-dark .workspace-ports-panel-known-list span,
+.app-dark .workspace-commands-panel-script-list span,
+.app-dark .workspace-commands-panel-session h4,
+.app-dark .workspace-audit-panel-event-title,
+.app-dark .workspace-problems-panel-location,
+.app-dark .workspace-files-entry-name,
+.app-dark .workspace-file-viewer-title,
+.app-dark .workspace-file-code,
+.app-dark .workspace-file-editor,
+.app-dark .thread-diff-file-path,
 .app-dark .project-title,
 .app-dark .thread-row-title,
 .app-dark .rate-limit-title,
-.app-dark .request-title {
+.app-dark .request-title,
+.app-dark .tool-timeline-summary {
   color: #f3f4f6;
 }
 
@@ -170,11 +331,181 @@
 .app-dark .directory-picker-empty,
 .app-dark .new-thread-modal-label,
 .app-dark .new-thread-modal-cwd,
+.app-dark .thread-activity-subtitle,
+.app-dark .thread-activity-section-title,
+.app-dark .thread-activity-empty,
+.app-dark .thread-activity-metric-label,
+.app-dark .thread-validation-title,
+.app-dark .thread-validation-summary,
+.app-dark .thread-validation-empty,
+.app-dark .thread-validation-kind,
+.app-dark .thread-validation-meta dt,
+.app-dark .thread-validation-meta dd,
+.app-dark .thread-validation-output,
+.app-dark .workspace-dashboard-eyebrow,
+.app-dark .workspace-dashboard-path,
+.app-dark .workspace-dashboard-panel-title,
+.app-dark .workspace-dashboard-metric-label,
+.app-dark .workspace-dashboard-status-list dt,
+.app-dark .workspace-dashboard-file-status,
+.app-dark .workspace-dashboard-file-path,
+.app-dark .workspace-dashboard-script-summary,
+.app-dark .workspace-dashboard-script-list code,
+.app-dark .workspace-dashboard-config-grid,
+.app-dark .workspace-dashboard-policy-list dt,
+.app-dark .workspace-dashboard-config-command-list code,
+.app-dark .workspace-dashboard-thread-meta,
+.app-dark .workspace-dashboard-empty,
+.app-dark .workspace-workflow-title,
+.app-dark .workspace-workflow-subtitle,
+.app-dark .workspace-workflow-form span,
+.app-dark .workspace-workflow-template p,
+.app-dark .workspace-workflow-run p,
+.app-dark .workspace-workflow-run-template,
+.app-dark .workspace-workflow-agent-role,
+.app-dark .workspace-workflow-agent p,
+.app-dark .workspace-workflow-agent dt,
+.app-dark .workspace-workflow-agent-branch,
+.app-dark .workspace-workflow-agent-path,
+.app-dark .workspace-workflow-empty,
+.app-dark .workspace-workflow-replay-empty,
+.app-dark .workspace-workflow-replay-events time,
+.app-dark .workspace-workflow-replay-events span,
+.app-dark .workspace-workflow-replay-events p,
+.app-dark .workspace-git-panel-title,
+.app-dark .workspace-git-panel-subtitle,
+.app-dark .workspace-git-panel-metric small,
+.app-dark .workspace-git-panel-file-status,
+.app-dark .workspace-git-panel-delivery p,
+.app-dark .workspace-git-panel-draft li,
+.app-dark .workspace-security-panel-title,
+.app-dark .workspace-security-panel-subtitle,
+.app-dark .workspace-security-panel-finding-summary,
+.app-dark .workspace-security-panel-finding-path,
+.app-dark .workspace-security-panel-empty,
+.app-dark .workspace-worktrees-panel-title,
+.app-dark .workspace-worktrees-panel-subtitle,
+.app-dark .workspace-worktrees-panel-form span,
+.app-dark .workspace-worktrees-panel-path,
+.app-dark .workspace-worktrees-panel-flags span,
+.app-dark .workspace-worktrees-panel-empty,
+.app-dark .workspace-ports-panel-title,
+.app-dark .workspace-ports-panel-subtitle,
+.app-dark .workspace-ports-panel-port small,
+.app-dark .workspace-ports-panel-process small,
+.app-dark .workspace-ports-panel-known-list small,
+.app-dark .workspace-ports-panel-empty,
+.app-dark .workspace-ports-panel-more,
+.app-dark .workspace-commands-panel-title,
+.app-dark .workspace-commands-panel-subtitle,
+.app-dark .workspace-commands-panel-script-list code,
+.app-dark .workspace-commands-panel-session p,
+.app-dark .workspace-commands-panel-empty,
+.app-dark .workspace-audit-panel-title,
+.app-dark .workspace-audit-panel-subtitle,
+.app-dark .workspace-audit-panel-event-kind,
+.app-dark .workspace-audit-panel-event-time,
+.app-dark .workspace-audit-panel-event-summary,
+.app-dark .workspace-audit-panel-event-meta,
+.app-dark .workspace-audit-panel-empty,
+.app-dark .workspace-problems-panel-title,
+.app-dark .workspace-problems-panel-subtitle,
+.app-dark .workspace-problems-panel-message,
+.app-dark .workspace-problems-panel-command,
+.app-dark .workspace-problems-panel-empty,
+.app-dark .workspace-problems-panel-source,
+.app-dark .workspace-files-title,
+.app-dark .workspace-files-path,
+.app-dark .workspace-files-entry-icon,
+.app-dark .workspace-files-entry-meta,
+.app-dark .workspace-files-empty,
+.app-dark .workspace-files-truncated,
+.app-dark .workspace-file-viewer-meta,
+.app-dark .thread-diff-review-title,
+.app-dark .thread-diff-review-summary,
+.app-dark .thread-diff-empty,
+.app-dark .thread-diff-file-old-path,
+.app-dark .thread-diff-rollback-note,
+.app-dark .thread-diff-hunk-rollback-note,
+.app-dark .thread-checkpoint-title,
+.app-dark .thread-checkpoint-empty,
+.app-dark .thread-checkpoint-time,
+.app-dark .thread-checkpoint-paths,
+.app-dark .thread-checkpoint-meta,
+.app-dark .thread-diff-hunk-header,
+.app-dark .activity-request-meta,
+.app-dark .activity-request-subject,
+.app-dark .activity-request-reason,
+.app-dark .approval-impact-list,
+.app-dark .approval-recommendation,
+.app-dark .activity-entry-kind,
+.app-dark .activity-entry-detail,
+.app-dark .activity-entry-output,
 .app-dark .rate-limit-label,
 .app-dark .rate-limit-value,
 .app-dark .rate-limit-reset,
-.app-dark .rate-limit-details {
+.app-dark .rate-limit-details,
+.app-dark .tool-timeline-title,
+.app-dark .tool-timeline-detail,
+.app-dark .tool-timeline-output-label {
   color: #c7ccd6;
+}
+
+.app-dark .workspace-workflow-replay {
+  border-color: #3a4250;
+}
+
+.app-dark .workspace-workflow-replay-events::before {
+  background: #3a4250;
+}
+
+.app-dark .workspace-workflow-replay-events strong {
+  color: #f3f4f6;
+}
+
+.app-dark .workspace-workflow-replay-error {
+  background: #2b1519;
+  border-color: #7f1d1d;
+  color: #fecdd3;
+}
+
+.app-dark .workspace-workflow-validation-result[data-status='passed'] {
+  background: #10261f;
+  border-color: #1f6f50;
+  color: #bbf7d0;
+}
+
+.app-dark .workspace-workflow-validation-result[data-status='failed'],
+.app-dark .workspace-workflow-validation-result[data-status='timed_out'] {
+  background: #2b1519;
+  border-color: #7f1d1d;
+  color: #fecdd3;
+}
+
+.app-dark .workspace-security-panel-finding-title {
+  color: #f3f4f6;
+}
+
+.app-dark .workspace-security-panel-metrics span[data-tone='success'] {
+  background: #10261f;
+  border-color: #1f6f50;
+  color: #bbf7d0;
+}
+
+.app-dark .workspace-security-panel-metrics span[data-tone='warning'],
+.app-dark .workspace-security-panel-finding[data-severity='warning'],
+.app-dark .workspace-security-panel-warning-list {
+  background: #2c2114;
+  border-color: #92400e;
+  color: #fde68a;
+}
+
+.app-dark .workspace-security-panel-metrics span[data-tone='danger'],
+.app-dark .workspace-security-panel-finding[data-severity='danger'],
+.app-dark .workspace-security-panel-error {
+  background: #2b1519;
+  border-color: #7f1d1d;
+  color: #fecdd3;
 }
 
 .app-dark .thread-composer-skill-status,
@@ -251,6 +582,396 @@
   color: #e5e7eb;
 }
 
+.app-dark .tool-timeline-card[data-tone='success'] {
+  background: #10261f;
+  border-color: #1f6f50;
+}
+
+.app-dark .tool-timeline-card[data-tone='danger'] {
+  background: #2b1519;
+  border-color: #7f1d1d;
+}
+
+.app-dark .tool-timeline-card[data-tone='working'] {
+  background: #132238;
+  border-color: #1d4ed8;
+}
+
+.app-dark .tool-timeline-status {
+  background: #252b36;
+  border-color: #3a4250;
+  color: #d1d5db;
+}
+
+.app-dark .tool-timeline-card[data-tone='success'] .tool-timeline-status {
+  background: #164532;
+  border-color: #1f8f63;
+  color: #bbf7d0;
+}
+
+.app-dark .tool-timeline-card[data-tone='danger'] .tool-timeline-status {
+  background: #4a171d;
+  border-color: #991b1b;
+  color: #fecdd3;
+}
+
+.app-dark .tool-timeline-card[data-tone='working'] .tool-timeline-status {
+  background: #172c4f;
+  border-color: #2563eb;
+  color: #bfdbfe;
+}
+
+.app-dark .tool-timeline-output {
+  border-color: #303643;
+}
+
+.app-dark .tool-timeline-output-block {
+  background: #05070c;
+  border-color: #303643;
+  color: #e5e7eb;
+}
+
+.app-dark .thread-activity-metric[data-alert='true'],
+.app-dark .activity-entry-card[data-tone='danger'],
+.app-dark .thread-validation-card[data-tone='failed'],
+.app-dark .thread-validation-pill[data-tone='danger'] {
+  background: #2b1519;
+  border-color: #7f1d1d;
+}
+
+.app-dark .activity-entry-card[data-tone='success'],
+.app-dark .thread-validation-card[data-tone='passed'],
+.app-dark .thread-validation-pill[data-tone='success'],
+.app-dark .workspace-dashboard-metric[data-tone='success'],
+.app-dark .workspace-dashboard-config-grid span[data-present='true'],
+.app-dark .workspace-audit-panel-event[data-severity='success'] {
+  background: #10261f;
+  border-color: #1f6f50;
+}
+
+.app-dark .activity-entry-card[data-tone='working'],
+.app-dark .thread-validation-card[data-tone='running'],
+.app-dark .thread-validation-pill[data-tone='working'],
+.app-dark .workspace-dashboard-metric[data-tone='working'] {
+  background: #132238;
+  border-color: #1d4ed8;
+}
+
+.app-dark .workspace-dashboard-metric[data-tone='warning'],
+.app-dark .workspace-dashboard-warning-list li,
+.app-dark .workspace-git-panel-metric[data-tone='warning'],
+.app-dark .workspace-worktrees-panel-warning-list li,
+.app-dark .workspace-worktrees-panel-list li[data-prunable='true'],
+.app-dark .workspace-ports-panel-warning-list li,
+.app-dark .workspace-ports-panel-known-list li[data-required='true'][data-listening='false'] {
+  background: #2f2414;
+  border-color: #92400e;
+  color: #fde68a;
+}
+
+.app-dark .workspace-audit-panel-event[data-severity='warning'] {
+  background: #2f2414;
+  border-color: #92400e;
+}
+
+.app-dark .workspace-problems-panel-metrics span[data-tone='warning'],
+.app-dark .workspace-problems-panel-item[data-severity='warning'] {
+  background: #2f2414;
+  border-color: #92400e;
+  color: #fde68a;
+}
+
+.app-dark .workspace-audit-panel-event[data-severity='danger'] {
+  background: #2b1519;
+  border-color: #7f1d1d;
+}
+
+.app-dark .workspace-problems-panel-metrics span[data-tone='danger'],
+.app-dark .workspace-problems-panel-item[data-severity='error'] {
+  background: #2b1519;
+  border-color: #7f1d1d;
+}
+
+.app-dark .workspace-ports-panel-list li[data-exposure='wildcard'],
+.app-dark .workspace-ports-panel-list li[data-exposure='external'],
+.app-dark .workspace-commands-panel-session[data-session-status='failed'] {
+  background: #2f2414;
+  border-color: #92400e;
+}
+
+.app-dark .workspace-commands-panel-session[data-session-status='running'] {
+  background: #132238;
+  border-color: #1d4ed8;
+}
+
+.app-dark .workspace-commands-panel-session pre {
+  background: #080a0f;
+  border-color: #303643;
+  color: #e5e7eb;
+}
+
+.app-dark .workspace-git-panel-metric[data-tone='working'],
+.app-dark .workspace-worktrees-panel-list li[data-current='true'] {
+  background: #132238;
+  border-color: #1d4ed8;
+}
+
+.app-dark .workspace-git-panel-metric[data-tone='danger'] {
+  background: #2b1519;
+  border-color: #7f1d1d;
+}
+
+.app-dark .workspace-worktrees-panel-message {
+  background: #10261f;
+  border-color: #1f6f50;
+  color: #bbf7d0;
+}
+
+.app-dark .workspace-dashboard-thread-list button:hover {
+  background: #20242c;
+}
+
+.app-dark .workspace-files-entry:hover {
+  background: #20242c;
+}
+
+.app-dark .workspace-file-viewer-header {
+  border-color: #303643;
+}
+
+.app-dark .workspace-files-warning {
+  background: #2f2414;
+  border-color: #92400e;
+  color: #fde68a;
+}
+
+.app-dark .workspace-files-button-primary {
+  background: #e5e7eb;
+  border-color: #e5e7eb;
+  color: #111827;
+}
+
+.app-dark .workspace-files-save-message {
+  background: #10261f;
+  border-color: #1f6f50;
+  color: #bbf7d0;
+}
+
+.app-dark .activity-entry-status,
+.app-dark .thread-validation-status {
+  background: #252b36;
+  border-color: #3a4250;
+  color: #d1d5db;
+}
+
+.app-dark .activity-entry-card[data-tone='success'] .activity-entry-status,
+.app-dark .thread-validation-card[data-tone='passed'] .thread-validation-status {
+  background: #164532;
+  border-color: #1f8f63;
+  color: #bbf7d0;
+}
+
+.app-dark .activity-entry-card[data-tone='danger'] .activity-entry-status,
+.app-dark .thread-validation-card[data-tone='failed'] .thread-validation-status {
+  background: #4a171d;
+  border-color: #991b1b;
+  color: #fecdd3;
+}
+
+.app-dark .activity-entry-card[data-tone='working'] .activity-entry-status,
+.app-dark .thread-validation-card[data-tone='running'] .thread-validation-status {
+  background: #172c4f;
+  border-color: #2563eb;
+  color: #bfdbfe;
+}
+
+.app-dark .activity-entry-output,
+.app-dark .activity-entry-output pre,
+.app-dark .thread-validation-output,
+.app-dark .thread-validation-output pre,
+.app-dark .thread-validation-failure-list {
+  border-color: #303643;
+}
+
+.app-dark .activity-entry-output pre,
+.app-dark .thread-validation-output pre {
+  background: #05070c;
+  color: #e5e7eb;
+}
+
+.app-dark .thread-validation-failure-list {
+  background: #211318;
+  color: #fecdd3;
+}
+
+.app-dark .thread-diff-stat-added {
+  background: #10261f;
+  border-color: #1f6f50;
+  color: #bbf7d0;
+}
+
+.app-dark .thread-diff-stat-removed {
+  background: #2b1519;
+  border-color: #7f1d1d;
+  color: #fecdd3;
+}
+
+.app-dark .thread-diff-file-summary,
+.app-dark .thread-diff-file-actions,
+.app-dark .thread-checkpoint-section,
+.app-dark .thread-checkpoint-item,
+.app-dark .thread-diff-hunk-list,
+.app-dark .thread-diff-hunk,
+.app-dark .thread-diff-hunk-header {
+  border-color: #303643;
+}
+
+.app-dark .thread-checkpoint-label {
+  color: #f3f4f6;
+}
+
+.app-dark .thread-checkpoint-refresh:hover {
+  background: #242936;
+}
+
+.app-dark .thread-diff-rollback-button,
+.app-dark .thread-diff-rollback-all-button,
+.app-dark .thread-diff-hunk-rollback-button {
+  border-color: #7f1d1d;
+  color: #fecdd3;
+}
+
+.app-dark .thread-diff-hunk-stage-button {
+  border-color: #1f6f50;
+  color: #bbf7d0;
+}
+
+.app-dark .thread-diff-rollback-button:hover,
+.app-dark .thread-diff-rollback-all-button:hover,
+.app-dark .thread-diff-hunk-rollback-button:hover {
+  background: #4a171d;
+}
+
+.app-dark .thread-diff-hunk-stage-button:hover {
+  background: #123326;
+}
+
+.app-dark .thread-diff-file[data-rollback-state='rolledBack'] {
+  background: #10261f;
+  border-color: #1f6f50;
+}
+
+.app-dark .thread-diff-hunk[data-hunk-state='rolledBack'] {
+  background: #10261f;
+}
+
+.app-dark .thread-diff-hunk[data-stage-state='staged'] {
+  background: #10261f;
+}
+
+.app-dark .thread-diff-file[data-rollback-state='failed'] {
+  background: #2b1519;
+  border-color: #7f1d1d;
+}
+
+.app-dark .thread-diff-workspace-rollback-note[data-state='rolledBack'] {
+  background: #10261f;
+  border-color: #1f6f50;
+  color: #bbf7d0;
+}
+
+.app-dark .thread-diff-workspace-rollback-note[data-state='failed'] {
+  background: #2b1519;
+  border-color: #7f1d1d;
+  color: #fecdd3;
+}
+
+.app-dark .thread-diff-hunk[data-hunk-state='failed'] {
+  background: #2b1519;
+}
+
+.app-dark .thread-diff-hunk[data-stage-state='failed'] {
+  background: #2b1519;
+}
+
+.app-dark .thread-diff-file-status {
+  background: #252b36;
+  border-color: #3a4250;
+  color: #d1d5db;
+}
+
+.app-dark .thread-diff-hunk-header {
+  background: #20242c;
+}
+
+.app-dark .thread-diff-code {
+  background: #05070c;
+}
+
+.app-dark .thread-diff-code-line[data-kind='add'] {
+  background: #10261f;
+  color: #dff9e8;
+}
+
+.app-dark .thread-diff-code-line[data-kind='remove'] {
+  background: #2b1519;
+  color: #ffe4e6;
+}
+
+.app-dark .thread-diff-code-line[data-kind='meta'],
+.app-dark .thread-diff-line-number,
+.app-dark .thread-diff-line-prefix {
+  color: #8b93a1;
+}
+
+.app-dark .thread-diff-line-added {
+  color: #86efac;
+}
+
+.app-dark .thread-diff-line-removed {
+  color: #fda4af;
+}
+
+.app-dark .request-subject,
+.app-dark .request-risk-label,
+.app-dark .request-recommendation,
+.app-dark .request-impact-list,
+.app-dark .activity-request-subject,
+.app-dark .approval-risk-label,
+.app-dark .approval-recommendation,
+.app-dark .approval-impact-list {
+  color: #d1d5db;
+}
+
+.app-dark .request-risk-label,
+.app-dark .approval-risk-label,
+.app-dark .request-recommendation,
+.app-dark .approval-recommendation {
+  background: #20242c;
+  border-color: #3a4250;
+}
+
+.app-dark .request-risk-badge[data-level='low'],
+.app-dark .approval-risk-badge[data-level='low'] {
+  background: #164532;
+  border-color: #1f8f63;
+  color: #bbf7d0;
+}
+
+.app-dark .request-risk-badge[data-level='medium'],
+.app-dark .approval-risk-badge[data-level='medium'] {
+  background: #4a3413;
+  border-color: #b45309;
+  color: #fde68a;
+}
+
+.app-dark .request-risk-badge[data-level='high'],
+.app-dark .approval-risk-badge[data-level='high'] {
+  background: #4a171d;
+  border-color: #991b1b;
+  color: #fecdd3;
+}
+
 .app-dark .worked-separator-line {
   background: #394150;
 }
@@ -259,7 +980,8 @@
 .app-dark .thread-composer-stop,
 .app-dark .directory-picker-confirm,
 .app-dark .new-thread-modal-confirm,
-.app-dark .request-button-primary {
+.app-dark .request-button-primary,
+.app-dark .activity-request-button-primary {
   background: #f3f4f6;
   color: #111827;
 }
@@ -268,7 +990,8 @@
 .app-dark .thread-composer-stop:hover,
 .app-dark .directory-picker-confirm:hover,
 .app-dark .new-thread-modal-confirm:hover,
-.app-dark .request-button-primary:hover {
+.app-dark .request-button-primary:hover,
+.app-dark .activity-request-button-primary:hover {
   background: #ffffff;
 }
 
@@ -299,7 +1022,8 @@
 
 .app-dark .directory-picker-cancel,
 .app-dark .new-thread-modal-cancel,
-.app-dark .request-button {
+.app-dark .request-button,
+.app-dark .activity-request-button {
   background: transparent;
   border-color: #3a4250;
   color: #d1d5db;
@@ -307,7 +1031,8 @@
 
 .app-dark .directory-picker-cancel:hover,
 .app-dark .new-thread-modal-cancel:hover,
-.app-dark .request-button:hover {
+.app-dark .request-button:hover,
+.app-dark .activity-request-button:hover {
   background: #242936;
   color: #f3f4f6;
 }
@@ -344,4 +1069,194 @@
   background: rgb(24 27 34 / 0.92);
   border-color: #3b4250;
   color: #f3f4f6;
+}
+
+body {
+  background: var(--color-background);
+  color: var(--color-text);
+  font-family: var(--font-sans);
+}
+
+code,
+pre {
+  font-family: var(--font-mono);
+}
+
+textarea,
+input,
+select,
+button {
+  font-family: var(--font-sans);
+}
+
+.message-code-block,
+.workspace-file-code,
+.thread-diff-code,
+.activity-entry-output pre,
+.thread-validation-output pre,
+.workspace-commands-panel-session pre,
+.workspace-dashboard-script-result pre {
+  background: var(--color-code-background);
+}
+
+.desktop-layout,
+.desktop-main,
+.content-root {
+  background: var(--color-background);
+  color: var(--color-text);
+}
+
+.desktop-sidebar,
+.content-header,
+.thread-composer-shell,
+.sidebar-search-bar,
+.workspace-dashboard-panel,
+.workspace-task-board,
+.workspace-theme-panel,
+.workspace-workflow-panel,
+.workspace-git-panel,
+.workspace-worktrees-panel,
+.workspace-commands-panel,
+.workspace-ports-panel,
+.workspace-audit-panel,
+.workspace-problems-panel,
+.workspace-files-panel,
+.thread-activity-panel,
+.thread-validation-panel,
+.thread-diff-review-panel,
+.rate-limit-card,
+.request-card {
+  background: var(--color-panel);
+  border-color: var(--color-border);
+  color: var(--color-text);
+  box-shadow: var(--shadow-panel);
+}
+
+.workspace-dashboard-metric,
+.workspace-dashboard-status-list div,
+.workspace-task-board-lane,
+.workspace-theme-panel-grid select,
+.workspace-theme-panel-grid input,
+.workspace-theme-panel-reset,
+.workspace-theme-panel-json-actions button,
+.workspace-workflow-form select,
+.workspace-workflow-form textarea,
+.workspace-workflow-refresh,
+.workspace-workflow-template,
+.workspace-workflow-template-meta span,
+.workspace-workflow-run,
+.workspace-workflow-run-status,
+.workspace-workflow-run-meta span,
+.workspace-workflow-risk-list span,
+.workspace-workflow-agent,
+.workspace-workflow-agent dl div,
+.workspace-workflow-agent-status,
+.workspace-workflow-agent-actions button,
+.workspace-git-panel-metric,
+.workspace-worktrees-panel-list li,
+.workspace-commands-panel-script-list li,
+.workspace-ports-panel-list li,
+.workspace-audit-panel-event,
+.workspace-problems-panel-item,
+.workspace-files-browser,
+.workspace-file-viewer,
+.activity-entry-card,
+.thread-validation-card,
+.tool-timeline-card {
+  background: var(--color-surface);
+  border-color: var(--color-border);
+  color: var(--color-text);
+}
+
+.content-title,
+.workspace-dashboard-title,
+.workspace-task-board-card-title,
+.workspace-theme-panel-advanced summary,
+.workspace-theme-panel-grid select,
+.workspace-theme-panel-grid input,
+.workspace-workflow-template h4,
+.workspace-workflow-run h4,
+.workspace-workflow-agent h5,
+.workspace-workflow-form select,
+.workspace-workflow-form textarea,
+.message-heading,
+.message-strong {
+  color: var(--color-text);
+}
+
+.workspace-dashboard-path,
+.workspace-dashboard-eyebrow,
+.workspace-dashboard-panel-title,
+.workspace-dashboard-metric-label,
+.workspace-task-board-subtitle,
+.workspace-task-board-title,
+.workspace-task-board-card-time,
+.workspace-theme-panel-subtitle,
+.workspace-theme-panel-title,
+.workspace-theme-panel-grid span,
+.workspace-theme-panel-follow span,
+.workspace-workflow-title,
+.workspace-workflow-subtitle,
+.workspace-workflow-form span,
+.workspace-workflow-template p,
+.workspace-workflow-run p,
+.workspace-workflow-run-template,
+.workspace-workflow-agent-role,
+.workspace-workflow-agent p,
+.workspace-workflow-agent dt,
+.workspace-workflow-agent-branch,
+.workspace-workflow-agent-path,
+.workspace-workflow-empty,
+.message-text,
+.message-markdown {
+  color: var(--color-text-muted);
+}
+
+.thread-composer-input,
+.sidebar-search-input,
+.workspace-file-editor,
+.workspace-git-panel-draft textarea {
+  color: var(--color-text);
+}
+
+.thread-composer-submit,
+.thread-composer-stop,
+.directory-picker-confirm,
+.new-thread-modal-confirm,
+.request-button-primary,
+.activity-request-button-primary {
+  background: var(--color-accent);
+  color: #ffffff;
+}
+
+.thread-composer-submit:hover,
+.thread-composer-stop:hover,
+.directory-picker-confirm:hover,
+.new-thread-modal-confirm:hover,
+.request-button-primary:hover,
+.activity-request-button-primary:hover {
+  filter: brightness(1.08);
+}
+
+.composer-dropdown-trigger:focus,
+.thread-composer-input:focus,
+.workspace-theme-panel-grid select:focus,
+.workspace-theme-panel-grid input:focus,
+.workspace-workflow-form select:focus,
+.workspace-workflow-form textarea:focus {
+  box-shadow: var(--shadow-focus);
+}
+
+[data-theme-density='compact'] .workspace-dashboard,
+[data-theme-density='compact'] .workspace-task-board,
+[data-theme-density='compact'] .workspace-theme-panel,
+[data-theme-density='compact'] .workspace-workflow-panel {
+  font-size: calc(1rem * 0.94);
+}
+
+[data-theme-density='spacious'] .workspace-dashboard,
+[data-theme-density='spacious'] .workspace-task-board,
+[data-theme-density='spacious'] .workspace-theme-panel,
+[data-theme-density='spacious'] .workspace-workflow-panel {
+  font-size: calc(1rem * 1.05);
 }

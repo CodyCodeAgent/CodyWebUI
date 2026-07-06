@@ -3,8 +3,82 @@ import { mkdtemp, readFile } from 'node:fs/promises'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { cwd as getProcessCwd } from 'node:process'
 import { handleDirectoryList } from './directoryBrowser.js'
 import { handleImageUpload, handleLocalImage } from './imageUploads.js'
+import { NotificationDispatcher, type NotificationDispatchEvent } from './notificationDispatchService.js'
+import { buildSecurityAccessSnapshot } from './securityAccess.js'
+import { appendCodexSessionEvent, handleListCodexSessionEvents, handleListCodexWorkspaceSessions } from './sessionEventStore.js'
+import {
+  handleApplyPatchToWorkspaceWorktree,
+  handleApplyWorkspaceWorkflowImplementation,
+  handleCaptureWorkspacePreviewScreenshot,
+  handleCommitStagedWorkspaceChanges,
+  handleCreateWorkspacePullRequest,
+  handleCreateToolingCheckpoint,
+  handleCreateWorkspaceWorktree,
+  handleDefaultWorkspace,
+  handleDiscardWorkspaceWorkflowImplementation,
+  handleGetWorkspaceWorkflowDeliveryDraft,
+  handleGetWorkspaceWorkflowReplay,
+  handleMarkWorkspaceWorkflowMerged,
+  handleMarkWorkspaceWorkflowReadyToMerge,
+  handleListApprovalGrants,
+  handleListTerminalSessions,
+  handleListToolingCheckpoints,
+  handleListWorkspaceAuditEvents,
+  handleListWorkspaceReviewComments,
+  handleListWorkspaceValidationRuns,
+  handleListWorkspaceWorkflows,
+  handleListWorkspaceWorktrees,
+  handleListWorkspaceFiles,
+  handleProbeWorkspacePreview,
+  handleCreateWorkspaceReviewComment,
+  handleCreateWorkspaceReviewFollowUp,
+  handleReadWorkspaceFile,
+  handleReadToolingCheckpointPatch,
+  handleRollbackToolingHunk,
+  handleRemoveWorkspaceWorktree,
+  handleRevokeApprovalGrant,
+  handleRollbackToolingFile,
+  handleRollbackToolingWorkspace,
+  handleRunWorkspaceScript,
+  handleStageToolingHunk,
+  handleStartTerminalSession,
+  handleStopTerminalSession,
+  handleUpdateWorkspaceReviewCommentStatus,
+  handleWorkspacePorts,
+  handleWorkspacePullRequestDraft,
+  handleWorkspaceReviewDraft,
+  handleStageWorkspaceGitPaths,
+  handleToolingDiff,
+  handleUnstageWorkspaceGitPaths,
+  handleWorkspaceGitDeliveryDraft,
+  handleWorkspaceGitStatus,
+  handleWorkspaceSecuritySnapshot,
+  handleWorkspaceSnapshot,
+  handleWriteWorkspaceFile,
+  createWorkspaceWorkflowRun,
+  createToolingCheckpoint,
+  createPersistentApprovalGrant,
+  evaluateWorkspaceFileChangePolicy,
+  evaluateWorkspaceCommandPolicy,
+  findMatchingApprovalGrant,
+  provisionWorkspaceWorkflowAgentWorktree,
+  recordCommandPolicyDecisionAuditEvent,
+  recordFileChangePolicyDecisionAuditEvent,
+  recordApprovalGrantUse,
+  recordApprovalDecisionAuditEvent,
+  runWorkspaceWorkflowValidation,
+  updateWorkspaceWorkflowAgentStatus,
+  type ToolingApprovalDecisionScope,
+  type ToolingApprovalGrant,
+  type ToolingCommandPolicyEvaluation,
+  type ToolingFileChangePolicyEvaluation,
+  type ToolingWorkflowRun,
+  type ToolingWorkflowStepStatus,
+  type ToolingWorkflowValidationResult,
+} from './toolingService.js'
 
 type JsonRpcCall = {
   jsonrpc: '2.0'
@@ -29,7 +103,7 @@ type RpcProxyRequest = {
   params?: unknown
 }
 
-type ServerRequestReply = {
+export type ServerRequestReply = {
   result?: unknown
   error?: {
     code: number
@@ -42,6 +116,82 @@ type PendingServerRequest = {
   method: string
   params: unknown
   receivedAtIso: string
+  commandPolicy: ToolingCommandPolicyEvaluation | null
+  fileChangePolicy: ToolingFileChangePolicyEvaluation | null
+}
+
+type DiagnosticServerRequest = {
+  id: number
+  method: string
+  receivedAtIso: string
+  threadId: string
+  turnId: string
+  itemId: string
+}
+
+type AppServerDiagnosticLogLevel = 'info' | 'warning' | 'error'
+
+type AppServerDiagnosticLogSource = 'bridge' | 'stdout' | 'stderr'
+
+type AppServerDiagnosticLog = {
+  id: string
+  createdAtIso: string
+  level: AppServerDiagnosticLogLevel
+  source: AppServerDiagnosticLogSource
+  message: string
+}
+
+type McpServerDiagnosticStatus = 'starting' | 'ready' | 'failed' | 'cancelled' | 'unknown'
+
+type McpServerAuthStatus = 'unsupported' | 'notLoggedIn' | 'bearerToken' | 'oAuth' | 'unknown'
+
+type McpServerDiagnostic = {
+  name: string
+  status: McpServerDiagnosticStatus
+  authStatus: McpServerAuthStatus
+  title: string
+  version: string
+  websiteUrl: string
+  toolCount: number
+  resourceCount: number
+  resourceTemplateCount: number
+  error: string
+  threadId: string
+  updatedAtIso: string
+}
+
+type AppServerDiagnostics = {
+  status: 'running' | 'stopped'
+  pid: number | null
+  initialized: boolean
+  startedAtIso: string | null
+  exitedAtIso: string | null
+  exitCode: number | null
+  exitSignal: string | null
+  pendingClientRequestCount: number
+  pendingServerRequestCount: number
+  sentClientRequestCount: number
+  completedClientRequestCount: number
+  failedClientRequestCount: number
+  notificationCount: number
+  serverRequestCount: number
+  notificationCountsByMethod: Record<string, number>
+  pendingServerRequests: DiagnosticServerRequest[]
+  mcpServers: McpServerDiagnostic[]
+  mcpInventoryError: string
+  recentLogs: AppServerDiagnosticLog[]
+}
+
+type GatewayDiagnostics = {
+  generatedAtIso: string
+  appServer: AppServerDiagnostics
+  methodCatalog: {
+    methods: string[]
+    notifications: string[]
+    methodCount: number
+    notificationCount: number
+    errors: string[]
+  }
 }
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -69,10 +219,221 @@ function getErrorMessage(payload: unknown, fallback: string): string {
   return fallback
 }
 
+function readNestedString(value: unknown, keys: string[]): string {
+  let cursor: unknown = value
+  for (const key of keys) {
+    const record = asRecord(cursor)
+    if (!record) return ''
+    cursor = record[key]
+  }
+  return typeof cursor === 'string' ? cursor.trim() : ''
+}
+
+function readNotificationThreadId(params: unknown): string {
+  return (
+    readNestedString(params, ['threadId']) ||
+    readNestedString(params, ['thread', 'id']) ||
+    readNestedString(params, ['turn', 'threadId']) ||
+    readNestedString(params, ['request', 'threadId'])
+  )
+}
+
+function readNotificationTurnId(params: unknown): string {
+  return (
+    readNestedString(params, ['turnId']) ||
+    readNestedString(params, ['turn', 'id']) ||
+    readNestedString(params, ['request', 'turnId'])
+  )
+}
+
+function shortId(value: string): string {
+  const trimmed = value.trim()
+  return trimmed.length > 8 ? trimmed.slice(0, 8) : trimmed || 'unknown'
+}
+
+function readString(value: unknown): string {
+  return typeof value === 'string' ? value.trim() : ''
+}
+
+export function normalizeApprovalDecisionScope(value: unknown, decision = ''): ToolingApprovalDecisionScope {
+  if (value === 'single' || value === 'session' || value === 'workspace' || value === 'permanent') {
+    return value
+  }
+  return decision === 'acceptForSession' ? 'session' : 'single'
+}
+
+export function readApprovalDecisionFromReply(reply: ServerRequestReply): string {
+  if (reply.error) return 'rejected'
+  const result = asRecord(reply.result)
+  const decision = readString(result?.decision)
+  if (decision) return decision
+  return 'responded'
+}
+
+function readServerRequestCwd(params: unknown): string {
+  return (
+    readNestedString(params, ['cwd']) ||
+    readNestedString(params, ['request', 'cwd']) ||
+    readNestedString(params, ['params', 'cwd']) ||
+    getProcessCwd()
+  )
+}
+
+function readServerRequestSubject(method: string, params: unknown): string {
+  return (
+    readNestedString(params, ['command']) ||
+    readNestedString(params, ['request', 'command']) ||
+    readNestedString(params, ['params', 'command']) ||
+    readNestedString(params, ['grantRoot']) ||
+    readNestedString(params, ['request', 'grantRoot']) ||
+    readNestedString(params, ['params', 'grantRoot']) ||
+    method
+  )
+}
+
+function isStoredGrantEligibleRequest(method: string): boolean {
+  return (
+    method === 'item/commandExecution/requestApproval' ||
+    method === 'item/fileChange/requestApproval'
+  )
+}
+
+function isCommandApprovalRequest(method: string): boolean {
+  return method === 'item/commandExecution/requestApproval'
+}
+
+function isFileChangeApprovalRequest(method: string): boolean {
+  return method === 'item/fileChange/requestApproval'
+}
+
+function buildApprovalAuditInput(params: {
+  requestId: number
+  pendingRequest: PendingServerRequest
+  reply: ServerRequestReply
+  scope: ToolingApprovalDecisionScope
+  mode: 'manual' | 'automatic'
+  resolvedAtIso: string
+}): Parameters<typeof recordApprovalDecisionAuditEvent>[0] {
+  const requestParams = asRecord(params.pendingRequest.params)
+  const threadId =
+    typeof requestParams?.threadId === 'string' && requestParams.threadId.length > 0
+      ? requestParams.threadId
+      : ''
+  return {
+    cwd: readServerRequestCwd(params.pendingRequest.params),
+    requestId: params.requestId,
+    method: params.pendingRequest.method,
+    subject: readServerRequestSubject(params.pendingRequest.method, params.pendingRequest.params),
+    receivedAtIso: params.pendingRequest.receivedAtIso,
+    resolvedAtIso: params.resolvedAtIso,
+    threadId,
+    turnId: readNestedString(params.pendingRequest.params, ['turnId']),
+    itemId: readNestedString(params.pendingRequest.params, ['itemId']),
+    decision: readApprovalDecisionFromReply(params.reply),
+    scope: params.scope,
+    mode: params.mode,
+    errorMessage: params.reply.error?.message ?? '',
+  }
+}
+
+function normalizeMcpServerStatus(value: unknown): McpServerDiagnosticStatus {
+  if (value === 'starting' || value === 'ready' || value === 'failed' || value === 'cancelled') {
+    return value
+  }
+  return 'unknown'
+}
+
+function normalizeMcpAuthStatus(value: unknown): McpServerAuthStatus {
+  if (value === 'unsupported' || value === 'notLoggedIn' || value === 'bearerToken' || value === 'oAuth') {
+    return value
+  }
+  return 'unknown'
+}
+
+function collectionSize(value: unknown): number {
+  if (Array.isArray(value)) return value.length
+  const record = asRecord(value)
+  return record ? Object.keys(record).length : 0
+}
+
+function createEmptyMcpServerDiagnostic(name: string, updatedAtIso: string): McpServerDiagnostic {
+  return {
+    name,
+    status: 'unknown',
+    authStatus: 'unknown',
+    title: '',
+    version: '',
+    websiteUrl: '',
+    toolCount: 0,
+    resourceCount: 0,
+    resourceTemplateCount: 0,
+    error: '',
+    threadId: '',
+    updatedAtIso,
+  }
+}
+
+export function normalizeMcpServerInventory(payload: unknown): McpServerDiagnostic[] {
+  const root = asRecord(payload)
+  const data = Array.isArray(root?.data) ? root.data : []
+  const updatedAtIso = new Date().toISOString()
+  const rows: McpServerDiagnostic[] = []
+
+  for (const row of data) {
+    const record = asRecord(row)
+    const name = readString(record?.name)
+    if (!record || !name) continue
+
+    const serverInfo = asRecord(record.serverInfo)
+    rows.push({
+      ...createEmptyMcpServerDiagnostic(name, updatedAtIso),
+      authStatus: normalizeMcpAuthStatus(record.authStatus),
+      title: readString(serverInfo?.title) || readString(serverInfo?.name),
+      version: readString(serverInfo?.version),
+      websiteUrl: readString(serverInfo?.websiteUrl),
+      toolCount: collectionSize(record.tools),
+      resourceCount: collectionSize(record.resources),
+      resourceTemplateCount: collectionSize(record.resourceTemplates),
+    })
+  }
+
+  return rows
+}
+
+export function mergeMcpServerDiagnostics(
+  startupRows: McpServerDiagnostic[],
+  inventoryRows: McpServerDiagnostic[],
+): McpServerDiagnostic[] {
+  const byName = new Map<string, McpServerDiagnostic>()
+  for (const row of startupRows) {
+    byName.set(row.name, row)
+  }
+
+  for (const inventory of inventoryRows) {
+    const startup = byName.get(inventory.name)
+    byName.set(inventory.name, {
+      ...inventory,
+      status: startup?.status ?? inventory.status,
+      error: startup?.error ?? inventory.error,
+      threadId: startup?.threadId ?? inventory.threadId,
+      updatedAtIso: startup?.updatedAtIso ?? inventory.updatedAtIso,
+    })
+  }
+
+  return Array.from(byName.values()).sort((first, second) => first.name.localeCompare(second.name))
+}
+
 function setJson(res: ServerResponse, statusCode: number, payload: unknown): void {
   res.statusCode = statusCode
   res.setHeader('Content-Type', 'application/json; charset=utf-8')
   res.end(JSON.stringify(payload))
+}
+
+function resultErrorMessage(result: PromiseSettledResult<unknown>): string {
+  if (result.status === 'fulfilled') return ''
+  return result.reason instanceof Error && result.reason.message
+    ? result.reason.message
+    : String(result.reason)
 }
 
 async function readJsonBody(req: IncomingMessage): Promise<unknown> {
@@ -91,15 +452,230 @@ async function readJsonBody(req: IncomingMessage): Promise<unknown> {
   return JSON.parse(raw) as unknown
 }
 
+function workflowNotificationId(run: ToolingWorkflowRun, suffix: string): string {
+  return `workflow:${run.id}:${suffix}:${run.updatedAtIso}`
+}
+
+async function dispatchWorkflowProductNotification(
+  cwd: string,
+  event: Parameters<NotificationDispatcher['dispatchProductEvent']>[0],
+  productEventHub?: ProductEventHub,
+): Promise<void> {
+  const dispatcher = new NotificationDispatcher({ workspaceCwd: cwd })
+  const report = await dispatcher.dispatchProductEvent(event)
+  productEventHub?.emit(report.event)
+  if (report.failedCount > 0) {
+    console.warn(`Workflow notification dispatch failed for ${event.title}: ${String(report.failedCount)} channel(s) failed.`)
+  }
+}
+
+async function handleCreateWorkspaceWorkflowWithNotifications(
+  req: IncomingMessage,
+  res: ServerResponse,
+  productEventHub: ProductEventHub,
+): Promise<void> {
+  try {
+    const body = asRecord(await readJsonBody(req))
+    const cwd = readString(body?.cwd)
+    const templateId = readString(body?.templateId)
+    const goal = readString(body?.goal)
+    const result = await createWorkspaceWorkflowRun({ cwd, templateId, goal })
+    await dispatchWorkflowProductNotification(cwd, {
+      id: workflowNotificationId(result, 'created'),
+      kind: 'task_started',
+      title: 'Workflow created',
+      summary: `${result.templateName}: ${result.goal.slice(0, 160)}`,
+      severity: result.warnings.length > 0 ? 'warning' : 'info',
+      method: 'tooling/workflows:create',
+    }, productEventHub)
+    setJson(res, 200, { result })
+  } catch (error) {
+    const message = error instanceof Error && error.message ? error.message : 'Failed to create workspace workflow'
+    setJson(res, 400, { error: message })
+  }
+}
+
+function workflowAgentStatusNotificationKind(status: ToolingWorkflowStepStatus | string): {
+  kind: Parameters<NotificationDispatcher['dispatchProductEvent']>[0]['kind']
+  severity: Parameters<NotificationDispatcher['dispatchProductEvent']>[0]['severity']
+  title: string
+} | null {
+  if (status === 'blocked') {
+    return {
+      kind: 'user_input_required',
+      severity: 'warning',
+      title: 'Workflow agent blocked',
+    }
+  }
+  if (status === 'running') {
+    return {
+      kind: 'task_started',
+      severity: 'info',
+      title: 'Workflow agent started',
+    }
+  }
+  return null
+}
+
+function workflowRunStatusNotification(run: ToolingWorkflowRun): {
+  kind: Parameters<NotificationDispatcher['dispatchProductEvent']>[0]['kind']
+  severity: Parameters<NotificationDispatcher['dispatchProductEvent']>[0]['severity']
+  title: string
+  suffix: string
+} | null {
+  if (run.status === 'ready_for_review') {
+    return {
+      kind: 'ready_for_review',
+      severity: 'success',
+      title: 'Workflow ready for review',
+      suffix: 'ready-for-review',
+    }
+  }
+  if (run.status === 'completed') {
+    return {
+      kind: 'task_completed',
+      severity: 'success',
+      title: 'Workflow completed',
+      suffix: 'completed',
+    }
+  }
+  if (run.status === 'failed') {
+    return {
+      kind: 'task_failed',
+      severity: 'danger',
+      title: 'Workflow failed',
+      suffix: 'failed',
+    }
+  }
+  return null
+}
+
+async function handleUpdateWorkspaceWorkflowAgentStatusWithNotifications(
+  req: IncomingMessage,
+  res: ServerResponse,
+  productEventHub: ProductEventHub,
+): Promise<void> {
+  try {
+    const body = asRecord(await readJsonBody(req))
+    const cwd = readString(body?.cwd)
+    const runId = readString(body?.runId)
+    const agentId = readString(body?.agentId)
+    const status = readString(body?.status)
+    const note = readString(body?.note)
+    const result = await updateWorkspaceWorkflowAgentStatus({
+      cwd,
+      runId,
+      agentId,
+      status,
+      note: note || undefined,
+    })
+    const agent = result.agents.find((candidate) => candidate.id === agentId)
+    const runNotification = workflowRunStatusNotification(result)
+    const statusNotification = workflowAgentStatusNotificationKind(status)
+    const notification = runNotification ?? statusNotification
+    if (notification) {
+      await dispatchWorkflowProductNotification(cwd, {
+        id: workflowNotificationId(result, runNotification?.suffix ?? `agent-${agentId}-${status}`),
+        kind: notification.kind,
+        title: notification.title,
+        summary: agent
+          ? `${result.templateName}: ${agent.agentName} is ${agent.status}. ${result.summary}`
+          : `${result.templateName}: ${result.summary}`,
+        severity: notification.severity,
+        method: 'tooling/workflows/agent-status',
+      }, productEventHub)
+    }
+    setJson(res, 200, { result })
+  } catch (error) {
+    const message = error instanceof Error && error.message ? error.message : 'Failed to update workflow agent status'
+    setJson(res, 400, { error: message })
+  }
+}
+
+async function handleProvisionWorkspaceWorkflowAgentWorktreeWithNotifications(req: IncomingMessage, res: ServerResponse): Promise<void> {
+  try {
+    const body = asRecord(await readJsonBody(req))
+    const cwd = readString(body?.cwd)
+    const runId = readString(body?.runId)
+    const agentId = readString(body?.agentId)
+    const baseRef = readString(body?.baseRef)
+    const result = await provisionWorkspaceWorkflowAgentWorktree({
+      cwd,
+      runId,
+      agentId,
+      baseRef: baseRef || undefined,
+    })
+    setJson(res, 200, { result })
+  } catch (error) {
+    const message = error instanceof Error && error.message ? error.message : 'Failed to provision workflow agent worktree'
+    setJson(res, 400, { error: message })
+  }
+}
+
+async function handleRunWorkspaceWorkflowValidationWithNotifications(
+  req: IncomingMessage,
+  res: ServerResponse,
+  productEventHub: ProductEventHub,
+): Promise<void> {
+  try {
+    const body = asRecord(await readJsonBody(req))
+    const cwd = readString(body?.cwd)
+    const runId = readString(body?.runId)
+    const scriptName = readString(body?.scriptName)
+    const result: ToolingWorkflowValidationResult = await runWorkspaceWorkflowValidation({ cwd, runId, scriptName })
+    if (result.validationRun.status !== 'passed') {
+      const isTestCommand = /(^|[:_-])(test|spec)($|[:_-])/iu.test(result.validationRun.scriptName)
+      await dispatchWorkflowProductNotification(cwd, {
+        id: workflowNotificationId(result.run, `validation-${scriptName}-${result.validationRun.status}`),
+        kind: isTestCommand ? 'test_failed' : 'command_failed',
+        title: isTestCommand ? 'Workflow test failed' : 'Workflow command failed',
+        summary: `${result.validationRun.command} -> ${result.validationRun.status}`,
+        severity: 'danger',
+        method: 'tooling/workflows/validation-run',
+      }, productEventHub)
+    } else {
+      const runNotification = workflowRunStatusNotification(result.run)
+      if (runNotification) {
+        await dispatchWorkflowProductNotification(cwd, {
+          id: workflowNotificationId(result.run, runNotification.suffix),
+          kind: runNotification.kind,
+          title: runNotification.title,
+          summary: `${result.run.templateName}: ${result.run.summary}`,
+          severity: runNotification.severity,
+          method: 'tooling/workflows/validation-run',
+        }, productEventHub)
+      }
+    }
+    setJson(res, 200, { result })
+  } catch (error) {
+    const message = error instanceof Error && error.message ? error.message : 'Failed to run workflow validation'
+    setJson(res, 400, { error: message })
+  }
+}
+
 class AppServerProcess {
   private process: ChildProcessWithoutNullStreams | null = null
   private initialized = false
   private readBuffer = ''
   private nextId = 1
   private stopping = false
+  private startedAtIso: string | null = null
+  private exitedAtIso: string | null = null
+  private exitCode: number | null = null
+  private exitSignal: string | null = null
+  private sentClientRequestCount = 0
+  private completedClientRequestCount = 0
+  private failedClientRequestCount = 0
+  private notificationCount = 0
+  private serverRequestCount = 0
+  private logSequence = 0
+  private readonly recentLogs: AppServerDiagnosticLog[] = []
+  private readonly notificationCountsByMethod = new Map<string, number>()
+  private readonly mcpServers = new Map<string, McpServerDiagnostic>()
   private readonly pending = new Map<number, { resolve: (value: unknown) => void; reject: (reason?: unknown) => void }>()
   private readonly notificationListeners = new Set<(value: { method: string; params: unknown }) => void>()
   private readonly pendingServerRequests = new Map<number, PendingServerRequest>()
+  private readonly pendingServerRequestApprovalScopes = new Map<number, ToolingApprovalDecisionScope>()
 
   private start(): void {
     if (this.process) return
@@ -107,6 +683,11 @@ class AppServerProcess {
     this.stopping = false
     const proc = spawn('codex', ['app-server'], { stdio: ['pipe', 'pipe', 'pipe'] })
     this.process = proc
+    this.startedAtIso = new Date().toISOString()
+    this.exitedAtIso = null
+    this.exitCode = null
+    this.exitSignal = null
+    this.pushLog('info', 'bridge', `codex app-server started${proc.pid ? ` pid ${String(proc.pid)}` : ''}`)
 
     proc.stdout.setEncoding('utf8')
     proc.stdout.on('data', (chunk: string) => {
@@ -126,22 +707,66 @@ class AppServerProcess {
     })
 
     proc.stderr.setEncoding('utf8')
-    proc.stderr.on('data', () => {
-      // Keep stderr silent in dev middleware; JSON-RPC errors are forwarded via responses.
+    proc.stderr.on('data', (chunk: string) => {
+      this.pushChunkLogs('warning', 'stderr', chunk)
     })
 
-    proc.on('exit', () => {
+    proc.on('error', (error) => {
+      this.pushLog('error', 'bridge', error.message)
+    })
+
+    proc.on('exit', (code, signal) => {
+      this.exitedAtIso = new Date().toISOString()
+      this.exitCode = typeof code === 'number' ? code : null
+      this.exitSignal = signal ?? null
       const failure = new Error(this.stopping ? 'codex app-server stopped' : 'codex app-server exited unexpectedly')
       for (const request of this.pending.values()) {
         request.reject(failure)
       }
 
+      if (this.pending.size > 0) {
+        this.failedClientRequestCount += this.pending.size
+      }
       this.pending.clear()
       this.pendingServerRequests.clear()
+      this.pendingServerRequestApprovalScopes.clear()
       this.process = null
       this.initialized = false
       this.readBuffer = ''
+      this.pushLog(this.stopping ? 'info' : 'error', 'bridge', failure.message)
     })
+  }
+
+  private pushLog(
+    level: AppServerDiagnosticLogLevel,
+    source: AppServerDiagnosticLogSource,
+    rawMessage: string,
+  ): void {
+    const message = rawMessage.replace(/\s+/gu, ' ').trim()
+    if (!message) return
+
+    this.logSequence += 1
+    this.recentLogs.push({
+      id: `app-server-log-${String(this.logSequence)}`,
+      createdAtIso: new Date().toISOString(),
+      level,
+      source,
+      message: message.length > 500 ? `${message.slice(0, 500)}...` : message,
+    })
+    if (this.recentLogs.length > 80) {
+      this.recentLogs.splice(0, this.recentLogs.length - 80)
+    }
+  }
+
+  private pushChunkLogs(
+    level: AppServerDiagnosticLogLevel,
+    source: AppServerDiagnosticLogSource,
+    chunk: string,
+  ): void {
+    const lines = chunk.split(/\r?\n/u)
+    for (const line of lines) {
+      this.pushLog(level, source, line)
+    }
   }
 
   private sendLine(payload: Record<string, unknown>): void {
@@ -157,6 +782,7 @@ class AppServerProcess {
     try {
       message = JSON.parse(line) as JsonRpcResponse
     } catch {
+      this.pushLog('warning', 'stdout', 'Ignored malformed app-server JSON-RPC line.')
       return
     }
 
@@ -167,8 +793,10 @@ class AppServerProcess {
       if (!pendingRequest) return
 
       if (message.error) {
+        this.failedClientRequestCount += 1
         pendingRequest.reject(new Error(message.error.message))
       } else {
+        this.completedClientRequestCount += 1
         pendingRequest.resolve(message.result)
       }
       return
@@ -184,14 +812,37 @@ class AppServerProcess {
 
     // Handle server-initiated JSON-RPC requests (approvals, dynamic tool calls, etc.).
     if (typeof message.id === 'number' && typeof message.method === 'string') {
-      this.handleServerRequest(message.id, message.method, message.params ?? null)
+      void this.handleServerRequest(message.id, message.method, message.params ?? null)
     }
   }
 
   private emitNotification(notification: { method: string; params: unknown }): void {
+    this.notificationCount += 1
+    this.notificationCountsByMethod.set(
+      notification.method,
+      (this.notificationCountsByMethod.get(notification.method) ?? 0) + 1,
+    )
+    this.captureMcpServerStatus(notification)
     for (const listener of this.notificationListeners) {
       listener(notification)
     }
+  }
+
+  private captureMcpServerStatus(notification: { method: string; params: unknown }): void {
+    if (notification.method !== 'mcpServer/startupStatus/updated') return
+
+    const params = asRecord(notification.params)
+    if (!params) return
+
+    const name = readString(params.name)
+    if (!name) return
+
+    this.mcpServers.set(name, {
+      ...createEmptyMcpServerDiagnostic(name, new Date().toISOString()),
+      status: normalizeMcpServerStatus(params.status),
+      error: readString(params.error),
+      threadId: readString(params.threadId),
+    })
   }
 
   private sendServerRequestReply(requestId: number, reply: ServerRequestReply): void {
@@ -224,25 +875,266 @@ class AppServerProcess {
       typeof requestParams?.threadId === 'string' && requestParams.threadId.length > 0
         ? requestParams.threadId
         : ''
+    const resolvedAtIso = new Date().toISOString()
+    const decision = readApprovalDecisionFromReply(reply)
+    const scope = normalizeApprovalDecisionScope(this.pendingServerRequestApprovalScopes.get(requestId), decision)
+    this.pendingServerRequestApprovalScopes.delete(requestId)
+    const auditInput = buildApprovalAuditInput({
+      requestId,
+      pendingRequest,
+      reply,
+      scope,
+      mode: 'manual',
+      resolvedAtIso,
+    })
+    void recordApprovalDecisionAuditEvent(auditInput)
+    void createPersistentApprovalGrant(auditInput)
     this.emitNotification({
       method: 'server/request/resolved',
       params: {
         id: requestId,
         method: pendingRequest.method,
         threadId,
+        decision,
+        scope,
         mode: 'manual',
-        resolvedAtIso: new Date().toISOString(),
+        resolvedAtIso,
       },
     })
   }
 
-  private handleServerRequest(requestId: number, method: string, params: unknown): void {
+  private async resolveServerRequestWithStoredGrant(pendingRequest: PendingServerRequest): Promise<ToolingApprovalGrant | null> {
+    if (!isStoredGrantEligibleRequest(pendingRequest.method)) return null
+
+    const cwd = readServerRequestCwd(pendingRequest.params)
+    const subject = readServerRequestSubject(pendingRequest.method, pendingRequest.params)
+    const grant = await findMatchingApprovalGrant({
+      cwd,
+      method: pendingRequest.method,
+      subject,
+    })
+    if (!grant) return null
+
+    const reply: ServerRequestReply = { result: { decision: 'accept' } }
+    const resolvedAtIso = new Date().toISOString()
+    this.sendServerRequestReply(pendingRequest.id, reply)
+    const auditInput = buildApprovalAuditInput({
+      requestId: pendingRequest.id,
+      pendingRequest,
+      reply,
+      scope: grant.scope,
+      mode: 'automatic',
+      resolvedAtIso,
+    })
+    void recordApprovalDecisionAuditEvent(auditInput)
+    void recordApprovalGrantUse({
+      cwd,
+      grant,
+      requestId: pendingRequest.id,
+      method: pendingRequest.method,
+      subject,
+      threadId: auditInput.threadId,
+      turnId: auditInput.turnId,
+      itemId: auditInput.itemId,
+    })
+    this.emitNotification({
+      method: 'server/request/resolved',
+      params: {
+        id: pendingRequest.id,
+        method: pendingRequest.method,
+        threadId: auditInput.threadId,
+        decision: 'accept',
+        scope: grant.scope,
+        mode: 'automatic',
+        grantId: grant.id,
+        resolvedAtIso,
+      },
+    })
+    return grant
+  }
+
+  private async evaluatePendingRequestCommandPolicy(pendingRequest: PendingServerRequest): Promise<ToolingCommandPolicyEvaluation | null> {
+    if (!isCommandApprovalRequest(pendingRequest.method)) return null
+    return evaluateWorkspaceCommandPolicy({
+      cwd: readServerRequestCwd(pendingRequest.params),
+      command: readServerRequestSubject(pendingRequest.method, pendingRequest.params),
+    })
+  }
+
+  private async evaluatePendingRequestFileChangePolicy(pendingRequest: PendingServerRequest): Promise<ToolingFileChangePolicyEvaluation | null> {
+    if (!isFileChangeApprovalRequest(pendingRequest.method)) return null
+    return evaluateWorkspaceFileChangePolicy({
+      cwd: readServerRequestCwd(pendingRequest.params),
+      grantRoot: readServerRequestSubject(pendingRequest.method, pendingRequest.params),
+    })
+  }
+
+  private async rejectServerRequestByCommandPolicy(pendingRequest: PendingServerRequest, evaluation: ToolingCommandPolicyEvaluation): Promise<void> {
+    const reply: ServerRequestReply = {
+      error: {
+        code: -32000,
+        message: evaluation.reason,
+      },
+    }
+    const resolvedAtIso = new Date().toISOString()
+    this.sendServerRequestReply(pendingRequest.id, reply)
+    const auditInput = buildApprovalAuditInput({
+      requestId: pendingRequest.id,
+      pendingRequest,
+      reply,
+      scope: 'single',
+      mode: 'automatic',
+      resolvedAtIso,
+    })
+    void recordCommandPolicyDecisionAuditEvent({
+      cwd: readServerRequestCwd(pendingRequest.params),
+      requestId: pendingRequest.id,
+      method: pendingRequest.method,
+      threadId: auditInput.threadId,
+      turnId: auditInput.turnId,
+      itemId: auditInput.itemId,
+      evaluation,
+      action: 'auto_rejected',
+    })
+    void recordApprovalDecisionAuditEvent(auditInput)
+    this.emitNotification({
+      method: 'server/request/resolved',
+      params: {
+        id: pendingRequest.id,
+        method: pendingRequest.method,
+        threadId: auditInput.threadId,
+        decision: 'rejected',
+        scope: 'single',
+        mode: 'automatic',
+        policyStatus: evaluation.status,
+        policyReason: evaluation.reason,
+        resolvedAtIso,
+      },
+    })
+  }
+
+  private async rejectServerRequestByFileChangePolicy(pendingRequest: PendingServerRequest, evaluation: ToolingFileChangePolicyEvaluation): Promise<void> {
+    const reply: ServerRequestReply = {
+      error: {
+        code: -32000,
+        message: evaluation.reason,
+      },
+    }
+    const resolvedAtIso = new Date().toISOString()
+    this.sendServerRequestReply(pendingRequest.id, reply)
+    const auditInput = buildApprovalAuditInput({
+      requestId: pendingRequest.id,
+      pendingRequest,
+      reply,
+      scope: 'single',
+      mode: 'automatic',
+      resolvedAtIso,
+    })
+    void recordFileChangePolicyDecisionAuditEvent({
+      cwd: readServerRequestCwd(pendingRequest.params),
+      requestId: pendingRequest.id,
+      method: pendingRequest.method,
+      threadId: auditInput.threadId,
+      turnId: auditInput.turnId,
+      itemId: auditInput.itemId,
+      evaluation,
+      action: 'auto_rejected',
+    })
+    void recordApprovalDecisionAuditEvent(auditInput)
+    this.emitNotification({
+      method: 'server/request/resolved',
+      params: {
+        id: pendingRequest.id,
+        method: pendingRequest.method,
+        threadId: auditInput.threadId,
+        decision: 'rejected',
+        scope: 'single',
+        mode: 'automatic',
+        policyStatus: evaluation.status,
+        policyReason: evaluation.reason,
+        resolvedAtIso,
+      },
+    })
+  }
+
+  private async handleServerRequest(requestId: number, method: string, params: unknown): Promise<void> {
+    this.serverRequestCount += 1
     const pendingRequest: PendingServerRequest = {
       id: requestId,
       method,
       params,
       receivedAtIso: new Date().toISOString(),
+      commandPolicy: null,
+      fileChangePolicy: null,
     }
+
+    try {
+      pendingRequest.commandPolicy = await this.evaluatePendingRequestCommandPolicy(pendingRequest)
+      if (pendingRequest.commandPolicy?.status === 'denied') {
+        await this.rejectServerRequestByCommandPolicy(pendingRequest, pendingRequest.commandPolicy)
+        return
+      }
+      if (pendingRequest.commandPolicy) {
+        const auditInput = buildApprovalAuditInput({
+          requestId: pendingRequest.id,
+          pendingRequest,
+          reply: { result: { decision: 'pending' } },
+          scope: 'single',
+          mode: 'automatic',
+          resolvedAtIso: new Date().toISOString(),
+        })
+        void recordCommandPolicyDecisionAuditEvent({
+          cwd: readServerRequestCwd(pendingRequest.params),
+          requestId: pendingRequest.id,
+          method: pendingRequest.method,
+          threadId: auditInput.threadId,
+          turnId: auditInput.turnId,
+          itemId: auditInput.itemId,
+          evaluation: pendingRequest.commandPolicy,
+          action: 'pending',
+        })
+      }
+    } catch (error) {
+      this.pushLog('warning', 'bridge', `Command policy lookup failed: ${getErrorMessage(error, 'unknown error')}`)
+    }
+
+    try {
+      pendingRequest.fileChangePolicy = await this.evaluatePendingRequestFileChangePolicy(pendingRequest)
+      if (pendingRequest.fileChangePolicy && pendingRequest.fileChangePolicy.status !== 'allowed') {
+        await this.rejectServerRequestByFileChangePolicy(pendingRequest, pendingRequest.fileChangePolicy)
+        return
+      }
+      if (pendingRequest.fileChangePolicy) {
+        const auditInput = buildApprovalAuditInput({
+          requestId: pendingRequest.id,
+          pendingRequest,
+          reply: { result: { decision: 'pending' } },
+          scope: 'single',
+          mode: 'automatic',
+          resolvedAtIso: new Date().toISOString(),
+        })
+        void recordFileChangePolicyDecisionAuditEvent({
+          cwd: readServerRequestCwd(pendingRequest.params),
+          requestId: pendingRequest.id,
+          method: pendingRequest.method,
+          threadId: auditInput.threadId,
+          turnId: auditInput.turnId,
+          itemId: auditInput.itemId,
+          evaluation: pendingRequest.fileChangePolicy,
+          action: 'pending',
+        })
+      }
+    } catch (error) {
+      this.pushLog('warning', 'bridge', `File change policy lookup failed: ${getErrorMessage(error, 'unknown error')}`)
+    }
+
+    try {
+      const grant = await this.resolveServerRequestWithStoredGrant(pendingRequest)
+      if (grant) return
+    } catch (error) {
+      this.pushLog('warning', 'bridge', `Stored approval grant lookup failed: ${getErrorMessage(error, 'unknown error')}`)
+    }
+
     this.pendingServerRequests.set(requestId, pendingRequest)
 
     this.emitNotification({
@@ -254,6 +1146,7 @@ class AppServerProcess {
   private async call(method: string, params: unknown): Promise<unknown> {
     this.start()
     const id = this.nextId++
+    this.sentClientRequestCount += 1
 
     return new Promise((resolve, reject) => {
       this.pending.set(id, { resolve, reject })
@@ -308,6 +1201,15 @@ class AppServerProcess {
       throw new Error('Invalid response payload: "id" must be an integer')
     }
 
+    if (
+      body.approvalScope === 'single' ||
+      body.approvalScope === 'session' ||
+      body.approvalScope === 'workspace' ||
+      body.approvalScope === 'permanent'
+    ) {
+      this.pendingServerRequestApprovalScopes.set(id, body.approvalScope)
+    }
+
     const rawError = asRecord(body.error)
     if (rawError) {
       const message = typeof rawError.message === 'string' && rawError.message.trim().length > 0
@@ -331,6 +1233,63 @@ class AppServerProcess {
     return Array.from(this.pendingServerRequests.values())
   }
 
+  async listMcpServerInventory(): Promise<McpServerDiagnostic[]> {
+    const result = await this.rpc('mcpServerStatus/list', {
+      cursor: null,
+      detail: 'toolsAndAuthOnly',
+      limit: 100,
+      threadId: null,
+    })
+    return normalizeMcpServerInventory(result)
+  }
+
+  listDiagnosticServerRequests(): DiagnosticServerRequest[] {
+    return this.listPendingServerRequests().map((request) => ({
+      id: request.id,
+      method: request.method,
+      receivedAtIso: request.receivedAtIso,
+      threadId:
+        readNestedString(request.params, ['threadId']) ||
+        readNestedString(request.params, ['thread', 'id']) ||
+        readNestedString(request.params, ['request', 'threadId']),
+      turnId:
+        readNestedString(request.params, ['turnId']) ||
+        readNestedString(request.params, ['turn', 'id']) ||
+        readNestedString(request.params, ['request', 'turnId']),
+      itemId:
+        readNestedString(request.params, ['itemId']) ||
+        readNestedString(request.params, ['item', 'id']) ||
+        readNestedString(request.params, ['request', 'itemId']),
+    }))
+  }
+
+  getDiagnostics(): AppServerDiagnostics {
+    return {
+      status: this.process ? 'running' : 'stopped',
+      pid: this.process?.pid ?? null,
+      initialized: this.initialized,
+      startedAtIso: this.startedAtIso,
+      exitedAtIso: this.exitedAtIso,
+      exitCode: this.exitCode,
+      exitSignal: this.exitSignal,
+      pendingClientRequestCount: this.pending.size,
+      pendingServerRequestCount: this.pendingServerRequests.size,
+      sentClientRequestCount: this.sentClientRequestCount,
+      completedClientRequestCount: this.completedClientRequestCount,
+      failedClientRequestCount: this.failedClientRequestCount,
+      notificationCount: this.notificationCount,
+      serverRequestCount: this.serverRequestCount,
+      notificationCountsByMethod: Object.fromEntries(
+        Array.from(this.notificationCountsByMethod.entries()).sort((first, second) => first[0].localeCompare(second[0])),
+      ),
+      pendingServerRequests: this.listDiagnosticServerRequests(),
+      mcpServers: Array.from(this.mcpServers.values())
+        .sort((first, second) => first.name.localeCompare(second.name)),
+      mcpInventoryError: '',
+      recentLogs: [...this.recentLogs].reverse(),
+    }
+  }
+
   dispose(): void {
     if (!this.process) return
 
@@ -344,8 +1303,12 @@ class AppServerProcess {
     for (const request of this.pending.values()) {
       request.reject(failure)
     }
+    if (this.pending.size > 0) {
+      this.failedClientRequestCount += this.pending.size
+    }
     this.pending.clear()
     this.pendingServerRequests.clear()
+    this.pendingServerRequestApprovalScopes.clear()
 
     try {
       proc.stdin.end()
@@ -485,9 +1448,60 @@ type CodexBridgeMiddleware = ((req: IncomingMessage, res: ServerResponse, next: 
 type SharedBridgeState = {
   appServer: AppServerProcess
   methodCatalog: MethodCatalog
+  stopNotificationDispatch: () => void
+  productEventHub: ProductEventHub
+}
+
+type ProductEventListener = (event: NotificationDispatchEvent) => void
+
+class ProductEventHub {
+  private readonly listeners = new Set<ProductEventListener>()
+
+  subscribe(listener: ProductEventListener): () => void {
+    this.listeners.add(listener)
+    return () => {
+      this.listeners.delete(listener)
+    }
+  }
+
+  emit(event: NotificationDispatchEvent): void {
+    for (const listener of this.listeners) {
+      listener(event)
+    }
+  }
+
+  clear(): void {
+    this.listeners.clear()
+  }
 }
 
 const SHARED_BRIDGE_KEY = '__codexRemoteSharedBridge__'
+
+export async function createAutomaticTurnCheckpoint(
+  cwd: string,
+  notification: { method: string; params?: unknown },
+): Promise<Record<string, unknown>> {
+  const phase = notification.method === 'turn/started'
+    ? 'before'
+    : notification.method === 'turn/completed'
+      ? 'after'
+      : ''
+  if (!phase) return {}
+
+  const threadId = readNotificationThreadId(notification.params)
+  const turnId = readNotificationTurnId(notification.params)
+  const label = `${phase === 'before' ? 'Before' : 'After'} turn ${shortId(turnId)} (${shortId(threadId)})`
+  const checkpoint = await createToolingCheckpoint({
+    cwd,
+    label,
+  })
+  const prefix = phase === 'before' ? 'beforeCheckpoint' : 'afterCheckpoint'
+  return {
+    [`${prefix}Id`]: checkpoint.id,
+    [`${prefix}HasPatch`]: checkpoint.hasPatch,
+    [`${prefix}PatchBytes`]: checkpoint.patchBytes,
+  }
+}
 
 function getSharedBridgeState(): SharedBridgeState {
   const globalScope = globalThis as typeof globalThis & {
@@ -497,16 +1511,81 @@ function getSharedBridgeState(): SharedBridgeState {
   const existing = globalScope[SHARED_BRIDGE_KEY]
   if (existing) return existing
 
+  const appServer = new AppServerProcess()
+  const productEventHub = new ProductEventHub()
+  const notificationDispatcher = new NotificationDispatcher({
+    workspaceCwd: getProcessCwd(),
+  })
+  const stopNotificationDispatch = appServer.onNotification((notification) => {
+    const workspaceCwd = getProcessCwd()
+    const payload = {
+      ...notification,
+      atIso: new Date().toISOString(),
+      metadata: {} as Record<string, unknown>,
+    }
+    void notificationDispatcher.handleCodexNotification(payload)
+    void (async () => {
+      try {
+        payload.metadata = await createAutomaticTurnCheckpoint(workspaceCwd, notification)
+      } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : String(error)
+        console.warn(`Failed to create automatic turn checkpoint: ${message}`)
+      }
+
+      try {
+        await appendCodexSessionEvent(workspaceCwd, payload)
+      } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : String(error)
+        console.warn(`Failed to persist Codex session event: ${message}`)
+      }
+    })()
+  })
+
   const created: SharedBridgeState = {
-    appServer: new AppServerProcess(),
+    appServer,
     methodCatalog: new MethodCatalog(),
+    stopNotificationDispatch,
+    productEventHub,
   }
   globalScope[SHARED_BRIDGE_KEY] = created
   return created
 }
 
+async function buildGatewayDiagnostics(
+  appServer: AppServerProcess,
+  methodCatalog: MethodCatalog,
+): Promise<GatewayDiagnostics> {
+  const [methodsResult, notificationsResult, mcpInventoryResult] = await Promise.allSettled([
+    methodCatalog.listMethods(),
+    methodCatalog.listNotificationMethods(),
+    appServer.listMcpServerInventory(),
+  ])
+  const methods = methodsResult.status === 'fulfilled' ? methodsResult.value : []
+  const notifications = notificationsResult.status === 'fulfilled' ? notificationsResult.value : []
+  const mcpInventory = mcpInventoryResult.status === 'fulfilled' ? mcpInventoryResult.value : []
+  const errors = [
+    resultErrorMessage(methodsResult),
+    resultErrorMessage(notificationsResult),
+  ].filter(Boolean)
+  const appDiagnostics = appServer.getDiagnostics()
+  appDiagnostics.mcpServers = mergeMcpServerDiagnostics(appDiagnostics.mcpServers, mcpInventory)
+  appDiagnostics.mcpInventoryError = resultErrorMessage(mcpInventoryResult)
+
+  return {
+    generatedAtIso: new Date().toISOString(),
+    appServer: appDiagnostics,
+    methodCatalog: {
+      methods,
+      notifications,
+      methodCount: methods.length,
+      notificationCount: notifications.length,
+      errors,
+    },
+  }
+}
+
 export function createCodexBridgeMiddleware(): CodexBridgeMiddleware {
-  const { appServer, methodCatalog } = getSharedBridgeState()
+  const { appServer, methodCatalog, stopNotificationDispatch, productEventHub } = getSharedBridgeState()
 
   const middleware = async (req: IncomingMessage, res: ServerResponse, next: () => void) => {
     try {
@@ -546,6 +1625,289 @@ export function createCodexBridgeMiddleware(): CodexBridgeMiddleware {
         return
       }
 
+      if (req.method === 'GET' && url.pathname === '/codex-api/tooling/diff') {
+        await handleToolingDiff(url, res)
+        return
+      }
+
+      if (req.method === 'GET' && url.pathname === '/codex-api/tooling/workspace-snapshot') {
+        await handleWorkspaceSnapshot(url, res)
+        return
+      }
+
+      if (req.method === 'GET' && url.pathname === '/codex-api/tooling/workspace-security') {
+        await handleWorkspaceSecuritySnapshot(url, res)
+        return
+      }
+
+      if (req.method === 'POST' && url.pathname === '/codex-api/tooling/notifications/test') {
+        const body = asRecord(await readJsonBody(req))
+        const cwd = typeof body?.cwd === 'string' ? body.cwd.trim() : ''
+        if (!cwd) {
+          setJson(res, 400, { error: 'cwd is required' })
+          return
+        }
+        const dispatcher = new NotificationDispatcher({ workspaceCwd: cwd })
+        const result = await dispatcher.dispatchTestNotification()
+        setJson(res, 200, { result })
+        return
+      }
+
+      if (req.method === 'GET' && url.pathname === '/codex-api/tooling/default-workspace') {
+        await handleDefaultWorkspace(res)
+        return
+      }
+
+      if (req.method === 'GET' && url.pathname === '/codex-api/tooling/git-status') {
+        await handleWorkspaceGitStatus(url, res)
+        return
+      }
+
+      if (req.method === 'GET' && url.pathname === '/codex-api/tooling/git-delivery-draft') {
+        await handleWorkspaceGitDeliveryDraft(url, res)
+        return
+      }
+
+      if (req.method === 'GET' && url.pathname === '/codex-api/tooling/review-draft') {
+        await handleWorkspaceReviewDraft(url, res)
+        return
+      }
+
+      if (req.method === 'GET' && url.pathname === '/codex-api/tooling/pull-request-draft') {
+        await handleWorkspacePullRequestDraft(url, res)
+        return
+      }
+
+      if (req.method === 'POST' && url.pathname === '/codex-api/tooling/git-commit') {
+        await handleCommitStagedWorkspaceChanges(req, res)
+        return
+      }
+
+      if (req.method === 'POST' && url.pathname === '/codex-api/tooling/pull-request') {
+        await handleCreateWorkspacePullRequest(req, res)
+        return
+      }
+
+      if (req.method === 'GET' && url.pathname === '/codex-api/tooling/worktrees') {
+        await handleListWorkspaceWorktrees(url, res)
+        return
+      }
+
+      if (req.method === 'POST' && url.pathname === '/codex-api/tooling/worktrees') {
+        await handleCreateWorkspaceWorktree(req, res)
+        return
+      }
+
+      if (req.method === 'POST' && url.pathname === '/codex-api/tooling/worktrees/remove') {
+        await handleRemoveWorkspaceWorktree(req, res)
+        return
+      }
+
+      if (req.method === 'POST' && url.pathname === '/codex-api/tooling/worktrees/apply-patch') {
+        await handleApplyPatchToWorkspaceWorktree(req, res)
+        return
+      }
+
+      if (req.method === 'GET' && url.pathname === '/codex-api/tooling/ports') {
+        await handleWorkspacePorts(url, res)
+        return
+      }
+
+      if (req.method === 'POST' && url.pathname === '/codex-api/tooling/preview-probe') {
+        await handleProbeWorkspacePreview(req, res)
+        return
+      }
+
+      if (req.method === 'POST' && url.pathname === '/codex-api/tooling/preview-screenshot') {
+        await handleCaptureWorkspacePreviewScreenshot(req, res)
+        return
+      }
+
+      if (req.method === 'GET' && url.pathname === '/codex-api/tooling/terminal-sessions') {
+        await handleListTerminalSessions(url, res)
+        return
+      }
+
+      if (req.method === 'GET' && url.pathname === '/codex-api/tooling/validation-runs') {
+        await handleListWorkspaceValidationRuns(url, res)
+        return
+      }
+
+      if (req.method === 'GET' && url.pathname === '/codex-api/tooling/workflows') {
+        await handleListWorkspaceWorkflows(url, res)
+        return
+      }
+
+      if (req.method === 'POST' && url.pathname === '/codex-api/tooling/workflows') {
+        await handleCreateWorkspaceWorkflowWithNotifications(req, res, productEventHub)
+        return
+      }
+
+      if (req.method === 'POST' && url.pathname === '/codex-api/tooling/workflows/agent-status') {
+        await handleUpdateWorkspaceWorkflowAgentStatusWithNotifications(req, res, productEventHub)
+        return
+      }
+
+      if (req.method === 'POST' && url.pathname === '/codex-api/tooling/workflows/agent-worktree') {
+        await handleProvisionWorkspaceWorkflowAgentWorktreeWithNotifications(req, res)
+        return
+      }
+
+      if (req.method === 'POST' && url.pathname === '/codex-api/tooling/workflows/apply-implementation') {
+        await handleApplyWorkspaceWorkflowImplementation(req, res)
+        return
+      }
+
+      if (req.method === 'POST' && url.pathname === '/codex-api/tooling/workflows/discard-implementation') {
+        await handleDiscardWorkspaceWorkflowImplementation(req, res)
+        return
+      }
+
+      if (req.method === 'GET' && url.pathname === '/codex-api/tooling/workflows/replay') {
+        await handleGetWorkspaceWorkflowReplay(url, res)
+        return
+      }
+
+      if (req.method === 'GET' && url.pathname === '/codex-api/tooling/workflows/delivery-draft') {
+        await handleGetWorkspaceWorkflowDeliveryDraft(url, res)
+        return
+      }
+
+      if (req.method === 'POST' && url.pathname === '/codex-api/tooling/workflows/ready-to-merge') {
+        await handleMarkWorkspaceWorkflowReadyToMerge(req, res)
+        return
+      }
+
+      if (req.method === 'POST' && url.pathname === '/codex-api/tooling/workflows/merged') {
+        await handleMarkWorkspaceWorkflowMerged(req, res)
+        return
+      }
+
+      if (req.method === 'POST' && url.pathname === '/codex-api/tooling/workflows/validation-run') {
+        await handleRunWorkspaceWorkflowValidationWithNotifications(req, res, productEventHub)
+        return
+      }
+
+      if (req.method === 'POST' && url.pathname === '/codex-api/tooling/terminal-sessions') {
+        await handleStartTerminalSession(req, res)
+        return
+      }
+
+      if (req.method === 'POST' && url.pathname === '/codex-api/tooling/terminal-sessions/stop') {
+        await handleStopTerminalSession(req, res)
+        return
+      }
+
+      if (req.method === 'POST' && url.pathname === '/codex-api/tooling/git-stage') {
+        await handleStageWorkspaceGitPaths(req, res)
+        return
+      }
+
+      if (req.method === 'POST' && url.pathname === '/codex-api/tooling/git-unstage') {
+        await handleUnstageWorkspaceGitPaths(req, res)
+        return
+      }
+
+      if (req.method === 'GET' && url.pathname === '/codex-api/tooling/workspace-files') {
+        await handleListWorkspaceFiles(url, res)
+        return
+      }
+
+      if (req.method === 'GET' && url.pathname === '/codex-api/tooling/workspace-file') {
+        await handleReadWorkspaceFile(url, res)
+        return
+      }
+
+      if (req.method === 'POST' && url.pathname === '/codex-api/tooling/workspace-file') {
+        await handleWriteWorkspaceFile(req, res)
+        return
+      }
+
+      if (req.method === 'POST' && url.pathname === '/codex-api/tooling/workspace-script/run') {
+        await handleRunWorkspaceScript(req, res)
+        return
+      }
+
+      if (req.method === 'GET' && url.pathname === '/codex-api/tooling/approval-grants') {
+        await handleListApprovalGrants(url, res)
+        return
+      }
+
+      if (req.method === 'POST' && url.pathname === '/codex-api/tooling/approval-grants/revoke') {
+        await handleRevokeApprovalGrant(req, res)
+        return
+      }
+
+      if (req.method === 'GET' && url.pathname === '/codex-api/tooling/checkpoints') {
+        await handleListToolingCheckpoints(url, res)
+        return
+      }
+
+      if (req.method === 'GET' && url.pathname === '/codex-api/tooling/audit-events') {
+        await handleListWorkspaceAuditEvents(url, res)
+        return
+      }
+
+      if (req.method === 'GET' && url.pathname === '/codex-api/tooling/review-comments') {
+        await handleListWorkspaceReviewComments(url, res)
+        return
+      }
+
+      if (req.method === 'POST' && url.pathname === '/codex-api/tooling/review-comments') {
+        await handleCreateWorkspaceReviewComment(req, res)
+        return
+      }
+
+      if (req.method === 'POST' && url.pathname === '/codex-api/tooling/review-comments/status') {
+        await handleUpdateWorkspaceReviewCommentStatus(req, res)
+        return
+      }
+
+      if (req.method === 'POST' && url.pathname === '/codex-api/tooling/review-comments/follow-up') {
+        await handleCreateWorkspaceReviewFollowUp(req, res)
+        return
+      }
+
+      if (req.method === 'GET' && url.pathname === '/codex-api/tooling/session-events') {
+        await handleListCodexSessionEvents(url, res)
+        return
+      }
+
+      if (req.method === 'GET' && url.pathname === '/codex-api/tooling/recent-sessions') {
+        await handleListCodexWorkspaceSessions(url, res)
+        return
+      }
+
+      if (req.method === 'GET' && url.pathname === '/codex-api/tooling/checkpoint-patch') {
+        await handleReadToolingCheckpointPatch(url, res)
+        return
+      }
+
+      if (req.method === 'POST' && url.pathname === '/codex-api/tooling/checkpoints') {
+        await handleCreateToolingCheckpoint(req, res)
+        return
+      }
+
+      if (req.method === 'POST' && url.pathname === '/codex-api/tooling/rollback-file') {
+        await handleRollbackToolingFile(req, res)
+        return
+      }
+
+      if (req.method === 'POST' && url.pathname === '/codex-api/tooling/rollback-workspace') {
+        await handleRollbackToolingWorkspace(req, res)
+        return
+      }
+
+      if (req.method === 'POST' && url.pathname === '/codex-api/tooling/rollback-hunk') {
+        await handleRollbackToolingHunk(req, res)
+        return
+      }
+
+      if (req.method === 'POST' && url.pathname === '/codex-api/tooling/stage-hunk') {
+        await handleStageToolingHunk(req, res)
+        return
+      }
+
       if (req.method === 'POST' && url.pathname === '/codex-api/server-requests/respond') {
         const payload = await readJsonBody(req)
         await appServer.respondToServerRequest(payload)
@@ -567,6 +1929,23 @@ export function createCodexBridgeMiddleware(): CodexBridgeMiddleware {
       if (req.method === 'GET' && url.pathname === '/codex-api/meta/notifications') {
         const methods = await methodCatalog.listNotificationMethods()
         setJson(res, 200, { data: methods })
+        return
+      }
+
+      if (req.method === 'GET' && url.pathname === '/codex-api/meta/diagnostics') {
+        const diagnostics = await buildGatewayDiagnostics(appServer, methodCatalog)
+        setJson(res, 200, { result: diagnostics })
+        return
+      }
+
+      if (req.method === 'GET' && url.pathname === '/codex-api/meta/access-security') {
+        setJson(res, 200, {
+          result: buildSecurityAccessSnapshot(req, {
+            authEnabled: false,
+            listenHost: '127.0.0.1',
+            listenPort: null,
+          }),
+        })
         return
       }
 
@@ -604,6 +1983,36 @@ export function createCodexBridgeMiddleware(): CodexBridgeMiddleware {
         return
       }
 
+      if (req.method === 'GET' && url.pathname === '/codex-api/product-events') {
+        res.statusCode = 200
+        res.setHeader('Content-Type', 'text/event-stream; charset=utf-8')
+        res.setHeader('Cache-Control', 'no-cache, no-transform')
+        res.setHeader('Connection', 'keep-alive')
+        res.setHeader('X-Accel-Buffering', 'no')
+
+        const unsubscribe = productEventHub.subscribe((event) => {
+          if (res.writableEnded || res.destroyed) return
+          res.write(`data: ${JSON.stringify(event)}\n\n`)
+        })
+
+        res.write(`event: ready\ndata: ${JSON.stringify({ ok: true })}\n\n`)
+        const keepAlive = setInterval(() => {
+          res.write(': ping\n\n')
+        }, 15000)
+
+        const close = () => {
+          clearInterval(keepAlive)
+          unsubscribe()
+          if (!res.writableEnded) {
+            res.end()
+          }
+        }
+
+        req.on('close', close)
+        req.on('aborted', close)
+        return
+      }
+
       next()
     } catch (error) {
       const message = getErrorMessage(error, 'Unknown bridge error')
@@ -612,7 +2021,15 @@ export function createCodexBridgeMiddleware(): CodexBridgeMiddleware {
   }
 
   middleware.dispose = () => {
+    stopNotificationDispatch()
+    productEventHub.clear()
     appServer.dispose()
+    const globalScope = globalThis as typeof globalThis & {
+      [SHARED_BRIDGE_KEY]?: SharedBridgeState
+    }
+    if (globalScope[SHARED_BRIDGE_KEY]?.appServer === appServer) {
+      delete globalScope[SHARED_BRIDGE_KEY]
+    }
   }
 
   return middleware

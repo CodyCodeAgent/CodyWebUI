@@ -18,21 +18,67 @@
         <div class="message-row">
           <div class="message-stack">
             <article class="request-card">
-              <p class="request-title">{{ request.method }}</p>
+              <p class="request-title">{{ approvalSummary(request).title }}</p>
               <p class="request-meta">Request #{{ request.id }} · {{ formatIsoTime(request.receivedAtIso) }}</p>
 
-              <p v-if="readRequestReason(request)" class="request-reason">{{ readRequestReason(request) }}</p>
+              <p class="request-subject">{{ approvalSummary(request).subject }}</p>
+              <div class="request-risk-line">
+                <span class="request-risk-badge" :data-level="approvalSummary(request).level">
+                  {{ approvalSummary(request).level }}
+                </span>
+                <span
+                  v-for="label in approvalSummary(request).riskLabels"
+                  :key="`${request.id}:${label}`"
+                  class="request-risk-label"
+                >
+                  {{ label }}
+                </span>
+              </div>
+              <p class="request-reason">{{ approvalSummary(request).description }}</p>
+              <ul class="request-impact-list">
+                <li v-for="impact in approvalSummary(request).impacts" :key="`${request.id}:${impact}`">
+                  {{ impact }}
+                </li>
+              </ul>
+              <div class="request-scope-line" aria-label="Approval scopes">
+                <span
+                  v-for="scope in approvalScopeOptions"
+                  :key="`${request.id}:${scope.scope}`"
+                  class="request-scope"
+                  :data-enabled="scope.enabled"
+                  :title="scope.description"
+                >
+                  {{ scope.label }}
+                </span>
+              </div>
+              <p class="request-recommendation">{{ approvalSummary(request).recommendation }}</p>
 
               <section v-if="request.method === 'item/commandExecution/requestApproval'" class="request-actions">
-                <button type="button" class="request-button request-button-primary" @click="onRespondApproval(request.id, 'accept')">Accept</button>
-                <button type="button" class="request-button" @click="onRespondApproval(request.id, 'acceptForSession')">Accept for Session</button>
+                <button
+                  v-for="scope in approvalScopeOptions"
+                  :key="`${request.id}:command:${scope.scope}`"
+                  type="button"
+                  class="request-button"
+                  :class="{ 'request-button-primary': scope.scope === 'single', 'request-button-danger': scope.scope === 'permanent' }"
+                  @click="onRespondApprovalScope(request.id, scope.scope)"
+                >
+                  {{ scope.label }}
+                </button>
                 <button type="button" class="request-button" @click="onRespondApproval(request.id, 'decline')">Decline</button>
                 <button type="button" class="request-button" @click="onRespondApproval(request.id, 'cancel')">Cancel</button>
               </section>
 
               <section v-else-if="request.method === 'item/fileChange/requestApproval'" class="request-actions">
-                <button type="button" class="request-button request-button-primary" @click="onRespondApproval(request.id, 'accept')">Accept</button>
-                <button type="button" class="request-button" @click="onRespondApproval(request.id, 'acceptForSession')">Accept for Session</button>
+                <button
+                  v-for="scope in approvalScopeOptions"
+                  :key="`${request.id}:file:${scope.scope}`"
+                  type="button"
+                  class="request-button"
+                  :class="{ 'request-button-primary': scope.scope === 'single', 'request-button-danger': scope.scope === 'permanent' }"
+                  @click="onRespondApprovalScope(request.id, scope.scope)"
+                >
+                  {{ scope.label }}
+                </button>
                 <button type="button" class="request-button" @click="onRespondApproval(request.id, 'decline')">Decline</button>
                 <button type="button" class="request-button" @click="onRespondApproval(request.id, 'cancel')">Cancel</button>
               </section>
@@ -114,6 +160,28 @@
                   </button>
                 </li>
               </ul>
+
+              <article
+                v-if="message.tool"
+                class="tool-timeline-card"
+                :data-kind="message.tool.kind"
+                :data-tone="toolStatusTone(message.tool.status)"
+              >
+                <header class="tool-timeline-header">
+                  <span class="tool-timeline-title">{{ message.tool.title }}</span>
+                  <span class="tool-timeline-status">{{ formatToolStatus(message.tool.status) }}</span>
+                </header>
+                <p class="tool-timeline-summary">{{ message.tool.summary }}</p>
+                <ul v-if="message.tool.details.length > 0" class="tool-timeline-detail-list">
+                  <li v-for="detail in message.tool.details" :key="detail" class="tool-timeline-detail">
+                    {{ detail }}
+                  </li>
+                </ul>
+                <section v-if="message.tool.output" class="tool-timeline-output">
+                  <p class="tool-timeline-output-label">{{ message.tool.outputLabel || 'Output' }}</p>
+                  <pre class="tool-timeline-output-block"><code>{{ message.tool.output }}</code></pre>
+                </section>
+              </article>
 
               <article
                 v-if="message.text.length > 0"
@@ -211,7 +279,14 @@
 
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
-import type { ThreadScrollState, UiLiveOverlay, UiMessage, UiServerRequest } from '../../types/codex'
+import type { ThreadScrollState, UiApprovalDecisionScope, UiLiveOverlay, UiMessage, UiServerRequest, UiServerRequestReply } from '../../types/codex'
+import {
+  APPROVAL_SCOPE_OPTIONS,
+  approvalDecisionForScope,
+  approvalScopeForDecision,
+  buildApprovalRiskSummary,
+  type UiApprovalDecision,
+} from '../../composables/useApprovalRisk'
 import IconTablerChevronDown from '../icons/IconTablerChevronDown.vue'
 import IconTablerChevronRight from '../icons/IconTablerChevronRight.vue'
 import IconTablerCopy from '../icons/IconTablerCopy.vue'
@@ -229,8 +304,9 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   updateScrollState: [payload: { threadId: string; state: ThreadScrollState }]
-  respondServerRequest: [payload: { id: number; result?: unknown; error?: { code?: number; message: string } }]
+  respondServerRequest: [payload: UiServerRequestReply]
 }>()
+const approvalScopeOptions = APPROVAL_SCOPE_OPTIONS
 
 const conversationListRef = ref<HTMLElement | null>(null)
 const bottomAnchorRef = ref<HTMLElement | null>(null)
@@ -275,6 +351,10 @@ function asRecord(value: unknown): Record<string, unknown> | null {
 
 function buildCopyText(message: UiMessage): string {
   const parts: string[] = []
+  if (message.tool) {
+    parts.push(buildToolCopyText(message.tool))
+  }
+
   const text = message.text.trim()
   if (text.length > 0) {
     parts.push(text)
@@ -291,6 +371,58 @@ function buildCopyText(message: UiMessage): string {
   }
 
   return parts.join('\n\n')
+}
+
+function buildToolCopyText(tool: NonNullable<UiMessage['tool']>): string {
+  const parts = [`${tool.title}: ${tool.summary}`]
+  if (tool.status.trim().length > 0) {
+    parts.push(`Status: ${formatToolStatus(tool.status)}`)
+  }
+  if (tool.details.length > 0) {
+    parts.push(tool.details.join('\n'))
+  }
+  if (tool.output?.trim()) {
+    parts.push(`${tool.outputLabel || 'Output'}:\n${tool.output.trim()}`)
+  }
+  return parts.join('\n')
+}
+
+function formatToolStatus(status: string): string {
+  const normalized = status.trim()
+  if (!normalized) return 'unknown'
+  return normalized
+    .replace(/[-_]+/gu, ' ')
+    .replace(/\b\w/gu, (letter) => letter.toUpperCase())
+}
+
+function toolStatusTone(status: string): 'success' | 'danger' | 'working' | 'neutral' {
+  const normalized = status.trim().toLowerCase()
+  if (!normalized) return 'neutral'
+  if (
+    normalized.includes('fail') ||
+    normalized.includes('error') ||
+    normalized.includes('cancel') ||
+    normalized.includes('decline')
+  ) {
+    return 'danger'
+  }
+  if (
+    normalized.includes('running') ||
+    normalized.includes('progress') ||
+    normalized.includes('pending') ||
+    normalized.includes('started')
+  ) {
+    return 'working'
+  }
+  if (
+    normalized.includes('success') ||
+    normalized.includes('complete') ||
+    normalized.includes('done') ||
+    normalized.includes('applied')
+  ) {
+    return 'success'
+  }
+  return 'neutral'
 }
 
 function isCopyableMessage(message: UiMessage): boolean {
@@ -388,10 +520,8 @@ function formatIsoTime(value: string): string {
   return date.toLocaleTimeString()
 }
 
-function readRequestReason(request: UiServerRequest): string {
-  const params = asRecord(request.params)
-  const reason = params?.reason
-  return typeof reason === 'string' ? reason.trim() : ''
+function approvalSummary(request: UiServerRequest) {
+  return buildApprovalRiskSummary(request)
 }
 
 function toolQuestionKey(requestId: number, questionId: string): string {
@@ -460,10 +590,19 @@ function onQuestionOtherAnswerInput(requestId: number, questionId: string, event
   }
 }
 
-function onRespondApproval(requestId: number, decision: 'accept' | 'acceptForSession' | 'decline' | 'cancel'): void {
+function onRespondApproval(requestId: number, decision: UiApprovalDecision): void {
   emit('respondServerRequest', {
     id: requestId,
+    approvalScope: approvalScopeForDecision(decision),
     result: { decision },
+  })
+}
+
+function onRespondApprovalScope(requestId: number, scope: UiApprovalDecisionScope): void {
+  emit('respondServerRequest', {
+    id: requestId,
+    approvalScope: scope,
+    result: { decision: approvalDecisionForScope(scope) },
   })
 }
 
@@ -784,8 +923,56 @@ onBeforeUnmount(() => {
   @apply m-0 text-xs leading-4 text-amber-700;
 }
 
+.request-subject {
+  @apply m-0 max-w-full whitespace-pre-wrap break-words font-mono text-xs leading-5 text-amber-950;
+}
+
+.request-risk-line {
+  @apply flex flex-wrap items-center gap-1.5;
+}
+
+.request-risk-badge {
+  @apply rounded-full border px-2 py-0.5 text-[0.68rem] font-semibold uppercase leading-4;
+}
+
+.request-risk-badge[data-level='low'] {
+  @apply border-emerald-300 bg-emerald-50 text-emerald-800;
+}
+
+.request-risk-badge[data-level='medium'] {
+  @apply border-amber-300 bg-amber-100 text-amber-900;
+}
+
+.request-risk-badge[data-level='high'] {
+  @apply border-rose-300 bg-rose-100 text-rose-800;
+}
+
+.request-risk-label {
+  @apply rounded-full border border-amber-200 bg-white px-2 py-0.5 text-[0.68rem] leading-4 text-amber-900;
+}
+
 .request-reason {
   @apply m-0 text-sm leading-5 text-amber-900 whitespace-pre-wrap;
+}
+
+.request-impact-list {
+  @apply m-0 list-disc space-y-1 pl-4 text-xs leading-4 text-amber-900;
+}
+
+.request-scope-line {
+  @apply flex flex-wrap gap-1.5;
+}
+
+.request-scope {
+  @apply rounded-md border border-blue-200 bg-blue-50 px-1.5 py-0.5 text-[0.68rem] font-semibold uppercase tracking-normal text-blue-700;
+}
+
+.request-scope[data-enabled='false'] {
+  @apply border-amber-200 bg-amber-100 text-amber-800;
+}
+
+.request-recommendation {
+  @apply m-0 rounded-md border border-amber-200 bg-white/70 px-2 py-1.5 text-xs leading-4 text-amber-950;
 }
 
 .request-actions {
@@ -798,6 +985,10 @@ onBeforeUnmount(() => {
 
 .request-button-primary {
   @apply border-amber-500 bg-amber-500 text-white hover:bg-amber-600;
+}
+
+.request-button-danger {
+  @apply border-rose-300 bg-rose-50 text-rose-800 hover:bg-rose-100;
 }
 
 .request-user-input {
@@ -908,6 +1099,74 @@ onBeforeUnmount(() => {
 
 .message-image-preview {
   @apply block w-16 h-16 object-cover;
+}
+
+.tool-timeline-card {
+  @apply w-full max-w-[min(760px,100%)] rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-slate-800;
+}
+
+.tool-timeline-card[data-tone='success'] {
+  @apply border-emerald-200 bg-emerald-50;
+}
+
+.tool-timeline-card[data-tone='danger'] {
+  @apply border-rose-200 bg-rose-50;
+}
+
+.tool-timeline-card[data-tone='working'] {
+  @apply border-blue-200 bg-blue-50;
+}
+
+.tool-timeline-header {
+  @apply flex items-center gap-2;
+}
+
+.tool-timeline-title {
+  @apply min-w-0 flex-1 truncate text-xs font-semibold uppercase tracking-normal text-slate-600;
+}
+
+.tool-timeline-status {
+  @apply shrink-0 rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[0.68rem] leading-4 font-medium text-slate-600;
+}
+
+.tool-timeline-card[data-tone='success'] .tool-timeline-status {
+  @apply border-emerald-200 bg-emerald-100 text-emerald-800;
+}
+
+.tool-timeline-card[data-tone='danger'] .tool-timeline-status {
+  @apply border-rose-200 bg-rose-100 text-rose-800;
+}
+
+.tool-timeline-card[data-tone='working'] .tool-timeline-status {
+  @apply border-blue-200 bg-blue-100 text-blue-800;
+}
+
+.tool-timeline-summary {
+  @apply mt-1 mb-0 max-w-full whitespace-pre-wrap break-words font-mono text-xs leading-5 text-slate-900;
+}
+
+.tool-timeline-detail-list {
+  @apply mt-2 mb-0 grid list-none gap-1 p-0;
+}
+
+.tool-timeline-detail {
+  @apply m-0 min-w-0 truncate font-mono text-xs leading-4 text-slate-600;
+}
+
+.tool-timeline-output {
+  @apply mt-2 border-t border-slate-200 pt-2;
+}
+
+.tool-timeline-output-label {
+  @apply mt-0 mb-1 text-xs font-medium text-slate-500;
+}
+
+.tool-timeline-output-block {
+  @apply m-0 max-h-80 overflow-auto rounded-md border border-slate-200 bg-white px-2 py-1.5 text-xs leading-5 text-slate-800;
+}
+
+.tool-timeline-output-block code {
+  @apply whitespace-pre font-mono;
 }
 
 .message-card {
