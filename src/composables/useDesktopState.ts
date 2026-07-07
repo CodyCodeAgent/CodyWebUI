@@ -265,6 +265,10 @@ export function useDesktopState() {
     }
   }
 
+  function clearError(): void {
+    error.value = ''
+  }
+
   function setSelectedModelId(modelId: string): void {
     selectedModelId.value = modelId.trim()
   }
@@ -1600,6 +1604,7 @@ export function useDesktopState() {
     isAutoRefreshEnabled,
     autoRefreshSecondsLeft,
     error,
+    clearError,
     refreshAll,
     refreshRateLimits,
     selectThread,

@@ -278,6 +278,25 @@ describe('useDesktopState realtime messages', () => {
       null,
     )
   })
+
+  it('surfaces and clears new thread creation failures', async () => {
+    installBrowserGlobals()
+    codexGatewayMock.startThread.mockRejectedValue(new Error('start failed'))
+
+    const state = useDesktopState()
+
+    await expect(state.sendMessageToNewThread({
+      text: 'create this thread',
+      images: [],
+      skills: [],
+    }, '/repo')).rejects.toThrow('start failed')
+
+    expect(state.error.value).toBe('start failed')
+
+    state.clearError()
+
+    expect(state.error.value).toBe('')
+  })
 })
 
 describe('buildRollbackAuditMessage', () => {

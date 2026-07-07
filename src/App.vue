@@ -142,6 +142,13 @@
           @refresh="refreshRateLimits"
         />
 
+        <div v-if="desktopError" class="content-error" role="alert">
+          <span class="content-error-text">{{ desktopError }}</span>
+          <button class="content-error-dismiss" type="button" aria-label="Dismiss error" @click="clearError">
+            <IconTablerX class="content-error-dismiss-icon" />
+          </button>
+        </div>
+
         <section class="content-body">
           <template v-if="isHomeRoute">
             <div class="content-grid new-thread-grid">
@@ -298,6 +305,8 @@ const {
   isLoadingRateLimits,
   isAutoRefreshEnabled,
   autoRefreshSecondsLeft,
+  error: desktopError,
+  clearError,
   refreshAll,
   refreshRateLimits,
   selectThread,
@@ -800,7 +809,9 @@ async function submitFirstMessageForNewThread(payload: UiComposerSubmitPayload):
     if (!threadId) return
     pendingNewThreadName.value = ''
     if (threadName) {
-      await renameThreadById(threadId, threadName)
+      void renameThreadById(threadId, threadName).catch(() => {
+        // Rename errors are already reflected in desktop state; keep the new thread visible.
+      })
     }
     await router.replace({ name: 'thread', params: { threadId } })
   } catch {
@@ -874,7 +885,19 @@ async function submitFirstMessageForNewThread(payload: UiComposerSubmitPayload):
 }
 
 .content-error {
-  @apply m-0 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700;
+  @apply mx-0 mt-1 flex shrink-0 items-start gap-2 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700;
+}
+
+.content-error-text {
+  @apply min-w-0 flex-1;
+}
+
+.content-error-dismiss {
+  @apply -mr-1 flex h-5 w-5 shrink-0 items-center justify-center rounded text-rose-500 transition hover:bg-rose-100 hover:text-rose-800;
+}
+
+.content-error-dismiss-icon {
+  @apply h-3.5 w-3.5;
 }
 
 .content-grid {
