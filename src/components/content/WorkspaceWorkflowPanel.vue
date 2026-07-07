@@ -431,8 +431,28 @@ import {
   runWorkspaceWorkflowValidation,
   updateWorkspaceWorkflowAgentStatus,
 } from '../../api/codexWorkflowClient'
+import {
+  canApplyWorkflowImplementation as canApplyImplementation,
+  canBlockWorkflowAgent as canBlockAgent,
+  canCompleteWorkflowAgent as canCompleteAgent,
+  canDiscardWorkflowImplementation as canDiscardImplementation,
+  canMarkMerged,
+  canMarkReadyToMerge,
+  canSkipWorkflowAgent as canSkipAgent,
+  canStartWorkflowAgent as canStartAgent,
+  formatWorkflowStatus as formatStatus,
+  formatWorkflowTime as formatTime,
+  hasWorkflowImplementationActions as hasImplementationActions,
+  runnableValidationOptions,
+  workflowAgentKey as agentKey,
+  workflowImplementationApplyLabel,
+  workflowImplementationDiscardLabel,
+  workflowImplementationOptions as implementationOptions,
+  workflowImplementationOptionsSummary as implementationOptionsSummary,
+  workflowValidationKey as validationKey,
+  workflowWorktreeLabel as worktreeLabel,
+} from '../../composables/workspaceWorkflowRules'
 import type {
-  UiWorkflowAgentStep,
   UiWorkflowDeliveryDraft,
   UiWorkflowImplementationOption,
   UiWorkflowReplay,
@@ -472,11 +492,6 @@ const deliveryErrors = ref<Record<string, string>>({})
 const validationResults = ref<Record<string, { command: string; status: string }>>({})
 const errorMessage = ref('')
 
-type WorkflowValidationOption = {
-  scriptName: string
-  command: string
-}
-
 const selectedTemplate = computed(() =>
   templates.value.find((template) => template.id === selectedTemplateId.value) ?? templates.value[0] ?? null
 )
@@ -485,20 +500,6 @@ const summaryText = computed(() => {
   if (runs.value.length === 0) return `${String(templates.value.length)} templates ready for supervised agent work.`
   return `${String(runs.value.length)} run${runs.value.length === 1 ? '' : 's'} · ${String(templates.value.length)} templates`
 })
-
-function formatTime(value: string): string {
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return value
-  return date.toLocaleString()
-}
-
-function formatStatus(value: string): string {
-  return value.replace(/_/gu, ' ')
-}
-
-function agentKey(runId: string, agentId: string): string {
-  return `${runId}:${agentId}`
-}
 
 function isUpdatingAgent(runId: string, agentId: string): boolean {
   return updatingAgentKey.value === agentKey(runId, agentId)
@@ -514,10 +515,6 @@ function isApplyingImplementation(runId: string, agentId: string): boolean {
 
 function isDiscardingImplementation(runId: string, agentId: string): boolean {
   return discardingImplementationKey.value === agentKey(runId, agentId)
-}
-
-function validationKey(runId: string, scriptName: string): string {
-  return `${runId}:${scriptName}`
 }
 
 function isRunningValidation(runId: string, scriptName: string): boolean {
@@ -546,103 +543,12 @@ function deliveryButtonLabel(runId: string): string {
   return deliveryDraftsByRunId.value[runId] ? 'Refresh delivery' : 'Delivery'
 }
 
-function workflowAcceptanceGreen(run: UiWorkflowRun): boolean {
-  return run.acceptance?.status === 'accepted' || run.acceptance?.status === 'ready_for_review'
-}
-
-function canMarkReadyToMerge(run: UiWorkflowRun): boolean {
-  return workflowAcceptanceGreen(run) && run.status !== 'ready_to_merge' && run.status !== 'merged'
-}
-
-function canMarkMerged(run: UiWorkflowRun): boolean {
-  return (workflowAcceptanceGreen(run) || run.status === 'ready_to_merge') && run.status !== 'merged'
-}
-
-function worktreeLabel(agent: UiWorkflowAgentStep): string {
-  if (agent.worktreeStatus === 'ready') return 'ready'
-  if (agent.worktreeStatus === 'failed') return 'failed'
-  if (agent.worktreePolicy === 'not-needed') return 'not needed'
-  return agent.worktreePolicy
-}
-
-function canStartAgent(status: UiWorkflowStepStatus): boolean {
-  return status === 'ready'
-}
-
-function canCompleteAgent(status: UiWorkflowStepStatus): boolean {
-  return status === 'ready' || status === 'running' || status === 'blocked'
-}
-
-function canBlockAgent(status: UiWorkflowStepStatus): boolean {
-  return status === 'ready' || status === 'running'
-}
-
-function canSkipAgent(status: UiWorkflowStepStatus): boolean {
-  return status === 'queued' || status === 'ready' || status === 'running' || status === 'blocked'
-}
-
-function isRunnableValidationScriptName(scriptName: string): boolean {
-  return /(^|[:_-])(test|spec|lint|typecheck|type-check|build)($|[:_-])/iu.test(scriptName) &&
-    !/(^|[:_-])(dev|preview|serve|start)($|[:_-])/iu.test(scriptName)
-}
-
-function runnableValidationOptions(run: UiWorkflowRun): WorkflowValidationOption[] {
-  const options: WorkflowValidationOption[] = []
-  const seen = new Set<string>()
-  for (const item of run.validationPlan) {
-    const match = item.match(/^([A-Za-z0-9:_-]+):\s+(.+)$/u)
-    const scriptName = match?.[1]?.trim() ?? ''
-    const command = match?.[2]?.trim() ?? ''
-    if (!scriptName || !command || seen.has(scriptName) || !isRunnableValidationScriptName(scriptName)) continue
-    seen.add(scriptName)
-    options.push({ scriptName, command })
-  }
-  return options
-}
-
-function implementationOptions(run: UiWorkflowRun): UiWorkflowImplementationOption[] {
-  return run.implementationOptions ?? []
-}
-
-function implementationOptionsSummary(run: UiWorkflowRun): string {
-  const options = implementationOptions(run)
-  const readyCount = options.filter((option) => option.comparisonStatus === 'ready_to_merge').length
-  const blockedCount = options.filter((option) =>
-    option.comparisonStatus === 'pending_worktree' ||
-    option.comparisonStatus === 'validation_missing' ||
-    option.comparisonStatus === 'validation_failed'
-  ).length
-  return `${String(options.length)} option${options.length === 1 ? '' : 's'} · ${String(readyCount)} ready · ${String(blockedCount)} gated`
-}
-
-function canApplyImplementation(run: UiWorkflowRun, option: UiWorkflowImplementationOption): boolean {
-  return option.comparisonStatus === 'ready_to_merge' && !run.appliedImplementation
-}
-
-function canDiscardImplementation(run: UiWorkflowRun, option: UiWorkflowImplementationOption): boolean {
-  return option.comparisonStatus !== 'discarded' &&
-    run.appliedImplementation?.agentId !== option.agentId
-}
-
-function hasImplementationActions(run: UiWorkflowRun, option: UiWorkflowImplementationOption): boolean {
-  return option.comparisonStatus === 'ready_to_merge' ||
-    option.comparisonStatus === 'discarded' ||
-    run.appliedImplementation?.agentId === option.agentId ||
-    canDiscardImplementation(run, option)
-}
-
 function implementationApplyLabel(run: UiWorkflowRun, option: UiWorkflowImplementationOption): string {
-  if (isApplyingImplementation(run.id, option.agentId)) return 'Applying'
-  if (run.appliedImplementation?.agentId === option.agentId) return 'Applied'
-  if (run.appliedImplementation) return 'Apply locked'
-  return 'Apply option'
+  return workflowImplementationApplyLabel(run, option, isApplyingImplementation(run.id, option.agentId))
 }
 
 function implementationDiscardLabel(run: UiWorkflowRun, option: UiWorkflowImplementationOption): string {
-  if (isDiscardingImplementation(run.id, option.agentId)) return 'Discarding'
-  if (option.comparisonStatus === 'discarded') return 'Discarded'
-  if (run.appliedImplementation?.agentId === option.agentId) return 'Applied'
-  return 'Discard option'
+  return workflowImplementationDiscardLabel(run, option, isDiscardingImplementation(run.id, option.agentId))
 }
 
 function replaceRun(run: UiWorkflowRun): void {
