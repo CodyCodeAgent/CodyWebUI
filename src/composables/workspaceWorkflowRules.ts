@@ -1,6 +1,8 @@
 import type {
   UiWorkflowAgentStep,
+  UiWorkflowDeliveryDraft,
   UiWorkflowImplementationOption,
+  UiWorkflowReplay,
   UiWorkflowRun,
   UiWorkflowStepStatus,
 } from '../types/codex'
@@ -8,6 +10,23 @@ import type {
 export type WorkflowValidationOption = {
   scriptName: string
   command: string
+}
+
+export type WorkflowValidationResultSummary = {
+  command: string
+  status: string
+}
+
+export type EmptyWorkflowPanelState = {
+  runs: UiWorkflowRun[]
+  selectedTemplateId: string
+  expandedReplayRunId: string
+  replaysByRunId: Record<string, UiWorkflowReplay>
+  replayErrors: Record<string, string>
+  deliveryDraftsByRunId: Record<string, UiWorkflowDeliveryDraft>
+  deliveryErrors: Record<string, string>
+  validationResults: Record<string, WorkflowValidationResultSummary>
+  errorMessage: string
 }
 
 export function formatWorkflowTime(value: string): string {
@@ -176,4 +195,58 @@ export function workflowImplementationDiscardLabel(
   if (option.comparisonStatus === 'discarded') return 'Discarded'
   if (run.appliedImplementation?.agentId === option.agentId) return 'Applied'
   return 'Discard option'
+}
+
+export function replaceWorkflowRun(runs: UiWorkflowRun[], run: UiWorkflowRun): UiWorkflowRun[] {
+  return runs.map((candidate) => candidate.id === run.id ? run : candidate)
+}
+
+export function prependWorkflowRun(runs: UiWorkflowRun[], run: UiWorkflowRun, limit: number): UiWorkflowRun[] {
+  return [run, ...runs.filter((candidate) => candidate.id !== run.id)].slice(0, Math.max(limit, 0))
+}
+
+export function setWorkflowReplayForRun(
+  replaysByRunId: Record<string, UiWorkflowReplay>,
+  runId: string,
+  replay: UiWorkflowReplay,
+): Record<string, UiWorkflowReplay> {
+  return { ...replaysByRunId, [runId]: replay }
+}
+
+export function setWorkflowDeliveryDraftForRun(
+  draftsByRunId: Record<string, UiWorkflowDeliveryDraft>,
+  runId: string,
+  draft: UiWorkflowDeliveryDraft,
+): Record<string, UiWorkflowDeliveryDraft> {
+  return { ...draftsByRunId, [runId]: draft }
+}
+
+export function setWorkflowRunError(
+  errorsByRunId: Record<string, string>,
+  runId: string,
+  message: string,
+): Record<string, string> {
+  return { ...errorsByRunId, [runId]: message }
+}
+
+export function setWorkflowValidationResult(
+  resultsByRunId: Record<string, WorkflowValidationResultSummary>,
+  runId: string,
+  result: WorkflowValidationResultSummary,
+): Record<string, WorkflowValidationResultSummary> {
+  return { ...resultsByRunId, [runId]: result }
+}
+
+export function emptyWorkflowPanelState(): EmptyWorkflowPanelState {
+  return {
+    runs: [],
+    selectedTemplateId: '',
+    expandedReplayRunId: '',
+    replaysByRunId: {},
+    replayErrors: {},
+    deliveryDraftsByRunId: {},
+    deliveryErrors: {},
+    validationResults: {},
+    errorMessage: '',
+  }
 }

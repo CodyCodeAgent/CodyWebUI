@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import type {
   UiWorkflowAgentStep,
+  UiWorkflowDeliveryDraft,
   UiWorkflowImplementationOption,
+  UiWorkflowReplay,
   UiWorkflowRun,
 } from '../types/codex'
 import {
@@ -13,10 +15,17 @@ import {
   canMarkReadyToMerge,
   canSkipWorkflowAgent,
   canStartWorkflowAgent,
+  emptyWorkflowPanelState,
   formatWorkflowStatus,
   hasWorkflowImplementationActions,
   isRunnableValidationScriptName,
+  prependWorkflowRun,
   runnableValidationOptions,
+  replaceWorkflowRun,
+  setWorkflowDeliveryDraftForRun,
+  setWorkflowReplayForRun,
+  setWorkflowRunError,
+  setWorkflowValidationResult,
   workflowAcceptanceGreen,
   workflowAgentKey,
   workflowDeliveryButtonLabel,
@@ -220,5 +229,92 @@ describe('workspace workflow rules', () => {
     expect(canApplyWorkflowImplementation(appliedRun, readyOption)).toBe(false)
     expect(workflowImplementationApplyLabel(appliedRun, option({ agentId: 'agent-2' }), false)).toBe('Apply locked')
     expect(workflowImplementationDiscardLabel(appliedRun, readyOption, false)).toBe('Applied')
+  })
+
+  it('updates workflow panel state maps immutably', () => {
+    const first = run({ id: 'run-1', goal: 'First' })
+    const second = run({ id: 'run-2', goal: 'Second' })
+    const updatedSecond = run({ id: 'run-2', goal: 'Updated' })
+
+    expect(replaceWorkflowRun([first, second], updatedSecond)).toEqual([first, updatedSecond])
+    expect(prependWorkflowRun([first, second], updatedSecond, 2)).toEqual([updatedSecond, first])
+    expect(prependWorkflowRun([first], run({ id: 'run-3' }), 0)).toEqual([])
+
+    const replay: UiWorkflowReplay = {
+      cwd: '/repo',
+      repoRoot: '/repo',
+      generatedAtIso: '2026-07-07T00:00:00.000Z',
+      run: first,
+      events: [],
+      agentSnapshots: [],
+      validationEvidence: {
+        totalRuns: 0,
+        matchedRuns: 0,
+        latestStatus: null,
+        latestCommand: null,
+        latestEndedAtIso: null,
+      },
+      evidenceSummary: [],
+    }
+    expect(setWorkflowReplayForRun({}, 'run-1', replay)).toEqual({ 'run-1': replay })
+
+    const draft: UiWorkflowDeliveryDraft = {
+      cwd: '/repo',
+      repoRoot: '/repo',
+      generatedAtIso: '2026-07-07T00:00:00.000Z',
+      runId: 'run-1',
+      templateName: 'Default',
+      goal: 'Ship',
+      status: 'running',
+      title: 'Title',
+      body: 'Body',
+      commitMessage: 'Commit',
+      reviewDraft: {
+        cwd: '/repo',
+        repoRoot: '/repo',
+        branch: 'feature',
+        upstream: 'origin/feature',
+        generatedAtIso: '2026-07-07T00:00:00.000Z',
+        hasStagedChanges: false,
+        fileCount: 0,
+        insertions: 0,
+        deletions: 0,
+        stat: '',
+        commitMessage: 'Commit',
+        prBody: 'Review',
+        riskSummary: [],
+        validationPlan: [],
+        source: 'workspace_diff',
+        hasReviewChanges: false,
+        files: [],
+        untrackedFiles: [],
+        warnings: [],
+      },
+      acceptance: null,
+      appliedImplementation: null,
+      discardedImplementations: [],
+      validationEvidence: replay.validationEvidence,
+      riskSummary: [],
+      warnings: [],
+    }
+    expect(setWorkflowDeliveryDraftForRun({}, 'run-1', draft)).toEqual({ 'run-1': draft })
+    expect(setWorkflowRunError({ existing: 'keep' }, 'run-1', 'failed')).toEqual({
+      existing: 'keep',
+      'run-1': 'failed',
+    })
+    expect(setWorkflowValidationResult({}, 'run-1', { command: 'npm test', status: 'passed' })).toEqual({
+      'run-1': { command: 'npm test', status: 'passed' },
+    })
+    expect(emptyWorkflowPanelState()).toMatchObject({
+      runs: [],
+      selectedTemplateId: '',
+      expandedReplayRunId: '',
+      replaysByRunId: {},
+      replayErrors: {},
+      deliveryDraftsByRunId: {},
+      deliveryErrors: {},
+      validationResults: {},
+      errorMessage: '',
+    })
   })
 })

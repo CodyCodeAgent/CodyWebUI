@@ -440,6 +440,7 @@ import {
   canMarkReadyToMerge,
   canSkipWorkflowAgent as canSkipAgent,
   canStartWorkflowAgent as canStartAgent,
+  emptyWorkflowPanelState,
   formatWorkflowStatus as formatStatus,
   formatWorkflowTime as formatTime,
   hasWorkflowImplementationActions as hasImplementationActions,
@@ -453,9 +454,16 @@ import {
   workflowImplementationDiscardLabel,
   workflowImplementationOptions as implementationOptions,
   workflowImplementationOptionsSummary as implementationOptionsSummary,
+  prependWorkflowRun,
+  replaceWorkflowRun,
+  setWorkflowDeliveryDraftForRun,
+  setWorkflowReplayForRun,
+  setWorkflowRunError,
+  setWorkflowValidationResult,
   workflowReplayButtonLabel,
   workflowValidationKey as validationKey,
   workflowWorktreeLabel as worktreeLabel,
+  type WorkflowValidationResultSummary,
 } from '../../composables/workspaceWorkflowRules'
 import type {
   UiWorkflowDeliveryDraft,
@@ -494,7 +502,7 @@ const replaysByRunId = ref<Record<string, UiWorkflowReplay>>({})
 const replayErrors = ref<Record<string, string>>({})
 const deliveryDraftsByRunId = ref<Record<string, UiWorkflowDeliveryDraft>>({})
 const deliveryErrors = ref<Record<string, string>>({})
-const validationResults = ref<Record<string, { command: string; status: string }>>({})
+const validationResults = ref<Record<string, WorkflowValidationResultSummary>>({})
 const errorMessage = ref('')
 
 const selectedTemplate = computed(() =>
@@ -561,7 +569,7 @@ function implementationDiscardLabel(run: UiWorkflowRun, option: UiWorkflowImplem
 }
 
 function replaceRun(run: UiWorkflowRun): void {
-  runs.value = runs.value.map((candidate) => candidate.id === run.id ? run : candidate)
+  runs.value = replaceWorkflowRun(runs.value, run)
 }
 
 async function updateAgentStatus(
@@ -649,15 +657,16 @@ async function toggleWorkflowReplay(runId: string): Promise<void> {
   if (!cwd) return
 
   loadingReplayRunId.value = runId
-  replayErrors.value = { ...replayErrors.value, [runId]: '' }
+  replayErrors.value = setWorkflowRunError(replayErrors.value, runId, '')
   try {
     const replay = await fetchWorkspaceWorkflowReplay(cwd, runId)
-    replaysByRunId.value = { ...replaysByRunId.value, [runId]: replay }
+    replaysByRunId.value = setWorkflowReplayForRun(replaysByRunId.value, runId, replay)
   } catch (error) {
-    replayErrors.value = {
-      ...replayErrors.value,
-      [runId]: error instanceof Error ? error.message : 'Failed to load workflow replay.',
-    }
+    replayErrors.value = setWorkflowRunError(
+      replayErrors.value,
+      runId,
+      error instanceof Error ? error.message : 'Failed to load workflow replay.',
+    )
   } finally {
     loadingReplayRunId.value = ''
   }
@@ -668,15 +677,16 @@ async function loadWorkflowDeliveryDraft(runId: string): Promise<void> {
   if (!cwd) return
 
   loadingDeliveryRunId.value = runId
-  deliveryErrors.value = { ...deliveryErrors.value, [runId]: '' }
+  deliveryErrors.value = setWorkflowRunError(deliveryErrors.value, runId, '')
   try {
     const draft = await fetchWorkspaceWorkflowDeliveryDraft(cwd, runId)
-    deliveryDraftsByRunId.value = { ...deliveryDraftsByRunId.value, [runId]: draft }
+    deliveryDraftsByRunId.value = setWorkflowDeliveryDraftForRun(deliveryDraftsByRunId.value, runId, draft)
   } catch (error) {
-    deliveryErrors.value = {
-      ...deliveryErrors.value,
-      [runId]: error instanceof Error ? error.message : 'Failed to generate workflow delivery draft.',
-    }
+    deliveryErrors.value = setWorkflowRunError(
+      deliveryErrors.value,
+      runId,
+      error instanceof Error ? error.message : 'Failed to generate workflow delivery draft.',
+    )
   } finally {
     loadingDeliveryRunId.value = ''
   }
@@ -725,14 +735,15 @@ async function runWorkflowValidation(runId: string, scriptName: string): Promise
   try {
     const result = await runWorkspaceWorkflowValidation(cwd, runId, scriptName)
     replaceRun(result.run)
-    replaysByRunId.value = { ...replaysByRunId.value, [runId]: result.replay }
-    validationResults.value = {
-      ...validationResults.value,
-      [runId]: {
+    replaysByRunId.value = setWorkflowReplayForRun(replaysByRunId.value, runId, result.replay)
+    validationResults.value = setWorkflowValidationResult(
+      validationResults.value,
+      runId,
+      {
         command: result.validationRun.command,
         status: result.validationRun.status,
       },
-    }
+    )
     emit('changed')
   } catch (error) {
     errorMessage.value = error instanceof Error ? error.message : `Failed to run ${scriptName}.`
@@ -744,16 +755,17 @@ async function runWorkflowValidation(runId: string, scriptName: string): Promise
 async function loadWorkflows(): Promise<void> {
   const cwd = props.cwd.trim()
   if (!cwd) {
+    const emptyState = emptyWorkflowPanelState()
     templates.value = []
-    runs.value = []
-    selectedTemplateId.value = ''
-    expandedReplayRunId.value = ''
-    replaysByRunId.value = {}
-    replayErrors.value = {}
-    deliveryDraftsByRunId.value = {}
-    deliveryErrors.value = {}
-    validationResults.value = {}
-    errorMessage.value = ''
+    runs.value = emptyState.runs
+    selectedTemplateId.value = emptyState.selectedTemplateId
+    expandedReplayRunId.value = emptyState.expandedReplayRunId
+    replaysByRunId.value = emptyState.replaysByRunId
+    replayErrors.value = emptyState.replayErrors
+    deliveryDraftsByRunId.value = emptyState.deliveryDraftsByRunId
+    deliveryErrors.value = emptyState.deliveryErrors
+    validationResults.value = emptyState.validationResults
+    errorMessage.value = emptyState.errorMessage
     return
   }
 
@@ -786,7 +798,7 @@ async function createRun(): Promise<void> {
   errorMessage.value = ''
   try {
     const run = await createWorkspaceWorkflowRun(cwd, templateId, goal)
-    runs.value = [run, ...runs.value.filter((candidate) => candidate.id !== run.id)].slice(0, 12)
+    runs.value = prependWorkflowRun(runs.value, run, 12)
     goalDraft.value = ''
     emit('changed')
   } catch (error) {
