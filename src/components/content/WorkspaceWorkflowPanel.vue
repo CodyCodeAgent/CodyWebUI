@@ -443,12 +443,17 @@ import {
   formatWorkflowStatus as formatStatus,
   formatWorkflowTime as formatTime,
   hasWorkflowImplementationActions as hasImplementationActions,
+  isWorkflowKeyPending,
   runnableValidationOptions,
+  workspaceWorkflowSummary,
   workflowAgentKey as agentKey,
+  workflowDeliveryButtonLabel,
+  workflowDeliveryKey,
   workflowImplementationApplyLabel,
   workflowImplementationDiscardLabel,
   workflowImplementationOptions as implementationOptions,
   workflowImplementationOptionsSummary as implementationOptionsSummary,
+  workflowReplayButtonLabel,
   workflowValidationKey as validationKey,
   workflowWorktreeLabel as worktreeLabel,
 } from '../../composables/workspaceWorkflowRules'
@@ -495,30 +500,30 @@ const errorMessage = ref('')
 const selectedTemplate = computed(() =>
   templates.value.find((template) => template.id === selectedTemplateId.value) ?? templates.value[0] ?? null
 )
-const summaryText = computed(() => {
-  if (isLoading.value) return 'Loading workflow templates and runs.'
-  if (runs.value.length === 0) return `${String(templates.value.length)} templates ready for supervised agent work.`
-  return `${String(runs.value.length)} run${runs.value.length === 1 ? '' : 's'} · ${String(templates.value.length)} templates`
-})
+const summaryText = computed(() => workspaceWorkflowSummary({
+  isLoading: isLoading.value,
+  runCount: runs.value.length,
+  templateCount: templates.value.length,
+}))
 
 function isUpdatingAgent(runId: string, agentId: string): boolean {
-  return updatingAgentKey.value === agentKey(runId, agentId)
+  return isWorkflowKeyPending(updatingAgentKey.value, agentKey(runId, agentId))
 }
 
 function isProvisioningAgent(runId: string, agentId: string): boolean {
-  return provisioningAgentKey.value === agentKey(runId, agentId)
+  return isWorkflowKeyPending(provisioningAgentKey.value, agentKey(runId, agentId))
 }
 
 function isApplyingImplementation(runId: string, agentId: string): boolean {
-  return applyingImplementationKey.value === agentKey(runId, agentId)
+  return isWorkflowKeyPending(applyingImplementationKey.value, agentKey(runId, agentId))
 }
 
 function isDiscardingImplementation(runId: string, agentId: string): boolean {
-  return discardingImplementationKey.value === agentKey(runId, agentId)
+  return isWorkflowKeyPending(discardingImplementationKey.value, agentKey(runId, agentId))
 }
 
 function isRunningValidation(runId: string, scriptName: string): boolean {
-  return runningValidationKey.value === validationKey(runId, scriptName)
+  return isWorkflowKeyPending(runningValidationKey.value, validationKey(runId, scriptName))
 }
 
 function isLoadingReplay(runId: string): boolean {
@@ -530,17 +535,21 @@ function isLoadingDelivery(runId: string): boolean {
 }
 
 function isUpdatingDelivery(runId: string, action: 'ready' | 'merged'): boolean {
-  return updatingDeliveryKey.value === `${runId}:${action}`
+  return isWorkflowKeyPending(updatingDeliveryKey.value, workflowDeliveryKey(runId, action))
 }
 
 function replayButtonLabel(runId: string): string {
-  if (isLoadingReplay(runId)) return 'Loading'
-  return expandedReplayRunId.value === runId ? 'Hide replay' : 'Replay'
+  return workflowReplayButtonLabel({
+    isLoading: isLoadingReplay(runId),
+    isExpanded: expandedReplayRunId.value === runId,
+  })
 }
 
 function deliveryButtonLabel(runId: string): string {
-  if (isLoadingDelivery(runId)) return 'Generating'
-  return deliveryDraftsByRunId.value[runId] ? 'Refresh delivery' : 'Delivery'
+  return workflowDeliveryButtonLabel({
+    isLoading: isLoadingDelivery(runId),
+    hasDraft: Boolean(deliveryDraftsByRunId.value[runId]),
+  })
 }
 
 function implementationApplyLabel(run: UiWorkflowRun, option: UiWorkflowImplementationOption): string {
@@ -677,7 +686,7 @@ async function markReadyToMerge(runId: string): Promise<void> {
   const cwd = props.cwd.trim()
   if (!cwd) return
 
-  updatingDeliveryKey.value = `${runId}:ready`
+  updatingDeliveryKey.value = workflowDeliveryKey(runId, 'ready')
   errorMessage.value = ''
   try {
     const result = await markWorkspaceWorkflowReadyToMerge(cwd, runId)
@@ -694,7 +703,7 @@ async function markMerged(runId: string): Promise<void> {
   const cwd = props.cwd.trim()
   if (!cwd) return
 
-  updatingDeliveryKey.value = `${runId}:merged`
+  updatingDeliveryKey.value = workflowDeliveryKey(runId, 'merged')
   errorMessage.value = ''
   try {
     const result = await markWorkspaceWorkflowMerged({ cwd, runId })

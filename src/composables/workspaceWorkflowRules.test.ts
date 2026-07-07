@@ -19,11 +19,16 @@ import {
   runnableValidationOptions,
   workflowAcceptanceGreen,
   workflowAgentKey,
+  workflowDeliveryButtonLabel,
+  workflowDeliveryKey,
   workflowImplementationApplyLabel,
   workflowImplementationDiscardLabel,
   workflowImplementationOptionsSummary,
+  workflowReplayButtonLabel,
   workflowValidationKey,
   workflowWorktreeLabel,
+  isWorkflowKeyPending,
+  workspaceWorkflowSummary,
 } from './workspaceWorkflowRules'
 
 function run(overrides: Partial<UiWorkflowRun> = {}): UiWorkflowRun {
@@ -98,7 +103,36 @@ describe('workspace workflow rules', () => {
   it('formats keys and simple status labels', () => {
     expect(workflowAgentKey('run-1', 'agent-1')).toBe('run-1:agent-1')
     expect(workflowValidationKey('run-1', 'test')).toBe('run-1:test')
+    expect(workflowDeliveryKey('run-1', 'ready')).toBe('run-1:ready')
+    expect(isWorkflowKeyPending('run-1:ready', workflowDeliveryKey('run-1', 'ready'))).toBe(true)
     expect(formatWorkflowStatus('ready_to_merge')).toBe('ready to merge')
+  })
+
+  it('summarizes workflow panel and button state', () => {
+    expect(workspaceWorkflowSummary({
+      isLoading: true,
+      runCount: 0,
+      templateCount: 2,
+    })).toBe('Loading workflow templates and runs.')
+    expect(workspaceWorkflowSummary({
+      isLoading: false,
+      runCount: 0,
+      templateCount: 2,
+    })).toBe('2 templates ready for supervised agent work.')
+    expect(workspaceWorkflowSummary({
+      isLoading: false,
+      runCount: 1,
+      templateCount: 2,
+    })).toBe('1 run · 2 templates')
+    expect(workspaceWorkflowSummary({
+      isLoading: false,
+      runCount: 3,
+      templateCount: 2,
+    })).toBe('3 runs · 2 templates')
+    expect(workflowReplayButtonLabel({ isLoading: true, isExpanded: false })).toBe('Loading')
+    expect(workflowReplayButtonLabel({ isLoading: false, isExpanded: true })).toBe('Hide replay')
+    expect(workflowDeliveryButtonLabel({ isLoading: true, hasDraft: false })).toBe('Generating')
+    expect(workflowDeliveryButtonLabel({ isLoading: false, hasDraft: true })).toBe('Refresh delivery')
   })
 
   it('evaluates delivery readiness from acceptance state', () => {

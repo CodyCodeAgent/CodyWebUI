@@ -28,6 +28,40 @@ export function workflowValidationKey(runId: string, scriptName: string): string
   return `${runId}:${scriptName}`
 }
 
+export function workflowDeliveryKey(runId: string, action: 'ready' | 'merged'): string {
+  return `${runId}:${action}`
+}
+
+export function isWorkflowKeyPending(currentKey: string, expectedKey: string): boolean {
+  return currentKey === expectedKey
+}
+
+export function workspaceWorkflowSummary(input: {
+  isLoading: boolean
+  runCount: number
+  templateCount: number
+}): string {
+  if (input.isLoading) return 'Loading workflow templates and runs.'
+  if (input.runCount === 0) return `${String(input.templateCount)} templates ready for supervised agent work.`
+  return `${String(input.runCount)} run${input.runCount === 1 ? '' : 's'} · ${String(input.templateCount)} templates`
+}
+
+export function workflowReplayButtonLabel(input: {
+  isLoading: boolean
+  isExpanded: boolean
+}): string {
+  if (input.isLoading) return 'Loading'
+  return input.isExpanded ? 'Hide replay' : 'Replay'
+}
+
+export function workflowDeliveryButtonLabel(input: {
+  isLoading: boolean
+  hasDraft: boolean
+}): string {
+  if (input.isLoading) return 'Generating'
+  return input.hasDraft ? 'Refresh delivery' : 'Delivery'
+}
+
 export function workflowAcceptanceGreen(run: UiWorkflowRun): boolean {
   return run.acceptance?.status === 'accepted' || run.acceptance?.status === 'ready_for_review'
 }
