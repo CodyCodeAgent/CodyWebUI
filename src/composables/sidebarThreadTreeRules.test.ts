@@ -5,6 +5,7 @@ import {
   buildSidebarLayoutProjectOrder,
   buildSidebarLayoutTopByProject,
   buildSidebarPinnedThreads,
+  closedSidebarThreadMenuState,
   filterSidebarGroupsBySearch,
   formatSidebarRelativeTime,
   hasSidebarHiddenThreads,
@@ -20,8 +21,14 @@ import {
   sidebarProjectedDropProjectIndex,
   sidebarProjectThreads,
   sidebarProjectTitleText,
+  sidebarArchiveThreadClickResult,
   sidebarThreadState,
+  sidebarThreadRenameResult,
   threadMatchesSidebarSearch,
+  toggleSidebarPinnedThreadIds,
+  toggleSidebarProjectCollapseState,
+  toggleSidebarProjectExpansionState,
+  toggleSidebarThreadMenuState,
   visibleSidebarThreads,
 } from './sidebarThreadTreeRules'
 
@@ -147,6 +154,85 @@ describe('sidebar thread tree rules', () => {
     expect(sidebarThreadState(thread())).toBe('idle')
     expect(sidebarThreadState(thread({ unread: true }))).toBe('unread')
     expect(sidebarThreadState(thread({ unread: true, inProgress: true }))).toBe('working')
+  })
+
+  it('updates pinned thread and thread menu state', () => {
+    expect(toggleSidebarPinnedThreadIds([], 'thread-1')).toEqual(['thread-1'])
+    expect(toggleSidebarPinnedThreadIds(['thread-1', 'thread-2'], 'thread-1')).toEqual(['thread-2'])
+    expect(toggleSidebarPinnedThreadIds(['thread-1'], '')).toEqual(['thread-1'])
+
+    expect(closedSidebarThreadMenuState()).toEqual({
+      openThreadMenuId: '',
+      archiveConfirmThreadId: '',
+    })
+    expect(toggleSidebarThreadMenuState({
+      openThreadMenuId: '',
+      archiveConfirmThreadId: 'old',
+    }, 'thread-1')).toEqual({
+      openThreadMenuId: 'thread-1',
+      archiveConfirmThreadId: '',
+    })
+    expect(toggleSidebarThreadMenuState({
+      openThreadMenuId: 'thread-1',
+      archiveConfirmThreadId: 'thread-1',
+    }, 'thread-1')).toEqual(closedSidebarThreadMenuState())
+  })
+
+  it('handles archive confirmation and thread rename drafts', () => {
+    const firstArchiveClick = sidebarArchiveThreadClickResult(
+      { openThreadMenuId: 'thread-1', archiveConfirmThreadId: '' },
+      ['thread-1'],
+      'thread-1',
+    )
+    expect(firstArchiveClick).toEqual({
+      menuState: { openThreadMenuId: 'thread-1', archiveConfirmThreadId: 'thread-1' },
+      pinnedThreadIds: ['thread-1'],
+      shouldArchive: false,
+    })
+
+    const secondArchiveClick = sidebarArchiveThreadClickResult(
+      firstArchiveClick.menuState,
+      firstArchiveClick.pinnedThreadIds,
+      'thread-1',
+    )
+    expect(secondArchiveClick).toEqual({
+      menuState: closedSidebarThreadMenuState(),
+      pinnedThreadIds: [],
+      shouldArchive: true,
+    })
+
+    const row = thread({ id: 'thread-1', title: 'Old title' })
+    expect(sidebarThreadRenameResult(row, 'other', 'New title')).toBeNull()
+    expect(sidebarThreadRenameResult(row, 'thread-1', '   ')).toBeNull()
+    expect(sidebarThreadRenameResult(row, 'thread-1', ' Old title ')).toBeNull()
+    expect(sidebarThreadRenameResult(row, 'thread-1', ' New title ')).toEqual({
+      threadId: 'thread-1',
+      title: 'New title',
+    })
+  })
+
+  it('toggles project expansion and collapse state', () => {
+    expect(toggleSidebarProjectExpansionState({}, 'app')).toEqual({ app: true })
+    expect(toggleSidebarProjectExpansionState({ app: true }, 'app')).toEqual({ app: false })
+    const expanded = { app: true }
+    expect(toggleSidebarProjectExpansionState(expanded, '')).toBe(expanded)
+
+    expect(toggleSidebarProjectCollapseState({
+      collapsedProjects: {},
+      projectName: 'app',
+      suppressProjectName: '',
+    })).toEqual({
+      collapsedProjects: { app: true },
+      suppressProjectName: '',
+    })
+    expect(toggleSidebarProjectCollapseState({
+      collapsedProjects: { app: true },
+      projectName: 'app',
+      suppressProjectName: 'app',
+    })).toEqual({
+      collapsedProjects: { app: true },
+      suppressProjectName: '',
+    })
   })
 
   it('projects drag drop indexes and layout order', () => {

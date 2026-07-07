@@ -260,6 +260,7 @@ import {
   buildSidebarLayoutProjectOrder,
   buildSidebarLayoutTopByProject,
   buildSidebarPinnedThreads,
+  closedSidebarThreadMenuState,
   filterSidebarGroupsBySearch,
   formatSidebarRelativeTime,
   hasSidebarHiddenThreads,
@@ -273,8 +274,14 @@ import {
   sidebarProjectPath,
   sidebarProjectedDropProjectIndex,
   sidebarProjectTitleText,
+  sidebarArchiveThreadClickResult,
   sidebarThreadState,
+  sidebarThreadRenameResult,
   type SidebarActiveProjectDrag,
+  toggleSidebarPinnedThreadIds,
+  toggleSidebarProjectCollapseState,
+  toggleSidebarProjectExpansionState,
+  toggleSidebarThreadMenuState,
   visibleSidebarThreads,
 } from '../../composables/sidebarThreadTreeRules'
 import IconTablerChevronDown from '../icons/IconTablerChevronDown.vue'
@@ -447,12 +454,7 @@ function isPinned(threadId: string): boolean {
 }
 
 function togglePin(threadId: string): void {
-  if (isPinned(threadId)) {
-    pinnedThreadIds.value = pinnedThreadIds.value.filter((id) => id !== threadId)
-    return
-  }
-
-  pinnedThreadIds.value = [threadId, ...pinnedThreadIds.value]
+  pinnedThreadIds.value = toggleSidebarPinnedThreadIds(pinnedThreadIds.value, threadId)
 }
 
 function onSelect(threadId: string): void {
@@ -461,15 +463,18 @@ function onSelect(threadId: string): void {
 }
 
 function onArchiveClick(threadId: string): void {
-  if (archiveConfirmThreadId.value !== threadId) {
-    archiveConfirmThreadId.value = threadId
-    return
-  }
-
-  archiveConfirmThreadId.value = ''
-  pinnedThreadIds.value = pinnedThreadIds.value.filter((id) => id !== threadId)
-  closeThreadMenu()
-  emit('archive', threadId)
+  const result = sidebarArchiveThreadClickResult(
+    {
+      openThreadMenuId: openThreadMenuId.value,
+      archiveConfirmThreadId: archiveConfirmThreadId.value,
+    },
+    pinnedThreadIds.value,
+    threadId,
+  )
+  openThreadMenuId.value = result.menuState.openThreadMenuId
+  archiveConfirmThreadId.value = result.menuState.archiveConfirmThreadId
+  pinnedThreadIds.value = result.pinnedThreadIds
+  if (result.shouldArchive) emit('archive', threadId)
 }
 
 function onUnarchiveClick(threadId: string): void {
@@ -496,19 +501,20 @@ function isThreadMenuOpenInProject(group: UiProjectGroup): boolean {
 }
 
 function closeThreadMenu(): void {
-  openThreadMenuId.value = ''
-  archiveConfirmThreadId.value = ''
+  const state = closedSidebarThreadMenuState()
+  openThreadMenuId.value = state.openThreadMenuId
+  archiveConfirmThreadId.value = state.archiveConfirmThreadId
 }
 
 function toggleThreadMenu(threadId: string): void {
-  if (openThreadMenuId.value === threadId) {
-    closeThreadMenu()
-    return
-  }
-
-  closeProjectMenu()
-  openThreadMenuId.value = threadId
-  archiveConfirmThreadId.value = ''
+  const wasOpening = openThreadMenuId.value !== threadId
+  const state = toggleSidebarThreadMenuState({
+    openThreadMenuId: openThreadMenuId.value,
+    archiveConfirmThreadId: archiveConfirmThreadId.value,
+  }, threadId)
+  if (wasOpening) closeProjectMenu()
+  openThreadMenuId.value = state.openThreadMenuId
+  archiveConfirmThreadId.value = state.archiveConfirmThreadId
 }
 
 function setThreadMenuWrapRef(threadId: string, element: Element | ComponentPublicInstance | null): void {
@@ -570,16 +576,11 @@ function cancelThreadRename(): void {
 }
 
 function submitThreadRename(thread: UiThread): void {
-  if (renamingThreadId.value !== thread.id) return
-
-  const nextTitle = threadRenameDraft.value.trim()
+  const result = sidebarThreadRenameResult(thread, renamingThreadId.value, threadRenameDraft.value)
   cancelThreadRename()
-  if (!nextTitle || nextTitle === thread.title) return
+  if (!result) return
 
-  emit('rename-thread', {
-    threadId: thread.id,
-    title: nextTitle,
-  })
+  emit('rename-thread', result)
 }
 
 function getNewThreadButtonAriaLabel(projectName: string): string {
@@ -700,22 +701,17 @@ function isCollapsed(projectName: string): boolean {
 }
 
 function toggleProjectExpansion(projectName: string): void {
-  expandedProjects.value = {
-    ...expandedProjects.value,
-    [projectName]: !isExpanded(projectName),
-  }
+  expandedProjects.value = toggleSidebarProjectExpansionState(expandedProjects.value, projectName)
 }
 
 function toggleProjectCollapse(projectName: string): void {
-  if (suppressNextProjectToggleId.value === projectName) {
-    suppressNextProjectToggleId.value = ''
-    return
-  }
-
-  collapsedProjects.value = {
-    ...collapsedProjects.value,
-    [projectName]: !isCollapsed(projectName),
-  }
+  const result = toggleSidebarProjectCollapseState({
+    collapsedProjects: collapsedProjects.value,
+    projectName,
+    suppressProjectName: suppressNextProjectToggleId.value,
+  })
+  collapsedProjects.value = result.collapsedProjects
+  suppressNextProjectToggleId.value = result.suppressProjectName
 }
 
 function getProjectOuterHeight(projectName: string): number {

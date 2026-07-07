@@ -2,6 +2,22 @@ import type { UiProjectGroup, UiThread } from '../types/codex'
 
 export type SidebarThreadState = 'working' | 'unread' | 'idle'
 
+export type SidebarThreadMenuState = {
+  openThreadMenuId: string
+  archiveConfirmThreadId: string
+}
+
+export type SidebarThreadArchiveClickResult = {
+  menuState: SidebarThreadMenuState
+  pinnedThreadIds: string[]
+  shouldArchive: boolean
+}
+
+export type SidebarThreadRenameResult = {
+  threadId: string
+  title: string
+}
+
 export type SidebarActiveProjectDrag = {
   projectName: string
   fromIndex: number
@@ -143,6 +159,103 @@ export function sidebarThreadState(thread: UiThread): SidebarThreadState {
   if (thread.inProgress) return 'working'
   if (thread.unread) return 'unread'
   return 'idle'
+}
+
+export function toggleSidebarPinnedThreadIds(pinnedThreadIds: string[], threadId: string): string[] {
+  if (!threadId) return pinnedThreadIds
+  if (pinnedThreadIds.includes(threadId)) return pinnedThreadIds.filter((id) => id !== threadId)
+  return [threadId, ...pinnedThreadIds]
+}
+
+export function closedSidebarThreadMenuState(): SidebarThreadMenuState {
+  return {
+    openThreadMenuId: '',
+    archiveConfirmThreadId: '',
+  }
+}
+
+export function toggleSidebarThreadMenuState(
+  state: SidebarThreadMenuState,
+  threadId: string,
+): SidebarThreadMenuState {
+  if (!threadId || state.openThreadMenuId === threadId) return closedSidebarThreadMenuState()
+  return {
+    openThreadMenuId: threadId,
+    archiveConfirmThreadId: '',
+  }
+}
+
+export function sidebarArchiveThreadClickResult(
+  state: SidebarThreadMenuState,
+  pinnedThreadIds: string[],
+  threadId: string,
+): SidebarThreadArchiveClickResult {
+  if (state.archiveConfirmThreadId !== threadId) {
+    return {
+      menuState: {
+        ...state,
+        archiveConfirmThreadId: threadId,
+      },
+      pinnedThreadIds,
+      shouldArchive: false,
+    }
+  }
+
+  return {
+    menuState: closedSidebarThreadMenuState(),
+    pinnedThreadIds: pinnedThreadIds.filter((id) => id !== threadId),
+    shouldArchive: true,
+  }
+}
+
+export function sidebarThreadRenameResult(
+  thread: UiThread,
+  renamingThreadId: string,
+  draft: string,
+): SidebarThreadRenameResult | null {
+  if (renamingThreadId !== thread.id) return null
+
+  const title = draft.trim()
+  if (!title || title === thread.title) return null
+  return {
+    threadId: thread.id,
+    title,
+  }
+}
+
+export function toggleSidebarProjectExpansionState(
+  expandedProjects: Record<string, boolean>,
+  projectName: string,
+): Record<string, boolean> {
+  if (!projectName) return expandedProjects
+  return {
+    ...expandedProjects,
+    [projectName]: expandedProjects[projectName] !== true,
+  }
+}
+
+export function toggleSidebarProjectCollapseState(params: {
+  collapsedProjects: Record<string, boolean>
+  projectName: string
+  suppressProjectName: string
+}): {
+  collapsedProjects: Record<string, boolean>
+  suppressProjectName: string
+} {
+  if (!params.projectName) return params
+  if (params.suppressProjectName === params.projectName) {
+    return {
+      collapsedProjects: params.collapsedProjects,
+      suppressProjectName: '',
+    }
+  }
+  return {
+    collapsedProjects: {
+      ...params.collapsedProjects,
+      [params.projectName]: params.collapsedProjects[params.projectName] !== true,
+    },
+    suppressProjectName: params.suppressProjectName,
+  }
 }
 
 export function sidebarProjectedDropProjectIndex(params: {
