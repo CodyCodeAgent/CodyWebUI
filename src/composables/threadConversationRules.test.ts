@@ -14,8 +14,10 @@ import {
   buildToolCallSuccessReply,
   buildToolCopyText,
   buildToolUserInputReply,
+  conversationRequestActionKeyPrefix,
   conversationRequestKind,
   hasLiveOverlayDetails,
+  isConversationApprovalRequestKind,
   isCopyableMessage,
   liveOverlayDetailsToggleLabel,
   messageCopyAriaLabel,
@@ -180,6 +182,12 @@ describe('thread conversation rules', () => {
     expect(conversationRequestKind('item/tool/requestUserInput')).toBe('tool_user_input')
     expect(conversationRequestKind('item/tool/call')).toBe('tool_call')
     expect(conversationRequestKind('custom/request')).toBe('unknown')
+    expect(isConversationApprovalRequestKind('command_approval')).toBe(true)
+    expect(isConversationApprovalRequestKind('file_change_approval')).toBe(true)
+    expect(isConversationApprovalRequestKind('tool_user_input')).toBe(false)
+    expect(conversationRequestActionKeyPrefix('command_approval')).toBe('command')
+    expect(conversationRequestActionKeyPrefix('file_change_approval')).toBe('file')
+    expect(conversationRequestActionKeyPrefix('tool_call')).toBe('request')
     const requestCards = buildConversationRequestCards([
       serverRequest({
         id: 1,

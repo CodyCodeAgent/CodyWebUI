@@ -171,6 +171,16 @@ export function conversationRequestKind(method: string): ConversationRequestKind
   return 'unknown'
 }
 
+export function isConversationApprovalRequestKind(kind: ConversationRequestKind): boolean {
+  return kind === 'command_approval' || kind === 'file_change_approval'
+}
+
+export function conversationRequestActionKeyPrefix(kind: ConversationRequestKind): string {
+  if (kind === 'command_approval') return 'command'
+  if (kind === 'file_change_approval') return 'file'
+  return 'request'
+}
+
 export function buildConversationRequestCards(requests: UiServerRequest[]): ConversationRequestCard[] {
   return requests.map((request) => ({
     request,

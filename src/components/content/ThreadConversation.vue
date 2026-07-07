@@ -53,25 +53,10 @@
               </div>
               <p class="request-recommendation">{{ card.summary.recommendation }}</p>
 
-              <section v-if="card.kind === 'command_approval'" class="request-actions">
+              <section v-if="isConversationApprovalRequestKind(card.kind)" class="request-actions">
                 <button
                   v-for="scope in approvalScopeOptions"
-                  :key="`${card.request.id}:command:${scope.scope}`"
-                  type="button"
-                  class="request-button"
-                  :class="{ 'request-button-primary': scope.scope === 'single', 'request-button-danger': scope.scope === 'permanent' }"
-                  @click="onRespondApprovalScope(card.request.id, scope.scope)"
-                >
-                  {{ scope.label }}
-                </button>
-                <button type="button" class="request-button" @click="onRespondApproval(card.request.id, 'decline')">Decline</button>
-                <button type="button" class="request-button" @click="onRespondApproval(card.request.id, 'cancel')">Cancel</button>
-              </section>
-
-              <section v-else-if="card.kind === 'file_change_approval'" class="request-actions">
-                <button
-                  v-for="scope in approvalScopeOptions"
-                  :key="`${card.request.id}:file:${scope.scope}`"
+                  :key="`${card.request.id}:${conversationRequestActionKeyPrefix(card.kind)}:${scope.scope}`"
                   type="button"
                   class="request-button"
                   :class="{ 'request-button-primary': scope.scope === 'single', 'request-button-danger': scope.scope === 'permanent' }"
@@ -304,7 +289,9 @@ import {
   buildToolCallFailureReply,
   buildToolCallSuccessReply,
   buildToolUserInputReply,
+  conversationRequestActionKeyPrefix,
   hasLiveOverlayDetails as hasThreadLiveOverlayDetails,
+  isConversationApprovalRequestKind,
   liveOverlayDetailsToggleLabel,
   messageCopyAriaLabel,
   messageCopyTitle,
