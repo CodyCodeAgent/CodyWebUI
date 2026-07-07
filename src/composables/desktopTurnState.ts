@@ -3,11 +3,18 @@ import type {
   UiCollaborationModeOption,
   UiComposerSubmitPayload,
 } from '../types/codex'
-import type { TurnActivityState } from './realtimeNotificationReaders'
+import type {
+  TurnActivityState,
+  TurnCompletedInfo,
+  TurnStartedInfo,
+} from './realtimeNotificationReaders'
+import type { TurnSummaryState } from './desktopMessageState'
 import {
   DEFAULT_COLLABORATION_MODE,
   buildPendingTurnDetails,
 } from './desktopTurnPreferences'
+import { resolveTurnDurationMs } from './desktopMessageState'
+import { omitKey } from './threadGroupState'
 
 export type NormalizedComposerTurnInput = {
   text: string
@@ -85,5 +92,51 @@ export function buildSteeringTurnActivity(params: {
       params.reasoningEffort,
       DEFAULT_COLLABORATION_MODE,
     ),
+  }
+}
+
+export function setActiveTurnForThread(
+  activeTurnIdByThreadId: Record<string, string>,
+  threadId: string,
+  turnId: string,
+): Record<string, string> {
+  if (!threadId || !turnId) return activeTurnIdByThreadId
+  if (activeTurnIdByThreadId[threadId] === turnId) return activeTurnIdByThreadId
+  return {
+    ...activeTurnIdByThreadId,
+    [threadId]: turnId,
+  }
+}
+
+export function clearActiveTurnForThread(
+  activeTurnIdByThreadId: Record<string, string>,
+  threadId: string,
+): Record<string, string> {
+  if (!threadId || !activeTurnIdByThreadId[threadId]) return activeTurnIdByThreadId
+  return omitKey(activeTurnIdByThreadId, threadId)
+}
+
+export function shouldClearUnreadForStartedTurn(
+  eventUnreadByThreadId: Record<string, boolean>,
+  startedTurn: TurnStartedInfo,
+): boolean {
+  return eventUnreadByThreadId[startedTurn.threadId] === true
+}
+
+export function buildCompletedTurnSummary(input: {
+  completedTurn: TurnCompletedInfo
+  startedTurn: TurnStartedInfo | undefined
+  explicitDurationMs: number | null
+  turnDurationMs: number | null
+}): TurnSummaryState {
+  return {
+    turnId: input.completedTurn.turnId,
+    durationMs: resolveTurnDurationMs({
+      explicitDurationMs: input.explicitDurationMs,
+      turnDurationMs: input.turnDurationMs,
+      completedStartedAtMs: input.completedTurn.startedAtMs,
+      completedAtMs: input.completedTurn.completedAtMs,
+      pendingStartedAtMs: input.startedTurn?.startedAtMs,
+    }),
   }
 }

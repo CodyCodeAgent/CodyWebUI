@@ -74,7 +74,6 @@ import {
   mergeMessages,
   normalizeLiveReasoningTextForStorage,
   removeRedundantLiveAgentMessages,
-  resolveTurnDurationMs,
   upsertLiveAssistantDelta,
   upsertMessage,
   updateTurnActivityState,
@@ -106,11 +105,15 @@ import {
   type CurrentModelPreference,
 } from './desktopTurnPreferences'
 import {
+  buildCompletedTurnSummary,
   buildPendingTurnActivity,
   buildSteeringTurnActivity,
+  clearActiveTurnForThread,
   normalizeComposerTurnInput,
   normalizeNewThreadTurnInput,
   normalizeThreadTextTurnInput,
+  setActiveTurnForThread,
+  shouldClearUnreadForStartedTurn,
 } from './desktopTurnState'
 import {
   loadAutoRefreshEnabled,
@@ -698,14 +701,15 @@ export function useDesktopState() {
     const startedTurn = readTurnStartedInfo(notification)
     if (startedTurn) {
       pendingTurnStartsById.set(startedTurn.turnId, startedTurn)
-      activeTurnIdByThreadId.value = {
-        ...activeTurnIdByThreadId.value,
-        [startedTurn.threadId]: startedTurn.turnId,
-      }
+      activeTurnIdByThreadId.value = setActiveTurnForThread(
+        activeTurnIdByThreadId.value,
+        startedTurn.threadId,
+        startedTurn.turnId,
+      )
       setTurnSummaryForThread(startedTurn.threadId, null)
       setTurnErrorForThread(startedTurn.threadId, null)
       setThreadInProgress(startedTurn.threadId, true)
-      if (eventUnreadByThreadId.value[startedTurn.threadId]) {
+      if (shouldClearUnreadForStartedTurn(eventUnreadByThreadId.value, startedTurn)) {
         eventUnreadByThreadId.value = omitKey(eventUnreadByThreadId.value, startedTurn.threadId)
       }
     }
@@ -718,20 +722,16 @@ export function useDesktopState() {
       }
 
       const durationHints = readTurnDurationHints(notification)
-      const durationMs = resolveTurnDurationMs({
+      setTurnSummaryForThread(completedTurn.threadId, buildCompletedTurnSummary({
+        completedTurn,
+        startedTurn: startedTurnState,
         explicitDurationMs: durationHints.explicitDurationMs,
         turnDurationMs: durationHints.turnDurationMs,
-        completedStartedAtMs: completedTurn.startedAtMs,
-        completedAtMs: completedTurn.completedAtMs,
-        pendingStartedAtMs: startedTurnState?.startedAtMs,
-      })
-      setTurnSummaryForThread(completedTurn.threadId, {
-        turnId: completedTurn.turnId,
-        durationMs,
-      })
-      if (activeTurnIdByThreadId.value[completedTurn.threadId]) {
-        activeTurnIdByThreadId.value = omitKey(activeTurnIdByThreadId.value, completedTurn.threadId)
-      }
+      }))
+      activeTurnIdByThreadId.value = clearActiveTurnForThread(
+        activeTurnIdByThreadId.value,
+        completedTurn.threadId,
+      )
       livePlanMessageIdByTurnId.delete(completedTurn.turnId)
       setThreadInProgress(completedTurn.threadId, false)
       setTurnActivityForThread(completedTurn.threadId, null)
@@ -1276,10 +1276,11 @@ export function useDesktopState() {
         reasoningEffort || undefined,
         collaborationMode,
       )
-      activeTurnIdByThreadId.value = {
-        ...activeTurnIdByThreadId.value,
-        [threadId]: turnId,
-      }
+      activeTurnIdByThreadId.value = setActiveTurnForThread(
+        activeTurnIdByThreadId.value,
+        threadId,
+        turnId,
+      )
 
       resumedThreadById.value = {
         ...resumedThreadById.value,
@@ -1311,9 +1312,7 @@ export function useDesktopState() {
       setThreadInProgress(threadId, false)
       setTurnActivityForThread(threadId, null)
       setTurnErrorForThread(threadId, null)
-      if (activeTurnIdByThreadId.value[threadId]) {
-        activeTurnIdByThreadId.value = omitKey(activeTurnIdByThreadId.value, threadId)
-      }
+      activeTurnIdByThreadId.value = clearActiveTurnForThread(activeTurnIdByThreadId.value, threadId)
       queueDesktopRealtimeSync(realtimeSyncQueue, threadId)
       await syncFromNotifications()
     } catch (unknownError) {
