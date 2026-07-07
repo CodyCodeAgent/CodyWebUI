@@ -144,22 +144,7 @@
 
         <section class="content-body">
           <template v-if="isHomeRoute">
-            <div class="content-grid">
-              <WorkspaceDashboard
-                :cwd="newThreadCwd"
-                :project-label="newThreadProjectLabel"
-                :threads="newThreadWorkspaceThreads"
-                :pending-requests="allPendingServerRequests"
-                :rate-limit-snapshot="rateLimitSnapshot"
-                :is-mobile-action-busy="isSendingMessage || isInterruptingTurn"
-                @select-thread="onSelectThread"
-                @respond-server-request="onRespondServerRequest"
-                @mobile-follow-up="onMobileFollowUp"
-                @mobile-pause="onMobilePause"
-                @mobile-interrupt="onMobileInterrupt"
-                @mobile-archive="onMobileArchive"
-              />
-
+            <div class="content-grid new-thread-grid">
               <div class="new-thread-empty">
                 <p class="new-thread-hero">Let's build</p>
                 <ComposerDropdown class="new-thread-folder-dropdown" :model-value="newThreadCwd"
@@ -176,6 +161,23 @@
                 :is-interrupting-turn="false" :cwd="newThreadCwd" @submit="onSubmitThreadMessage"
                 @update:selected-model="onSelectModel" @update:selected-reasoning-effort="onSelectReasoningEffort"
                 @update:selected-collaboration-mode="onSelectCollaborationMode" />
+
+              <div class="new-thread-dashboard-scroll">
+                <WorkspaceDashboard
+                  :cwd="newThreadCwd"
+                  :project-label="newThreadProjectLabel"
+                  :threads="newThreadWorkspaceThreads"
+                  :pending-requests="allPendingServerRequests"
+                  :rate-limit-snapshot="rateLimitSnapshot"
+                  :is-mobile-action-busy="isSendingMessage || isInterruptingTurn"
+                  @select-thread="onSelectThread"
+                  @respond-server-request="onRespondServerRequest"
+                  @mobile-follow-up="onMobileFollowUp"
+                  @mobile-pause="onMobilePause"
+                  @mobile-interrupt="onMobileInterrupt"
+                  @mobile-archive="onMobileArchive"
+                />
+              </div>
             </div>
           </template>
           <template v-else>
@@ -872,6 +874,10 @@ async function submitFirstMessageForNewThread(payload: UiComposerSubmitPayload):
   @apply flex-1 min-h-0 flex flex-col gap-3;
 }
 
+.new-thread-grid {
+  @apply overflow-hidden;
+}
+
 .content-workbench {
   @apply flex-1 min-h-0 flex gap-3 px-0;
 }
@@ -889,7 +895,7 @@ async function submitFirstMessageForNewThread(payload: UiComposerSubmitPayload):
 }
 
 .new-thread-empty {
-  @apply flex-1 min-h-0 flex flex-col items-center justify-center gap-0.5 px-6;
+  @apply shrink-0 flex flex-col items-center justify-center gap-0.5 px-6 py-4;
 }
 
 .new-thread-hero {
@@ -910,6 +916,10 @@ async function submitFirstMessageForNewThread(payload: UiComposerSubmitPayload):
 
 .new-thread-folder-dropdown :deep(.composer-dropdown-chevron) {
   @apply h-5 w-5 mt-0;
+}
+
+.new-thread-dashboard-scroll {
+  @apply flex-1 min-h-0 overflow-y-auto pr-1;
 }
 
 </style>
