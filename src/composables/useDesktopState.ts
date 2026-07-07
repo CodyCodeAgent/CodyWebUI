@@ -92,7 +92,13 @@ import {
   selectServerRequestsForThread,
   upsertServerRequest,
 } from './desktopServerRequests'
-import { pruneDesktopThreadScopedState } from './desktopThreadScopedState'
+import {
+  markThreadMessagesLoaded,
+  markThreadResumed,
+  pruneDesktopThreadScopedState,
+  setThreadLoadedVersion,
+  shouldShowMessagesLoading,
+} from './desktopThreadScopedState'
 import {
   DEFAULT_COLLABORATION_MODE,
   FALLBACK_PLAN_COLLABORATION_MODE,
@@ -923,8 +929,11 @@ export function useDesktopState() {
     const requestId = nextMessageLoadRequestId + 1
     nextMessageLoadRequestId = requestId
     latestMessageLoadRequestIdByThreadId.set(threadId, requestId)
-    const alreadyLoaded = loadedMessagesByThreadId.value[threadId] === true
-    const shouldShowLoading = options.silent !== true && !alreadyLoaded
+    const shouldShowLoading = shouldShowMessagesLoading({
+      loadedMessagesByThreadId: loadedMessagesByThreadId.value,
+      threadId,
+      silent: options.silent === true,
+    })
     if (shouldShowLoading) {
       setMessagesLoadingForThread(threadId, true)
     }
@@ -932,10 +941,7 @@ export function useDesktopState() {
     try {
       if (resumedThreadById.value[threadId] !== true) {
         await resumeThread(threadId)
-        resumedThreadById.value = {
-          ...resumedThreadById.value,
-          [threadId]: true,
-        }
+        resumedThreadById.value = markThreadResumed(resumedThreadById.value, threadId)
       }
 
       const nextMessages = await getThreadMessages(threadId)
@@ -952,18 +958,14 @@ export function useDesktopState() {
       const nextLiveAgent = removeRedundantLiveAgentMessages(previousLiveAgent, nextMessages)
       setLiveAgentMessagesForThread(threadId, nextLiveAgent)
 
-      loadedMessagesByThreadId.value = {
-        ...loadedMessagesByThreadId.value,
-        [threadId]: true,
-      }
+      loadedMessagesByThreadId.value = markThreadMessagesLoaded(loadedMessagesByThreadId.value, threadId)
 
       const version = currentThreadVersion(threadId)
-      if (version) {
-        loadedVersionByThreadId.value = {
-          ...loadedVersionByThreadId.value,
-          [threadId]: version,
-        }
-      }
+      loadedVersionByThreadId.value = setThreadLoadedVersion(
+        loadedVersionByThreadId.value,
+        threadId,
+        version,
+      )
       markThreadAsRead(threadId)
     } finally {
       if (latestMessageLoadRequestIdByThreadId.get(threadId) === requestId) {
