@@ -55,7 +55,7 @@
           :disabled="isLoadingReviewDraft || !canRollback"
           @click="loadReviewDraft"
         >
-          {{ isLoadingReviewDraft ? 'Generating' : 'Generate' }}
+          {{ reviewGenerateButtonLabel(isLoadingReviewDraft) }}
         </button>
       </header>
       <p v-if="reviewDraftError" class="thread-review-draft-error">{{ reviewDraftError }}</p>
@@ -112,7 +112,7 @@
       <header class="thread-checkpoint-header">
         <h4 class="thread-checkpoint-title">Checkpoints</h4>
         <button class="thread-checkpoint-refresh" type="button" :disabled="isLoadingCheckpoints" @click="loadCheckpoints">
-          {{ isLoadingCheckpoints ? 'Loading' : 'Refresh' }}
+          {{ reviewCheckpointRefreshButtonLabel(isLoadingCheckpoints) }}
         </button>
       </header>
       <p v-if="checkpointError" class="thread-checkpoint-empty">{{ checkpointError }}</p>
@@ -169,7 +169,7 @@
         <summary class="thread-diff-file-summary">
           <span class="thread-diff-file-path">{{ file.filePath }}</span>
           <span v-if="file.oldPath" class="thread-diff-file-old-path">{{ file.oldPath }}</span>
-          <span class="thread-diff-file-status">{{ rollbackState(file.filePath).status === 'rolledBack' ? 'rolled back' : file.status }}</span>
+          <span class="thread-diff-file-status">{{ fileStatusLabel(file.status, file.filePath) }}</span>
           <span class="thread-diff-file-lines">
             <span class="thread-diff-line-added">+{{ file.addedLines }}</span>
             <span class="thread-diff-line-removed">-{{ file.removedLines }}</span>
@@ -247,7 +247,7 @@
               <textarea v-model="commentDraft" />
               <div>
                 <button type="button" :disabled="isSavingComment || !commentDraft.trim()" @click="saveComment">
-                  {{ isSavingComment ? 'Saving' : 'Save comment' }}
+                  {{ reviewCommentSaveButtonLabel(isSavingComment) }}
                 </button>
                 <button type="button" :disabled="isSavingComment" @click="cancelComment">Cancel</button>
               </div>
@@ -309,6 +309,7 @@ import {
   checkpointPatchButtonLabel as checkpointPatchButtonLabelForState,
   commentsForDiffHunk,
   diffCopyPatchButtonLabel,
+  diffReviewFileStatusLabel,
   diffLinePrefix,
   formatBytes,
   formatCheckpointPaths,
@@ -321,9 +322,12 @@ import {
   loadedCheckpointPatchState,
   loadingCheckpointPatchState,
   reviewCheckpointPatchStateForId,
+  reviewCheckpointRefreshButtonLabel,
   reviewCommentDraftTargetLabel,
   reviewCommentFollowUpButtonLabel,
+  reviewCommentSaveButtonLabel,
   reviewDraftCopyLabel as reviewDraftCopyLabelForState,
+  reviewGenerateButtonLabel,
   reviewHunkRollbackStateForKey,
   reviewHunkStageStateForKey,
   reviewHunkStatusMessage,
@@ -420,6 +424,13 @@ function rollbackState(filePath: string): ReviewRollbackState {
 
 function rollbackButtonLabel(filePath: string): string {
   return rollbackFileButtonLabel(rollbackState(filePath))
+}
+
+function fileStatusLabel(status: string, filePath: string): string {
+  return diffReviewFileStatusLabel({
+    status,
+    rollbackState: rollbackState(filePath),
+  })
 }
 
 function hunkRollbackState(filePath: string, hunkIndex: number): ReviewRollbackState {

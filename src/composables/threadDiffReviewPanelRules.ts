@@ -68,6 +68,25 @@ export function workspaceRollbackButtonLabel(state: ReviewRollbackState): string
   return 'Rollback all'
 }
 
+export function reviewGenerateButtonLabel(isLoading: boolean): string {
+  return isLoading ? 'Generating' : 'Generate'
+}
+
+export function reviewCheckpointRefreshButtonLabel(isLoading: boolean): string {
+  return isLoading ? 'Loading' : 'Refresh'
+}
+
+export function reviewCommentSaveButtonLabel(isSaving: boolean): string {
+  return isSaving ? 'Saving' : 'Save comment'
+}
+
+export function diffReviewFileStatusLabel(input: {
+  status: string
+  rollbackState: ReviewRollbackState
+}): string {
+  return input.rollbackState.status === 'rolledBack' ? 'rolled back' : input.status
+}
+
 export function reviewRollbackStateForPath(
   states: Record<string, ReviewRollbackState>,
   filePath: string,

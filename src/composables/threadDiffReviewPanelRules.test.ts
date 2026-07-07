@@ -6,6 +6,7 @@ import {
   commentsForDiffHunk,
   diffCopyPatchButtonLabel,
   diffLinePrefix,
+  diffReviewFileStatusLabel,
   diffReviewHunkKey,
   failedCheckpointPatchState,
   fileRollbackSuccessMessage,
@@ -17,9 +18,12 @@ import {
   loadedCheckpointPatchState,
   loadingCheckpointPatchState,
   reviewCheckpointPatchStateForId,
+  reviewCheckpointRefreshButtonLabel,
   reviewCommentDraftTargetLabel,
   reviewCommentFollowUpButtonLabel,
+  reviewCommentSaveButtonLabel,
   reviewDraftCopyLabel,
+  reviewGenerateButtonLabel,
   reviewHunkRollbackStateForKey,
   reviewHunkStageStateForKey,
   reviewHunkStatusMessage,
@@ -197,8 +201,22 @@ describe('thread diff review panel rules', () => {
   it('formats action labels from state', () => {
     expect(diffCopyPatchButtonLabel('copied')).toBe('Copied')
     expect(diffCopyPatchButtonLabel('failed')).toBe('Failed')
+    expect(reviewGenerateButtonLabel(true)).toBe('Generating')
+    expect(reviewGenerateButtonLabel(false)).toBe('Generate')
+    expect(reviewCheckpointRefreshButtonLabel(true)).toBe('Loading')
+    expect(reviewCheckpointRefreshButtonLabel(false)).toBe('Refresh')
+    expect(reviewCommentSaveButtonLabel(true)).toBe('Saving')
+    expect(reviewCommentSaveButtonLabel(false)).toBe('Save comment')
     expect(workspaceRollbackButtonLabel({ status: 'rollingBack', message: '' })).toBe('Rolling back')
     expect(rollbackFileButtonLabel({ status: 'rolledBack', message: '' })).toBe('Rolled back')
+    expect(diffReviewFileStatusLabel({
+      status: 'modified',
+      rollbackState: { status: 'rolledBack', message: '' },
+    })).toBe('rolled back')
+    expect(diffReviewFileStatusLabel({
+      status: 'added',
+      rollbackState: { status: 'idle', message: '' },
+    })).toBe('added')
     expect(rollbackHunkButtonLabel({ status: 'idle', message: '' })).toBe('Rollback hunk')
     expect(stageHunkButtonLabel({ status: 'staging', message: '' })).toBe('Accepting')
     expect(reviewDraftCopyLabel('commit', 'copied_commit')).toBe('Copied commit')
