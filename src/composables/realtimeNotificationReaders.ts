@@ -33,29 +33,27 @@ function formatPlanStepStatus(value: string): string {
   return '[todo]'
 }
 
+function readProtocolId(record: Record<string, unknown> | null | undefined, camelKey: string, snakeKey: string): string {
+  return readString(record?.[camelKey]) || readString(record?.[snakeKey])
+}
+
 export function extractThreadIdFromNotification(notification: RpcNotification): string {
   const params = asRecord(notification.params)
   if (!params) return ''
 
-  const directThreadId = readString(params.threadId)
+  const directThreadId = readProtocolId(params, 'threadId', 'thread_id')
   if (directThreadId) return directThreadId
-  const snakeThreadId = readString(params.thread_id)
-  if (snakeThreadId) return snakeThreadId
 
-  const conversationId = readString(params.conversationId)
+  const conversationId = readProtocolId(params, 'conversationId', 'conversation_id')
   if (conversationId) return conversationId
-  const snakeConversationId = readString(params.conversation_id)
-  if (snakeConversationId) return snakeConversationId
 
   const thread = asRecord(params.thread)
   const nestedThreadId = readString(thread?.id)
   if (nestedThreadId) return nestedThreadId
 
   const turn = asRecord(params.turn)
-  const turnThreadId = readString(turn?.threadId)
+  const turnThreadId = readProtocolId(turn, 'threadId', 'thread_id')
   if (turnThreadId) return turnThreadId
-  const turnSnakeThreadId = readString(turn?.thread_id)
-  if (turnSnakeThreadId) return turnSnakeThreadId
 
   return ''
 }
@@ -120,7 +118,7 @@ export function readTurnStartedInfo(notification: RpcNotification): TurnStartedI
   if (!threadId) return null
 
   const turnPayload = asRecord(params.turn)
-  const turnId = readString(turnPayload?.id) || readString(params.turnId) || `${threadId}:unknown`
+  const turnId = readString(turnPayload?.id) || readProtocolId(params, 'turnId', 'turn_id') || `${threadId}:unknown`
   if (!turnId) return null
 
   const startedAtMs =
@@ -249,7 +247,7 @@ export function readReasoningDelta(notification: RpcNotification): { messageId: 
   ) {
     return null
   }
-  const itemId = readString(params.itemId)
+  const itemId = readProtocolId(params, 'itemId', 'item_id')
   const delta = readString(params.delta)
   if (!itemId || !delta) return null
   return { messageId: liveReasoningMessageId(itemId), delta }
@@ -258,7 +256,7 @@ export function readReasoningDelta(notification: RpcNotification): { messageId: 
 export function readReasoningSectionBreakMessageId(notification: RpcNotification): string {
   const params = asRecord(notification.params)
   if (!params || notification.method !== 'item/reasoning/summaryPartAdded') return ''
-  const itemId = readString(params.itemId)
+  const itemId = readProtocolId(params, 'itemId', 'item_id')
   return itemId ? liveReasoningMessageId(itemId) : ''
 }
 
@@ -281,7 +279,7 @@ export function readAgentMessageStartedId(notification: RpcNotification): string
 export function readAgentMessageDelta(notification: RpcNotification): { messageId: string; delta: string } | null {
   const params = asRecord(notification.params)
   if (!params || notification.method !== 'item/agentMessage/delta') return null
-  const messageId = readString(params.itemId)
+  const messageId = readProtocolId(params, 'itemId', 'item_id')
   const delta = readString(params.delta)
   if (!messageId || !delta) return null
   return { messageId, delta }
@@ -312,8 +310,8 @@ export function readUserMessageCompleted(notification: RpcNotification): UiMessa
 export function readPlanMessageDelta(notification: RpcNotification): { messageId: string; turnId: string; delta: string } | null {
   const params = asRecord(notification.params)
   if (!params || notification.method !== 'item/plan/delta') return null
-  const itemId = readString(params.itemId)
-  const turnId = readString(params.turnId)
+  const itemId = readProtocolId(params, 'itemId', 'item_id')
+  const turnId = readProtocolId(params, 'turnId', 'turn_id')
   const delta = readString(params.delta)
   if (!itemId || !delta) return null
   return { messageId: itemId, turnId, delta }
@@ -337,7 +335,7 @@ export function readPlanUpdatedMessage(
   const params = asRecord(notification.params)
   if (!params || notification.method !== 'turn/plan/updated') return null
 
-  const turnId = readString(params.turnId)
+  const turnId = readProtocolId(params, 'turnId', 'turn_id')
   if (!turnId) return null
 
   const parts: string[] = []

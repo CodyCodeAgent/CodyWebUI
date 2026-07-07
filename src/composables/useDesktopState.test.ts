@@ -212,9 +212,9 @@ describe('useDesktopState realtime messages', () => {
     listener?.({
       method: 'item/agentMessage/delta',
       params: {
-        threadId: 'thread-live',
-        turnId: 'turn-live',
-        itemId: 'msg-live',
+        thread_id: 'thread-live',
+        turn_id: 'turn-live',
+        item_id: 'msg-live',
         delta: '输出',
       },
       atIso: '2026-07-07T00:00:03.000Z',

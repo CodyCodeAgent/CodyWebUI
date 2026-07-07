@@ -66,7 +66,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
-import { fetchTerminalSessions, startTerminalSession, stopTerminalSession } from '../../api/codexRpcClient'
+import { fetchTerminalSessions, startTerminalSession, stopTerminalSession } from '../../api/codexTerminalClient'
 import type { UiTerminalSession, UiTerminalSessionList } from '../../types/codex'
 import IconTablerRefresh from '../icons/IconTablerRefresh.vue'
 

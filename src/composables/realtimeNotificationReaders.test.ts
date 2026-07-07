@@ -44,6 +44,13 @@ describe('realtime notification readers', () => {
       turnId: 'turn-1',
       startedAtMs: new Date('2026-07-07T01:00:00.000Z').getTime(),
     })
+    expect(readTurnStartedInfo(notification('turn/started', {
+      thread_id: 'thread-raw',
+      turn_id: 'turn-raw',
+    }))).toMatchObject({
+      threadId: 'thread-raw',
+      turnId: 'turn-raw',
+    })
 
     const completed = readTurnCompletedInfo(notification('turn/completed', {
       turn: {
@@ -147,6 +154,14 @@ describe('realtime notification readers', () => {
     }))).toEqual({
       messageId: 'item-1',
       delta: 'hello',
+    })
+    expect(readAgentMessageDelta(notification('item/agentMessage/delta', {
+      thread_id: 'thread-1',
+      item_id: 'item-raw',
+      delta: ' raw',
+    }))).toEqual({
+      messageId: 'item-raw',
+      delta: ' raw',
     })
 
     expect(readAgentMessageCompleted(notification('item/completed', {

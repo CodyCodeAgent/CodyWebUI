@@ -1,7 +1,5 @@
 import { computed, ref } from 'vue'
-import {
-  fetchTerminalSessions,
-} from '../api/codexRpcClient'
+import { fetchTerminalSessions } from '../api/codexTerminalClient'
 import {
   fetchWorkspacePorts,
   fetchWorkspaceDiff,

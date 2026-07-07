@@ -334,9 +334,9 @@
 import { computed, ref, watch } from 'vue'
 import {
   fetchWorkspaceRecentSessions,
-  runWorkspaceScript,
   testWorkspaceNotifications,
 } from '../../api/codexRpcClient'
+import { runWorkspaceScript } from '../../api/codexTerminalClient'
 import {
   fetchWorkspaceSnapshot,
   fetchWorkspaceValidationRuns,
