@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   buildReviewDraftSummary,
+  buildReviewCommentDraftTarget,
   checkpointPatchButtonLabel,
   commentsForDiffHunk,
   diffCopyPatchButtonLabel,
@@ -16,6 +17,8 @@ import {
   loadedCheckpointPatchState,
   loadingCheckpointPatchState,
   reviewCheckpointPatchStateForId,
+  reviewCommentDraftTargetLabel,
+  reviewCommentFollowUpButtonLabel,
   reviewDraftCopyLabel,
   reviewHunkRollbackStateForKey,
   reviewHunkStageStateForKey,
@@ -319,6 +322,35 @@ describe('thread diff review panel rules', () => {
     expect(commentsForDiffHunk(comments, 'src/app.ts', '@@ -1 +1 @@').map((item) => item.id))
       .toEqual(['early', 'late'])
     expect(formatReviewCommentAnchor(comments[0])).toBe('src/app.ts:8')
+    expect(reviewCommentFollowUpButtonLabel(comments[0])).toBe('Create follow-up')
+    expect(reviewCommentFollowUpButtonLabel(comment({ followUpRunId: 'run-1' }))).toBe('Follow-up run-1')
+  })
+
+  it('builds draft comment targets from diff lines', () => {
+    const target = buildReviewCommentDraftTarget({
+      filePath: 'src/app.ts',
+      hunkHeader: '@@ -1 +1 @@',
+      hunkIndex: 2,
+      line: {
+        kind: 'add',
+        oldLineNumber: null,
+        newLineNumber: 12,
+        content: 'const value = 1',
+      },
+    })
+
+    expect(target).toEqual({
+      filePath: 'src/app.ts',
+      hunkHeader: '@@ -1 +1 @@',
+      hunkIndex: 2,
+      lineKind: 'add',
+      oldLineNumber: null,
+      newLineNumber: 12,
+      lineContent: 'const value = 1',
+      lineNumber: 12,
+    })
+    expect(reviewCommentDraftTargetLabel(target)).toBe('src/app.ts:12')
+    expect(reviewCommentDraftTargetLabel({ ...target, lineNumber: null })).toBe('src/app.ts')
   })
 
   it('formats diff display values', () => {

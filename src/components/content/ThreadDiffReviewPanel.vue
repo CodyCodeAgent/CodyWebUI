@@ -243,7 +243,7 @@
               v-if="activeCommentTarget && activeCommentTarget.filePath === file.filePath && activeCommentTarget.hunkIndex === hunkIndex"
               class="thread-diff-comment-composer"
             >
-              <p>Comment on {{ activeCommentTarget.filePath }}{{ activeCommentTarget.lineNumber ? `:${activeCommentTarget.lineNumber}` : '' }}</p>
+              <p>Comment on {{ commentDraftTargetLabel }}</p>
               <textarea v-model="commentDraft" />
               <div>
                 <button type="button" :disabled="isSavingComment || !commentDraft.trim()" @click="saveComment">
@@ -269,7 +269,7 @@
                     :disabled="commentActionId === comment.id || comment.status === 'resolved'"
                     @click="createFollowUp(comment.id)"
                   >
-                    {{ comment.followUpRunId ? `Follow-up ${comment.followUpRunId}` : 'Create follow-up' }}
+                    {{ commentFollowUpButtonLabel(comment) }}
                   </button>
                   <button
                     type="button"
@@ -305,6 +305,7 @@ import {
 import { fetchWorkspaceReviewDraft } from '../../api/codexWorkspaceGitClient'
 import {
   buildReviewDraftSummary,
+  buildReviewCommentDraftTarget,
   checkpointPatchButtonLabel as checkpointPatchButtonLabelForState,
   commentsForDiffHunk,
   diffCopyPatchButtonLabel,
@@ -320,6 +321,8 @@ import {
   loadedCheckpointPatchState,
   loadingCheckpointPatchState,
   reviewCheckpointPatchStateForId,
+  reviewCommentDraftTargetLabel,
+  reviewCommentFollowUpButtonLabel,
   reviewDraftCopyLabel as reviewDraftCopyLabelForState,
   reviewHunkRollbackStateForKey,
   reviewHunkStageStateForKey,
@@ -338,6 +341,7 @@ import {
 } from '../../composables/threadDiffReviewPanelRules'
 import type {
   ReviewCheckpointPatchState,
+  ReviewCommentDraftTarget,
   ReviewDraftCopyState,
   ReviewHunkStageState,
   ReviewPatchCopyState,
@@ -348,7 +352,6 @@ import type { UiDiffLineKind, UiDiffReviewLine } from '../../composables/useDiff
 import type {
   UiMessage,
   UiReviewComment,
-  UiReviewCommentAnchor,
   UiToolingCheckpoint,
   UiToolingRollbackFileResult,
   UiToolingRollbackHunkResult,
@@ -390,10 +393,7 @@ const reviewDraft = ref<UiWorkspaceReviewDraft | null>(null)
 const isLoadingReviewDraft = ref(false)
 const reviewDraftError = ref('')
 const reviewDraftCopyState = ref<ReviewDraftCopyState>('idle')
-const activeCommentTarget = ref<(UiReviewCommentAnchor & {
-  hunkIndex: number
-  lineNumber: number | null
-}) | null>(null)
+const activeCommentTarget = ref<ReviewCommentDraftTarget | null>(null)
 const checkpointPatchById = ref<Record<string, ReviewCheckpointPatchState>>({})
 const review = computed(() => buildDiffReview(props.messages))
 const isCopying = computed(() => copyState.value === 'copying')
@@ -410,6 +410,9 @@ const reviewDraftSummary = computed(() => buildReviewDraftSummary({
   isLoading: isLoadingReviewDraft.value,
   reviewDraft: reviewDraft.value,
 }))
+const commentDraftTargetLabel = computed(() =>
+  activeCommentTarget.value ? reviewCommentDraftTargetLabel(activeCommentTarget.value) : ''
+)
 
 function rollbackState(filePath: string): ReviewRollbackState {
   return reviewRollbackStateForPath(rollbackByPath.value, filePath)
@@ -454,16 +457,12 @@ function openCommentComposer(
   line: UiDiffReviewLine,
 ): void {
   if (!canRollback.value) return
-  activeCommentTarget.value = {
+  activeCommentTarget.value = buildReviewCommentDraftTarget({
     filePath,
     hunkHeader,
     hunkIndex,
-    lineKind: line.kind,
-    oldLineNumber: line.oldLineNumber,
-    newLineNumber: line.newLineNumber,
-    lineContent: line.content,
-    lineNumber: line.newLineNumber ?? line.oldLineNumber,
-  }
+    line,
+  })
   commentDraft.value = ''
   commentError.value = ''
 }
@@ -475,6 +474,10 @@ function cancelComment(): void {
 
 function formatCommentAnchor(comment: UiReviewComment): string {
   return formatReviewCommentAnchor(comment)
+}
+
+function commentFollowUpButtonLabel(comment: UiReviewComment): string {
+  return reviewCommentFollowUpButtonLabel(comment)
 }
 
 async function loadReviewComments(): Promise<void> {

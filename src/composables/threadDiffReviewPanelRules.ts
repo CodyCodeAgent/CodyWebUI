@@ -1,5 +1,6 @@
-import type { UiDiffLineKind } from './useDiffReview'
+import type { UiDiffLineKind, UiDiffReviewLine } from './useDiffReview'
 import type {
+  UiReviewCommentAnchor,
   UiReviewComment,
   UiToolingRollbackFileResult,
   UiToolingRollbackHunkResult,
@@ -27,6 +28,11 @@ export type ReviewCheckpointPatchState = {
   patch: string
   message: string
   isVisible: boolean
+}
+
+export type ReviewCommentDraftTarget = UiReviewCommentAnchor & {
+  hunkIndex: number
+  lineNumber: number | null
 }
 
 const DEFAULT_ROLLBACK_STATE: ReviewRollbackState = { status: 'idle', message: '' }
@@ -165,6 +171,33 @@ export function commentsForDiffHunk(
 export function formatReviewCommentAnchor(comment: UiReviewComment): string {
   const lineNumber = comment.anchor.newLineNumber ?? comment.anchor.oldLineNumber
   return `${comment.anchor.filePath}${lineNumber ? `:${String(lineNumber)}` : ''}`
+}
+
+export function buildReviewCommentDraftTarget(params: {
+  filePath: string
+  hunkHeader: string
+  hunkIndex: number
+  line: UiDiffReviewLine
+}): ReviewCommentDraftTarget {
+  const lineNumber = params.line.newLineNumber ?? params.line.oldLineNumber
+  return {
+    filePath: params.filePath,
+    hunkHeader: params.hunkHeader,
+    hunkIndex: params.hunkIndex,
+    lineKind: params.line.kind,
+    oldLineNumber: params.line.oldLineNumber,
+    newLineNumber: params.line.newLineNumber,
+    lineContent: params.line.content,
+    lineNumber,
+  }
+}
+
+export function reviewCommentDraftTargetLabel(target: Pick<ReviewCommentDraftTarget, 'filePath' | 'lineNumber'>): string {
+  return `${target.filePath}${target.lineNumber ? `:${String(target.lineNumber)}` : ''}`
+}
+
+export function reviewCommentFollowUpButtonLabel(comment: UiReviewComment): string {
+  return comment.followUpRunId ? `Follow-up ${comment.followUpRunId}` : 'Create follow-up'
 }
 
 export function reviewCheckpointPatchStateForId(
