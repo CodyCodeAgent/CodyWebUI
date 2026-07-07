@@ -34,9 +34,9 @@
         class="workspace-workflow-create"
         data-testid="workflow-create-button"
         type="submit"
-        :disabled="isCreating || !cwd || !selectedTemplateId || !goalDraft.trim()"
+        :disabled="!canSubmitCreateRun"
       >
-        {{ isCreating ? 'Creating' : 'Create run' }}
+        {{ createButtonLabel }}
       </button>
     </form>
 
@@ -431,6 +431,7 @@ import {
   canApplyWorkflowImplementation as canApplyImplementation,
   canBlockWorkflowAgent as canBlockAgent,
   canCompleteWorkflowAgent as canCompleteAgent,
+  canCreateWorkflowRun,
   canDiscardWorkflowImplementation as canDiscardImplementation,
   canMarkMerged,
   canMarkReadyToMerge,
@@ -447,6 +448,7 @@ import {
   workspaceWorkflowSummary,
   workflowAgentKey as agentKey,
   workflowDeliveryButtonLabel,
+  workflowCreateButtonLabel,
   workflowDeliveryKey,
   workflowDeliveryMergedButtonLabel,
   workflowDeliveryRiskSummaryPreview,
@@ -550,6 +552,13 @@ const summaryText = computed(() => workspaceWorkflowSummary({
   isLoading: isLoading.value,
   runCount: runs.value.length,
   templateCount: templates.value.length,
+}))
+const createButtonLabel = computed(() => workflowCreateButtonLabel(isCreating.value))
+const canSubmitCreateRun = computed(() => canCreateWorkflowRun({
+  cwd: props.cwd,
+  selectedTemplateId: selectedTemplateId.value,
+  goalDraft: goalDraft.value,
+  isCreating: isCreating.value,
 }))
 
 function isUpdatingAgent(runId: string, agentId: string): boolean {

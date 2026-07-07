@@ -10,6 +10,7 @@ import {
   canApplyWorkflowImplementation,
   canBlockWorkflowAgent,
   canCompleteWorkflowAgent,
+  canCreateWorkflowRun,
   canDiscardWorkflowImplementation,
   canMarkMerged,
   canMarkReadyToMerge,
@@ -40,6 +41,7 @@ import {
   workflowAcceptanceGreen,
   workflowAgentKey,
   workflowAcceptanceRisksPreview,
+  workflowCreateButtonLabel,
   workflowDeliveryButtonLabel,
   workflowDeliveryKey,
   workflowImplementationDiffLabel,
@@ -188,6 +190,38 @@ describe('workspace workflow rules', () => {
       runCount: 3,
       templateCount: 2,
     })).toBe('3 runs · 2 templates')
+    expect(workflowCreateButtonLabel(true)).toBe('Creating')
+    expect(workflowCreateButtonLabel(false)).toBe('Create run')
+    expect(canCreateWorkflowRun({
+      cwd: '/repo',
+      selectedTemplateId: 'template-1',
+      goalDraft: 'Ship it',
+      isCreating: false,
+    })).toBe(true)
+    expect(canCreateWorkflowRun({
+      cwd: ' ',
+      selectedTemplateId: 'template-1',
+      goalDraft: 'Ship it',
+      isCreating: false,
+    })).toBe(false)
+    expect(canCreateWorkflowRun({
+      cwd: '/repo',
+      selectedTemplateId: '',
+      goalDraft: 'Ship it',
+      isCreating: false,
+    })).toBe(false)
+    expect(canCreateWorkflowRun({
+      cwd: '/repo',
+      selectedTemplateId: 'template-1',
+      goalDraft: ' ',
+      isCreating: false,
+    })).toBe(false)
+    expect(canCreateWorkflowRun({
+      cwd: '/repo',
+      selectedTemplateId: 'template-1',
+      goalDraft: 'Ship it',
+      isCreating: true,
+    })).toBe(false)
     expect(workflowReplayButtonLabel({ isLoading: true, isExpanded: false })).toBe('Loading')
     expect(workflowReplayButtonLabel({ isLoading: false, isExpanded: true })).toBe('Hide replay')
     expect(workflowDeliveryButtonLabel({ isLoading: true, hasDraft: false })).toBe('Generating')

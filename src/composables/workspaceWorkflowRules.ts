@@ -138,6 +138,22 @@ export function workspaceWorkflowSummary(input: {
   return `${String(input.runCount)} run${input.runCount === 1 ? '' : 's'} · ${String(input.templateCount)} templates`
 }
 
+export function workflowCreateButtonLabel(isCreating: boolean): string {
+  return isCreating ? 'Creating' : 'Create run'
+}
+
+export function canCreateWorkflowRun(input: {
+  cwd: string
+  selectedTemplateId: string
+  goalDraft: string
+  isCreating: boolean
+}): boolean {
+  return !input.isCreating &&
+    input.cwd.trim().length > 0 &&
+    input.selectedTemplateId.trim().length > 0 &&
+    input.goalDraft.trim().length > 0
+}
+
 export function workflowPreviewItems<T>(items: T[], limit: number): T[] {
   return items.slice(0, Math.max(0, limit))
 }
