@@ -4,8 +4,15 @@ import type {
   UiWorkspaceConfig,
   UiWorkspaceProjectContext,
   UiWorkspaceScriptRun,
+  UiWorkspaceSnapshot,
+  UiWorkspaceStatusFile,
+  UiWorkspaceValidationCommand,
   UiWorkspaceValidationPlan,
 } from '../types/codex'
+import type {
+  UiWorkspaceResourceMetric,
+  UiWorkspaceResourceSummary,
+} from './useWorkspaceResources'
 
 export type WorkspaceScriptRunState = {
   isRunning: boolean
@@ -17,6 +24,51 @@ export const EMPTY_WORKSPACE_SCRIPT_RUN_STATE: WorkspaceScriptRunState = {
   isRunning: false,
   errorMessage: '',
   result: null,
+}
+
+export function workspaceDashboardPreviewItems<T>(items: T[], limit: number): T[] {
+  return items.slice(0, Math.max(0, limit))
+}
+
+export function workspaceDirtyFilePreview(snapshot: UiWorkspaceSnapshot | null, limit = 8): UiWorkspaceStatusFile[] {
+  return workspaceDashboardPreviewItems(snapshot?.gitStatus.files ?? [], limit)
+}
+
+export function workspaceConfiguredValidationCommandPreview(
+  config: UiWorkspaceConfig,
+  limit = 6,
+): UiWorkspaceValidationCommand[] {
+  return workspaceDashboardPreviewItems(config.validationCommands, limit)
+}
+
+export function workspaceValidationPlanItemPreview(
+  plan: UiWorkspaceValidationPlan | null | undefined,
+  limit = 10,
+): UiValidationPlanItem[] {
+  return workspaceDashboardPreviewItems(plan?.items ?? [], limit)
+}
+
+export function workspaceProjectContextSourcePreview(
+  context: UiWorkspaceProjectContext | null | undefined,
+  limit = 8,
+): UiWorkspaceProjectContext['sources'] {
+  return workspaceDashboardPreviewItems(context?.sources ?? [], limit)
+}
+
+export function workspaceNotificationChannelPreview(
+  config: UiWorkspaceConfig,
+  limit = 4,
+): UiWorkspaceConfig['notifications']['channels'] {
+  return workspaceDashboardPreviewItems(config.notifications.channels, limit)
+}
+
+export function workspaceResourceMetrics(summary: UiWorkspaceResourceSummary): UiWorkspaceResourceMetric[] {
+  return [
+    summary.rateLimit,
+    summary.tokens,
+    summary.validation,
+    summary.activity,
+  ]
 }
 
 export function basenameFromPath(value: string): string {

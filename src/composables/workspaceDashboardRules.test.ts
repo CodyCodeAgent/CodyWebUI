@@ -5,9 +5,11 @@ import type {
   UiWorkspaceProblem,
   UiWorkspaceConfig,
   UiWorkspaceProjectContext,
+  UiWorkspaceSnapshot,
   UiWorkspaceScriptRun,
   UiWorkspaceValidationPlan,
 } from '../types/codex'
+import type { UiWorkspaceResourceSummary } from './useWorkspaceResources'
 import {
   basenameFromPath,
   completedWorkspaceScriptRuns,
@@ -23,12 +25,19 @@ import {
   scriptRunOutput,
   setWorkspaceScriptRunState,
   validationPlanEvidenceLabel,
+  workspaceConfiguredValidationCommandPreview,
   workspaceScriptRunState,
+  workspaceDashboardPreviewItems,
+  workspaceDirtyFilePreview,
+  workspaceNotificationChannelPreview,
   workspaceCommandPolicyLabel,
   workspaceNotificationPolicyLabel,
   workspaceNotificationTestSummary,
+  workspaceProjectContextSourcePreview,
   workspaceProjectContextSummary,
+  workspaceResourceMetrics,
   workspaceThemePolicyLabel,
+  workspaceValidationPlanItemPreview,
   workspaceValidationPlanSummary,
   EMPTY_WORKSPACE_SCRIPT_RUN_STATE,
   type WorkspaceScriptRunState,
@@ -138,6 +147,93 @@ function problem(overrides: Partial<UiWorkspaceProblem> = {}): UiWorkspaceProble
 }
 
 describe('workspace dashboard rules', () => {
+  it('builds bounded dashboard preview rows and resource metrics', () => {
+    expect(workspaceDashboardPreviewItems([1, 2, 3], 2)).toEqual([1, 2])
+    expect(workspaceDashboardPreviewItems([1, 2, 3], -1)).toEqual([])
+
+    const snapshot = {
+      gitStatus: {
+        files: [
+          { path: 'a.ts', status: 'M', indexStatus: ' ', worktreeStatus: 'M' },
+          { path: 'b.ts', status: '??', indexStatus: '?', worktreeStatus: '?' },
+        ],
+      },
+    } as UiWorkspaceSnapshot
+    expect(workspaceDirtyFilePreview(snapshot, 1)).toEqual([snapshot.gitStatus.files[0]])
+    expect(workspaceDirtyFilePreview(null, 1)).toEqual([])
+
+    const config = workspaceConfig({
+      validationCommands: [
+        { name: 'test', command: 'npm test' },
+        { name: 'lint', command: 'npm run lint' },
+      ],
+      notifications: {
+        enabled: true,
+        events: [],
+        channels: [
+          { name: 'lark', type: 'lark', enabled: true, events: [], target: '$LARK' },
+          { name: 'slack', type: 'slack', enabled: false, events: [], target: '$SLACK' },
+        ],
+      },
+    })
+    expect(workspaceConfiguredValidationCommandPreview(config, 1)).toEqual([config.validationCommands[0]])
+    expect(workspaceNotificationChannelPreview(config, 1)).toEqual([config.notifications.channels[0]])
+
+    const plan: UiWorkspaceValidationPlan = {
+      generatedAtIso: '2026-07-07T00:00:00.000Z',
+      items: [validationPlanItem({ id: 'one' }), validationPlanItem({ id: 'two' })],
+      requiredCount: 0,
+      recommendedCount: 0,
+      optionalCount: 0,
+      coveredCount: 0,
+      failedCount: 0,
+      missingEvidenceCount: 0,
+    }
+    expect(workspaceValidationPlanItemPreview(plan, 1).map((item) => item.id)).toEqual(['one'])
+    expect(workspaceValidationPlanItemPreview(null, 1)).toEqual([])
+
+    const context: UiWorkspaceProjectContext = {
+      generatedAtIso: '2026-07-07T00:00:00.000Z',
+      presentCount: 1,
+      warnings: [],
+      sources: [
+        {
+          id: 'rules',
+          kind: 'custom_rules',
+          title: 'Rules',
+          path: 'README.md',
+          present: true,
+          bytes: 128,
+          excerpt: 'ok',
+          truncated: false,
+          summary: 'ok',
+        },
+        {
+          id: 'agents',
+          kind: 'agents',
+          title: 'AGENTS',
+          path: 'AGENTS.md',
+          present: false,
+          bytes: 0,
+          excerpt: '',
+          truncated: false,
+          summary: 'missing',
+        },
+      ],
+    }
+    expect(workspaceProjectContextSourcePreview(context, 1).map((source) => source.id)).toEqual(['rules'])
+    expect(workspaceProjectContextSourcePreview(undefined, 1)).toEqual([])
+
+    const resourceSummary = {
+      rateLimit: { label: 'rate', value: 'ok', detail: '', tone: 'success' },
+      tokens: { label: 'tokens', value: '1', detail: '', tone: 'info' },
+      validation: { label: 'validation', value: '2', detail: '', tone: 'success' },
+      activity: { label: 'activity', value: '3', detail: '', tone: 'warning' },
+    } as UiWorkspaceResourceSummary
+    expect(workspaceResourceMetrics(resourceSummary).map((metric) => metric.label))
+      .toEqual(['rate', 'tokens', 'validation', 'activity'])
+  })
+
   it('formats labels for paths, durations, policies, and summaries', () => {
     expect(basenameFromPath('/repo/apps/web')).toBe('web')
     expect(formatWorkspaceDuration(999.4)).toBe('999ms')

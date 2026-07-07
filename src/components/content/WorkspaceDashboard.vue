@@ -357,12 +357,18 @@ import {
   scriptRunOutput,
   setWorkspaceScriptRunState,
   validationPlanEvidenceLabel,
+  workspaceConfiguredValidationCommandPreview,
+  workspaceDirtyFilePreview,
+  workspaceNotificationChannelPreview,
   workspaceScriptRunState,
   workspaceCommandPolicyLabel,
   workspaceNotificationPolicyLabel,
   workspaceNotificationTestSummary,
+  workspaceProjectContextSourcePreview,
   workspaceProjectContextSummary,
+  workspaceResourceMetrics,
   workspaceThemePolicyLabel,
+  workspaceValidationPlanItemPreview,
   workspaceValidationPlanSummary,
   type WorkspaceScriptRunState,
 } from '../../composables/workspaceDashboardRules'
@@ -461,16 +467,16 @@ const defaultWorkspaceConfig: UiWorkspaceConfig = {
   ignorePatterns: [],
 }
 
-const dirtyFiles = computed(() => snapshot.value?.gitStatus.files.slice(0, 8) ?? [])
+const dirtyFiles = computed(() => workspaceDirtyFilePreview(snapshot.value))
 const warnings = computed(() => snapshot.value?.warnings ?? [])
 const workspaceConfig = computed(() => snapshot.value?.workspaceConfig ?? defaultWorkspaceConfig)
 const commandPolicyLabel = computed(() => workspaceCommandPolicyLabel(workspaceConfig.value))
-const configuredValidationCommands = computed(() => workspaceConfig.value.validationCommands.slice(0, 6))
-const validationPlanItems = computed(() => snapshot.value?.validationPlan.items.slice(0, 10) ?? [])
+const configuredValidationCommands = computed(() => workspaceConfiguredValidationCommandPreview(workspaceConfig.value))
+const validationPlanItems = computed(() => workspaceValidationPlanItemPreview(snapshot.value?.validationPlan))
 const validationPlanSummary = computed(() => workspaceValidationPlanSummary(snapshot.value?.validationPlan))
-const projectContextSources = computed(() => snapshot.value?.projectContext.sources.slice(0, 8) ?? [])
+const projectContextSources = computed(() => workspaceProjectContextSourcePreview(snapshot.value?.projectContext))
 const projectContextSummary = computed(() => workspaceProjectContextSummary(snapshot.value?.projectContext))
-const notificationChannels = computed(() => workspaceConfig.value.notifications.channels.slice(0, 4))
+const notificationChannels = computed(() => workspaceNotificationChannelPreview(workspaceConfig.value))
 const notificationPolicyLabel = computed(() => workspaceNotificationPolicyLabel(workspaceConfig.value))
 const themePolicyLabel = computed(() => workspaceThemePolicyLabel(workspaceConfig.value))
 const notificationTestSummary = computed(() => workspaceNotificationTestSummary(notificationTestReport.value))
@@ -490,12 +496,7 @@ const resourceSummary = computed(() => buildWorkspaceResourceSummary({
   threads: props.threads,
   pendingRequests: props.pendingRequests,
 }))
-const resourceMetrics = computed(() => [
-  resourceSummary.value.rateLimit,
-  resourceSummary.value.tokens,
-  resourceSummary.value.validation,
-  resourceSummary.value.activity,
-])
+const resourceMetrics = computed(() => workspaceResourceMetrics(resourceSummary.value))
 
 function scriptRunState(scriptName: string): WorkspaceScriptRunState {
   return workspaceScriptRunState(scriptRunStates.value, scriptName)
