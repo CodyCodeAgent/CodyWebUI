@@ -1,4 +1,5 @@
 import type { UiApprovalDecisionScope, UiServerRequest } from '../types/codex'
+import { asRecord, readString as readProtocolString } from '../api/protocolValueReaders'
 
 export type UiApprovalRiskLevel = 'low' | 'medium' | 'high'
 export type UiApprovalDecision = 'accept' | 'acceptForSession' | 'decline' | 'cancel'
@@ -55,14 +56,8 @@ export function approvalDecisionForScope(scope: UiApprovalDecisionScope): UiAppr
   return scope === 'session' ? 'acceptForSession' : 'accept'
 }
 
-function asRecord(value: unknown): Record<string, unknown> | null {
-  return value !== null && typeof value === 'object' && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : null
-}
-
 function readString(value: unknown): string {
-  return typeof value === 'string' ? value.trim() : ''
+  return readProtocolString(value).trim()
 }
 
 function unique(values: string[]): string[] {

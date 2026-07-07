@@ -157,6 +157,7 @@
                 :selected-reasoning-effort="selectedReasoningEffort"
                 :collaboration-modes="collaborationModeOptions"
                 :selected-collaboration-mode="selectedCollaborationModeName"
+                :busy-label="homeComposerBusyLabel"
                 :is-turn-in-progress="false"
                 :is-interrupting-turn="false" :cwd="newThreadCwd" @submit="onSubmitThreadMessage"
                 @update:selected-model="onSelectModel" @update:selected-reasoning-effort="onSelectReasoningEffort"
@@ -208,6 +209,7 @@
                 :selected-model="selectedModelId" :selected-reasoning-effort="selectedReasoningEffort"
                 :collaboration-modes="collaborationModeOptions"
                 :selected-collaboration-mode="selectedCollaborationModeName"
+                :busy-label="threadComposerBusyLabel"
                 :cwd="selectedThread?.cwd ?? ''"
                 :is-turn-in-progress="isSelectedThreadInProgress" :is-interrupting-turn="isInterruptingTurn"
                 @submit="onSubmitThreadMessage" @update:selected-model="onSelectModel"
@@ -384,6 +386,11 @@ const filteredMessages = computed(() =>
 const liveOverlay = computed(() => selectedLiveOverlay.value)
 const composerThreadContextId = computed(() => (isHomeRoute.value ? '__new-thread__' : selectedThreadId.value))
 const isSelectedThreadInProgress = computed(() => !isHomeRoute.value && selectedThread.value?.inProgress === true)
+const homeComposerBusyLabel = computed(() => (isSendingMessage.value ? 'Creating thread...' : ''))
+const threadComposerBusyLabel = computed(() => {
+  if (!isSendingMessage.value) return ''
+  return isSelectedThreadInProgress.value ? 'Sending guidance...' : 'Starting response...'
+})
 const directoryPickerInitialPath = computed(() => newThreadCwd.value || selectedThread.value?.cwd || '')
 const newThreadProjectOptions = computed<NewThreadProjectOption[]>(() =>
   newThreadFolderOptions.value.map((option) => ({

@@ -22,12 +22,118 @@ import {
   unarchiveThread,
   type RpcNotification,
 } from '../api/codexGateway'
+import {
+  extractThreadIdFromNotification,
+  isAgentContentEvent,
+  liveReasoningMessageId,
+  readAgentMessageCompleted,
+  readAgentMessageDelta,
+  readAgentMessageStartedId,
+  readPlanMessageCompleted,
+  readPlanMessageDelta,
+  readPlanUpdatedMessage,
+  readRateLimitSnapshotPayload,
+  readReasoningCompletedId,
+  readReasoningDelta,
+  readReasoningSectionBreakMessageId,
+  readReasoningStartedItemId,
+  readStartedThread,
+  readTurnActivity,
+  readTurnCompletedInfo,
+  readTurnDurationHints,
+  readTurnErrorMessage,
+  readTurnStartedInfo,
+  readUserMessageCompleted,
+  type TurnActivityState,
+  type TurnCompletedInfo,
+  type TurnStartedInfo,
+} from './realtimeNotificationReaders'
+import { shouldQueueEventDrivenSyncForMethod } from './realtimeSyncPolicy'
+import {
+  clearDesktopRealtimeSyncQueue,
+  consumeDesktopRealtimeSyncQueue,
+  createDesktopRealtimeSyncQueue,
+  hasPendingDesktopRealtimeSync,
+  queueDesktopRealtimeSync,
+} from './desktopRealtimeSyncQueue'
+import {
+  areMessageArraysEqual,
+  appendLiveReasoningDelta,
+  appendLiveReasoningSectionBreak,
+  buildDisplayedMessages,
+  buildLiveOverlay,
+  buildRollbackAuditMessage,
+  mergeMessages,
+  normalizeLiveReasoningTextForStorage,
+  removeRedundantLiveAgentMessages,
+  resolveTurnDurationMs,
+  upsertLiveAssistantDelta,
+  upsertMessage,
+  updateTurnActivityState,
+  updateTurnErrorState,
+  updateTurnSummaryState,
+  type TurnErrorState,
+  type TurnSummaryState,
+} from './desktopMessageState'
+import {
+  flattenServerRequests,
+  normalizeServerRequest,
+  readResolvedServerRequestId,
+  removeServerRequestById,
+  selectServerRequestsForThread,
+  upsertServerRequest,
+} from './desktopServerRequests'
+import { pruneDesktopThreadScopedState } from './desktopThreadScopedState'
+import {
+  DEFAULT_COLLABORATION_MODE,
+  FALLBACK_PLAN_COLLABORATION_MODE,
+  buildPendingTurnDetails,
+  buildTurnCollaborationMode,
+  mergeAvailableModelsWithCurrent,
+  mergeCollaborationModeOptions,
+  normalizeSelectedReasoningEffort,
+  reconcileSelectedCollaborationModeName,
+  selectCollaborationModeName,
+  selectModelId,
+  selectReasoningEffortFromPreference,
+  type CurrentModelPreference,
+} from './desktopTurnPreferences'
+import {
+  loadAutoRefreshEnabled,
+  loadProjectDisplayNames,
+  loadProjectOrder,
+  loadReadStateMap,
+  loadSelectedThreadId,
+  loadThreadScrollStateMap,
+  normalizeThreadScrollState,
+  saveAutoRefreshEnabled,
+  saveProjectDisplayNames,
+  saveProjectOrder,
+  saveReadStateMap,
+  saveSelectedThreadId,
+  saveThreadScrollStateMap,
+} from './desktopStateStorage'
+import {
+  areStringArraysEqual,
+  buildThreadGroupsWithFlags,
+  flattenThreads,
+  markThreadReadState,
+  markThreadUnreadState,
+  mergeProjectOrder,
+  mergeThreadGroups,
+  omitKey,
+  orderGroupsByProjectOrder,
+  reconcileOptimisticThreads,
+  renameThreadInGroups,
+  reorderStringArray,
+  updateThreadBooleanState,
+  upsertThreadInGroups,
+} from './threadGroupState'
 import type {
   ReasoningEffort,
   UiCollaborationModeOption,
   UiComposerSubmitPayload,
   ThreadScrollState,
-  UiLiveOverlay,
   UiMessage,
   UiProjectGroup,
   UiRateLimitSnapshot,
@@ -37,636 +143,10 @@ import type {
   UiToolingRollbackFileResult,
 } from '../types/codex'
 
-function flattenThreads(groups: UiProjectGroup[]): UiThread[] {
-  return groups.flatMap((group) => group.threads)
-}
+export { buildRollbackAuditMessage } from './desktopMessageState'
 
-const READ_STATE_STORAGE_KEY = 'codex-web-local.thread-read-state.v1'
-const SCROLL_STATE_STORAGE_KEY = 'codex-web-local.thread-scroll-state.v1'
-const SELECTED_THREAD_STORAGE_KEY = 'codex-web-local.selected-thread-id.v1'
-const PROJECT_ORDER_STORAGE_KEY = 'codex-web-local.project-order.v1'
-const PROJECT_DISPLAY_NAME_STORAGE_KEY = 'codex-web-local.project-display-name.v1'
-const AUTO_REFRESH_ENABLED_STORAGE_KEY = 'codex-web-local.auto-refresh-enabled.v1'
 const EVENT_SYNC_DEBOUNCE_MS = 220
 const AUTO_REFRESH_INTERVAL_MS = 4000
-const REASONING_EFFORT_OPTIONS: ReasoningEffort[] = ['none', 'minimal', 'low', 'medium', 'high', 'xhigh']
-const GLOBAL_SERVER_REQUEST_SCOPE = '__global__'
-const DEFAULT_COLLABORATION_MODE: UiCollaborationModeOption = {
-  name: 'default',
-  mode: 'default',
-  label: 'Default',
-  model: '',
-  reasoningEffort: '',
-  developerInstructions: null,
-}
-const FALLBACK_PLAN_COLLABORATION_MODE: UiCollaborationModeOption = {
-  name: 'plan',
-  mode: 'plan',
-  label: 'Plan',
-  model: '',
-  reasoningEffort: '',
-  developerInstructions: null,
-}
-
-function loadReadStateMap(): Record<string, string> {
-  if (typeof window === 'undefined') return {}
-
-  try {
-    const raw = window.localStorage.getItem(READ_STATE_STORAGE_KEY)
-    if (!raw) return {}
-
-    const parsed = JSON.parse(raw) as unknown
-    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {}
-    return parsed as Record<string, string>
-  } catch {
-    return {}
-  }
-}
-
-function saveReadStateMap(state: Record<string, string>): void {
-  if (typeof window === 'undefined') return
-  window.localStorage.setItem(READ_STATE_STORAGE_KEY, JSON.stringify(state))
-}
-
-function loadAutoRefreshEnabled(): boolean {
-  if (typeof window === 'undefined') return false
-  return window.localStorage.getItem(AUTO_REFRESH_ENABLED_STORAGE_KEY) === '1'
-}
-
-function saveAutoRefreshEnabled(value: boolean): void {
-  if (typeof window === 'undefined') return
-  window.localStorage.setItem(AUTO_REFRESH_ENABLED_STORAGE_KEY, value ? '1' : '0')
-}
-
-function clamp(value: number, minValue: number, maxValue: number): number {
-  return Math.min(Math.max(value, minValue), maxValue)
-}
-
-function normalizeThreadScrollState(value: unknown): ThreadScrollState | null {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return null
-
-  const rawState = value as Record<string, unknown>
-  if (typeof rawState.scrollTop !== 'number' || !Number.isFinite(rawState.scrollTop)) return null
-  if (typeof rawState.isAtBottom !== 'boolean') return null
-
-  const normalized: ThreadScrollState = {
-    scrollTop: Math.max(0, rawState.scrollTop),
-    isAtBottom: rawState.isAtBottom,
-  }
-
-  if (typeof rawState.scrollRatio === 'number' && Number.isFinite(rawState.scrollRatio)) {
-    normalized.scrollRatio = clamp(rawState.scrollRatio, 0, 1)
-  }
-
-  return normalized
-}
-
-function loadThreadScrollStateMap(): Record<string, ThreadScrollState> {
-  if (typeof window === 'undefined') return {}
-
-  try {
-    const raw = window.localStorage.getItem(SCROLL_STATE_STORAGE_KEY)
-    if (!raw) return {}
-
-    const parsed = JSON.parse(raw) as unknown
-    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {}
-
-    const normalizedMap: Record<string, ThreadScrollState> = {}
-    for (const [threadId, state] of Object.entries(parsed as Record<string, unknown>)) {
-      if (!threadId) continue
-      const normalizedState = normalizeThreadScrollState(state)
-      if (normalizedState) {
-        normalizedMap[threadId] = normalizedState
-      }
-    }
-    return normalizedMap
-  } catch {
-    return {}
-  }
-}
-
-function saveThreadScrollStateMap(state: Record<string, ThreadScrollState>): void {
-  if (typeof window === 'undefined') return
-  window.localStorage.setItem(SCROLL_STATE_STORAGE_KEY, JSON.stringify(state))
-}
-
-function loadSelectedThreadId(): string {
-  if (typeof window === 'undefined') return ''
-  const raw = window.localStorage.getItem(SELECTED_THREAD_STORAGE_KEY)
-  return raw ?? ''
-}
-
-function saveSelectedThreadId(threadId: string): void {
-  if (typeof window === 'undefined') return
-  if (!threadId) {
-    window.localStorage.removeItem(SELECTED_THREAD_STORAGE_KEY)
-    return
-  }
-  window.localStorage.setItem(SELECTED_THREAD_STORAGE_KEY, threadId)
-}
-
-function loadProjectOrder(): string[] {
-  if (typeof window === 'undefined') return []
-
-  try {
-    const raw = window.localStorage.getItem(PROJECT_ORDER_STORAGE_KEY)
-    if (!raw) return []
-
-    const parsed = JSON.parse(raw) as unknown
-    if (!Array.isArray(parsed)) return []
-    const order: string[] = []
-    for (const item of parsed) {
-      if (typeof item === 'string' && item.length > 0 && !order.includes(item)) {
-        order.push(item)
-      }
-    }
-    return order
-  } catch {
-    return []
-  }
-}
-
-function saveProjectOrder(order: string[]): void {
-  if (typeof window === 'undefined') return
-  window.localStorage.setItem(PROJECT_ORDER_STORAGE_KEY, JSON.stringify(order))
-}
-
-function loadProjectDisplayNames(): Record<string, string> {
-  if (typeof window === 'undefined') return {}
-
-  try {
-    const raw = window.localStorage.getItem(PROJECT_DISPLAY_NAME_STORAGE_KEY)
-    if (!raw) return {}
-
-    const parsed = JSON.parse(raw) as unknown
-    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {}
-
-    const displayNames: Record<string, string> = {}
-    for (const [projectName, displayName] of Object.entries(parsed as Record<string, unknown>)) {
-      if (typeof projectName === 'string' && projectName.length > 0 && typeof displayName === 'string') {
-        displayNames[projectName] = displayName
-      }
-    }
-    return displayNames
-  } catch {
-    return {}
-  }
-}
-
-function saveProjectDisplayNames(displayNames: Record<string, string>): void {
-  if (typeof window === 'undefined') return
-  window.localStorage.setItem(PROJECT_DISPLAY_NAME_STORAGE_KEY, JSON.stringify(displayNames))
-}
-
-function mergeProjectOrder(previousOrder: string[], incomingGroups: UiProjectGroup[]): string[] {
-  const incomingNames = new Set(incomingGroups.map((group) => group.projectName))
-  const nextOrder = previousOrder.filter((projectName) => incomingNames.has(projectName))
-
-  for (const group of incomingGroups) {
-    if (!nextOrder.includes(group.projectName)) {
-      nextOrder.push(group.projectName)
-    }
-  }
-
-  return areStringArraysEqual(previousOrder, nextOrder) ? previousOrder : nextOrder
-}
-
-function orderGroupsByProjectOrder(incoming: UiProjectGroup[], projectOrder: string[]): UiProjectGroup[] {
-  const incomingByName = new Map(incoming.map((group) => [group.projectName, group]))
-  const ordered: UiProjectGroup[] = projectOrder
-    .map((projectName) => incomingByName.get(projectName) ?? null)
-    .filter((group): group is UiProjectGroup => group !== null)
-
-  for (const group of incoming) {
-    if (!projectOrder.includes(group.projectName)) {
-      ordered.push(group)
-    }
-  }
-
-  return ordered
-}
-
-function areStringArraysEqual(first?: string[], second?: string[]): boolean {
-  const left = Array.isArray(first) ? first : []
-  const right = Array.isArray(second) ? second : []
-  if (left.length !== right.length) return false
-  for (let index = 0; index < left.length; index += 1) {
-    if (left[index] !== right[index]) return false
-  }
-  return true
-}
-
-function areMessageToolsEqual(first: UiMessage['tool'], second: UiMessage['tool']): boolean {
-  if (!first && !second) return true
-  if (!first || !second) return false
-  if (
-    first.kind !== second.kind ||
-    first.title !== second.title ||
-    first.status !== second.status ||
-    first.summary !== second.summary ||
-    first.output !== second.output ||
-    first.outputLabel !== second.outputLabel
-  ) {
-    return false
-  }
-  return areStringArraysEqual(first.details, second.details)
-}
-
-function reorderStringArray(items: string[], fromIndex: number, toIndex: number): string[] {
-  if (fromIndex < 0 || fromIndex >= items.length || toIndex < 0 || toIndex >= items.length) {
-    return items
-  }
-
-  if (fromIndex === toIndex) {
-    return items
-  }
-
-  const next = [...items]
-  const [moved] = next.splice(fromIndex, 1)
-  next.splice(toIndex, 0, moved)
-  return next
-}
-
-function areMessageFieldsEqual(first: UiMessage, second: UiMessage): boolean {
-  return (
-    first.id === second.id &&
-    first.role === second.role &&
-    first.text === second.text &&
-    areStringArraysEqual(first.images, second.images) &&
-    areMessageToolsEqual(first.tool, second.tool) &&
-    first.messageType === second.messageType &&
-    first.rawPayload === second.rawPayload &&
-    first.isUnhandled === second.isUnhandled
-  )
-}
-
-function areMessageArraysEqual(first: UiMessage[], second: UiMessage[]): boolean {
-  if (first.length !== second.length) return false
-  for (let index = 0; index < first.length; index += 1) {
-    if (first[index] !== second[index]) return false
-  }
-  return true
-}
-
-function mergeMessages(
-  previous: UiMessage[],
-  incoming: UiMessage[],
-  options: { preserveMissing?: boolean } = {},
-): UiMessage[] {
-  const previousById = new Map(previous.map((message) => [message.id, message]))
-  const incomingById = new Map(incoming.map((message) => [message.id, message]))
-
-  const mergedIncoming = incoming.map((incomingMessage) => {
-    const previousMessage = previousById.get(incomingMessage.id)
-    if (previousMessage && areMessageFieldsEqual(previousMessage, incomingMessage)) {
-      return previousMessage
-    }
-    return incomingMessage
-  })
-
-  if (options.preserveMissing !== true) {
-    return areMessageArraysEqual(previous, mergedIncoming) ? previous : mergedIncoming
-  }
-
-  const mergedFromPrevious = previous.map((previousMessage) => {
-    const nextMessage = incomingById.get(previousMessage.id)
-    if (!nextMessage) {
-      return previousMessage
-    }
-    if (areMessageFieldsEqual(previousMessage, nextMessage)) {
-      return previousMessage
-    }
-    return nextMessage
-  })
-
-  const previousIdSet = new Set(previous.map((message) => message.id))
-  const appended = mergedIncoming.filter((message) => !previousIdSet.has(message.id))
-  const merged = [...mergedFromPrevious, ...appended]
-
-  return areMessageArraysEqual(previous, merged) ? previous : merged
-}
-
-function normalizeMessageText(value: string): string {
-  return value.replace(/\s+/gu, ' ').trim()
-}
-
-function removeRedundantLiveAgentMessages(previous: UiMessage[], incoming: UiMessage[]): UiMessage[] {
-  const incomingAssistantTexts = new Set(
-    incoming
-      .filter((message) => message.role === 'assistant')
-      .map((message) => normalizeMessageText(message.text))
-      .filter((text) => text.length > 0),
-  )
-
-  if (incomingAssistantTexts.size === 0) {
-    return previous
-  }
-
-  const next = previous.filter((message) => {
-    if (message.messageType !== 'agentMessage.live' && message.messageType !== 'plan.live') return true
-    const normalized = normalizeMessageText(message.text)
-    if (normalized.length === 0) return false
-    return !incomingAssistantTexts.has(normalized)
-  })
-
-  return next.length === previous.length ? previous : next
-}
-
-function upsertMessage(previous: UiMessage[], nextMessage: UiMessage): UiMessage[] {
-  const existingIndex = previous.findIndex((message) => message.id === nextMessage.id)
-  if (existingIndex < 0) {
-    return [...previous, nextMessage]
-  }
-
-  const existing = previous[existingIndex]
-  if (areMessageFieldsEqual(existing, nextMessage)) {
-    return previous
-  }
-
-  const next = [...previous]
-  next.splice(existingIndex, 1, nextMessage)
-  return next
-}
-
-type TurnSummaryState = {
-  turnId: string
-  durationMs: number
-}
-
-type TurnActivityState = {
-  label: string
-  details: string[]
-}
-
-type TurnErrorState = {
-  message: string
-}
-
-type TurnStartedInfo = {
-  threadId: string
-  turnId: string
-  startedAtMs: number
-}
-
-type TurnCompletedInfo = {
-  threadId: string
-  turnId: string
-  completedAtMs: number
-  startedAtMs?: number
-}
-
-const WORKED_MESSAGE_TYPE = 'worked'
-
-function parseIsoTimestamp(value: string): number | null {
-  if (!value) return null
-  const ms = new Date(value).getTime()
-  return Number.isNaN(ms) ? null : ms
-}
-
-function formatTurnDuration(durationMs: number): string {
-  if (!Number.isFinite(durationMs) || durationMs <= 0) {
-    return '<1s'
-  }
-
-  const totalSeconds = Math.max(1, Math.round(durationMs / 1000))
-  const hours = Math.floor(totalSeconds / 3600)
-  const minutes = Math.floor((totalSeconds % 3600) / 60)
-  const seconds = totalSeconds % 60
-  const parts: string[] = []
-
-  if (hours > 0) {
-    parts.push(`${hours}h`)
-  }
-
-  if (minutes > 0 || hours > 0) {
-    parts.push(`${minutes}m`)
-  }
-
-  const displaySeconds = seconds > 0 || parts.length === 0 ? seconds : 0
-  parts.push(`${displaySeconds}s`)
-  return parts.join(' ')
-}
-
-function areTurnSummariesEqual(first?: TurnSummaryState, second?: TurnSummaryState): boolean {
-  if (!first && !second) return true
-  if (!first || !second) return false
-  return first.turnId === second.turnId && first.durationMs === second.durationMs
-}
-
-function areTurnActivitiesEqual(first?: TurnActivityState, second?: TurnActivityState): boolean {
-  if (!first && !second) return true
-  if (!first || !second) return false
-  if (first.label !== second.label) return false
-  if (first.details.length !== second.details.length) return false
-  for (let index = 0; index < first.details.length; index += 1) {
-    if (first.details[index] !== second.details[index]) return false
-  }
-  return true
-}
-
-function buildTurnSummaryMessage(summary: TurnSummaryState): UiMessage {
-  return {
-    id: `turn-summary:${summary.turnId}`,
-    role: 'system',
-    text: `Worked for ${formatTurnDuration(summary.durationMs)}`,
-    messageType: WORKED_MESSAGE_TYPE,
-  }
-}
-
-export function buildRollbackAuditMessage(result: UiToolingRollbackFileResult): UiMessage {
-  const remainingStatus = result.remainingStatus.trim()
-  const checkpoint = result.checkpoint
-  return {
-    id: `tooling.rollback:${checkpoint.id}:${result.relativePath}`,
-    role: 'system',
-    text: '',
-    messageType: 'tool.rollback',
-    tool: {
-      kind: 'rollback',
-      title: 'File rollback',
-      status: result.rollbackApplied ? 'completed' : 'no changes',
-      summary: result.rollbackApplied
-        ? `Rolled back ${result.relativePath}`
-        : `No local changes found for ${result.relativePath}`,
-      details: [
-        `file: ${result.relativePath}`,
-        `checkpoint: ${checkpoint.id}`,
-        `patch bytes: ${String(checkpoint.patchBytes)}`,
-        `remaining status: ${remainingStatus || 'clean'}`,
-      ],
-      output: checkpoint.patchPath,
-      outputLabel: 'Checkpoint patch',
-    },
-  }
-}
-
-function findLastAssistantMessageIndex(messages: UiMessage[]): number {
-  for (let index = messages.length - 1; index >= 0; index -= 1) {
-    if (messages[index].role === 'assistant') {
-      return index
-    }
-  }
-  return -1
-}
-
-function insertTurnSummaryMessage(messages: UiMessage[], summary: TurnSummaryState): UiMessage[] {
-  const summaryMessage = buildTurnSummaryMessage(summary)
-  const sanitizedMessages = messages.filter((message) => message.messageType !== WORKED_MESSAGE_TYPE)
-  const insertIndex = findLastAssistantMessageIndex(sanitizedMessages)
-  if (insertIndex < 0) {
-    return [...sanitizedMessages, summaryMessage]
-  }
-  const next = [...sanitizedMessages]
-  next.splice(insertIndex, 0, summaryMessage)
-  return next
-}
-
-function omitKey<TValue>(record: Record<string, TValue>, key: string): Record<string, TValue> {
-  if (!(key in record)) return record
-  const next = { ...record }
-  delete next[key]
-  return next
-}
-
-function areThreadFieldsEqual(first: UiThread, second: UiThread): boolean {
-  return (
-    first.id === second.id &&
-    first.title === second.title &&
-    first.projectName === second.projectName &&
-    first.cwd === second.cwd &&
-    first.createdAtIso === second.createdAtIso &&
-    first.updatedAtIso === second.updatedAtIso &&
-    first.preview === second.preview &&
-    first.unread === second.unread &&
-    first.inProgress === second.inProgress
-  )
-}
-
-function areThreadArraysEqual(first: UiThread[], second: UiThread[]): boolean {
-  if (first.length !== second.length) return false
-  for (let index = 0; index < first.length; index += 1) {
-    if (first[index] !== second[index]) return false
-  }
-  return true
-}
-
-function areGroupArraysEqual(first: UiProjectGroup[], second: UiProjectGroup[]): boolean {
-  if (first.length !== second.length) return false
-  for (let index = 0; index < first.length; index += 1) {
-    if (first[index] !== second[index]) return false
-  }
-  return true
-}
-
-function pruneThreadStateMap<T>(stateMap: Record<string, T>, threadIds: Set<string>): Record<string, T> {
-  const nextEntries = Object.entries(stateMap).filter(([threadId]) => threadIds.has(threadId))
-  if (nextEntries.length === Object.keys(stateMap).length) {
-    return stateMap
-  }
-  return Object.fromEntries(nextEntries) as Record<string, T>
-}
-
-function mergeThreadGroups(
-  previous: UiProjectGroup[],
-  incoming: UiProjectGroup[],
-): UiProjectGroup[] {
-  const previousGroupsByName = new Map(previous.map((group) => [group.projectName, group]))
-  const mergedGroups: UiProjectGroup[] = incoming.map((incomingGroup) => {
-    const previousGroup = previousGroupsByName.get(incomingGroup.projectName)
-    const previousThreadsById = new Map(previousGroup?.threads.map((thread) => [thread.id, thread]) ?? [])
-
-    const mergedThreads = incomingGroup.threads.map((incomingThread) => {
-      const previousThread = previousThreadsById.get(incomingThread.id)
-      if (previousThread && areThreadFieldsEqual(previousThread, incomingThread)) {
-        return previousThread
-      }
-      return incomingThread
-    })
-
-    if (
-      previousGroup &&
-      previousGroup.projectName === incomingGroup.projectName &&
-      areThreadArraysEqual(previousGroup.threads, mergedThreads)
-    ) {
-      return previousGroup
-    }
-
-    return {
-      projectName: incomingGroup.projectName,
-      cwd: incomingGroup.cwd,
-      threads: mergedThreads,
-    }
-  })
-
-  return areGroupArraysEqual(previous, mergedGroups) ? previous : mergedGroups
-}
-
-function upsertThreadInGroups(groups: UiProjectGroup[], thread: UiThread): UiProjectGroup[] {
-  let didInsert = false
-  let didUpdate = false
-
-  const nextGroups = groups.map((group) => {
-    if (group.projectName !== thread.projectName) return group
-
-    didInsert = true
-    const existingIndex = group.threads.findIndex((row) => row.id === thread.id)
-    if (existingIndex === -1) {
-      return {
-        ...group,
-        cwd: group.cwd || thread.cwd || thread.projectName,
-        threads: [thread, ...group.threads],
-      }
-    }
-
-    const existing = group.threads[existingIndex]
-    if (existing && areThreadFieldsEqual(existing, thread)) return group
-
-    didUpdate = true
-    const nextThreads = group.threads.slice()
-    nextThreads[existingIndex] = {
-      ...existing,
-      ...thread,
-    }
-    return {
-      ...group,
-      threads: nextThreads,
-    }
-  })
-
-  if (didInsert) return didUpdate ? nextGroups : nextGroups
-
-  return [
-    {
-      projectName: thread.projectName,
-      cwd: thread.cwd || thread.projectName,
-      threads: [thread],
-    },
-    ...groups,
-  ]
-}
-
-function renameThreadInGroups(groups: UiProjectGroup[], threadId: string, title: string): UiProjectGroup[] {
-  let didChange = false
-  const nextGroups = groups.map((group) => {
-    let didChangeGroup = false
-    const nextThreads = group.threads.map((thread) => {
-      if (thread.id !== threadId) return thread
-      if (thread.title === title && thread.preview === title) return thread
-
-      didChange = true
-      didChangeGroup = true
-      return {
-        ...thread,
-        title,
-        preview: title,
-      }
-    })
-
-    return didChangeGroup ? { ...group, threads: nextThreads } : group
-  })
-
-  return didChange ? nextGroups : groups
-}
 
 export function useDesktopState() {
   const projectGroups = ref<UiProjectGroup[]>([])
@@ -702,7 +182,7 @@ export function useDesktopState() {
   const rateLimitSnapshot = ref<UiRateLimitSnapshot | null>(null)
 
   const isLoadingThreads = ref(false)
-  const isLoadingMessages = ref(false)
+  const loadingMessagesByThreadId = ref<Record<string, boolean>>({})
   const isSendingMessage = ref(false)
   const isInterruptingTurn = ref(false)
   const isLoadingRateLimits = ref(false)
@@ -715,12 +195,13 @@ export function useDesktopState() {
   let eventSyncTimer: number | null = null
   let autoRefreshIntervalTimer: number | null = null
   let autoRefreshCountdownTimer: number | null = null
-  let pendingThreadsRefresh = false
-  const pendingThreadMessageRefresh = new Set<string>()
+  const realtimeSyncQueue = createDesktopRealtimeSyncQueue()
   let activeReasoningItemId = ''
   let shouldAutoScrollOnNextAgentEvent = false
   const pendingTurnStartsById = new Map<string, TurnStartedInfo>()
   const livePlanMessageIdByTurnId = new Map<string, string>()
+  const latestMessageLoadRequestIdByThreadId = new Map<string, number>()
+  let nextMessageLoadRequestId = 0
 
   const allThreads = computed(() => flattenThreads(projectGroups.value))
   const selectedThread = computed(() =>
@@ -730,19 +211,11 @@ export function useDesktopState() {
     () => scrollStateByThreadId.value[selectedThreadId.value] ?? null,
   )
   const selectedThreadServerRequests = computed<UiServerRequest[]>(() => {
-    const rows: UiServerRequest[] = []
-    const selected = selectedThreadId.value
-    if (selected && Array.isArray(pendingServerRequestsByThreadId.value[selected])) {
-      rows.push(...pendingServerRequestsByThreadId.value[selected])
-    }
-    if (Array.isArray(pendingServerRequestsByThreadId.value[GLOBAL_SERVER_REQUEST_SCOPE])) {
-      rows.push(...pendingServerRequestsByThreadId.value[GLOBAL_SERVER_REQUEST_SCOPE])
-    }
-    return rows.sort((first, second) => first.receivedAtIso.localeCompare(second.receivedAtIso))
+    return selectServerRequestsForThread(pendingServerRequestsByThreadId.value, selectedThreadId.value)
   })
+  const isLoadingMessages = computed(() => loadingMessagesByThreadId.value[selectedThreadId.value] === true)
   const allPendingServerRequests = computed<UiServerRequest[]>(() => {
-    const rows = Object.values(pendingServerRequestsByThreadId.value).flat()
-    return rows.sort((first, second) => first.receivedAtIso.localeCompare(second.receivedAtIso))
+    return flattenServerRequests(pendingServerRequestsByThreadId.value)
   })
   const selectedCollaborationMode = computed<UiCollaborationModeOption>(() => {
     const selected = collaborationModeOptions.value.find(
@@ -750,33 +223,21 @@ export function useDesktopState() {
     )
     return selected ?? DEFAULT_COLLABORATION_MODE
   })
-  const selectedLiveOverlay = computed<UiLiveOverlay | null>(() => {
-    const threadId = selectedThreadId.value
-    if (!threadId) return null
-
-    const activity = turnActivityByThreadId.value[threadId]
-    const reasoningText = (liveReasoningTextByThreadId.value[threadId] ?? '').trim()
-    const errorText = (turnErrorByThreadId.value[threadId]?.message ?? '').trim()
-
-    if (!activity && !reasoningText && !errorText) return null
-    return {
-      activityLabel: activity?.label || 'Thinking',
-      activityDetails: activity?.details ?? [],
-      reasoningText,
-      errorText,
-    }
-  })
+  const selectedLiveOverlay = computed(() =>
+    buildLiveOverlay(
+      selectedThreadId.value,
+      turnActivityByThreadId.value,
+      liveReasoningTextByThreadId.value,
+      turnErrorByThreadId.value,
+    ),
+  )
   const messages = computed<UiMessage[]>(() => {
     const threadId = selectedThreadId.value
     if (!threadId) return []
 
     const persisted = persistedMessagesByThreadId.value[threadId] ?? []
     const liveAgent = liveAgentMessagesByThreadId.value[threadId] ?? []
-    const combined = persisted === liveAgent ? persisted : [...persisted, ...liveAgent]
-
-    const summary = turnSummaryByThreadId.value[threadId]
-    if (!summary) return combined
-    return insertTurnSummaryMessage(combined, summary)
+    return buildDisplayedMessages(persisted, liveAgent, turnSummaryByThreadId.value[threadId])
   })
 
   function setSelectedThreadId(nextThreadId: string): void {
@@ -788,77 +249,36 @@ export function useDesktopState() {
     livePlanMessageIdByTurnId.clear()
   }
 
+  function setMessagesLoadingForThread(threadId: string, isLoading: boolean): void {
+    if (!threadId) return
+    const previous = loadingMessagesByThreadId.value[threadId] === true
+    if (previous === isLoading) return
+
+    if (!isLoading) {
+      loadingMessagesByThreadId.value = omitKey(loadingMessagesByThreadId.value, threadId)
+      return
+    }
+
+    loadingMessagesByThreadId.value = {
+      ...loadingMessagesByThreadId.value,
+      [threadId]: true,
+    }
+  }
+
   function setSelectedModelId(modelId: string): void {
     selectedModelId.value = modelId.trim()
   }
 
   function setSelectedReasoningEffort(effort: ReasoningEffort | ''): void {
-    if (effort && !REASONING_EFFORT_OPTIONS.includes(effort)) {
-      return
-    }
-    selectedReasoningEffort.value = effort
+    const normalizedEffort = normalizeSelectedReasoningEffort(effort)
+    if (normalizedEffort === null) return
+    selectedReasoningEffort.value = normalizedEffort
   }
 
   function setSelectedCollaborationModeName(name: string): void {
-    const normalizedName = name.trim()
-    if (!normalizedName) {
-      selectedCollaborationModeName.value = DEFAULT_COLLABORATION_MODE.name
-      return
-    }
-    const exists = collaborationModeOptions.value.some((option) => option.name === normalizedName)
-    if (!exists) return
-    selectedCollaborationModeName.value = normalizedName
-  }
-
-  function mergeCollaborationModeOptions(remoteOptions: UiCollaborationModeOption[]): UiCollaborationModeOption[] {
-    const nextOptions: UiCollaborationModeOption[] = [DEFAULT_COLLABORATION_MODE]
-    const seenModes = new Set<string>([DEFAULT_COLLABORATION_MODE.mode])
-    const seenNames = new Set<string>([DEFAULT_COLLABORATION_MODE.name])
-
-    for (const option of remoteOptions) {
-      if (option.mode === 'default') continue
-      if (seenNames.has(option.name)) continue
-      seenNames.add(option.name)
-      seenModes.add(option.mode)
-      nextOptions.push(option)
-    }
-
-    if (!seenModes.has('plan')) {
-      nextOptions.push(FALLBACK_PLAN_COLLABORATION_MODE)
-    }
-
-    return nextOptions
-  }
-
-  function buildPendingTurnDetails(
-    modelId: string,
-    effort: ReasoningEffort | '',
-    mode: UiCollaborationModeOption = DEFAULT_COLLABORATION_MODE,
-  ): string[] {
-    const modelLabel = modelId.trim() || 'default'
-    const effortLabel = effort || 'default'
-    const details = [`Model: ${modelLabel}`, `Thinking: ${effortLabel}`]
-    if (mode.mode !== 'default') {
-      details.unshift(`Mode: ${mode.label}`)
-    }
-    return details
-  }
-
-  function buildTurnCollaborationMode(
-    option: UiCollaborationModeOption,
-    fallbackModel: string,
-    fallbackEffort: ReasoningEffort | '',
-  ): Parameters<typeof startThreadTurn>[6] {
-    if (option.mode !== 'plan') return null
-
-    return {
-      mode: option.mode,
-      settings: {
-        model: option.model.trim() || fallbackModel.trim(),
-        reasoning_effort: option.reasoningEffort || fallbackEffort || null,
-        developer_instructions: option.developerInstructions,
-      },
-    }
+    const nextName = selectCollaborationModeName(name, collaborationModeOptions.value)
+    if (!nextName) return
+    selectedCollaborationModeName.value = nextName
   }
 
   async function refreshCollaborationModes(): Promise<void> {
@@ -871,16 +291,15 @@ export function useDesktopState() {
 
     const nextOptions = mergeCollaborationModeOptions(remoteOptions)
     collaborationModeOptions.value = nextOptions
-
-    const selectedStillExists = nextOptions.some((option) => option.name === selectedCollaborationModeName.value)
-    if (!selectedStillExists) {
-      selectedCollaborationModeName.value = DEFAULT_COLLABORATION_MODE.name
-    }
+    selectedCollaborationModeName.value = reconcileSelectedCollaborationModeName(
+      selectedCollaborationModeName.value,
+      nextOptions,
+    )
   }
 
   async function refreshModelPreferences(): Promise<void> {
     let modelIds: string[] = []
-    let currentConfig: { model: string; reasoningEffort: ReasoningEffort | '' } = {
+    let currentConfig: CurrentModelPreference = {
       model: '',
       reasoningEffort: '',
     }
@@ -897,28 +316,14 @@ export function useDesktopState() {
       currentConfig = { model: '', reasoningEffort: '' }
     }
 
-    if (currentConfig.model && !modelIds.includes(currentConfig.model)) {
-      modelIds = [currentConfig.model, ...modelIds]
-    }
+    modelIds = mergeAvailableModelsWithCurrent(modelIds, currentConfig.model)
     availableModelIds.value = modelIds
 
-    const hasSelectedModel = selectedModelId.value.length > 0 && modelIds.includes(selectedModelId.value)
-    if (!hasSelectedModel) {
-      if (currentConfig.model) {
-        selectedModelId.value = currentConfig.model
-      } else if (modelIds.length > 0) {
-        selectedModelId.value = modelIds[0]
-      } else {
-        selectedModelId.value = ''
-      }
-    }
-
-    if (
-      currentConfig.reasoningEffort &&
-      REASONING_EFFORT_OPTIONS.includes(currentConfig.reasoningEffort)
-    ) {
-      selectedReasoningEffort.value = currentConfig.reasoningEffort
-    }
+    selectedModelId.value = selectModelId(selectedModelId.value, modelIds, currentConfig.model)
+    selectedReasoningEffort.value = selectReasoningEffortFromPreference(
+      selectedReasoningEffort.value,
+      currentConfig,
+    )
   }
 
   async function refreshRateLimits(): Promise<void> {
@@ -933,48 +338,13 @@ export function useDesktopState() {
   }
 
   function applyThreadFlags(): void {
-    const flaggedGroups: UiProjectGroup[] = sourceGroups.value.map((group) => ({
-      projectName: group.projectName,
-      cwd: group.cwd,
-      threads: group.threads.map((thread) => {
-        const inProgress = inProgressById.value[thread.id] === true
-        const isSelected = selectedThreadId.value === thread.id
-        const lastReadIso = readStateByThreadId.value[thread.id]
-        const unreadByEvent = eventUnreadByThreadId.value[thread.id] === true
-        const unread = !isSelected && !inProgress && (unreadByEvent || lastReadIso !== thread.updatedAtIso)
-
-        return {
-          ...thread,
-          inProgress,
-          unread,
-        }
-      }),
-    }))
+    const flaggedGroups = buildThreadGroupsWithFlags(sourceGroups.value, {
+      selectedThreadId: selectedThreadId.value,
+      inProgressById: inProgressById.value,
+      readStateByThreadId: readStateByThreadId.value,
+      eventUnreadByThreadId: eventUnreadByThreadId.value,
+    })
     projectGroups.value = mergeThreadGroups(projectGroups.value, flaggedGroups)
-  }
-
-  function mergeOptimisticThreads(groups: UiProjectGroup[]): UiProjectGroup[] {
-    const serverThreadIds = new Set(flattenThreads(groups).map((thread) => thread.id))
-    let nextOptimistic = optimisticThreadById.value
-    let nextGroups = groups
-
-    for (const [threadId, optimisticThread] of Object.entries(optimisticThreadById.value)) {
-      if (serverThreadIds.has(threadId)) {
-        if (nextOptimistic === optimisticThreadById.value) {
-          nextOptimistic = { ...optimisticThreadById.value }
-        }
-        delete nextOptimistic[threadId]
-        continue
-      }
-
-      nextGroups = upsertThreadInGroups(nextGroups, optimisticThread)
-    }
-
-    if (nextOptimistic !== optimisticThreadById.value) {
-      optimisticThreadById.value = nextOptimistic
-    }
-
-    return nextGroups
   }
 
   function addOptimisticThread(thread: UiThread): void {
@@ -1002,140 +372,108 @@ export function useDesktopState() {
 
   function pruneThreadScopedState(flatThreads: UiThread[]): void {
     const activeThreadIds = new Set(flatThreads.map((thread) => thread.id))
-    const nextReadState = pruneThreadStateMap(readStateByThreadId.value, activeThreadIds)
-    if (nextReadState !== readStateByThreadId.value) {
-      readStateByThreadId.value = nextReadState
-      saveReadStateMap(nextReadState)
+    const pruned = pruneDesktopThreadScopedState({
+      readStateByThreadId: readStateByThreadId.value,
+      scrollStateByThreadId: scrollStateByThreadId.value,
+      loadedMessagesByThreadId: loadedMessagesByThreadId.value,
+      loadedVersionByThreadId: loadedVersionByThreadId.value,
+      resumedThreadById: resumedThreadById.value,
+      persistedMessagesByThreadId: persistedMessagesByThreadId.value,
+      liveAgentMessagesByThreadId: liveAgentMessagesByThreadId.value,
+      liveReasoningTextByThreadId: liveReasoningTextByThreadId.value,
+      turnSummaryByThreadId: turnSummaryByThreadId.value,
+      turnActivityByThreadId: turnActivityByThreadId.value,
+      turnErrorByThreadId: turnErrorByThreadId.value,
+      activeTurnIdByThreadId: activeTurnIdByThreadId.value,
+      eventUnreadByThreadId: eventUnreadByThreadId.value,
+      inProgressById: inProgressById.value,
+      pendingServerRequestsByThreadId: pendingServerRequestsByThreadId.value,
+    }, activeThreadIds)
+
+    if (pruned.readStateByThreadId !== readStateByThreadId.value) {
+      readStateByThreadId.value = pruned.readStateByThreadId
+      saveReadStateMap(pruned.readStateByThreadId)
     }
-    const nextScrollState = pruneThreadStateMap(scrollStateByThreadId.value, activeThreadIds)
-    if (nextScrollState !== scrollStateByThreadId.value) {
-      scrollStateByThreadId.value = nextScrollState
-      saveThreadScrollStateMap(nextScrollState)
+    if (pruned.scrollStateByThreadId !== scrollStateByThreadId.value) {
+      scrollStateByThreadId.value = pruned.scrollStateByThreadId
+      saveThreadScrollStateMap(pruned.scrollStateByThreadId)
     }
-    loadedMessagesByThreadId.value = pruneThreadStateMap(loadedMessagesByThreadId.value, activeThreadIds)
-    loadedVersionByThreadId.value = pruneThreadStateMap(loadedVersionByThreadId.value, activeThreadIds)
-    resumedThreadById.value = pruneThreadStateMap(resumedThreadById.value, activeThreadIds)
-    persistedMessagesByThreadId.value = pruneThreadStateMap(persistedMessagesByThreadId.value, activeThreadIds)
-    liveAgentMessagesByThreadId.value = pruneThreadStateMap(liveAgentMessagesByThreadId.value, activeThreadIds)
-    liveReasoningTextByThreadId.value = pruneThreadStateMap(liveReasoningTextByThreadId.value, activeThreadIds)
-    turnSummaryByThreadId.value = pruneThreadStateMap(turnSummaryByThreadId.value, activeThreadIds)
-    turnActivityByThreadId.value = pruneThreadStateMap(turnActivityByThreadId.value, activeThreadIds)
-    turnErrorByThreadId.value = pruneThreadStateMap(turnErrorByThreadId.value, activeThreadIds)
-    activeTurnIdByThreadId.value = pruneThreadStateMap(activeTurnIdByThreadId.value, activeThreadIds)
-    eventUnreadByThreadId.value = pruneThreadStateMap(eventUnreadByThreadId.value, activeThreadIds)
-    inProgressById.value = pruneThreadStateMap(inProgressById.value, activeThreadIds)
-    const nextPending: Record<string, UiServerRequest[]> = {}
-    for (const [threadId, requests] of Object.entries(pendingServerRequestsByThreadId.value)) {
-      if (threadId === GLOBAL_SERVER_REQUEST_SCOPE || activeThreadIds.has(threadId)) {
-        nextPending[threadId] = requests
+    loadedMessagesByThreadId.value = pruned.loadedMessagesByThreadId
+    loadedVersionByThreadId.value = pruned.loadedVersionByThreadId
+    resumedThreadById.value = pruned.resumedThreadById
+    persistedMessagesByThreadId.value = pruned.persistedMessagesByThreadId
+    liveAgentMessagesByThreadId.value = pruned.liveAgentMessagesByThreadId
+    liveReasoningTextByThreadId.value = pruned.liveReasoningTextByThreadId
+    turnSummaryByThreadId.value = pruned.turnSummaryByThreadId
+    turnActivityByThreadId.value = pruned.turnActivityByThreadId
+    turnErrorByThreadId.value = pruned.turnErrorByThreadId
+    activeTurnIdByThreadId.value = pruned.activeTurnIdByThreadId
+    eventUnreadByThreadId.value = pruned.eventUnreadByThreadId
+    inProgressById.value = pruned.inProgressById
+    pendingServerRequestsByThreadId.value = pruned.pendingServerRequestsByThreadId
+    loadingMessagesByThreadId.value = Object.fromEntries(
+      Object.entries(loadingMessagesByThreadId.value).filter(([threadId]) => activeThreadIds.has(threadId)),
+    )
+    for (const threadId of latestMessageLoadRequestIdByThreadId.keys()) {
+      if (!activeThreadIds.has(threadId)) {
+        latestMessageLoadRequestIdByThreadId.delete(threadId)
       }
     }
-    pendingServerRequestsByThreadId.value = nextPending
   }
 
   function markThreadAsRead(threadId: string): void {
     const thread = flattenThreads(sourceGroups.value).find((row) => row.id === threadId)
     if (!thread) return
 
-    readStateByThreadId.value = {
-      ...readStateByThreadId.value,
-      [threadId]: thread.updatedAtIso,
+    const nextState = markThreadReadState(readStateByThreadId.value, eventUnreadByThreadId.value, thread)
+    let didChange = false
+    if (nextState.readStateByThreadId !== readStateByThreadId.value) {
+      readStateByThreadId.value = nextState.readStateByThreadId
+      saveReadStateMap(nextState.readStateByThreadId)
+      didChange = true
     }
-    saveReadStateMap(readStateByThreadId.value)
-    if (eventUnreadByThreadId.value[threadId]) {
-      eventUnreadByThreadId.value = omitKey(eventUnreadByThreadId.value, threadId)
+    if (nextState.eventUnreadByThreadId !== eventUnreadByThreadId.value) {
+      eventUnreadByThreadId.value = nextState.eventUnreadByThreadId
+      didChange = true
     }
-    applyThreadFlags()
+    if (didChange) {
+      applyThreadFlags()
+    }
   }
 
   function setTurnSummaryForThread(threadId: string, summary: TurnSummaryState | null): void {
-    if (!threadId) return
-
-    const previous = turnSummaryByThreadId.value[threadId]
-    if (summary) {
-      if (areTurnSummariesEqual(previous, summary)) return
-      turnSummaryByThreadId.value = {
-        ...turnSummaryByThreadId.value,
-        [threadId]: summary,
-      }
-    } else {
-      if (previous) {
-        turnSummaryByThreadId.value = omitKey(turnSummaryByThreadId.value, threadId)
-      }
+    const nextState = updateTurnSummaryState(turnSummaryByThreadId.value, threadId, summary)
+    if (nextState !== turnSummaryByThreadId.value) {
+      turnSummaryByThreadId.value = nextState
     }
   }
 
   function setThreadInProgress(threadId: string, nextInProgress: boolean): void {
-    if (!threadId) return
-    const currentValue = inProgressById.value[threadId] === true
-    if (currentValue === nextInProgress) return
-    if (nextInProgress) {
-      inProgressById.value = {
-        ...inProgressById.value,
-        [threadId]: true,
-      }
-    } else {
-      inProgressById.value = omitKey(inProgressById.value, threadId)
-    }
+    const nextState = updateThreadBooleanState(inProgressById.value, threadId, nextInProgress)
+    if (nextState === inProgressById.value) return
+    inProgressById.value = nextState
     applyThreadFlags()
   }
 
   function markThreadUnreadByEvent(threadId: string): void {
-    if (!threadId) return
-    if (threadId === selectedThreadId.value) return
-    if (eventUnreadByThreadId.value[threadId] === true) return
-    eventUnreadByThreadId.value = {
-      ...eventUnreadByThreadId.value,
-      [threadId]: true,
+    const nextState = markThreadUnreadState(eventUnreadByThreadId.value, threadId, selectedThreadId.value)
+    if (nextState !== eventUnreadByThreadId.value) {
+      eventUnreadByThreadId.value = nextState
+      applyThreadFlags()
     }
-    applyThreadFlags()
   }
 
   function setTurnActivityForThread(threadId: string, activity: TurnActivityState | null): void {
-    if (!threadId) return
-
-    const previous = turnActivityByThreadId.value[threadId]
-    if (!activity) {
-      if (previous) {
-        turnActivityByThreadId.value = omitKey(turnActivityByThreadId.value, threadId)
-      }
-      return
-    }
-
-    const normalizedLabel = sanitizeDisplayText(activity.label) || 'Thinking'
-    const incomingDetails = activity.details
-      .map((line) => sanitizeDisplayText(line))
-      .filter((line) => line.length > 0 && line !== normalizedLabel)
-    const mergedDetails = Array.from(new Set([...(previous?.details ?? []), ...incomingDetails])).slice(-3)
-    const nextActivity: TurnActivityState = {
-      label: normalizedLabel,
-      details: mergedDetails,
-    }
-
-    if (areTurnActivitiesEqual(previous, nextActivity)) return
-    turnActivityByThreadId.value = {
-      ...turnActivityByThreadId.value,
-      [threadId]: nextActivity,
+    const nextState = updateTurnActivityState(turnActivityByThreadId.value, threadId, activity)
+    if (nextState !== turnActivityByThreadId.value) {
+      turnActivityByThreadId.value = nextState
     }
   }
 
   function setTurnErrorForThread(threadId: string, message: string | null): void {
-    if (!threadId) return
-
-    const previous = turnErrorByThreadId.value[threadId]
-    const normalizedMessage = message ? normalizeMessageText(message) : ''
-    if (!normalizedMessage) {
-      if (previous) {
-        turnErrorByThreadId.value = omitKey(turnErrorByThreadId.value, threadId)
-      }
-      return
-    }
-
-    if (previous?.message === normalizedMessage) return
-
-    turnErrorByThreadId.value = {
-      ...turnErrorByThreadId.value,
-      [threadId]: { message: normalizedMessage },
+    const nextState = updateTurnErrorState(turnErrorByThreadId.value, threadId, message)
+    if (nextState !== turnErrorByThreadId.value) {
+      turnErrorByThreadId.value = nextState
     }
   }
 
@@ -1147,13 +485,8 @@ export function useDesktopState() {
   function setThreadScrollState(threadId: string, nextState: ThreadScrollState): void {
     if (!threadId) return
 
-    const normalizedState: ThreadScrollState = {
-      scrollTop: Math.max(0, nextState.scrollTop),
-      isAtBottom: nextState.isAtBottom === true,
-    }
-    if (typeof nextState.scrollRatio === 'number' && Number.isFinite(nextState.scrollRatio)) {
-      normalizedState.scrollRatio = clamp(nextState.scrollRatio, 0, 1)
-    }
+    const normalizedState = normalizeThreadScrollState(nextState)
+    if (!normalizedState) return
 
     const previousState = scrollStateByThreadId.value[threadId]
     if (
@@ -1198,6 +531,57 @@ export function useDesktopState() {
     setPersistedMessagesForThread(threadId, upsertMessage(previous, buildRollbackAuditMessage(result)))
   }
 
+  function beginPendingTurnForThread(
+    threadId: string,
+    mode: UiCollaborationModeOption = selectedCollaborationMode.value,
+  ): void {
+    shouldAutoScrollOnNextAgentEvent = true
+    setTurnSummaryForThread(threadId, null)
+    setTurnActivityForThread(
+      threadId,
+      {
+        label: 'Thinking',
+        details: buildPendingTurnDetails(
+          selectedModelId.value,
+          selectedReasoningEffort.value,
+          mode,
+        ),
+      },
+    )
+    setTurnErrorForThread(threadId, null)
+    setThreadInProgress(threadId, true)
+  }
+
+  function failPendingTurnForThread(
+    threadId: string,
+    unknownError: unknown,
+    fallbackMessage: string,
+  ): Error {
+    shouldAutoScrollOnNextAgentEvent = false
+    setThreadInProgress(threadId, false)
+    setTurnActivityForThread(threadId, null)
+    const errorMessage = unknownError instanceof Error ? unknownError.message : fallbackMessage
+    setTurnErrorForThread(threadId, errorMessage)
+    error.value = errorMessage
+    return unknownError instanceof Error ? unknownError : new Error(errorMessage)
+  }
+
+  function beginSteeringTurnForThread(threadId: string): void {
+    shouldAutoScrollOnNextAgentEvent = true
+    setTurnActivityForThread(
+      threadId,
+      {
+        label: 'Steering response',
+        details: buildPendingTurnDetails(
+          selectedModelId.value,
+          selectedReasoningEffort.value,
+          DEFAULT_COLLABORATION_MODE,
+        ),
+      },
+    )
+    setTurnErrorForThread(threadId, null)
+  }
+
   function upsertLiveAgentMessage(threadId: string, nextMessage: UiMessage): void {
     const previous = liveAgentMessagesByThreadId.value[threadId] ?? []
     const next = upsertMessage(previous, nextMessage)
@@ -1206,7 +590,7 @@ export function useDesktopState() {
 
   function setLiveReasoningText(threadId: string, text: string): void {
     if (!threadId) return
-    const normalized = text.trim()
+    const normalized = normalizeLiveReasoningTextForStorage(text)
     const previous = liveReasoningTextByThreadId.value[threadId] ?? ''
     if (normalized.length === 0) {
       if (!previous) return
@@ -1223,7 +607,7 @@ export function useDesktopState() {
   function appendLiveReasoningText(threadId: string, delta: string): void {
     if (!threadId) return
     const previous = liveReasoningTextByThreadId.value[threadId] ?? ''
-    setLiveReasoningText(threadId, `${previous}${delta}`)
+    setLiveReasoningText(threadId, appendLiveReasoningDelta(previous, delta))
   }
 
   function clearLiveReasoningForThread(threadId: string): void {
@@ -1232,110 +616,18 @@ export function useDesktopState() {
     liveReasoningTextByThreadId.value = omitKey(liveReasoningTextByThreadId.value, threadId)
   }
 
-  function asRecord(value: unknown): Record<string, unknown> | null {
-    return value !== null && typeof value === 'object' && !Array.isArray(value)
-      ? (value as Record<string, unknown>)
-      : null
-  }
-
-  function readString(value: unknown): string {
-    return typeof value === 'string' ? value : ''
-  }
-
-  function readNumber(value: unknown): number | null {
-    return typeof value === 'number' && Number.isFinite(value) ? value : null
-  }
-
-  function extractThreadIdFromNotification(notification: RpcNotification): string {
-    const params = asRecord(notification.params)
-    if (!params) return ''
-
-    const directThreadId = readString(params.threadId)
-    if (directThreadId) return directThreadId
-    const snakeThreadId = readString(params.thread_id)
-    if (snakeThreadId) return snakeThreadId
-
-    const conversationId = readString(params.conversationId)
-    if (conversationId) return conversationId
-    const snakeConversationId = readString(params.conversation_id)
-    if (snakeConversationId) return snakeConversationId
-
-    const thread = asRecord(params.thread)
-    const nestedThreadId = readString(thread?.id)
-    if (nestedThreadId) return nestedThreadId
-
-    const turn = asRecord(params.turn)
-    const turnThreadId = readString(turn?.threadId)
-    if (turnThreadId) return turnThreadId
-    const turnSnakeThreadId = readString(turn?.thread_id)
-    if (turnSnakeThreadId) return turnSnakeThreadId
-
-    return ''
-  }
-
-  function readTurnErrorMessage(notification: RpcNotification): string {
-    if (notification.method !== 'turn/completed') return ''
-    const params = asRecord(notification.params)
-    const turn = asRecord(params?.turn)
-    if (!turn || turn.status !== 'failed') return ''
-    const errorPayload = asRecord(turn.error)
-    return readString(errorPayload?.message)
-  }
-
-  function normalizeServerRequest(params: unknown): UiServerRequest | null {
-    const row = asRecord(params)
-    if (!row) return null
-
-    const id = row.id
-    const method = readString(row.method)
-    const requestParams = row.params
-    if (typeof id !== 'number' || !Number.isInteger(id) || !method) {
-      return null
-    }
-
-    const requestParamRecord = asRecord(requestParams)
-    const threadId = readString(requestParamRecord?.threadId) || GLOBAL_SERVER_REQUEST_SCOPE
-    const turnId = readString(requestParamRecord?.turnId)
-    const itemId = readString(requestParamRecord?.itemId)
-    const receivedAtIso = readString(row.receivedAtIso) || new Date().toISOString()
-
-    return {
-      id,
-      method,
-      threadId,
-      turnId,
-      itemId,
-      receivedAtIso,
-      params: requestParams ?? null,
-    }
-  }
-
   function upsertPendingServerRequest(request: UiServerRequest): void {
-    const threadId = request.threadId || GLOBAL_SERVER_REQUEST_SCOPE
-    const current = pendingServerRequestsByThreadId.value[threadId] ?? []
-    const index = current.findIndex((row) => row.id === request.id)
-    const nextRows = [...current]
-    if (index >= 0) {
-      nextRows.splice(index, 1, request)
-    } else {
-      nextRows.push(request)
-    }
-
-    pendingServerRequestsByThreadId.value = {
-      ...pendingServerRequestsByThreadId.value,
-      [threadId]: nextRows.sort((first, second) => first.receivedAtIso.localeCompare(second.receivedAtIso)),
-    }
+    pendingServerRequestsByThreadId.value = upsertServerRequest(
+      pendingServerRequestsByThreadId.value,
+      request,
+    )
   }
 
   function removePendingServerRequestById(requestId: number): void {
-    const next: Record<string, UiServerRequest[]> = {}
-    for (const [threadId, requests] of Object.entries(pendingServerRequestsByThreadId.value)) {
-      const filtered = requests.filter((request) => request.id !== requestId)
-      if (filtered.length > 0) {
-        next[threadId] = filtered
-      }
-    }
-    pendingServerRequestsByThreadId.value = next
+    pendingServerRequestsByThreadId.value = removeServerRequestById(
+      pendingServerRequestsByThreadId.value,
+      requestId,
+    )
   }
 
   function handleServerRequestNotification(notification: RpcNotification): boolean {
@@ -1347,9 +639,8 @@ export function useDesktopState() {
     }
 
     if (notification.method === 'server/request/resolved') {
-      const row = asRecord(notification.params)
-      const id = row?.id
-      if (typeof id === 'number' && Number.isInteger(id)) {
+      const id = readResolvedServerRequestId(notification.params)
+      if (id !== null) {
         removePendingServerRequestById(id)
       }
       return true
@@ -1358,361 +649,12 @@ export function useDesktopState() {
     return false
   }
 
-  function sanitizeDisplayText(value: string): string {
-    return value.replace(/\s+/gu, ' ').trim()
-  }
-
-  function readTurnActivity(notification: RpcNotification): { threadId: string; activity: TurnActivityState } | null {
-    const threadId = extractThreadIdFromNotification(notification)
-    if (!threadId) return null
-
-    if (notification.method === 'turn/started') {
-      return {
-        threadId,
-        activity: {
-          label: 'Thinking',
-          details: [],
-        },
-      }
-    }
-
-    if (notification.method === 'item/started') {
-      const params = asRecord(notification.params)
-      const item = asRecord(params?.item)
-      const itemType = readString(item?.type).toLowerCase()
-      if (itemType === 'reasoning') {
-        return {
-          threadId,
-          activity: {
-            label: 'Thinking',
-            details: [],
-          },
-        }
-      }
-      if (itemType === 'agentmessage') {
-        return {
-          threadId,
-          activity: {
-            label: 'Writing response',
-            details: [],
-          },
-        }
-      }
-      if (itemType === 'plan') {
-        return {
-          threadId,
-          activity: {
-            label: 'Writing plan',
-            details: [],
-          },
-        }
-      }
-    }
-
-    if (
-      notification.method === 'item/reasoning/summaryTextDelta' ||
-      notification.method === 'item/reasoning/summaryPartAdded'
-    ) {
-      return {
-        threadId,
-        activity: {
-          label: 'Thinking',
-          details: [],
-        },
-      }
-    }
-
-    if (notification.method === 'item/agentMessage/delta') {
-      return {
-        threadId,
-        activity: {
-          label: 'Writing response',
-          details: [],
-        },
-      }
-    }
-
-    if (notification.method === 'item/plan/delta' || notification.method === 'turn/plan/updated') {
-      return {
-        threadId,
-        activity: {
-          label: 'Writing plan',
-          details: [],
-        },
-      }
-    }
-
-    return null
-  }
-
-  function readTurnStartedInfo(notification: RpcNotification): TurnStartedInfo | null {
-    if (notification.method !== 'turn/started') {
-      return null
-    }
-
-    const params = asRecord(notification.params)
-    if (!params) return null
-    const threadId = extractThreadIdFromNotification(notification)
-    if (!threadId) return null
-
-    const turnPayload = asRecord(params.turn)
-    const turnId =
-      readString(turnPayload?.id) ||
-      readString(params.turnId) ||
-      `${threadId}:unknown`
-    if (!turnId) return null
-
-    const startedAtMs =
-      parseIsoTimestamp(readString(turnPayload?.startedAt)) ??
-      parseIsoTimestamp(readString(params.startedAt)) ??
-      parseIsoTimestamp(notification.atIso) ??
-      Date.now()
-
-    return {
-      threadId,
-      turnId,
-      startedAtMs,
-    }
-  }
-
-  function readTurnCompletedInfo(notification: RpcNotification): TurnCompletedInfo | null {
-    if (notification.method !== 'turn/completed') {
-      return null
-    }
-
-    const params = asRecord(notification.params)
-    if (!params) return null
-    const threadId = extractThreadIdFromNotification(notification)
-    if (!threadId) return null
-
-    const turnPayload = asRecord(params.turn)
-    const turnId =
-      readString(turnPayload?.id) ||
-      readString(params.turnId) ||
-      `${threadId}:unknown`
-    if (!turnId) return null
-
-    const completedAtMs =
-      parseIsoTimestamp(readString(turnPayload?.completedAt)) ??
-      parseIsoTimestamp(readString(params.completedAt)) ??
-      parseIsoTimestamp(notification.atIso) ??
-      Date.now()
-
-    const startedAtMs =
-      parseIsoTimestamp(readString(turnPayload?.startedAt)) ??
-      parseIsoTimestamp(readString(params.startedAt)) ??
-      undefined
-
-    return {
-      threadId,
-      turnId,
-      completedAtMs,
-      startedAtMs,
-    }
-  }
-
-  function liveReasoningMessageId(reasoningItemId: string): string {
-    return `${reasoningItemId}:live-reasoning`
-  }
-
-  function readReasoningStartedItemId(notification: RpcNotification): string {
-    const params = asRecord(notification.params)
-    if (!params) return ''
-
-    if (notification.method === 'item/started') {
-      const item = asRecord(params.item)
-      if (!item || item.type !== 'reasoning') return ''
-      return readString(item.id)
-    }
-
-    return ''
-  }
-
-  function readReasoningDelta(notification: RpcNotification): { messageId: string; delta: string } | null {
-    const params = asRecord(notification.params)
-    if (!params) return null
-
-    // Канонический источник дельт для UI — уже нормализованный item/*.
-    if (notification.method === 'item/reasoning/summaryTextDelta') {
-      const itemId = readString(params.itemId)
-      const delta = readString(params.delta)
-      if (!itemId || !delta) return null
-      return { messageId: liveReasoningMessageId(itemId), delta }
-    }
-
-    return null
-  }
-
-  function readReasoningSectionBreakMessageId(notification: RpcNotification): string {
-    const params = asRecord(notification.params)
-    if (!params) return ''
-
-    // Канонический source для section break — item/*
-    if (notification.method === 'item/reasoning/summaryPartAdded') {
-      const itemId = readString(params.itemId)
-      if (!itemId) return ''
-      return liveReasoningMessageId(itemId)
-    }
-
-    return ''
-  }
-
-  function readReasoningCompletedId(notification: RpcNotification): string {
-    const params = asRecord(notification.params)
-    if (!params) return ''
-
-    if (notification.method === 'item/completed') {
-      const item = asRecord(params.item)
-      if (!item || item.type !== 'reasoning') return ''
-      return liveReasoningMessageId(readString(item.id))
-    }
-
-    return ''
-  }
-
-  function readAgentMessageStartedId(notification: RpcNotification): string {
-    const params = asRecord(notification.params)
-    if (!params) return ''
-
-    if (notification.method === 'item/started') {
-      const item = asRecord(params.item)
-      if (!item || item.type !== 'agentMessage') return ''
-      return readString(item.id)
-    }
-
-    return ''
-  }
-
-  function readAgentMessageDelta(notification: RpcNotification): { messageId: string; delta: string } | null {
-    const params = asRecord(notification.params)
-    if (!params) return null
-
-    // Канонический live-канал агентского текста.
-    if (notification.method === 'item/agentMessage/delta') {
-      const messageId = readString(params.itemId)
-      const delta = readString(params.delta)
-      if (!messageId || !delta) return null
-      return { messageId, delta }
-    }
-
-    return null
-  }
-
-  function readAgentMessageCompleted(notification: RpcNotification): UiMessage | null {
-    const params = asRecord(notification.params)
-    if (!params) return null
-
-    if (notification.method === 'item/completed') {
-      const item = asRecord(params.item)
-      if (!item || item.type !== 'agentMessage') return null
-      const id = readString(item.id)
-      const text = readString(item.text)
-      if (!id || !text) return null
-      return {
-        id,
-        role: 'assistant',
-        text,
-        messageType: 'agentMessage.live',
-      }
-    }
-
-    return null
-  }
-
-  function readPlanMessageDelta(notification: RpcNotification): { messageId: string; turnId: string; delta: string } | null {
-    const params = asRecord(notification.params)
-    if (!params || notification.method !== 'item/plan/delta') return null
-    const itemId = readString(params.itemId)
-    const turnId = readString(params.turnId)
-    const delta = readString(params.delta)
-    if (!itemId || !delta) return null
-    return { messageId: itemId, turnId, delta }
-  }
-
-  function readPlanMessageCompleted(notification: RpcNotification): UiMessage | null {
-    const params = asRecord(notification.params)
-    if (!params || notification.method !== 'item/completed') return null
-
-    const item = asRecord(params.item)
-    if (!item || item.type !== 'plan') return null
-    const id = readString(item.id)
-    const text = readString(item.text)
-    if (!id || !text) return null
-    return {
-      id,
-      role: 'assistant',
-      text,
-      messageType: 'plan.live',
-    }
-  }
-
-  function formatPlanStepStatus(value: string): string {
-    if (value === 'completed') return '[done]'
-    if (value === 'inProgress') return '[doing]'
-    return '[todo]'
-  }
-
-  function readPlanUpdatedMessage(notification: RpcNotification): UiMessage | null {
-    const params = asRecord(notification.params)
-    if (!params || notification.method !== 'turn/plan/updated') return null
-
-    const turnId = readString(params.turnId)
-    if (!turnId) return null
-
-    const parts: string[] = []
-    const explanation = readString(params.explanation).trim()
-    if (explanation) {
-      parts.push(explanation)
-    }
-
-    const plan = Array.isArray(params.plan) ? params.plan : []
-    const steps: string[] = []
-    for (const [index, row] of plan.entries()) {
-      const step = asRecord(row)
-      if (!step) continue
-      const text = readString(step.step).trim()
-      if (!text) continue
-      steps.push(`${String(index + 1)}. ${formatPlanStepStatus(readString(step.status))} ${text}`)
-    }
-    if (steps.length > 0) {
-      parts.push(steps.join('\n'))
-    }
-
-    const text = parts.join('\n\n').trim()
-    if (!text) return null
-
-    return {
-      id: livePlanMessageIdByTurnId.get(turnId) ?? `plan:${turnId}:live`,
-      role: 'assistant',
-      text,
-      messageType: 'plan.live',
-    }
-  }
-
-  function isAgentContentEvent(notification: RpcNotification): boolean {
-    if (notification.method === 'item/agentMessage/delta' || notification.method === 'item/plan/delta') {
-      return true
-    }
-
-    const params = asRecord(notification.params)
-    if (!params) return false
-
-    if (notification.method === 'item/completed') {
-      const item = asRecord(params.item)
-      return item?.type === 'agentMessage' || item?.type === 'plan'
-    }
-
-    if (notification.method === 'turn/plan/updated') return true
-
-    return false
-  }
-
   function applyRateLimitNotification(notification: RpcNotification): boolean {
-    if (notification.method !== 'account/rateLimits/updated') return false
+    const rateLimits = readRateLimitSnapshotPayload(notification)
+    if (!rateLimits) return false
 
-    const params = asRecord(notification.params)
     const nextSnapshot = normalizeRateLimitSnapshot(
-      params?.rateLimits as Parameters<typeof normalizeRateLimitSnapshot>[0],
+      rateLimits as Parameters<typeof normalizeRateLimitSnapshot>[0],
       rateLimitSnapshot.value?.availableResetCredits ?? null,
     )
     if (nextSnapshot) {
@@ -1724,6 +666,11 @@ export function useDesktopState() {
   function applyRealtimeUpdates(notification: RpcNotification): void {
     if (applyRateLimitNotification(notification)) {
       return
+    }
+
+    const startedThread = readStartedThread(notification)
+    if (startedThread) {
+      addOptimisticThread(startedThread)
     }
 
     if (handleServerRequestNotification(notification)) {
@@ -1757,15 +704,14 @@ export function useDesktopState() {
         pendingTurnStartsById.delete(completedTurn.turnId)
       }
 
-      const rawDurationMs =
-        readNumber(asRecord(notification.params)?.durationMs) ??
-        readNumber(asRecord(asRecord(notification.params)?.turn)?.durationMs) ??
-        (typeof completedTurn.startedAtMs === 'number'
-          ? completedTurn.completedAtMs - completedTurn.startedAtMs
-          : null) ??
-        (startedTurnState ? completedTurn.completedAtMs - startedTurnState.startedAtMs : null)
-
-      const durationMs = typeof rawDurationMs === 'number' ? Math.max(0, rawDurationMs) : 0
+      const durationHints = readTurnDurationHints(notification)
+      const durationMs = resolveTurnDurationMs({
+        explicitDurationMs: durationHints.explicitDurationMs,
+        turnDurationMs: durationHints.turnDurationMs,
+        completedStartedAtMs: completedTurn.startedAtMs,
+        completedAtMs: completedTurn.completedAtMs,
+        pendingStartedAtMs: startedTurnState?.startedAtMs,
+      })
       setTurnSummaryForThread(completedTurn.threadId, {
         turnId: completedTurn.turnId,
         durationMs,
@@ -1802,6 +748,15 @@ export function useDesktopState() {
     const notificationThreadId = extractThreadIdFromNotification(notification)
     if (!notificationThreadId || notificationThreadId !== selectedThreadId.value) return
 
+    const completedUserMessages = readUserMessageCompleted(notification)
+    if (completedUserMessages.length > 0) {
+      let nextMessages = persistedMessagesByThreadId.value[notificationThreadId] ?? []
+      for (const message of completedUserMessages) {
+        nextMessages = upsertMessage(nextMessages, message)
+      }
+      setPersistedMessagesForThread(notificationThreadId, nextMessages)
+    }
+
     const startedAgentMessageId = readAgentMessageStartedId(notification)
     if (startedAgentMessageId) {
       activeReasoningItemId = ''
@@ -1809,15 +764,14 @@ export function useDesktopState() {
 
     const liveAgentMessageDelta = readAgentMessageDelta(notification)
     if (liveAgentMessageDelta) {
-      const existing = (liveAgentMessagesByThreadId.value[notificationThreadId] ?? [])
-        .find((message) => message.id === liveAgentMessageDelta.messageId)
-      const nextText = `${existing?.text ?? ''}${liveAgentMessageDelta.delta}`
-      upsertLiveAgentMessage(notificationThreadId, {
-        id: liveAgentMessageDelta.messageId,
-        role: 'assistant',
-        text: nextText,
-        messageType: 'agentMessage.live',
-      })
+      setLiveAgentMessagesForThread(
+        notificationThreadId,
+        upsertLiveAssistantDelta(liveAgentMessagesByThreadId.value[notificationThreadId] ?? [], {
+          messageId: liveAgentMessageDelta.messageId,
+          textDelta: liveAgentMessageDelta.delta,
+          messageType: 'agentMessage.live',
+        }),
+      )
     }
 
     const completedAgentMessage = readAgentMessageCompleted(notification)
@@ -1830,18 +784,20 @@ export function useDesktopState() {
       if (livePlanMessageDelta.turnId) {
         livePlanMessageIdByTurnId.set(livePlanMessageDelta.turnId, livePlanMessageDelta.messageId)
       }
-      const existing = (liveAgentMessagesByThreadId.value[notificationThreadId] ?? [])
-        .find((message) => message.id === livePlanMessageDelta.messageId)
-      const nextText = `${existing?.text ?? ''}${livePlanMessageDelta.delta}`
-      upsertLiveAgentMessage(notificationThreadId, {
-        id: livePlanMessageDelta.messageId,
-        role: 'assistant',
-        text: nextText,
-        messageType: 'plan.live',
-      })
+      setLiveAgentMessagesForThread(
+        notificationThreadId,
+        upsertLiveAssistantDelta(liveAgentMessagesByThreadId.value[notificationThreadId] ?? [], {
+          messageId: livePlanMessageDelta.messageId,
+          textDelta: livePlanMessageDelta.delta,
+          messageType: 'plan.live',
+        }),
+      )
     }
 
-    const updatedPlanMessage = readPlanUpdatedMessage(notification)
+    const updatedPlanMessage = readPlanUpdatedMessage(
+      notification,
+      (turnId) => livePlanMessageIdByTurnId.get(turnId),
+    )
     if (updatedPlanMessage) {
       upsertLiveAgentMessage(notificationThreadId, updatedPlanMessage)
     }
@@ -1864,9 +820,7 @@ export function useDesktopState() {
     const sectionBreakMessageId = readReasoningSectionBreakMessageId(notification)
     if (sectionBreakMessageId) {
       const current = liveReasoningTextByThreadId.value[notificationThreadId] ?? ''
-      if (current.trim().length > 0 && !current.endsWith('\n\n')) {
-        setLiveReasoningText(notificationThreadId, `${current}\n\n`)
-      }
+      setLiveReasoningText(notificationThreadId, appendLiveReasoningSectionBreak(current))
     }
 
     const completedReasoningMessageId = readReasoningCompletedId(notification)
@@ -1892,36 +846,15 @@ export function useDesktopState() {
       activeReasoningItemId = ''
       shouldAutoScrollOnNextAgentEvent = false
       clearLiveReasoningForThread(notificationThreadId)
-      const completedThreadId = extractThreadIdFromNotification(notification)
-      const completedTurnId =
-        readString(asRecord(asRecord(notification.params)?.turn)?.id) ||
-        readString(asRecord(notification.params)?.turnId)
-      if (completedTurnId) {
-        livePlanMessageIdByTurnId.delete(completedTurnId)
-      }
-      if (completedThreadId) {
-        setThreadInProgress(completedThreadId, false)
-        setTurnActivityForThread(completedThreadId, null)
-        markThreadUnreadByEvent(completedThreadId)
-      }
     }
 
   }
 
   function queueEventDrivenSync(notification: RpcNotification): void {
-    const threadId = extractThreadIdFromNotification(notification)
-    if (threadId) {
-      pendingThreadMessageRefresh.add(threadId)
-    }
+    if (!shouldQueueEventDrivenSyncForMethod(notification.method)) return
 
-    const method = notification.method
-    if (
-      method.startsWith('thread/') ||
-      method.startsWith('turn/') ||
-      method.startsWith('item/')
-    ) {
-      pendingThreadsRefresh = true
-    }
+    const threadId = extractThreadIdFromNotification(notification)
+    queueDesktopRealtimeSync(realtimeSyncQueue, threadId || undefined)
 
     if (eventSyncTimer !== null || typeof window === 'undefined') return
     eventSyncTimer = window.setTimeout(() => {
@@ -1945,12 +878,12 @@ export function useDesktopState() {
       }
 
       const orderedGroups = orderGroupsByProjectOrder(groups, projectOrder.value)
-      const groupsWithOptimisticThreads = mergeOptimisticThreads(orderedGroups)
+      const optimisticResult = reconcileOptimisticThreads(orderedGroups, optimisticThreadById.value)
+      if (optimisticResult.optimisticThreadById !== optimisticThreadById.value) {
+        optimisticThreadById.value = optimisticResult.optimisticThreadById
+      }
+      const groupsWithOptimisticThreads = optimisticResult.groups
       sourceGroups.value = mergeThreadGroups(sourceGroups.value, groupsWithOptimisticThreads)
-      inProgressById.value = pruneThreadStateMap(
-        inProgressById.value,
-        new Set(flattenThreads(sourceGroups.value).map((thread) => thread.id)),
-      )
       applyThreadFlags()
       hasLoadedThreads.value = true
 
@@ -1972,10 +905,13 @@ export function useDesktopState() {
       return
     }
 
+    const requestId = nextMessageLoadRequestId + 1
+    nextMessageLoadRequestId = requestId
+    latestMessageLoadRequestIdByThreadId.set(threadId, requestId)
     const alreadyLoaded = loadedMessagesByThreadId.value[threadId] === true
     const shouldShowLoading = options.silent !== true && !alreadyLoaded
     if (shouldShowLoading) {
-      isLoadingMessages.value = true
+      setMessagesLoadingForThread(threadId, true)
     }
 
     try {
@@ -1988,6 +924,9 @@ export function useDesktopState() {
       }
 
       const nextMessages = await getThreadMessages(threadId)
+      if (latestMessageLoadRequestIdByThreadId.get(threadId) !== requestId) {
+        return
+      }
       const previousPersisted = persistedMessagesByThreadId.value[threadId] ?? []
       const mergedMessages = mergeMessages(previousPersisted, nextMessages, {
         preserveMissing: options.silent === true,
@@ -2012,8 +951,11 @@ export function useDesktopState() {
       }
       markThreadAsRead(threadId)
     } finally {
-      if (shouldShowLoading) {
-        isLoadingMessages.value = false
+      if (latestMessageLoadRequestIdByThreadId.get(threadId) === requestId) {
+        latestMessageLoadRequestIdByThreadId.delete(threadId)
+        if (shouldShowLoading) {
+          setMessagesLoadingForThread(threadId, false)
+        }
       }
     }
   }
@@ -2040,7 +982,9 @@ export function useDesktopState() {
     try {
       await loadMessages(threadId)
     } catch (unknownError) {
-      error.value = unknownError instanceof Error ? unknownError.message : 'Unknown application error'
+      if (selectedThreadId.value === threadId) {
+        error.value = unknownError instanceof Error ? unknownError.message : 'Unknown application error'
+      }
     }
   }
 
@@ -2092,8 +1036,7 @@ export function useDesktopState() {
       setTurnErrorForThread(threadId, null)
       setThreadInProgress(threadId, true)
       await compactThread(threadId)
-      pendingThreadMessageRefresh.add(threadId)
-      pendingThreadsRefresh = true
+      queueDesktopRealtimeSync(realtimeSyncQueue, threadId)
       await syncFromNotifications()
     } catch (unknownError) {
       setThreadInProgress(threadId, false)
@@ -2110,6 +1053,8 @@ export function useDesktopState() {
     sourceGroups.value = []
     projectGroups.value = []
     loadedMessagesByThreadId.value = {}
+    loadingMessagesByThreadId.value = {}
+    latestMessageLoadRequestIdByThreadId.clear()
     persistedMessagesByThreadId.value = {}
     liveAgentMessagesByThreadId.value = {}
     liveReasoningTextByThreadId.value = {}
@@ -2163,32 +1108,12 @@ export function useDesktopState() {
 
     isSendingMessage.value = true
     error.value = ''
-    shouldAutoScrollOnNextAgentEvent = true
-    setTurnSummaryForThread(threadId, null)
-    setTurnActivityForThread(
-      threadId,
-      {
-        label: 'Thinking',
-        details: buildPendingTurnDetails(
-          selectedModelId.value,
-          selectedReasoningEffort.value,
-          selectedCollaborationMode.value,
-        ),
-      },
-    )
-    setTurnErrorForThread(threadId, null)
-    setThreadInProgress(threadId, true)
+    beginPendingTurnForThread(threadId)
 
     try {
       await startTurnForThread(threadId, nextText, nextImages, nextSkills)
     } catch (unknownError) {
-      shouldAutoScrollOnNextAgentEvent = false
-      setThreadInProgress(threadId, false)
-      setTurnActivityForThread(threadId, null)
-      const errorMessage = unknownError instanceof Error ? unknownError.message : 'Unknown application error'
-      setTurnErrorForThread(threadId, errorMessage)
-      error.value = errorMessage
-      throw unknownError
+      throw failPendingTurnForThread(threadId, unknownError, 'Unknown application error')
     } finally {
       isSendingMessage.value = false
     }
@@ -2210,32 +1135,12 @@ export function useDesktopState() {
 
     isSendingMessage.value = true
     error.value = ''
-    shouldAutoScrollOnNextAgentEvent = true
-    setTurnSummaryForThread(normalizedThreadId, null)
-    setTurnActivityForThread(
-      normalizedThreadId,
-      {
-        label: 'Thinking',
-        details: buildPendingTurnDetails(
-          selectedModelId.value,
-          selectedReasoningEffort.value,
-          selectedCollaborationMode.value,
-        ),
-      },
-    )
-    setTurnErrorForThread(normalizedThreadId, null)
-    setThreadInProgress(normalizedThreadId, true)
+    beginPendingTurnForThread(normalizedThreadId)
 
     try {
       await startTurnForThread(normalizedThreadId, nextText, [], [])
     } catch (unknownError) {
-      shouldAutoScrollOnNextAgentEvent = false
-      setThreadInProgress(normalizedThreadId, false)
-      setTurnActivityForThread(normalizedThreadId, null)
-      const errorMessage = unknownError instanceof Error ? unknownError.message : 'Unknown application error'
-      setTurnErrorForThread(normalizedThreadId, errorMessage)
-      error.value = errorMessage
-      throw unknownError
+      throw failPendingTurnForThread(normalizedThreadId, unknownError, 'Unknown application error')
     } finally {
       isSendingMessage.value = false
     }
@@ -2257,24 +1162,11 @@ export function useDesktopState() {
 
     isSendingMessage.value = true
     error.value = ''
-    shouldAutoScrollOnNextAgentEvent = true
-    setTurnActivityForThread(
-      threadId,
-      {
-        label: 'Steering response',
-        details: buildPendingTurnDetails(
-          selectedModelId.value,
-          selectedReasoningEffort.value,
-          DEFAULT_COLLABORATION_MODE,
-        ),
-      },
-    )
-    setTurnErrorForThread(threadId, null)
+    beginSteeringTurnForThread(threadId)
 
     try {
       await steerThreadTurn(threadId, turnId, nextText, nextImages, nextSkills)
-      pendingThreadMessageRefresh.add(threadId)
-      pendingThreadsRefresh = true
+      queueDesktopRealtimeSync(realtimeSyncQueue, threadId)
       await syncFromNotifications()
     } catch (unknownError) {
       shouldAutoScrollOnNextAgentEvent = false
@@ -2318,43 +1210,26 @@ export function useDesktopState() {
       })
       setThreadInProgress(threadId, true)
 
-      try {
-        await loadThreads()
-      } catch {
-        pendingThreadsRefresh = true
-      }
+      void loadThreads().catch(() => {
+        queueDesktopRealtimeSync(realtimeSyncQueue)
+      })
 
       resumedThreadById.value = {
         ...resumedThreadById.value,
         [threadId]: true,
       }
-      shouldAutoScrollOnNextAgentEvent = true
-      setTurnSummaryForThread(threadId, null)
-      setTurnActivityForThread(
-        threadId,
-        {
-          label: 'Thinking',
-          details: buildPendingTurnDetails(
-            selectedModelId.value,
-            selectedReasoningEffort.value,
-            selectedCollaborationMode.value,
-          ),
-        },
-      )
-      setTurnErrorForThread(threadId, null)
+      beginPendingTurnForThread(threadId)
 
-      await startTurnForThread(threadId, nextText, nextImages, nextSkills)
+      void startTurnForThread(threadId, nextText, nextImages, nextSkills).catch((unknownError) => {
+        failPendingTurnForThread(threadId, unknownError, 'Unknown application error')
+      })
       return threadId
     } catch (unknownError) {
-      shouldAutoScrollOnNextAgentEvent = false
       if (threadId) {
-        setThreadInProgress(threadId, false)
-        setTurnActivityForThread(threadId, null)
+        throw failPendingTurnForThread(threadId, unknownError, 'Unknown application error')
       }
       const errorMessage = unknownError instanceof Error ? unknownError.message : 'Unknown application error'
-      if (threadId) {
-        setTurnErrorForThread(threadId, errorMessage)
-      }
+      shouldAutoScrollOnNextAgentEvent = false
       error.value = errorMessage
       throw unknownError
     } finally {
@@ -2400,16 +1275,14 @@ export function useDesktopState() {
         [threadId]: true,
       }
 
-      pendingThreadMessageRefresh.add(threadId)
-      pendingThreadsRefresh = true
+      queueDesktopRealtimeSync(realtimeSyncQueue, threadId)
       await syncFromNotifications()
     } catch (unknownError) {
       throw unknownError
     }
   }
 
-  async function interruptSelectedThreadTurn(): Promise<void> {
-    const threadId = selectedThreadId.value
+  async function interruptTurnForThread(threadId: string): Promise<void> {
     if (!threadId) return
     if (inProgressById.value[threadId] !== true) return
     const turnId = activeTurnIdByThreadId.value[threadId]
@@ -2430,8 +1303,7 @@ export function useDesktopState() {
       if (activeTurnIdByThreadId.value[threadId]) {
         activeTurnIdByThreadId.value = omitKey(activeTurnIdByThreadId.value, threadId)
       }
-      pendingThreadMessageRefresh.add(threadId)
-      pendingThreadsRefresh = true
+      queueDesktopRealtimeSync(realtimeSyncQueue, threadId)
       await syncFromNotifications()
     } catch (unknownError) {
       const errorMessage = unknownError instanceof Error ? unknownError.message : 'Failed to interrupt active turn'
@@ -2442,42 +1314,13 @@ export function useDesktopState() {
     }
   }
 
+  async function interruptSelectedThreadTurn(): Promise<void> {
+    await interruptTurnForThread(selectedThreadId.value)
+  }
+
   async function interruptThreadTurnById(threadId: string): Promise<void> {
     const normalizedThreadId = threadId.trim()
-    if (!normalizedThreadId) return
-    if (selectedThreadId.value === normalizedThreadId) {
-      await interruptSelectedThreadTurn()
-      return
-    }
-    if (inProgressById.value[normalizedThreadId] !== true) return
-    const turnId = activeTurnIdByThreadId.value[normalizedThreadId]
-    if (!turnId) {
-      const errorMessage = 'The current turn is still starting. Wait a moment before interrupting.'
-      setTurnErrorForThread(normalizedThreadId, errorMessage)
-      error.value = errorMessage
-      return
-    }
-
-    isInterruptingTurn.value = true
-    error.value = ''
-    try {
-      await interruptThreadTurn(normalizedThreadId, turnId)
-      setThreadInProgress(normalizedThreadId, false)
-      setTurnActivityForThread(normalizedThreadId, null)
-      setTurnErrorForThread(normalizedThreadId, null)
-      if (activeTurnIdByThreadId.value[normalizedThreadId]) {
-        activeTurnIdByThreadId.value = omitKey(activeTurnIdByThreadId.value, normalizedThreadId)
-      }
-      pendingThreadMessageRefresh.add(normalizedThreadId)
-      pendingThreadsRefresh = true
-      await syncFromNotifications()
-    } catch (unknownError) {
-      const errorMessage = unknownError instanceof Error ? unknownError.message : 'Failed to interrupt active turn'
-      setTurnErrorForThread(normalizedThreadId, errorMessage)
-      error.value = errorMessage
-    } finally {
-      isInterruptingTurn.value = false
-    }
+    await interruptTurnForThread(normalizedThreadId)
   }
 
   function renameProject(projectName: string, displayName: string): void {
@@ -2579,10 +1422,9 @@ export function useDesktopState() {
 
     isPolling.value = true
 
-    const shouldRefreshThreads = pendingThreadsRefresh
-    const threadIdsToRefresh = new Set(pendingThreadMessageRefresh)
-    pendingThreadsRefresh = false
-    pendingThreadMessageRefresh.clear()
+    const syncBatch = consumeDesktopRealtimeSyncQueue(realtimeSyncQueue)
+    const shouldRefreshThreads = syncBatch.shouldRefreshThreads
+    const threadIdsToRefresh = syncBatch.threadIdsToRefresh
 
     try {
       if (shouldRefreshThreads) {
@@ -2607,7 +1449,7 @@ export function useDesktopState() {
       isPolling.value = false
 
       if (
-        (pendingThreadsRefresh || pendingThreadMessageRefresh.size > 0) &&
+        hasPendingDesktopRealtimeSync(realtimeSyncQueue) &&
         typeof window !== 'undefined' &&
         eventSyncTimer === null
       ) {
@@ -2713,16 +1555,17 @@ export function useDesktopState() {
       stopNotificationStream = null
     }
 
-    pendingThreadsRefresh = false
-    pendingThreadMessageRefresh.clear()
+    clearDesktopRealtimeSyncQueue(realtimeSyncQueue)
     pendingTurnStartsById.clear()
     livePlanMessageIdByTurnId.clear()
+    latestMessageLoadRequestIdByThreadId.clear()
     if (eventSyncTimer !== null && typeof window !== 'undefined') {
       window.clearTimeout(eventSyncTimer)
       eventSyncTimer = null
     }
     activeReasoningItemId = ''
     shouldAutoScrollOnNextAgentEvent = false
+    loadingMessagesByThreadId.value = {}
     persistedMessagesByThreadId.value = {}
     liveAgentMessagesByThreadId.value = {}
     liveReasoningTextByThreadId.value = {}

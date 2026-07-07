@@ -162,6 +162,10 @@
 
         <span v-if="isUploadingImage" class="thread-composer-uploading">Uploading...</span>
         <span v-else-if="uploadError" class="thread-composer-upload-error">{{ uploadError }}</span>
+        <span v-else-if="busyLabel" class="thread-composer-busy">
+          <span class="thread-composer-busy-dot" aria-hidden="true" />
+          {{ busyLabel }}
+        </span>
 
         <div class="thread-composer-actions">
           <button
@@ -222,6 +226,7 @@ const props = defineProps<{
   isTurnInProgress?: boolean
   isInterruptingTurn?: boolean
   disabled?: boolean
+  busyLabel?: string
 }>()
 
 const emit = defineEmits<{
@@ -635,6 +640,28 @@ watch(
 
 .thread-composer-upload-error {
   @apply min-w-0 flex-1 truncate text-xs text-rose-600;
+}
+
+.thread-composer-busy {
+  @apply inline-flex min-w-0 flex-1 items-center gap-2 truncate text-xs font-medium text-zinc-600;
+}
+
+.thread-composer-busy-dot {
+  @apply h-2 w-2 shrink-0 rounded-full bg-emerald-500;
+  animation: thread-composer-busy-pulse 1.1s ease-in-out infinite;
+}
+
+@keyframes thread-composer-busy-pulse {
+  0%,
+  100% {
+    opacity: 0.35;
+    transform: scale(0.9);
+  }
+
+  50% {
+    opacity: 1;
+    transform: scale(1);
+  }
 }
 
 .thread-composer-actions {

@@ -1,10 +1,14 @@
 import { execFile } from 'node:child_process'
+import { createServer, type Server } from 'node:http'
 import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { promisify } from 'node:util'
+import { WebSocket } from 'ws'
 import { afterEach, describe, expect, it } from 'vitest'
 import {
+  attachCodexBridgeWebSocketServer,
+  CODEX_APP_SERVER_ARGS,
   createAutomaticTurnCheckpoint,
   mergeMcpServerDiagnostics,
   normalizeApprovalDecisionScope,
@@ -15,6 +19,12 @@ import { listToolingCheckpoints } from './toolingService'
 
 const execFileAsync = promisify(execFile)
 const tempDirs: string[] = []
+
+describe('app-server launch contract', () => {
+  it('uses stdio transport explicitly for JSON-RPC bridge traffic', () => {
+    expect(CODEX_APP_SERVER_ARGS).toEqual(['app-server', '--listen', 'stdio://'])
+  })
+})
 
 async function git(cwd: string, args: string[]): Promise<string> {
   const result = await execFileAsync('git', args, { cwd, encoding: 'utf8' })
@@ -40,6 +50,77 @@ afterEach(async () => {
     maxRetries: 3,
     retryDelay: 100,
   })))
+})
+
+function listen(server: Server): Promise<number> {
+  return new Promise((resolve, reject) => {
+    server.once('error', reject)
+    server.listen(0, '127.0.0.1', () => {
+      server.off('error', reject)
+      const address = server.address()
+      if (!address || typeof address === 'string') {
+        reject(new Error('Failed to bind test server to a TCP port'))
+        return
+      }
+      resolve(address.port)
+    })
+  })
+}
+
+function closeServer(server: Server): Promise<void> {
+  return new Promise((resolve, reject) => {
+    server.close((error) => {
+      if (error) {
+        reject(error)
+        return
+      }
+      resolve()
+    })
+  })
+}
+
+function readFirstWebSocketMessage(url: string): Promise<unknown> {
+  return new Promise((resolve, reject) => {
+    const socket = new WebSocket(url)
+    const timeout = setTimeout(() => {
+      socket.close()
+      reject(new Error('Timed out waiting for websocket message'))
+    }, 3000)
+
+    socket.once('message', (data) => {
+      clearTimeout(timeout)
+      socket.close()
+      try {
+        resolve(JSON.parse(String(data)))
+      } catch (error) {
+        reject(error)
+      }
+    })
+    socket.once('error', (error) => {
+      clearTimeout(timeout)
+      reject(error)
+    })
+  })
+}
+
+describe('bridge websocket server', () => {
+  it('accepts websocket upgrades and sends a ready frame', async () => {
+    const server = createServer((_req, res) => {
+      res.writeHead(404)
+      res.end()
+    })
+    const disposeWebSocketServer = attachCodexBridgeWebSocketServer(server)
+
+    try {
+      const port = await listen(server)
+      await expect(readFirstWebSocketMessage(`ws://127.0.0.1:${String(port)}/codex-api/ws`)).resolves.toMatchObject({
+        type: 'ready',
+      })
+    } finally {
+      disposeWebSocketServer()
+      await closeServer(server)
+    }
+  })
 })
 
 describe('MCP diagnostics helpers', () => {

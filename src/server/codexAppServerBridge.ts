@@ -655,6 +655,8 @@ async function handleRunWorkspaceWorkflowValidationWithNotifications(
   }
 }
 
+export const CODEX_APP_SERVER_ARGS = ['app-server', '--listen', 'stdio://'] as const
+
 class AppServerProcess {
   private process: ChildProcessWithoutNullStreams | null = null
   private initialized = false
@@ -683,7 +685,7 @@ class AppServerProcess {
     if (this.process) return
 
     this.stopping = false
-    const proc = spawn('codex', ['app-server'], { stdio: ['pipe', 'pipe', 'pipe'] })
+    const proc = spawn('codex', [...CODEX_APP_SERVER_ARGS], { stdio: ['pipe', 'pipe', 'pipe'] })
     this.process = proc
     this.startedAtIso = new Date().toISOString()
     this.exitedAtIso = null

@@ -5,6 +5,7 @@ import {
   type ProductNotification,
   type RpcNotification,
 } from '../api/codexGateway'
+import { asRecord, readNumber, readString as readProtocolString } from '../api/protocolValueReaders'
 
 export type BrowserNotificationPreference = 'off' | 'important' | 'all'
 export type BrowserNotificationPermission = NotificationPermission | 'unsupported'
@@ -33,18 +34,8 @@ export type BrowserNotificationEvent = {
 const PREFERENCE_STORAGE_KEY = 'codex-web-local.browser-notifications.v1'
 const MAX_EVENTS = 30
 
-function asRecord(value: unknown): Record<string, unknown> | null {
-  return value && typeof value === 'object' && !Array.isArray(value)
-    ? value as Record<string, unknown>
-    : null
-}
-
 function readString(value: unknown): string {
-  return typeof value === 'string' ? value.trim() : ''
-}
-
-function readNumber(value: unknown): number | null {
-  return typeof value === 'number' && Number.isFinite(value) ? value : null
+  return readProtocolString(value).trim()
 }
 
 function readNestedString(value: unknown, keys: string[]): string {

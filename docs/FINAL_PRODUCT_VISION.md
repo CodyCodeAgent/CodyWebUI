@@ -572,7 +572,7 @@ src/theme/
 - Vue 前端。
 - Express 后端。
 - 后端 spawn `codex app-server`。
-- 前端通过 `/codex-api` 使用 RPC 和 SSE。
+- 前端通过 `/codex-api` 使用 RPC，并通过 `/codex-api/ws` 接收 WebSocket 实时通知。
 
 成熟架构应该拆分职责。
 
