@@ -4,6 +4,7 @@ import {
   buildApprovalDecisionReply,
   buildApprovalScopeReply,
   buildConversationScrollMetrics,
+  buildConversationRequestCards,
   buildConversationScrollState,
   buildCopyText,
   buildCopyTextAt,
@@ -13,6 +14,7 @@ import {
   buildToolCallSuccessReply,
   buildToolCopyText,
   buildToolUserInputReply,
+  conversationRequestKind,
   hasLiveOverlayDetails,
   isCopyableMessage,
   liveOverlayDetailsToggleLabel,
@@ -173,6 +175,27 @@ describe('thread conversation rules', () => {
   })
 
   it('builds approval and tool request replies', () => {
+    expect(conversationRequestKind('item/commandExecution/requestApproval')).toBe('command_approval')
+    expect(conversationRequestKind('item/fileChange/requestApproval')).toBe('file_change_approval')
+    expect(conversationRequestKind('item/tool/requestUserInput')).toBe('tool_user_input')
+    expect(conversationRequestKind('item/tool/call')).toBe('tool_call')
+    expect(conversationRequestKind('custom/request')).toBe('unknown')
+    const requestCards = buildConversationRequestCards([
+      serverRequest({
+        id: 1,
+        method: 'item/commandExecution/requestApproval',
+        params: { command: 'npm test' },
+      }),
+      serverRequest({
+        id: 2,
+        method: 'item/tool/requestUserInput',
+        params: {},
+      }),
+    ])
+    expect(requestCards.map((card) => card.kind)).toEqual(['command_approval', 'tool_user_input'])
+    expect(requestCards[0].request.id).toBe(1)
+    expect(requestCards[0].summary.title).toBe('Command approval')
+
     expect(buildApprovalDecisionReply(7, 'acceptForSession')).toEqual({
       id: 7,
       approvalScope: 'session',

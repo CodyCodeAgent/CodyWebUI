@@ -11,39 +11,39 @@
 
     <ul v-else ref="conversationListRef" class="conversation-list" @scroll="onConversationScroll">
       <li
-        v-for="request in pendingRequests"
-        :key="`server-request:${request.id}`"
+        v-for="card in conversationRequestCards"
+        :key="`server-request:${card.request.id}`"
         class="conversation-item conversation-item-request"
       >
         <div class="message-row">
           <div class="message-stack">
             <article class="request-card">
-              <p class="request-title">{{ approvalSummary(request).title }}</p>
-              <p class="request-meta">Request #{{ request.id }} · {{ formatIsoTime(request.receivedAtIso) }}</p>
+              <p class="request-title">{{ card.summary.title }}</p>
+              <p class="request-meta">Request #{{ card.request.id }} · {{ formatIsoTime(card.request.receivedAtIso) }}</p>
 
-              <p class="request-subject">{{ approvalSummary(request).subject }}</p>
+              <p class="request-subject">{{ card.summary.subject }}</p>
               <div class="request-risk-line">
-                <span class="request-risk-badge" :data-level="approvalSummary(request).level">
-                  {{ approvalSummary(request).level }}
+                <span class="request-risk-badge" :data-level="card.summary.level">
+                  {{ card.summary.level }}
                 </span>
                 <span
-                  v-for="label in approvalSummary(request).riskLabels"
-                  :key="`${request.id}:${label}`"
+                  v-for="label in card.summary.riskLabels"
+                  :key="`${card.request.id}:${label}`"
                   class="request-risk-label"
                 >
                   {{ label }}
                 </span>
               </div>
-              <p class="request-reason">{{ approvalSummary(request).description }}</p>
+              <p class="request-reason">{{ card.summary.description }}</p>
               <ul class="request-impact-list">
-                <li v-for="impact in approvalSummary(request).impacts" :key="`${request.id}:${impact}`">
+                <li v-for="impact in card.summary.impacts" :key="`${card.request.id}:${impact}`">
                   {{ impact }}
                 </li>
               </ul>
               <div class="request-scope-line" aria-label="Approval scopes">
                 <span
                   v-for="scope in approvalScopeOptions"
-                  :key="`${request.id}:${scope.scope}`"
+                  :key="`${card.request.id}:${scope.scope}`"
                   class="request-scope"
                   :data-enabled="scope.enabled"
                   :title="scope.description"
@@ -51,52 +51,52 @@
                   {{ scope.label }}
                 </span>
               </div>
-              <p class="request-recommendation">{{ approvalSummary(request).recommendation }}</p>
+              <p class="request-recommendation">{{ card.summary.recommendation }}</p>
 
-              <section v-if="request.method === 'item/commandExecution/requestApproval'" class="request-actions">
+              <section v-if="card.kind === 'command_approval'" class="request-actions">
                 <button
                   v-for="scope in approvalScopeOptions"
-                  :key="`${request.id}:command:${scope.scope}`"
+                  :key="`${card.request.id}:command:${scope.scope}`"
                   type="button"
                   class="request-button"
                   :class="{ 'request-button-primary': scope.scope === 'single', 'request-button-danger': scope.scope === 'permanent' }"
-                  @click="onRespondApprovalScope(request.id, scope.scope)"
+                  @click="onRespondApprovalScope(card.request.id, scope.scope)"
                 >
                   {{ scope.label }}
                 </button>
-                <button type="button" class="request-button" @click="onRespondApproval(request.id, 'decline')">Decline</button>
-                <button type="button" class="request-button" @click="onRespondApproval(request.id, 'cancel')">Cancel</button>
+                <button type="button" class="request-button" @click="onRespondApproval(card.request.id, 'decline')">Decline</button>
+                <button type="button" class="request-button" @click="onRespondApproval(card.request.id, 'cancel')">Cancel</button>
               </section>
 
-              <section v-else-if="request.method === 'item/fileChange/requestApproval'" class="request-actions">
+              <section v-else-if="card.kind === 'file_change_approval'" class="request-actions">
                 <button
                   v-for="scope in approvalScopeOptions"
-                  :key="`${request.id}:file:${scope.scope}`"
+                  :key="`${card.request.id}:file:${scope.scope}`"
                   type="button"
                   class="request-button"
                   :class="{ 'request-button-primary': scope.scope === 'single', 'request-button-danger': scope.scope === 'permanent' }"
-                  @click="onRespondApprovalScope(request.id, scope.scope)"
+                  @click="onRespondApprovalScope(card.request.id, scope.scope)"
                 >
                   {{ scope.label }}
                 </button>
-                <button type="button" class="request-button" @click="onRespondApproval(request.id, 'decline')">Decline</button>
-                <button type="button" class="request-button" @click="onRespondApproval(request.id, 'cancel')">Cancel</button>
+                <button type="button" class="request-button" @click="onRespondApproval(card.request.id, 'decline')">Decline</button>
+                <button type="button" class="request-button" @click="onRespondApproval(card.request.id, 'cancel')">Cancel</button>
               </section>
 
-              <section v-else-if="request.method === 'item/tool/requestUserInput'" class="request-user-input">
+              <section v-else-if="card.kind === 'tool_user_input'" class="request-user-input">
                 <div
-                  v-for="question in readToolQuestions(request)"
-                  :key="`${request.id}:${question.id}`"
+                  v-for="question in readToolQuestions(card.request)"
+                  :key="`${card.request.id}:${question.id}`"
                   class="request-question"
                 >
                   <p class="request-question-title">{{ toolQuestionTitle(question) }}</p>
                   <p v-if="shouldShowToolQuestionText(question)" class="request-question-text">{{ question.question }}</p>
                   <select
                     class="request-select"
-                    :value="readQuestionAnswer(request.id, question.id, question.options[0] || '')"
-                    @change="onQuestionAnswerChange(request.id, question.id, $event)"
+                    :value="readQuestionAnswer(card.request.id, question.id, question.options[0] || '')"
+                    @change="onQuestionAnswerChange(card.request.id, question.id, $event)"
                   >
-                    <option v-for="option in question.options" :key="`${request.id}:${question.id}:${option}`" :value="option">
+                    <option v-for="option in question.options" :key="`${card.request.id}:${question.id}:${option}`" :value="option">
                       {{ option }}
                     </option>
                   </select>
@@ -104,25 +104,25 @@
                     v-if="question.isOther"
                     class="request-input"
                     type="text"
-                    :value="readQuestionOtherAnswer(request.id, question.id)"
+                    :value="readQuestionOtherAnswer(card.request.id, question.id)"
                     placeholder="Other answer"
-                    @input="onQuestionOtherAnswerInput(request.id, question.id, $event)"
+                    @input="onQuestionOtherAnswerInput(card.request.id, question.id, $event)"
                   />
                 </div>
 
-                <button type="button" class="request-button request-button-primary" @click="onRespondToolRequestUserInput(request)">
+                <button type="button" class="request-button request-button-primary" @click="onRespondToolRequestUserInput(card.request)">
                   Submit Answers
                 </button>
               </section>
 
-              <section v-else-if="request.method === 'item/tool/call'" class="request-actions">
-                <button type="button" class="request-button request-button-primary" @click="onRespondToolCallFailure(request.id)">Fail Tool Call</button>
-                <button type="button" class="request-button" @click="onRespondToolCallSuccess(request.id)">Success (Empty)</button>
+              <section v-else-if="card.kind === 'tool_call'" class="request-actions">
+                <button type="button" class="request-button request-button-primary" @click="onRespondToolCallFailure(card.request.id)">Fail Tool Call</button>
+                <button type="button" class="request-button" @click="onRespondToolCallSuccess(card.request.id)">Success (Empty)</button>
               </section>
 
               <section v-else class="request-actions">
-                <button type="button" class="request-button request-button-primary" @click="onRespondEmptyResult(request.id)">Return Empty Result</button>
-                <button type="button" class="request-button" @click="onRejectUnknownRequest(request.id)">Reject Request</button>
+                <button type="button" class="request-button request-button-primary" @click="onRespondEmptyResult(card.request.id)">Return Empty Result</button>
+                <button type="button" class="request-button" @click="onRejectUnknownRequest(card.request.id)">Reject Request</button>
               </section>
             </article>
           </div>
@@ -290,13 +290,13 @@ import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import type { ThreadScrollState, UiApprovalDecisionScope, UiLiveOverlay, UiMessage, UiServerRequest, UiServerRequestReply } from '../../types/codex'
 import {
   APPROVAL_SCOPE_OPTIONS,
-  buildApprovalRiskSummary,
   type UiApprovalDecision,
 } from '../../composables/useApprovalRisk'
 import {
   buildApprovalDecisionReply,
   buildApprovalScopeReply,
   buildConversationScrollMetrics,
+  buildConversationRequestCards,
   buildConversationScrollState,
   buildCopyTextAt as buildThreadCopyTextAt,
   buildEmptyServerRequestReply,
@@ -366,6 +366,7 @@ const hasLiveOverlayDetails = computed(() => {
   return hasThreadLiveOverlayDetails(props.liveOverlay)
 })
 const liveOverlayDetailsLabel = computed(() => liveOverlayDetailsToggleLabel(isLiveOverlayExpanded.value))
+const conversationRequestCards = computed(() => buildConversationRequestCards(props.pendingRequests))
 
 const showScrollToBottomButton = computed(() => {
   return shouldShowThreadScrollToBottomButton({
@@ -442,10 +443,6 @@ function formatIsoTime(value: string): string {
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return value
   return date.toLocaleTimeString()
-}
-
-function approvalSummary(request: UiServerRequest) {
-  return buildApprovalRiskSummary(request)
 }
 
 function readQuestionAnswer(requestId: number, questionId: string, fallback: string): string {

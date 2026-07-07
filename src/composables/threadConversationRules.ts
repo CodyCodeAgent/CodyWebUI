@@ -11,6 +11,8 @@ import type {
 import {
   approvalDecisionForScope,
   approvalScopeForDecision,
+  buildApprovalRiskSummary,
+  type UiApprovalRiskSummary,
   type UiApprovalDecision,
 } from './useApprovalRisk'
 import { formatToolStatus } from './threadToolTimelineRules'
@@ -27,6 +29,19 @@ export type ConversationScrollMetrics = {
   maxScrollTop: number
   scrollRatio: number
   isAtBottom: boolean
+}
+
+export type ConversationRequestKind =
+  | 'command_approval'
+  | 'file_change_approval'
+  | 'tool_user_input'
+  | 'tool_call'
+  | 'unknown'
+
+export type ConversationRequestCard = {
+  request: UiServerRequest
+  summary: UiApprovalRiskSummary
+  kind: ConversationRequestKind
 }
 
 export function buildToolCopyText(tool: UiToolTimelineEntry): string {
@@ -144,6 +159,22 @@ export function shouldShowScrollToBottomButton(params: {
   if (!params.activeThreadId || params.isLoading) return false
   if (params.messageCount === 0 && params.pendingRequestCount === 0 && !params.hasLiveOverlay) return false
   return params.scrollState?.isAtBottom === false
+}
+
+export function conversationRequestKind(method: string): ConversationRequestKind {
+  if (method === 'item/commandExecution/requestApproval') return 'command_approval'
+  if (method === 'item/fileChange/requestApproval') return 'file_change_approval'
+  if (method === 'item/tool/requestUserInput') return 'tool_user_input'
+  if (method === 'item/tool/call') return 'tool_call'
+  return 'unknown'
+}
+
+export function buildConversationRequestCards(requests: UiServerRequest[]): ConversationRequestCard[] {
+  return requests.map((request) => ({
+    request,
+    summary: buildApprovalRiskSummary(request),
+    kind: conversationRequestKind(request.method),
+  }))
 }
 
 export function buildConversationScrollMetrics(params: {
