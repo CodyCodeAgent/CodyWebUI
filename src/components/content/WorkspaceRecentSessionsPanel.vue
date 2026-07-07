@@ -63,7 +63,7 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { fetchWorkspaceRecentSessions } from '../../api/codexRpcClient'
+import { fetchWorkspaceRecentSessions } from '../../api/codexSessionClient'
 import type { UiWorkspaceSessionSummary, UiWorkspaceSessionSummaryTrail, UiWorkspaceSessionStatus } from '../../types/codex'
 import IconTablerRefresh from '../icons/IconTablerRefresh.vue'
 

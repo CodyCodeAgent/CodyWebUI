@@ -44,7 +44,7 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { fetchWorkspaceAuditEvents } from '../../api/codexRpcClient'
+import { fetchWorkspaceAuditEvents } from '../../api/codexSessionClient'
 import type { UiAuditEvent, UiAuditTrail } from '../../types/codex'
 import IconTablerRefresh from '../icons/IconTablerRefresh.vue'
 
