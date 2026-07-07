@@ -4,7 +4,6 @@ import {
   buildApprovalRiskSummary,
   isCommandApprovalRequestMethod,
   isFileChangeApprovalRequestMethod,
-  isApprovalRequestMethod,
   type UiApprovalDecision,
   type UiApprovalRiskSummary,
 } from './useApprovalRisk'
@@ -54,6 +53,10 @@ export function isServerApprovalRequestKind(kind: UiServerRequestKind): boolean 
   return kind === 'command_approval' || kind === 'file_change_approval'
 }
 
+export function isServerApprovalRequest(request: Pick<UiServerRequest, 'method'>): boolean {
+  return isServerApprovalRequestKind(serverRequestKind(request.method))
+}
+
 export function serverRequestActionKeyPrefix(kind: UiServerRequestKind): string {
   if (kind === 'command_approval') return 'command'
   if (kind === 'file_change_approval') return 'file'
@@ -87,7 +90,7 @@ export function buildServerRequestCards(requests: UiServerRequest[]): UiServerRe
     request,
     summary: buildApprovalRiskSummary(request),
     kind: serverRequestKind(request.method),
-    isApprovalRequest: isApprovalRequestMethod(request.method),
+    isApprovalRequest: isServerApprovalRequest(request),
   }))
 }
 

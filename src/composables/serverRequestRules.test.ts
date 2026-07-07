@@ -8,6 +8,7 @@ import {
   buildRejectedServerRequestReply,
   buildServerRequestCards,
   formatServerRequestTime,
+  isServerApprovalRequest,
   isServerApprovalRequestKind,
   isToolCallRequestMethod,
   isToolUserInputRequestMethod,
@@ -54,6 +55,8 @@ describe('server request rules', () => {
     expect(isServerApprovalRequestKind('command_approval')).toBe(true)
     expect(isServerApprovalRequestKind('file_change_approval')).toBe(true)
     expect(isServerApprovalRequestKind('tool_user_input')).toBe(false)
+    expect(isServerApprovalRequest(serverRequest())).toBe(true)
+    expect(isServerApprovalRequest(serverRequest({ method: TOOL_CALL_REQUEST_METHOD }))).toBe(false)
     expect(serverRequestActionKeyPrefix('command_approval')).toBe('command')
     expect(serverRequestActionKeyPrefix('file_change_approval')).toBe('file')
     expect(serverRequestActionKeyPrefix('tool_call')).toBe('request')

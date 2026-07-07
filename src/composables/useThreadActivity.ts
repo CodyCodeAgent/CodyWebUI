@@ -2,10 +2,8 @@ import type { UiMessage, UiServerRequest, UiToolTimelineEntry } from '../types/c
 import type { UiDiffLineKind, UiDiffReview, UiDiffReviewFile } from './useDiffReview'
 import { isToolFailureStatus } from './threadToolTimelineRules'
 import {
-  isApprovalRequestMethod,
-} from './useApprovalRisk'
-import {
   buildServerRequestCards,
+  isServerApprovalRequest,
   type UiServerRequestCard,
 } from './serverRequestRules'
 export { isToolFailureStatus } from './threadToolTimelineRules'
@@ -125,7 +123,7 @@ export function buildPendingApprovalSubtitle(count: number): string {
 }
 
 export function isPendingApprovalRequest(request: UiServerRequest): boolean {
-  return isApprovalRequestMethod(request.method)
+  return isServerApprovalRequest(request)
 }
 
 export function buildPendingApprovalCards(requests: UiServerRequest[]): PendingApprovalCard[] {
