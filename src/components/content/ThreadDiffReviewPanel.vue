@@ -303,6 +303,36 @@ import {
   updateWorkspaceReviewCommentStatus,
 } from '../../api/codexDiffReviewClient'
 import { fetchWorkspaceReviewDraft } from '../../api/codexWorkspaceGitClient'
+import {
+  buildReviewDraftSummary,
+  checkpointPatchButtonLabel as checkpointPatchButtonLabelForState,
+  commentsForDiffHunk,
+  diffCopyPatchButtonLabel,
+  diffLinePrefix,
+  diffReviewHunkKey,
+  formatBytes,
+  formatCheckpointPaths,
+  formatCheckpointTime,
+  formatDiffLineNumber,
+  formatReviewCommentAnchor,
+  reviewCheckpointPatchStateForId,
+  reviewDraftCopyLabel as reviewDraftCopyLabelForState,
+  reviewHunkRollbackStateForKey,
+  reviewHunkStageStateForKey,
+  reviewHunkStatusMessage,
+  reviewRollbackStateForPath,
+  rollbackFileButtonLabel,
+  rollbackHunkButtonLabel,
+  stageHunkButtonLabel,
+  workspaceRollbackButtonLabel as workspaceRollbackButtonLabelForState,
+} from '../../composables/threadDiffReviewPanelRules'
+import type {
+  ReviewCheckpointPatchState,
+  ReviewDraftCopyState,
+  ReviewHunkStageState,
+  ReviewPatchCopyState,
+  ReviewRollbackState,
+} from '../../composables/threadDiffReviewPanelRules'
 import { buildDiffReview } from '../../composables/useDiffReview'
 import type { UiDiffLineKind, UiDiffReviewLine } from '../../composables/useDiffReview'
 import type {
@@ -330,14 +360,14 @@ const emit = defineEmits<{
   hunkStageCompleted: [result: UiToolingStageHunkResult]
 }>()
 
-const copyState = ref<'idle' | 'copying' | 'copied' | 'failed'>('idle')
-const workspaceRollbackState = ref<{ status: 'idle' | 'rollingBack' | 'rolledBack' | 'failed'; message: string }>({
+const copyState = ref<ReviewPatchCopyState>('idle')
+const workspaceRollbackState = ref<ReviewRollbackState>({
   status: 'idle',
   message: '',
 })
-const rollbackByPath = ref<Record<string, { status: 'idle' | 'rollingBack' | 'rolledBack' | 'failed'; message: string }>>({})
-const hunkRollbackByKey = ref<Record<string, { status: 'idle' | 'rollingBack' | 'rolledBack' | 'failed'; message: string }>>({})
-const hunkStageByKey = ref<Record<string, { status: 'idle' | 'staging' | 'staged' | 'failed'; message: string }>>({})
+const rollbackByPath = ref<Record<string, ReviewRollbackState>>({})
+const hunkRollbackByKey = ref<Record<string, ReviewRollbackState>>({})
+const hunkStageByKey = ref<Record<string, ReviewHunkStageState>>({})
 const checkpoints = ref<UiToolingCheckpoint[]>([])
 const isLoadingCheckpoints = ref(false)
 const checkpointError = ref('')
@@ -349,17 +379,12 @@ const commentDraft = ref('')
 const reviewDraft = ref<UiWorkspaceReviewDraft | null>(null)
 const isLoadingReviewDraft = ref(false)
 const reviewDraftError = ref('')
-const reviewDraftCopyState = ref<'idle' | 'copying' | 'copied_commit' | 'copied_pr' | 'failed'>('idle')
+const reviewDraftCopyState = ref<ReviewDraftCopyState>('idle')
 const activeCommentTarget = ref<(UiReviewCommentAnchor & {
   hunkIndex: number
   lineNumber: number | null
 }) | null>(null)
-const checkpointPatchById = ref<Record<string, {
-  status: 'idle' | 'loading' | 'loaded' | 'failed'
-  patch: string
-  message: string
-  isVisible: boolean
-}>>({})
+const checkpointPatchById = ref<Record<string, ReviewCheckpointPatchState>>({})
 const review = computed(() => buildDiffReview(props.messages))
 const isCopying = computed(() => copyState.value === 'copying')
 const canRollback = computed(() => props.cwd.trim().length > 0)
@@ -368,87 +393,52 @@ const rollbackHint = computed(() =>
     ? 'A checkpoint will be saved before this file is restored.'
     : 'Rollback needs a selected workspace.',
 )
-const copyLabel = computed(() => {
-  if (copyState.value === 'copied') return 'Copied'
-  if (copyState.value === 'failed') return 'Failed'
-  return 'Patch'
-})
-const workspaceRollbackButtonLabel = computed(() => {
-  if (workspaceRollbackState.value.status === 'rollingBack') return 'Rolling back'
-  if (workspaceRollbackState.value.status === 'rolledBack') return 'Rolled back'
-  return 'Rollback all'
-})
-const reviewDraftSummary = computed(() => {
-  if (!canRollback.value) return 'Select a workspace to generate delivery notes.'
-  if (isLoadingReviewDraft.value) return 'Inspecting tracked and untracked workspace changes.'
-  if (!reviewDraft.value) return 'Generate commit, PR, risk, and validation notes from current workspace changes.'
-  if (!reviewDraft.value.hasReviewChanges) return 'No workspace changes detected.'
-  return `${String(reviewDraft.value.fileCount)} tracked files · +${String(reviewDraft.value.insertions)} / -${String(reviewDraft.value.deletions)} · ${String(reviewDraft.value.untrackedFiles.length)} untracked`
-})
+const copyLabel = computed(() => diffCopyPatchButtonLabel(copyState.value))
+const workspaceRollbackButtonLabel = computed(() => workspaceRollbackButtonLabelForState(workspaceRollbackState.value))
+const reviewDraftSummary = computed(() => buildReviewDraftSummary({
+  canRollback: canRollback.value,
+  isLoading: isLoadingReviewDraft.value,
+  reviewDraft: reviewDraft.value,
+}))
 
-function rollbackState(filePath: string): { status: 'idle' | 'rollingBack' | 'rolledBack' | 'failed'; message: string } {
-  return rollbackByPath.value[filePath] ?? { status: 'idle', message: '' }
+function rollbackState(filePath: string): ReviewRollbackState {
+  return reviewRollbackStateForPath(rollbackByPath.value, filePath)
 }
 
 function rollbackButtonLabel(filePath: string): string {
-  const state = rollbackState(filePath).status
-  if (state === 'rollingBack') return 'Rolling back'
-  if (state === 'rolledBack') return 'Rolled back'
-  return 'Rollback file'
+  return rollbackFileButtonLabel(rollbackState(filePath))
 }
 
 function hunkKey(filePath: string, hunkIndex: number): string {
-  return `${filePath}:${String(hunkIndex)}`
+  return diffReviewHunkKey(filePath, hunkIndex)
 }
 
-function hunkRollbackState(filePath: string, hunkIndex: number): {
-  status: 'idle' | 'rollingBack' | 'rolledBack' | 'failed'
-  message: string
-} {
-  return hunkRollbackByKey.value[hunkKey(filePath, hunkIndex)] ?? { status: 'idle', message: '' }
+function hunkRollbackState(filePath: string, hunkIndex: number): ReviewRollbackState {
+  return reviewHunkRollbackStateForKey(hunkRollbackByKey.value, filePath, hunkIndex)
 }
 
 function hunkRollbackButtonLabel(filePath: string, hunkIndex: number): string {
-  const state = hunkRollbackState(filePath, hunkIndex).status
-  if (state === 'rollingBack') return 'Rolling back'
-  if (state === 'rolledBack') return 'Rolled back'
-  return 'Rollback hunk'
+  return rollbackHunkButtonLabel(hunkRollbackState(filePath, hunkIndex))
 }
 
-function hunkStageState(filePath: string, hunkIndex: number): {
-  status: 'idle' | 'staging' | 'staged' | 'failed'
-  message: string
-} {
-  return hunkStageByKey.value[hunkKey(filePath, hunkIndex)] ?? { status: 'idle', message: '' }
+function hunkStageState(filePath: string, hunkIndex: number): ReviewHunkStageState {
+  return reviewHunkStageStateForKey(hunkStageByKey.value, filePath, hunkIndex)
 }
 
 function hunkStageButtonLabel(filePath: string, hunkIndex: number): string {
-  const state = hunkStageState(filePath, hunkIndex).status
-  if (state === 'staging') return 'Accepting'
-  if (state === 'staged') return 'Accepted'
-  return 'Accept hunk'
+  return stageHunkButtonLabel(hunkStageState(filePath, hunkIndex))
 }
 
 function hunkStatusMessage(filePath: string, hunkIndex: number): string {
-  return hunkStageState(filePath, hunkIndex).message || hunkRollbackState(filePath, hunkIndex).message
+  return reviewHunkStatusMessage(hunkStageState(filePath, hunkIndex), hunkRollbackState(filePath, hunkIndex))
 }
 
 function reviewDraftCopyLabel(kind: 'commit' | 'pr'): string {
-  if (reviewDraftCopyState.value === 'copying') return 'Copying'
-  if (kind === 'commit' && reviewDraftCopyState.value === 'copied_commit') return 'Copied commit'
-  if (kind === 'pr' && reviewDraftCopyState.value === 'copied_pr') return 'Copied PR'
-  if (reviewDraftCopyState.value === 'failed') return 'Copy failed'
-  return kind === 'commit' ? 'Copy commit message' : 'Copy PR body'
+  return reviewDraftCopyLabelForState(kind, reviewDraftCopyState.value)
 }
 
 function commentsForHunk(filePath: string, hunkHeader: string): UiReviewComment[] {
-  return reviewComments.value
-    .filter((comment) => comment.anchor.filePath === filePath && comment.anchor.hunkHeader === hunkHeader)
-    .sort((first, second) => {
-      const firstLine = first.anchor.newLineNumber ?? first.anchor.oldLineNumber ?? 0
-      const secondLine = second.anchor.newLineNumber ?? second.anchor.oldLineNumber ?? 0
-      return firstLine - secondLine || first.createdAtIso.localeCompare(second.createdAtIso)
-    })
+  return commentsForDiffHunk(reviewComments.value, filePath, hunkHeader)
 }
 
 function openCommentComposer(
@@ -478,8 +468,7 @@ function cancelComment(): void {
 }
 
 function formatCommentAnchor(comment: UiReviewComment): string {
-  const lineNumber = comment.anchor.newLineNumber ?? comment.anchor.oldLineNumber
-  return `${comment.anchor.filePath}${lineNumber ? `:${String(lineNumber)}` : ''}`
+  return formatReviewCommentAnchor(comment)
 }
 
 async function loadReviewComments(): Promise<void> {
@@ -590,58 +579,20 @@ async function resolveComment(commentId: string): Promise<void> {
   }
 }
 
-function checkpointPatchState(checkpointId: string): {
-  status: 'idle' | 'loading' | 'loaded' | 'failed'
-  patch: string
-  message: string
-  isVisible: boolean
-} {
-  return checkpointPatchById.value[checkpointId] ?? {
-    status: 'idle',
-    patch: '',
-    message: '',
-    isVisible: false,
-  }
+function checkpointPatchState(checkpointId: string): ReviewCheckpointPatchState {
+  return reviewCheckpointPatchStateForId(checkpointPatchById.value, checkpointId)
 }
 
 function checkpointPatchButtonLabel(checkpointId: string): string {
-  const state = checkpointPatchState(checkpointId)
-  if (state.status === 'loading') return 'Loading'
-  if (state.status === 'failed') return 'Retry patch'
-  if (state.isVisible) return 'Hide patch'
-  return 'Patch'
+  return checkpointPatchButtonLabelForState(checkpointPatchState(checkpointId))
 }
 
 function formatLineNumber(value: number | null): string {
-  return typeof value === 'number' ? String(value) : ''
-}
-
-function formatCheckpointTime(value: string): string {
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return value
-  return date.toLocaleString()
-}
-
-function formatCheckpointPaths(paths: string[]): string {
-  if (paths.length === 0) return 'workspace'
-  if (paths.length <= 2) return paths.join(', ')
-  return `${paths.slice(0, 2).join(', ')} +${String(paths.length - 2)}`
-}
-
-function formatBytes(value: number): string {
-  if (!Number.isFinite(value) || value <= 0) return '0 B'
-  if (value < 1024) return `${String(value)} B`
-  const kib = value / 1024
-  if (kib < 1024) return `${kib.toFixed(kib < 10 ? 1 : 0)} KiB`
-  const mib = kib / 1024
-  return `${mib.toFixed(mib < 10 ? 1 : 0)} MiB`
+  return formatDiffLineNumber(value)
 }
 
 function linePrefix(kind: UiDiffLineKind): string {
-  if (kind === 'add') return '+'
-  if (kind === 'remove') return '-'
-  if (kind === 'meta') return '\\'
-  return ' '
+  return diffLinePrefix(kind)
 }
 
 async function writeClipboardText(value: string): Promise<void> {
