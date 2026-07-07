@@ -444,12 +444,19 @@ import {
   formatWorkflowStatus as formatStatus,
   formatWorkflowTime as formatTime,
   hasWorkflowImplementationActions as hasImplementationActions,
-  isWorkflowKeyPending,
   runnableValidationOptions,
   workspaceWorkflowSummary,
   workflowAgentKey as agentKey,
   workflowDeliveryButtonLabel,
   workflowDeliveryKey,
+  isWorkflowAgentProvisioning,
+  isWorkflowAgentUpdating,
+  isWorkflowDeliveryLoading,
+  isWorkflowDeliveryUpdating,
+  isWorkflowImplementationApplying,
+  isWorkflowImplementationDiscarding,
+  isWorkflowReplayLoading,
+  isWorkflowValidationRunning,
   workflowImplementationApplyLabel,
   workflowImplementationDiscardLabel,
   workflowImplementationOptions as implementationOptions,
@@ -505,6 +512,17 @@ const deliveryErrors = ref<Record<string, string>>({})
 const validationResults = ref<Record<string, WorkflowValidationResultSummary>>({})
 const errorMessage = ref('')
 
+const workflowBusyKeys = computed(() => ({
+  updatingAgentKey: updatingAgentKey.value,
+  provisioningAgentKey: provisioningAgentKey.value,
+  applyingImplementationKey: applyingImplementationKey.value,
+  discardingImplementationKey: discardingImplementationKey.value,
+  runningValidationKey: runningValidationKey.value,
+  loadingReplayRunId: loadingReplayRunId.value,
+  loadingDeliveryRunId: loadingDeliveryRunId.value,
+  updatingDeliveryKey: updatingDeliveryKey.value,
+}))
+
 const selectedTemplate = computed(() =>
   templates.value.find((template) => template.id === selectedTemplateId.value) ?? templates.value[0] ?? null
 )
@@ -515,35 +533,35 @@ const summaryText = computed(() => workspaceWorkflowSummary({
 }))
 
 function isUpdatingAgent(runId: string, agentId: string): boolean {
-  return isWorkflowKeyPending(updatingAgentKey.value, agentKey(runId, agentId))
+  return isWorkflowAgentUpdating(workflowBusyKeys.value, runId, agentId)
 }
 
 function isProvisioningAgent(runId: string, agentId: string): boolean {
-  return isWorkflowKeyPending(provisioningAgentKey.value, agentKey(runId, agentId))
+  return isWorkflowAgentProvisioning(workflowBusyKeys.value, runId, agentId)
 }
 
 function isApplyingImplementation(runId: string, agentId: string): boolean {
-  return isWorkflowKeyPending(applyingImplementationKey.value, agentKey(runId, agentId))
+  return isWorkflowImplementationApplying(workflowBusyKeys.value, runId, agentId)
 }
 
 function isDiscardingImplementation(runId: string, agentId: string): boolean {
-  return isWorkflowKeyPending(discardingImplementationKey.value, agentKey(runId, agentId))
+  return isWorkflowImplementationDiscarding(workflowBusyKeys.value, runId, agentId)
 }
 
 function isRunningValidation(runId: string, scriptName: string): boolean {
-  return isWorkflowKeyPending(runningValidationKey.value, validationKey(runId, scriptName))
+  return isWorkflowValidationRunning(workflowBusyKeys.value, runId, scriptName)
 }
 
 function isLoadingReplay(runId: string): boolean {
-  return loadingReplayRunId.value === runId
+  return isWorkflowReplayLoading(workflowBusyKeys.value, runId)
 }
 
 function isLoadingDelivery(runId: string): boolean {
-  return loadingDeliveryRunId.value === runId
+  return isWorkflowDeliveryLoading(workflowBusyKeys.value, runId)
 }
 
 function isUpdatingDelivery(runId: string, action: 'ready' | 'merged'): boolean {
-  return isWorkflowKeyPending(updatingDeliveryKey.value, workflowDeliveryKey(runId, action))
+  return isWorkflowDeliveryUpdating(workflowBusyKeys.value, runId, action)
 }
 
 function replayButtonLabel(runId: string): string {

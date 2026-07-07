@@ -29,6 +29,17 @@ export type EmptyWorkflowPanelState = {
   errorMessage: string
 }
 
+export type WorkflowBusyKeys = {
+  updatingAgentKey: string
+  provisioningAgentKey: string
+  applyingImplementationKey: string
+  discardingImplementationKey: string
+  runningValidationKey: string
+  loadingReplayRunId: string
+  loadingDeliveryRunId: string
+  updatingDeliveryKey: string
+}
+
 export function formatWorkflowTime(value: string): string {
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return value
@@ -53,6 +64,68 @@ export function workflowDeliveryKey(runId: string, action: 'ready' | 'merged'): 
 
 export function isWorkflowKeyPending(currentKey: string, expectedKey: string): boolean {
   return currentKey === expectedKey
+}
+
+export function isWorkflowAgentUpdating(
+  busy: Pick<WorkflowBusyKeys, 'updatingAgentKey'>,
+  runId: string,
+  agentId: string,
+): boolean {
+  return isWorkflowKeyPending(busy.updatingAgentKey, workflowAgentKey(runId, agentId))
+}
+
+export function isWorkflowAgentProvisioning(
+  busy: Pick<WorkflowBusyKeys, 'provisioningAgentKey'>,
+  runId: string,
+  agentId: string,
+): boolean {
+  return isWorkflowKeyPending(busy.provisioningAgentKey, workflowAgentKey(runId, agentId))
+}
+
+export function isWorkflowImplementationApplying(
+  busy: Pick<WorkflowBusyKeys, 'applyingImplementationKey'>,
+  runId: string,
+  agentId: string,
+): boolean {
+  return isWorkflowKeyPending(busy.applyingImplementationKey, workflowAgentKey(runId, agentId))
+}
+
+export function isWorkflowImplementationDiscarding(
+  busy: Pick<WorkflowBusyKeys, 'discardingImplementationKey'>,
+  runId: string,
+  agentId: string,
+): boolean {
+  return isWorkflowKeyPending(busy.discardingImplementationKey, workflowAgentKey(runId, agentId))
+}
+
+export function isWorkflowValidationRunning(
+  busy: Pick<WorkflowBusyKeys, 'runningValidationKey'>,
+  runId: string,
+  scriptName: string,
+): boolean {
+  return isWorkflowKeyPending(busy.runningValidationKey, workflowValidationKey(runId, scriptName))
+}
+
+export function isWorkflowReplayLoading(
+  busy: Pick<WorkflowBusyKeys, 'loadingReplayRunId'>,
+  runId: string,
+): boolean {
+  return busy.loadingReplayRunId === runId
+}
+
+export function isWorkflowDeliveryLoading(
+  busy: Pick<WorkflowBusyKeys, 'loadingDeliveryRunId'>,
+  runId: string,
+): boolean {
+  return busy.loadingDeliveryRunId === runId
+}
+
+export function isWorkflowDeliveryUpdating(
+  busy: Pick<WorkflowBusyKeys, 'updatingDeliveryKey'>,
+  runId: string,
+  action: 'ready' | 'merged',
+): boolean {
+  return isWorkflowKeyPending(busy.updatingDeliveryKey, workflowDeliveryKey(runId, action))
 }
 
 export function workspaceWorkflowSummary(input: {

@@ -19,6 +19,12 @@ import {
   formatWorkflowStatus,
   hasWorkflowImplementationActions,
   isRunnableValidationScriptName,
+  isWorkflowAgentProvisioning,
+  isWorkflowAgentUpdating,
+  isWorkflowDeliveryLoading,
+  isWorkflowDeliveryUpdating,
+  isWorkflowImplementationApplying,
+  isWorkflowImplementationDiscarding,
   prependWorkflowRun,
   runnableValidationOptions,
   replaceWorkflowRun,
@@ -34,6 +40,8 @@ import {
   workflowImplementationDiscardLabel,
   workflowImplementationOptionsSummary,
   workflowReplayButtonLabel,
+  isWorkflowReplayLoading,
+  isWorkflowValidationRunning,
   workflowValidationKey,
   workflowWorktreeLabel,
   isWorkflowKeyPending,
@@ -115,6 +123,31 @@ describe('workspace workflow rules', () => {
     expect(workflowDeliveryKey('run-1', 'ready')).toBe('run-1:ready')
     expect(isWorkflowKeyPending('run-1:ready', workflowDeliveryKey('run-1', 'ready'))).toBe(true)
     expect(formatWorkflowStatus('ready_to_merge')).toBe('ready to merge')
+  })
+
+  it('reads workflow busy keys consistently', () => {
+    const busy = {
+      updatingAgentKey: workflowAgentKey('run-1', 'agent-1'),
+      provisioningAgentKey: workflowAgentKey('run-2', 'agent-2'),
+      applyingImplementationKey: workflowAgentKey('run-3', 'agent-3'),
+      discardingImplementationKey: workflowAgentKey('run-4', 'agent-4'),
+      runningValidationKey: workflowValidationKey('run-5', 'test'),
+      loadingReplayRunId: 'run-6',
+      loadingDeliveryRunId: 'run-7',
+      updatingDeliveryKey: workflowDeliveryKey('run-8', 'merged'),
+    }
+
+    expect(isWorkflowAgentUpdating(busy, 'run-1', 'agent-1')).toBe(true)
+    expect(isWorkflowAgentProvisioning(busy, 'run-2', 'agent-2')).toBe(true)
+    expect(isWorkflowImplementationApplying(busy, 'run-3', 'agent-3')).toBe(true)
+    expect(isWorkflowImplementationDiscarding(busy, 'run-4', 'agent-4')).toBe(true)
+    expect(isWorkflowValidationRunning(busy, 'run-5', 'test')).toBe(true)
+    expect(isWorkflowReplayLoading(busy, 'run-6')).toBe(true)
+    expect(isWorkflowDeliveryLoading(busy, 'run-7')).toBe(true)
+    expect(isWorkflowDeliveryUpdating(busy, 'run-8', 'merged')).toBe(true)
+
+    expect(isWorkflowAgentUpdating(busy, 'run-1', 'agent-x')).toBe(false)
+    expect(isWorkflowDeliveryUpdating(busy, 'run-8', 'ready')).toBe(false)
   })
 
   it('summarizes workflow panel and button state', () => {
