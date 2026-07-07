@@ -20,7 +20,7 @@
         <div class="workspace-approval-center-main">
           <p class="workspace-approval-center-card-title">{{ approvalSummary(request).title }}</p>
           <p class="workspace-approval-center-meta">
-            #{{ request.id }} · {{ request.threadId || 'global' }} · {{ formatIsoTime(request.receivedAtIso) }}
+            #{{ request.id }} · {{ request.threadId || 'global' }} · {{ formatServerRequestTime(request.receivedAtIso, 'long') }}
           </p>
           <p class="workspace-approval-center-subject">{{ approvalSummary(request).subject }}</p>
           <div class="workspace-approval-center-risk-line">
@@ -121,7 +121,7 @@
           <div>
             <span>{{ grant.scope }}</span>
             <code>{{ grant.subject }}</code>
-            <small>{{ grant.method }} · {{ formatIsoTime(grant.createdAtIso) }}</small>
+            <small>{{ grant.method }} · {{ formatServerRequestTime(grant.createdAtIso, 'long') }}</small>
           </div>
           <button type="button" :disabled="isRevokingGrant === grant.id" @click="revokeGrant(grant.id)">
             Revoke
@@ -138,11 +138,17 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { fetchApprovalGrants, revokeApprovalGrant } from '../../api/codexGatewayStatusClient'
 import {
   APPROVAL_SCOPE_OPTIONS,
-  approvalDecisionForScope,
-  approvalScopeForDecision,
   buildApprovalRiskSummary,
+  isApprovalRequestMethod,
   type UiApprovalDecision,
 } from '../../composables/useApprovalRisk'
+import {
+  buildApprovalDecisionReply,
+  buildApprovalScopeReply,
+  buildEmptyServerRequestReply,
+  buildRejectedServerRequestReply,
+} from '../../composables/threadConversationRules'
+import { formatServerRequestTime } from '../../composables/serverRequestRules'
 import type { UiApprovalDecisionScope, UiApprovalGrant, UiServerRequest, UiServerRequestReply } from '../../types/codex'
 
 const props = defineProps<{
@@ -184,49 +190,26 @@ function approvalSummary(request: UiServerRequest) {
 }
 
 function isApprovalRequest(request: UiServerRequest): boolean {
-  return (
-    request.method === 'item/commandExecution/requestApproval' ||
-    request.method === 'item/fileChange/requestApproval'
-  )
+  return isApprovalRequestMethod(request.method)
 }
 
 function respondApproval(requestId: number, decision: UiApprovalDecision): void {
-  emit('respondServerRequest', {
-    id: requestId,
-    approvalScope: approvalScopeForDecision(decision),
-    result: { decision },
-  })
+  emit('respondServerRequest', buildApprovalDecisionReply(requestId, decision))
 }
 
 function respondApprovalScope(requestId: number, scope: UiApprovalDecisionScope): void {
-  emit('respondServerRequest', {
-    id: requestId,
-    approvalScope: scope,
-    result: { decision: approvalDecisionForScope(scope) },
-  })
+  emit('respondServerRequest', buildApprovalScopeReply(requestId, scope))
 }
 
 function respondEmptyResult(requestId: number): void {
-  emit('respondServerRequest', {
-    id: requestId,
-    result: {},
-  })
+  emit('respondServerRequest', buildEmptyServerRequestReply(requestId))
 }
 
 function rejectRequest(requestId: number): void {
-  emit('respondServerRequest', {
-    id: requestId,
-    error: {
-      code: -32000,
-      message: 'Rejected from codex-web-local approval center.',
-    },
-  })
-}
-
-function formatIsoTime(value: string): string {
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return value
-  return date.toLocaleString()
+  emit('respondServerRequest', buildRejectedServerRequestReply(
+    requestId,
+    'Rejected from codex-web-local approval center.',
+  ))
 }
 
 async function loadGrants(): Promise<void> {

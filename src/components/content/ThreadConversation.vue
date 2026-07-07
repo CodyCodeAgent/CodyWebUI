@@ -19,7 +19,7 @@
           <div class="message-stack">
             <article class="request-card">
               <p class="request-title">{{ card.summary.title }}</p>
-              <p class="request-meta">Request #{{ card.request.id }} · {{ formatIsoTime(card.request.receivedAtIso) }}</p>
+              <p class="request-meta">Request #{{ card.request.id }} · {{ formatServerRequestTime(card.request.receivedAtIso) }}</p>
 
               <p class="request-subject">{{ card.summary.subject }}</p>
               <div class="request-risk-line">
@@ -313,6 +313,7 @@ import {
   isToolTimelineExpandedByDefault,
   toolStatusTone,
 } from '../../composables/threadToolTimelineRules'
+import { formatServerRequestTime } from '../../composables/serverRequestRules'
 import IconTablerChevronDown from '../icons/IconTablerChevronDown.vue'
 import IconTablerChevronRight from '../icons/IconTablerChevronRight.vue'
 import IconTablerCopy from '../icons/IconTablerCopy.vue'
@@ -424,12 +425,6 @@ async function copyMessage(message: UiMessage, messageIndex: number): Promise<vo
 function toggleLiveOverlay(): void {
   if (!hasLiveOverlayDetails.value) return
   isLiveOverlayExpanded.value = !isLiveOverlayExpanded.value
-}
-
-function formatIsoTime(value: string): string {
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return value
-  return date.toLocaleTimeString()
 }
 
 function readQuestionAnswer(requestId: number, questionId: string, fallback: string): string {

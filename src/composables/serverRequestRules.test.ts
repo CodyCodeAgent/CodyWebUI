@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  formatServerRequestTime,
   isServerApprovalRequestKind,
   isToolCallRequestMethod,
   isToolUserInputRequestMethod,
@@ -32,5 +33,9 @@ describe('server request rules', () => {
     expect(serverRequestActionKeyPrefix('command_approval')).toBe('command')
     expect(serverRequestActionKeyPrefix('file_change_approval')).toBe('file')
     expect(serverRequestActionKeyPrefix('tool_call')).toBe('request')
+  })
+
+  it('falls back to raw timestamps when request time cannot be parsed', () => {
+    expect(formatServerRequestTime('not-a-date')).toBe('not-a-date')
   })
 })

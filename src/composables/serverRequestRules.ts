@@ -38,3 +38,9 @@ export function serverRequestActionKeyPrefix(kind: UiServerRequestKind): string 
   if (kind === 'file_change_approval') return 'file'
   return 'request'
 }
+
+export function formatServerRequestTime(value: string, format: 'short' | 'long' = 'short'): string {
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return value
+  return format === 'long' ? date.toLocaleString() : date.toLocaleTimeString()
+}
