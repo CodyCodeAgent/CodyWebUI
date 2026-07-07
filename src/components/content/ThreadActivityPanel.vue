@@ -275,8 +275,11 @@ import { computed, ref, watch } from 'vue'
 import {
   buildThreadCommandEntries,
   buildThreadActivitySummary,
-  isToolFailureStatus,
 } from '../../composables/useThreadActivity'
+import {
+  formatToolStatus,
+  toolStatusTone,
+} from '../../composables/threadToolTimelineRules'
 import {
   APPROVAL_SCOPE_OPTIONS,
   approvalDecisionForScope,
@@ -367,14 +370,6 @@ function onRejectRequest(requestId: number): void {
   })
 }
 
-function formatToolStatus(status: string): string {
-  const normalized = status.trim()
-  if (!normalized) return 'unknown'
-  return normalized
-    .replace(/[-_]+/gu, ' ')
-    .replace(/\b\w/gu, (letter) => letter.toUpperCase())
-}
-
 function formatLineNumber(value: number | null): string {
   return typeof value === 'number' ? String(value) : ''
 }
@@ -399,29 +394,6 @@ function closeWorkLog(): void {
 
 function toggleWorkLog(): void {
   isWorkLogOpen.value = !isWorkLogOpen.value
-}
-
-function toolStatusTone(status: string): 'success' | 'danger' | 'working' | 'neutral' {
-  const normalized = status.trim().toLowerCase()
-  if (!normalized) return 'neutral'
-  if (isToolFailureStatus(normalized)) return 'danger'
-  if (
-    normalized.includes('running') ||
-    normalized.includes('progress') ||
-    normalized.includes('pending') ||
-    normalized.includes('started')
-  ) {
-    return 'working'
-  }
-  if (
-    normalized.includes('success') ||
-    normalized.includes('complete') ||
-    normalized.includes('done') ||
-    normalized.includes('applied')
-  ) {
-    return 'success'
-  }
-  return 'neutral'
 }
 
 watch(diffReview, (review) => {

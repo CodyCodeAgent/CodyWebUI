@@ -1,4 +1,6 @@
 import type { UiMessage, UiServerRequest, UiToolTimelineEntry } from '../types/codex'
+import { isToolFailureStatus } from './threadToolTimelineRules'
+export { isToolFailureStatus } from './threadToolTimelineRules'
 
 export type UiThreadActivityEntry = UiToolTimelineEntry & {
   messageId: string
@@ -18,16 +20,6 @@ export type UiThreadCommandEntry = UiToolTimelineEntry & {
   cwd: string
   exitCode: number | null
   duration: string
-}
-
-export function isToolFailureStatus(status: string): boolean {
-  const normalized = status.trim().toLowerCase()
-  return (
-    normalized.includes('fail') ||
-    normalized.includes('error') ||
-    normalized.includes('decline') ||
-    normalized.includes('cancel')
-  )
 }
 
 export function buildThreadActivityEntries(messages: UiMessage[]): UiThreadActivityEntry[] {

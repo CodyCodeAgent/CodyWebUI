@@ -295,6 +295,15 @@ import {
   buildApprovalRiskSummary,
   type UiApprovalDecision,
 } from '../../composables/useApprovalRisk'
+import {
+  buildCopyTextAt as buildThreadCopyTextAt,
+  shouldShowCopyButton as shouldShowThreadCopyButton,
+} from '../../composables/threadConversationRules'
+import {
+  formatToolStatus,
+  isToolTimelineExpandedByDefault,
+  toolStatusTone,
+} from '../../composables/threadToolTimelineRules'
 import IconTablerChevronDown from '../icons/IconTablerChevronDown.vue'
 import IconTablerChevronRight from '../icons/IconTablerChevronRight.vue'
 import IconTablerCopy from '../icons/IconTablerCopy.vue'
@@ -357,133 +366,12 @@ function asRecord(value: unknown): Record<string, unknown> | null {
     : null
 }
 
-function buildCopyText(message: UiMessage): string {
-  const parts: string[] = []
-  if (message.tool) {
-    parts.push(buildToolCopyText(message.tool))
-  }
-
-  const text = message.text.trim()
-  if (text.length > 0) {
-    parts.push(text)
-  }
-
-  const skills = message.skills?.filter((skill) => skill.name.trim().length > 0) ?? []
-  if (skills.length > 0) {
-    parts.push(skills.map((skill) => `$${skill.name}`).join('\n'))
-  }
-
-  const images = message.images?.filter((imageUrl) => imageUrl.trim().length > 0) ?? []
-  if (images.length > 0) {
-    parts.push(images.join('\n'))
-  }
-
-  return parts.join('\n\n')
-}
-
-function buildToolCopyText(tool: NonNullable<UiMessage['tool']>): string {
-  const parts = [`${tool.title}: ${tool.summary}`]
-  if (tool.status.trim().length > 0) {
-    parts.push(`Status: ${formatToolStatus(tool.status)}`)
-  }
-  if (tool.details.length > 0) {
-    parts.push(tool.details.join('\n'))
-  }
-  if (tool.output?.trim()) {
-    parts.push(`${tool.outputLabel || 'Output'}:\n${tool.output.trim()}`)
-  }
-  return parts.join('\n')
-}
-
-function formatToolStatus(status: string): string {
-  const normalized = status.trim()
-  if (!normalized) return 'unknown'
-  return normalized
-    .replace(/[-_]+/gu, ' ')
-    .replace(/\b\w/gu, (letter) => letter.toUpperCase())
-}
-
-function toolStatusTone(status: string): 'success' | 'danger' | 'working' | 'neutral' {
-  const normalized = status.trim().toLowerCase()
-  if (!normalized) return 'neutral'
-  if (
-    normalized.includes('fail') ||
-    normalized.includes('error') ||
-    normalized.includes('cancel') ||
-    normalized.includes('decline')
-  ) {
-    return 'danger'
-  }
-  if (
-    normalized.includes('running') ||
-    normalized.includes('progress') ||
-    normalized.includes('pending') ||
-    normalized.includes('started')
-  ) {
-    return 'working'
-  }
-  if (
-    normalized.includes('success') ||
-    normalized.includes('complete') ||
-    normalized.includes('done') ||
-    normalized.includes('applied')
-  ) {
-    return 'success'
-  }
-  return 'neutral'
-}
-
-function isToolTimelineExpandedByDefault(tool: NonNullable<UiMessage['tool']>): boolean {
-  return tool.kind !== 'fileChange'
-}
-
-function isCopyableMessage(message: UiMessage): boolean {
-  if (message.messageType === 'worked') return false
-  return buildCopyText(message).length > 0
-}
-
-function isAssistantResponseMessage(message: UiMessage): boolean {
-  return message.role !== 'user' && isCopyableMessage(message)
-}
-
-function findNextCopyableMessageIndex(startIndex: number): number {
-  for (let index = startIndex; index < props.messages.length; index += 1) {
-    if (isCopyableMessage(props.messages[index])) {
-      return index
-    }
-  }
-  return -1
-}
-
 function shouldShowCopyButton(message: UiMessage, messageIndex: number): boolean {
-  if (!isCopyableMessage(message)) return false
-  if (message.role === 'user') return true
-
-  const nextCopyableIndex = findNextCopyableMessageIndex(messageIndex + 1)
-  if (nextCopyableIndex === -1) return true
-  return !isAssistantResponseMessage(props.messages[nextCopyableIndex])
+  return shouldShowThreadCopyButton(props.messages, message, messageIndex)
 }
 
 function buildCopyTextAt(message: UiMessage, messageIndex: number): string {
-  if (message.role === 'user') return buildCopyText(message)
-
-  const parts: string[] = []
-  let startIndex = messageIndex
-  while (startIndex > 0 && isAssistantResponseMessage(props.messages[startIndex - 1])) {
-    startIndex -= 1
-  }
-
-  for (let index = startIndex; index <= messageIndex; index += 1) {
-    const currentMessage = props.messages[index]
-    if (!isAssistantResponseMessage(currentMessage)) continue
-
-    const text = buildCopyText(currentMessage)
-    if (text.length > 0) {
-      parts.push(text)
-    }
-  }
-
-  return parts.join('\n\n')
+  return buildThreadCopyTextAt(props.messages, message, messageIndex)
 }
 
 async function writeClipboardText(text: string): Promise<void> {
