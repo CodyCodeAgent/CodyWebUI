@@ -95,7 +95,6 @@ import { pruneDesktopThreadScopedState } from './desktopThreadScopedState'
 import {
   DEFAULT_COLLABORATION_MODE,
   FALLBACK_PLAN_COLLABORATION_MODE,
-  buildPendingTurnDetails,
   buildTurnCollaborationMode,
   mergeAvailableModelsWithCurrent,
   mergeCollaborationModeOptions,
@@ -106,6 +105,13 @@ import {
   selectReasoningEffortFromPreference,
   type CurrentModelPreference,
 } from './desktopTurnPreferences'
+import {
+  buildPendingTurnActivity,
+  buildSteeringTurnActivity,
+  normalizeComposerTurnInput,
+  normalizeNewThreadTurnInput,
+  normalizeThreadTextTurnInput,
+} from './desktopTurnState'
 import {
   loadAutoRefreshEnabled,
   loadProjectDisplayNames,
@@ -553,14 +559,11 @@ export function useDesktopState() {
     setTurnSummaryForThread(threadId, null)
     setTurnActivityForThread(
       threadId,
-      {
-        label: 'Thinking',
-        details: buildPendingTurnDetails(
-          selectedModelId.value,
-          selectedReasoningEffort.value,
-          mode,
-        ),
-      },
+      buildPendingTurnActivity({
+        modelId: selectedModelId.value,
+        reasoningEffort: selectedReasoningEffort.value,
+        mode,
+      }),
     )
     setTurnErrorForThread(threadId, null)
     setThreadInProgress(threadId, true)
@@ -584,14 +587,10 @@ export function useDesktopState() {
     shouldAutoScrollOnNextAgentEvent = true
     setTurnActivityForThread(
       threadId,
-      {
-        label: 'Steering response',
-        details: buildPendingTurnDetails(
-          selectedModelId.value,
-          selectedReasoningEffort.value,
-          DEFAULT_COLLABORATION_MODE,
-        ),
-      },
+      buildSteeringTurnActivity({
+        modelId: selectedModelId.value,
+        reasoningEffort: selectedReasoningEffort.value,
+      }),
     )
     setTurnErrorForThread(threadId, null)
   }
@@ -1114,13 +1113,11 @@ export function useDesktopState() {
 
   async function sendMessageToSelectedThread(payload: UiComposerSubmitPayload): Promise<void> {
     const threadId = selectedThreadId.value
-    const nextText = payload.text.trim()
-    const nextImages = payload.images
-    const nextSkills = payload.skills
-    if (!threadId || (!nextText && nextImages.length === 0 && nextSkills.length === 0)) return
+    const turnInput = normalizeComposerTurnInput(payload)
+    if (!threadId || !turnInput.hasContent) return
 
     if (inProgressById.value[threadId] === true) {
-      await steerActiveTurn(threadId, nextText, nextImages, nextSkills)
+      await steerActiveTurn(threadId, turnInput.text, turnInput.images, turnInput.skills)
       return
     }
 
@@ -1129,7 +1126,7 @@ export function useDesktopState() {
     beginPendingTurnForThread(threadId)
 
     try {
-      await startTurnForThread(threadId, nextText, nextImages, nextSkills)
+      await startTurnForThread(threadId, turnInput.text, turnInput.images, turnInput.skills)
     } catch (unknownError) {
       throw failPendingTurnForThread(threadId, unknownError, 'Unknown application error')
     } finally {
@@ -1138,27 +1135,26 @@ export function useDesktopState() {
   }
 
   async function sendTextToThreadById(threadId: string, text: string): Promise<void> {
-    const normalizedThreadId = threadId.trim()
-    const nextText = text.trim()
-    if (!normalizedThreadId || !nextText) return
+    const turnInput = normalizeThreadTextTurnInput(threadId, text)
+    if (!turnInput.threadId || !turnInput.hasContent) return
 
-    if (!allThreads.value.some((thread) => thread.id === normalizedThreadId)) {
+    if (!allThreads.value.some((thread) => thread.id === turnInput.threadId)) {
       throw new Error('Thread was not found')
     }
 
-    if (inProgressById.value[normalizedThreadId] === true) {
-      await steerActiveTurn(normalizedThreadId, nextText, [], [])
+    if (inProgressById.value[turnInput.threadId] === true) {
+      await steerActiveTurn(turnInput.threadId, turnInput.text, turnInput.images, turnInput.skills)
       return
     }
 
     isSendingMessage.value = true
     error.value = ''
-    beginPendingTurnForThread(normalizedThreadId)
+    beginPendingTurnForThread(turnInput.threadId)
 
     try {
-      await startTurnForThread(normalizedThreadId, nextText, [], [])
+      await startTurnForThread(turnInput.threadId, turnInput.text, turnInput.images, turnInput.skills)
     } catch (unknownError) {
-      throw failPendingTurnForThread(normalizedThreadId, unknownError, 'Unknown application error')
+      throw failPendingTurnForThread(turnInput.threadId, unknownError, 'Unknown application error')
     } finally {
       isSendingMessage.value = false
     }
@@ -1198,19 +1194,16 @@ export function useDesktopState() {
   }
 
   async function sendMessageToNewThread(payload: UiComposerSubmitPayload, cwd: string): Promise<string> {
-    const nextText = payload.text.trim()
-    const nextImages = payload.images
-    const nextSkills = payload.skills
-    const targetCwd = cwd.trim()
+    const turnInput = normalizeNewThreadTurnInput(payload, cwd)
     const selectedModel = selectedModelId.value.trim()
-    if (!nextText && nextImages.length === 0 && nextSkills.length === 0) return ''
+    if (!turnInput.hasContent) return ''
 
     isSendingMessage.value = true
     error.value = ''
     let threadId = ''
 
     try {
-      threadId = await startThread(targetCwd || undefined, selectedModel || undefined)
+      threadId = await startThread(turnInput.targetCwd || undefined, selectedModel || undefined)
       if (!threadId) return ''
 
       const createdAtIso = new Date().toISOString()
@@ -1218,11 +1211,11 @@ export function useDesktopState() {
       addOptimisticThread({
         id: threadId,
         title: 'Untitled thread',
-        projectName: targetCwd || 'unknown-project',
-        cwd: targetCwd,
+        projectName: turnInput.targetCwd || 'unknown-project',
+        cwd: turnInput.targetCwd,
         createdAtIso,
         updatedAtIso: createdAtIso,
-        preview: nextText,
+        preview: turnInput.text,
         unread: false,
         inProgress: false,
       })
@@ -1238,7 +1231,7 @@ export function useDesktopState() {
       }
       beginPendingTurnForThread(threadId)
 
-      void startTurnForThread(threadId, nextText, nextImages, nextSkills).catch((unknownError) => {
+      void startTurnForThread(threadId, turnInput.text, turnInput.images, turnInput.skills).catch((unknownError) => {
         failPendingTurnForThread(threadId, unknownError, 'Unknown application error')
       })
       return threadId
