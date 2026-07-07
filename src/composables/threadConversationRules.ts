@@ -163,8 +163,30 @@ export function restoredConversationScrollTop(
   return Math.min(Math.max(targetScrollTop, 0), maxScrollTop)
 }
 
-export function shouldLockConversationToBottom(scrollState: ThreadScrollState | null): boolean {
+export function buildConversationScrollState(params: {
+  scrollTop: number
+  scrollHeight: number
+  clientHeight: number
+  bottomThresholdPx: number
+}): ThreadScrollState {
+  const metrics = buildConversationScrollMetrics(params)
+  return {
+    scrollTop: params.scrollTop,
+    isAtBottom: metrics.isAtBottom,
+    scrollRatio: metrics.scrollRatio,
+  }
+}
+
+export function shouldRestoreConversationToBottom(scrollState: ThreadScrollState | null): boolean {
   return !scrollState || scrollState.isAtBottom === true
+}
+
+export function normalizedConversationBottomLockFrames(frames: number): number {
+  return Math.max(Math.trunc(frames), 1)
+}
+
+export function shouldLockConversationToBottom(scrollState: ThreadScrollState | null): boolean {
+  return shouldRestoreConversationToBottom(scrollState)
 }
 
 export function toolQuestionKey(requestId: number, questionId: string): string {

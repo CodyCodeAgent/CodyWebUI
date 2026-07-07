@@ -297,6 +297,7 @@ import {
   buildApprovalDecisionReply,
   buildApprovalScopeReply,
   buildConversationScrollMetrics,
+  buildConversationScrollState,
   buildCopyTextAt as buildThreadCopyTextAt,
   buildEmptyServerRequestReply,
   buildRejectedServerRequestReply,
@@ -304,11 +305,13 @@ import {
   buildToolCallSuccessReply,
   buildToolUserInputReply,
   hasLiveOverlayDetails as hasThreadLiveOverlayDetails,
+  normalizedConversationBottomLockFrames,
   readToolQuestionAnswer,
   readToolQuestionOtherAnswer,
   readToolQuestions,
   restoredConversationScrollTop,
   shouldLockConversationToBottom,
+  shouldRestoreConversationToBottom,
   shouldShowCopyButton as shouldShowThreadCopyButton,
   shouldShowScrollToBottomButton as shouldShowThreadScrollToBottomButton,
   toolQuestionKey,
@@ -505,7 +508,7 @@ function onScrollToBottomClick(): void {
 
 function emitScrollState(container: HTMLElement): void {
   if (!props.activeThreadId) return
-  const metrics = buildConversationScrollMetrics({
+  const state = buildConversationScrollState({
     scrollTop: container.scrollTop,
     scrollHeight: container.scrollHeight,
     clientHeight: container.clientHeight,
@@ -513,11 +516,7 @@ function emitScrollState(container: HTMLElement): void {
   })
   emit('updateScrollState', {
     threadId: props.activeThreadId,
-    state: {
-      scrollTop: container.scrollTop,
-      isAtBottom: metrics.isAtBottom,
-      scrollRatio: metrics.scrollRatio,
-    },
+    state,
   })
 }
 
@@ -526,7 +525,7 @@ function applySavedScrollState(): void {
   if (!container) return
 
   const savedState = props.scrollState
-  if (!savedState || savedState.isAtBottom) {
+  if (!savedState || shouldRestoreConversationToBottom(savedState)) {
     enforceBottomState()
     return
   }
@@ -574,7 +573,7 @@ function scheduleBottomLock(frames = 6): void {
     cancelAnimationFrame(bottomLockFrame)
     bottomLockFrame = 0
   }
-  bottomLockFramesLeft = Math.max(frames, 1)
+  bottomLockFramesLeft = normalizedConversationBottomLockFrames(frames)
   bottomLockFrame = requestAnimationFrame(runBottomLockFrame)
 }
 

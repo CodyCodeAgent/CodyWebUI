@@ -4,6 +4,7 @@ import {
   buildApprovalDecisionReply,
   buildApprovalScopeReply,
   buildConversationScrollMetrics,
+  buildConversationScrollState,
   buildCopyText,
   buildCopyTextAt,
   buildEmptyServerRequestReply,
@@ -14,11 +15,13 @@ import {
   buildToolUserInputReply,
   hasLiveOverlayDetails,
   isCopyableMessage,
+  normalizedConversationBottomLockFrames,
   readToolQuestionAnswer,
   readToolQuestionOtherAnswer,
   readToolQuestions,
   restoredConversationScrollTop,
   shouldLockConversationToBottom,
+  shouldRestoreConversationToBottom,
   shouldShowCopyButton,
   shouldShowScrollToBottomButton,
   toolQuestionKey,
@@ -320,11 +323,29 @@ describe('thread conversation rules', () => {
       scrollTop: 500,
       isAtBottom: false,
     }, 200)).toBe(200)
+
+    expect(buildConversationScrollState({
+      scrollTop: 80,
+      scrollHeight: 200,
+      clientHeight: 100,
+      bottomThresholdPx: 16,
+    })).toEqual({
+      scrollTop: 80,
+      scrollRatio: 0.8,
+      isAtBottom: false,
+    })
   })
 
   it('locks live output to bottom only when the saved state is at bottom', () => {
+    expect(shouldRestoreConversationToBottom(null)).toBe(true)
+    expect(shouldRestoreConversationToBottom({ scrollTop: 0, scrollRatio: 0, isAtBottom: true })).toBe(true)
+    expect(shouldRestoreConversationToBottom({ scrollTop: 0, scrollRatio: 0, isAtBottom: false })).toBe(false)
     expect(shouldLockConversationToBottom(null)).toBe(true)
     expect(shouldLockConversationToBottom({ scrollTop: 0, scrollRatio: 0, isAtBottom: true })).toBe(true)
     expect(shouldLockConversationToBottom({ scrollTop: 0, scrollRatio: 0, isAtBottom: false })).toBe(false)
+    expect(normalizedConversationBottomLockFrames(6)).toBe(6)
+    expect(normalizedConversationBottomLockFrames(1.8)).toBe(1)
+    expect(normalizedConversationBottomLockFrames(0)).toBe(1)
+    expect(normalizedConversationBottomLockFrames(-2)).toBe(1)
   })
 })
