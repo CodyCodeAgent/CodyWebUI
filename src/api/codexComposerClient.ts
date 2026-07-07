@@ -2,8 +2,9 @@ import type {
   SkillMetadata,
   SkillsListResponse,
 } from './appServerDtos'
+import { uploadLocalImage, type UploadedLocalImage } from './codexBridgeClient'
 import { normalizeCodexApiError } from './codexErrors'
-import { rpcCall, uploadLocalImage, type UploadedLocalImage } from './codexRpcClient'
+import { rpcCall } from './codexRpcClient'
 import type { UiComposerSkill } from '../types/codex'
 
 async function callRpc<T>(method: string, params?: unknown): Promise<T> {

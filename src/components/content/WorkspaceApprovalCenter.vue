@@ -135,7 +135,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
-import { fetchApprovalGrants, revokeApprovalGrant } from '../../api/codexRpcClient'
+import { fetchApprovalGrants, revokeApprovalGrant } from '../../api/codexGatewayStatusClient'
 import {
   APPROVAL_SCOPE_OPTIONS,
   approvalDecisionForScope,

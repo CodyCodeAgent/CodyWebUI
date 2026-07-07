@@ -114,7 +114,7 @@ import {
   fetchTrustedDevices,
   revokeCurrentDeviceTrust,
   trustCurrentDevice,
-} from '../../api/codexRpcClient'
+} from '../../api/codexGatewayStatusClient'
 import type { UiAuthSessionSnapshot, UiSecurityAccessSnapshot, UiTrustedDevice } from '../../types/codex'
 
 const snapshot = ref<UiSecurityAccessSnapshot | null>(null)

@@ -228,7 +228,7 @@ import {
   fetchPullRequestDraft,
   stageGitPaths,
   unstageGitPaths,
-} from '../../api/codexRpcClient'
+} from '../../api/codexWorkspaceGitClient'
 import type {
   UiGitCommitResult,
   UiGitDeliveryDraft,

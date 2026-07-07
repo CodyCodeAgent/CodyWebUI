@@ -153,7 +153,7 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { fetchGatewayDiagnostics, reloadMcpServers } from '../../api/codexRpcClient'
+import { fetchGatewayDiagnostics, reloadMcpServers } from '../../api/codexGatewayStatusClient'
 import type { UiGatewayDiagnostics, UiMcpServerDiagnostic } from '../../types/codex'
 import IconTablerRefresh from '../icons/IconTablerRefresh.vue'
 

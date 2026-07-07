@@ -4,49 +4,11 @@ import {
   jsonPostInit,
   readRpcResult,
 } from './codexHttpClient'
-export {
-  fetchDirectoryListing,
-  fetchPendingServerRequests,
-  respondServerRequest,
-  uploadLocalImage,
-} from './codexBridgeClient'
-export type { UploadedLocalImage } from './codexBridgeClient'
-export {
-  subscribeProductNotifications,
-  subscribeRpcNotifications,
-} from './codexRealtimeClient'
-export {
-  fetchApprovalGrants,
-  fetchAuthSessionSnapshot,
-  fetchGatewayDiagnostics,
-  fetchSecurityAccessSnapshot,
-  fetchTrustedDevices,
-  reloadMcpServers,
-  revokeApprovalGrant,
-  revokeCurrentDeviceTrust,
-  trustCurrentDevice,
-} from './codexGatewayStatusClient'
-export {
-  applyWorkspacePatchToWorktree,
-  commitStagedChanges,
-  createPullRequest,
-  createWorkspaceWorktree,
-  fetchGitDeliveryDraft,
-  fetchGitStatus,
-  fetchPullRequestDraft,
-  fetchWorkspaceReviewDraft,
-  fetchWorkspaceWorktrees,
-  removeWorkspaceWorktree,
-  stageGitPaths,
-  unstageGitPaths,
-} from './codexWorkspaceGitClient'
 
 type RpcRequestBody = {
   method: string
   params?: unknown
 }
-
-export type { ProductNotification, RpcNotification } from './codexRealtimeClient'
 
 export async function rpcCall<T>(method: string, params?: unknown): Promise<T> {
   const body: RpcRequestBody = { method, params: params ?? null }

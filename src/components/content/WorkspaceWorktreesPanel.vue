@@ -85,7 +85,7 @@ import {
   createWorkspaceWorktree,
   fetchWorkspaceWorktrees,
   removeWorkspaceWorktree,
-} from '../../api/codexRpcClient'
+} from '../../api/codexWorkspaceGitClient'
 import type { UiWorktree, UiWorktreeSnapshot } from '../../types/codex'
 import IconTablerRefresh from '../icons/IconTablerRefresh.vue'
 

@@ -62,7 +62,7 @@
 
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref } from 'vue'
-import { fetchDirectoryListing } from '../../api/codexRpcClient'
+import { fetchDirectoryListing } from '../../api/codexBridgeClient'
 import type { UiDirectoryEntry, UiDirectoryListing } from '../../types/codex'
 import IconTablerChevronLeft from '../icons/IconTablerChevronLeft.vue'
 import IconTablerFolder from '../icons/IconTablerFolder.vue'

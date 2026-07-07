@@ -7,9 +7,13 @@ import {
 
 const rpcMock = vi.hoisted(() => ({
   rpcCall: vi.fn(),
+}))
+
+const bridgeMock = vi.hoisted(() => ({
   uploadLocalImage: vi.fn(),
 }))
 
+vi.mock('./codexBridgeClient', () => bridgeMock)
 vi.mock('./codexRpcClient', () => rpcMock)
 
 afterEach(() => {
@@ -110,7 +114,7 @@ describe('codex composer client', () => {
   })
 
   it('wraps composer image upload failures with the file name', async () => {
-    rpcMock.uploadLocalImage.mockRejectedValue(new Error('disk full'))
+    bridgeMock.uploadLocalImage.mockRejectedValue(new Error('disk full'))
 
     await expect(uploadComposerImage({
       name: 'screen.png',
