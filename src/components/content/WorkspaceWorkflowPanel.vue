@@ -114,7 +114,7 @@
         </div>
 
         <ul v-if="run.warnings.length > 0" class="workspace-workflow-warning-list">
-          <li v-for="warning in run.warnings.slice(0, 4)" :key="warning">{{ warning }}</li>
+          <li v-for="warning in workflowRunWarningsPreview(run)" :key="warning">{{ warning }}</li>
         </ul>
 
         <section
@@ -149,7 +149,7 @@
           </dl>
           <code v-if="run.acceptance.validationCommand">{{ run.acceptance.validationCommand }}</code>
           <ul v-if="run.acceptance.risks.length > 0">
-            <li v-for="risk in run.acceptance.risks.slice(0, 4)" :key="risk">{{ risk }}</li>
+            <li v-for="risk in workflowAcceptanceRisksPreview(run)" :key="risk">{{ risk }}</li>
           </ul>
         </section>
 
@@ -228,7 +228,7 @@
                 </button>
               </div>
               <ul v-if="option.risks.length > 0">
-                <li v-for="risk in option.risks.slice(0, 4)" :key="risk">{{ risk }}</li>
+                <li v-for="risk in workflowImplementationRisksPreview(option)" :key="risk">{{ risk }}</li>
               </ul>
             </article>
           </div>
@@ -368,7 +368,7 @@
             <textarea :value="deliveryDraftsByRunId[run.id].body" readonly />
           </label>
           <ul v-if="deliveryDraftsByRunId[run.id].riskSummary.length > 0">
-            <li v-for="risk in deliveryDraftsByRunId[run.id].riskSummary.slice(0, 5)" :key="risk">{{ risk }}</li>
+            <li v-for="risk in workflowDeliveryRiskSummaryPreview(deliveryDraftsByRunId[run.id])" :key="risk">{{ risk }}</li>
           </ul>
           <p v-if="deliveryErrors[run.id]" class="workspace-workflow-delivery-error">{{ deliveryErrors[run.id] }}</p>
         </section>
@@ -438,6 +438,7 @@ import {
   canStartWorkflowAgent as canStartAgent,
   workflowAgentWorktreeButtonLabel,
   workflowAppliedImplementationSummary,
+  workflowAcceptanceRisksPreview,
   emptyWorkflowPanelState,
   formatWorkflowStatus as formatStatus,
   formatWorkflowTime as formatTime,
@@ -448,9 +449,11 @@ import {
   workflowDeliveryButtonLabel,
   workflowDeliveryKey,
   workflowDeliveryMergedButtonLabel,
+  workflowDeliveryRiskSummaryPreview,
   workflowDeliveryReadyButtonLabel,
   workflowDeliveryStateSummary,
   workflowImplementationDiffLabel,
+  workflowImplementationRisksPreview,
   isWorkflowAgentProvisioning,
   isWorkflowAgentUpdating,
   isWorkflowDeliveryLoading,
@@ -473,6 +476,7 @@ import {
   workflowReplayEventMetaLabel,
   workflowReplayButtonLabel,
   workflowRunMetaLabels,
+  workflowRunWarningsPreview,
   workflowTemplateMetaLabels,
   workflowValidationResultLabel,
   workflowValidationRunButtonLabel,

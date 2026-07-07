@@ -138,6 +138,32 @@ export function workspaceWorkflowSummary(input: {
   return `${String(input.runCount)} run${input.runCount === 1 ? '' : 's'} · ${String(input.templateCount)} templates`
 }
 
+export function workflowPreviewItems<T>(items: T[], limit: number): T[] {
+  return items.slice(0, Math.max(0, limit))
+}
+
+export function workflowRunWarningsPreview(run: UiWorkflowRun, limit = 4): string[] {
+  return workflowPreviewItems(run.warnings, limit)
+}
+
+export function workflowAcceptanceRisksPreview(run: UiWorkflowRun, limit = 4): string[] {
+  return workflowPreviewItems(run.acceptance?.risks ?? [], limit)
+}
+
+export function workflowImplementationRisksPreview(
+  option: UiWorkflowImplementationOption,
+  limit = 4,
+): string[] {
+  return workflowPreviewItems(option.risks, limit)
+}
+
+export function workflowDeliveryRiskSummaryPreview(
+  draft: UiWorkflowDeliveryDraft | null | undefined,
+  limit = 5,
+): string[] {
+  return workflowPreviewItems(draft?.riskSummary ?? [], limit)
+}
+
 export function workflowReplayButtonLabel(input: {
   isLoading: boolean
   isExpanded: boolean

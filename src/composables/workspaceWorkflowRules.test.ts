@@ -39,16 +39,21 @@ import {
   setWorkflowValidationResult,
   workflowAcceptanceGreen,
   workflowAgentKey,
+  workflowAcceptanceRisksPreview,
   workflowDeliveryButtonLabel,
   workflowDeliveryKey,
   workflowImplementationDiffLabel,
+  workflowDeliveryRiskSummaryPreview,
   workflowImplementationApplyLabel,
   workflowImplementationDiscardLabel,
+  workflowImplementationRisksPreview,
   workflowImplementationOptionsSummary,
+  workflowPreviewItems,
   workflowReplayAgentSnapshotLabel,
   workflowReplayButtonLabel,
   workflowReplayEventMetaLabel,
   workflowRunMetaLabels,
+  workflowRunWarningsPreview,
   workflowTemplateMetaLabels,
   workflowValidationResultLabel,
   workflowValidationRunButtonLabel,
@@ -208,6 +213,20 @@ describe('workspace workflow rules', () => {
         changedFileCount: 2,
         checkpointId: 'checkpoint-1',
       },
+      acceptance: {
+        status: 'ready_for_review',
+        label: 'Ready',
+        summary: '',
+        validationStatus: 'passed',
+        validationCommand: 'npm test',
+        requiredValidationCount: 1,
+        completedAgentCount: 1,
+        totalAgentCount: 1,
+        readyImplementationOptionCount: 1,
+        totalImplementationOptionCount: 1,
+        risks: ['accept-1', 'accept-2', 'accept-3', 'accept-4', 'accept-5'],
+      },
+      warnings: ['warn-1', 'warn-2', 'warn-3', 'warn-4', 'warn-5'],
       deliveryState: {
         readyToMergeAtIso: '2026-07-07T00:00:00.000Z',
         mergedAtIso: null,
@@ -232,6 +251,18 @@ describe('workspace workflow rules', () => {
     expect(workflowDeliveryStateSummary(workflowRun)).toBe('Delivery running · abcdef123456')
     expect(workflowDeliveryStateSummary(run({ deliveryState: { ...workflowRun.deliveryState!, commitHash: null } }))).toBe('Delivery running · no commit')
     expect(workflowDeliveryStateSummary(run())).toBe('')
+    expect(workflowPreviewItems(['a', 'b', 'c'], 2)).toEqual(['a', 'b'])
+    expect(workflowPreviewItems(['a', 'b'], -1)).toEqual([])
+    expect(workflowRunWarningsPreview(workflowRun)).toEqual(['warn-1', 'warn-2', 'warn-3', 'warn-4'])
+    expect(workflowAcceptanceRisksPreview(workflowRun)).toEqual(['accept-1', 'accept-2', 'accept-3', 'accept-4'])
+    expect(workflowAcceptanceRisksPreview(run())).toEqual([])
+    expect(workflowImplementationRisksPreview(option({
+      risks: ['risk-1', 'risk-2', 'risk-3', 'risk-4', 'risk-5'],
+    }))).toEqual(['risk-1', 'risk-2', 'risk-3', 'risk-4'])
+    expect(workflowDeliveryRiskSummaryPreview({
+      riskSummary: ['delivery-1', 'delivery-2', 'delivery-3', 'delivery-4', 'delivery-5', 'delivery-6'],
+    } as UiWorkflowDeliveryDraft)).toEqual(['delivery-1', 'delivery-2', 'delivery-3', 'delivery-4', 'delivery-5'])
+    expect(workflowDeliveryRiskSummaryPreview(null)).toEqual([])
   })
 
   it('evaluates delivery readiness from acceptance state', () => {
