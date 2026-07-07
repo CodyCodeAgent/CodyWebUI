@@ -2,10 +2,12 @@ import type { UiMessage, UiServerRequest, UiToolTimelineEntry } from '../types/c
 import type { UiDiffLineKind, UiDiffReview, UiDiffReviewFile } from './useDiffReview'
 import { isToolFailureStatus } from './threadToolTimelineRules'
 import {
-  buildApprovalRiskSummary,
   isApprovalRequestMethod,
 } from './useApprovalRisk'
-import { serverRequestKind, type UiServerRequestKind } from './serverRequestRules'
+import {
+  buildServerRequestCards,
+  type UiServerRequestCard,
+} from './serverRequestRules'
 export { isToolFailureStatus } from './threadToolTimelineRules'
 
 export type UiThreadActivityEntry = UiToolTimelineEntry & {
@@ -33,12 +35,7 @@ export type WorkLogMetric = {
   value: string
 }
 
-export type PendingApprovalCard = {
-  request: UiServerRequest
-  summary: ReturnType<typeof buildApprovalRiskSummary>
-  kind: UiServerRequestKind
-  isApprovalRequest: boolean
-}
+export type PendingApprovalCard = UiServerRequestCard
 
 export function buildThreadActivityEntries(messages: UiMessage[]): UiThreadActivityEntry[] {
   return messages
@@ -132,12 +129,7 @@ export function isPendingApprovalRequest(request: UiServerRequest): boolean {
 }
 
 export function buildPendingApprovalCards(requests: UiServerRequest[]): PendingApprovalCard[] {
-  return requests.map((request) => ({
-    request,
-    summary: buildApprovalRiskSummary(request),
-    kind: serverRequestKind(request.method),
-    isApprovalRequest: isPendingApprovalRequest(request),
-  }))
+  return buildServerRequestCards(requests)
 }
 
 export function buildWorkLogFileStatLabel(input: {

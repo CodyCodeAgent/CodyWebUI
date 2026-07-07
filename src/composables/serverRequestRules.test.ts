@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
+import type { UiServerRequest } from '../types/codex'
 import {
+  buildServerRequestCards,
   formatServerRequestTime,
   isServerApprovalRequestKind,
   isToolCallRequestMethod,
@@ -9,6 +11,19 @@ import {
   TOOL_CALL_REQUEST_METHOD,
   TOOL_USER_INPUT_REQUEST_METHOD,
 } from './serverRequestRules'
+
+function serverRequest(overrides: Partial<UiServerRequest> = {}): UiServerRequest {
+  return {
+    id: 1,
+    method: 'item/commandExecution/requestApproval',
+    threadId: 'thread-1',
+    turnId: 'turn-1',
+    itemId: 'item-1',
+    receivedAtIso: '2026-07-07T12:00:00.000Z',
+    params: { command: 'npm test' },
+    ...overrides,
+  }
+}
 
 describe('server request rules', () => {
   it('classifies codex server request methods', () => {
@@ -37,5 +52,20 @@ describe('server request rules', () => {
 
   it('falls back to raw timestamps when request time cannot be parsed', () => {
     expect(formatServerRequestTime('not-a-date')).toBe('not-a-date')
+  })
+
+  it('builds reusable request cards with summaries and kind metadata', () => {
+    const cards = buildServerRequestCards([
+      serverRequest(),
+      serverRequest({ id: 2, method: 'custom/request', params: { note: 'custom' } }),
+    ])
+
+    expect(cards).toHaveLength(2)
+    expect(cards[0].request.id).toBe(1)
+    expect(cards[0].summary.title).toBe('Command approval')
+    expect(cards[0].kind).toBe('command_approval')
+    expect(cards[0].isApprovalRequest).toBe(true)
+    expect(cards[1].kind).toBe('unknown')
+    expect(cards[1].isApprovalRequest).toBe(false)
   })
 })

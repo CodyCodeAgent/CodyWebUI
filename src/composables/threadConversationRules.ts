@@ -11,15 +11,15 @@ import type {
 import {
   approvalDecisionForScope,
   approvalScopeForDecision,
-  buildApprovalRiskSummary,
-  type UiApprovalRiskSummary,
   type UiApprovalDecision,
 } from './useApprovalRisk'
 import { formatToolStatus } from './threadToolTimelineRules'
 import {
+  buildServerRequestCards,
   isServerApprovalRequestKind,
   serverRequestActionKeyPrefix,
   serverRequestKind,
+  type UiServerRequestCard,
   type UiServerRequestKind,
 } from './serverRequestRules'
 
@@ -39,11 +39,7 @@ export type ConversationScrollMetrics = {
 
 export type ConversationRequestKind = UiServerRequestKind
 
-export type ConversationRequestCard = {
-  request: UiServerRequest
-  summary: UiApprovalRiskSummary
-  kind: ConversationRequestKind
-}
+export type ConversationRequestCard = UiServerRequestCard
 
 export function buildToolCopyText(tool: UiToolTimelineEntry): string {
   const parts = [`${tool.title}: ${tool.summary}`]
@@ -175,11 +171,7 @@ export function conversationRequestActionKeyPrefix(kind: ConversationRequestKind
 }
 
 export function buildConversationRequestCards(requests: UiServerRequest[]): ConversationRequestCard[] {
-  return requests.map((request) => ({
-    request,
-    summary: buildApprovalRiskSummary(request),
-    kind: conversationRequestKind(request.method),
-  }))
+  return buildServerRequestCards(requests)
 }
 
 export function buildConversationScrollMetrics(params: {

@@ -1,7 +1,11 @@
 import {
+  buildApprovalRiskSummary,
   isCommandApprovalRequestMethod,
   isFileChangeApprovalRequestMethod,
+  isApprovalRequestMethod,
+  type UiApprovalRiskSummary,
 } from './useApprovalRisk'
+import type { UiServerRequest } from '../types/codex'
 
 export const TOOL_USER_INPUT_REQUEST_METHOD = 'item/tool/requestUserInput'
 export const TOOL_CALL_REQUEST_METHOD = 'item/tool/call'
@@ -12,6 +16,13 @@ export type UiServerRequestKind =
   | 'tool_user_input'
   | 'tool_call'
   | 'unknown'
+
+export type UiServerRequestCard = {
+  request: UiServerRequest
+  summary: UiApprovalRiskSummary
+  kind: UiServerRequestKind
+  isApprovalRequest: boolean
+}
 
 export function isToolUserInputRequestMethod(method: string): boolean {
   return method === TOOL_USER_INPUT_REQUEST_METHOD
@@ -43,4 +54,13 @@ export function formatServerRequestTime(value: string, format: 'short' | 'long' 
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return value
   return format === 'long' ? date.toLocaleString() : date.toLocaleTimeString()
+}
+
+export function buildServerRequestCards(requests: UiServerRequest[]): UiServerRequestCard[] {
+  return requests.map((request) => ({
+    request,
+    summary: buildApprovalRiskSummary(request),
+    kind: serverRequestKind(request.method),
+    isApprovalRequest: isApprovalRequestMethod(request.method),
+  }))
 }

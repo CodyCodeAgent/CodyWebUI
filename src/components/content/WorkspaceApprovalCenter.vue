@@ -10,55 +10,55 @@
       </span>
     </header>
 
-    <ul v-if="pendingRequests.length > 0" class="workspace-approval-center-list">
+    <ul v-if="approvalCards.length > 0" class="workspace-approval-center-list">
       <li
-        v-for="request in pendingRequests"
-        :key="request.id"
+        v-for="card in approvalCards"
+        :key="card.request.id"
         class="workspace-approval-center-card"
-        :data-risk="approvalSummary(request).level"
+        :data-risk="card.summary.level"
       >
         <div class="workspace-approval-center-main">
-          <p class="workspace-approval-center-card-title">{{ approvalSummary(request).title }}</p>
+          <p class="workspace-approval-center-card-title">{{ card.summary.title }}</p>
           <p class="workspace-approval-center-meta">
-            #{{ request.id }} · {{ request.threadId || 'global' }} · {{ formatServerRequestTime(request.receivedAtIso, 'long') }}
+            #{{ card.request.id }} · {{ card.request.threadId || 'global' }} · {{ formatServerRequestTime(card.request.receivedAtIso, 'long') }}
           </p>
-          <p class="workspace-approval-center-subject">{{ approvalSummary(request).subject }}</p>
+          <p class="workspace-approval-center-subject">{{ card.summary.subject }}</p>
           <div class="workspace-approval-center-risk-line">
-            <span class="workspace-approval-center-risk-badge" :data-level="approvalSummary(request).level">
-              {{ approvalSummary(request).level }}
+            <span class="workspace-approval-center-risk-badge" :data-level="card.summary.level">
+              {{ card.summary.level }}
             </span>
             <span
-              v-for="label in approvalSummary(request).riskLabels"
-              :key="`${request.id}:${label}`"
+              v-for="label in card.summary.riskLabels"
+              :key="`${card.request.id}:${label}`"
               class="workspace-approval-center-risk-label"
             >
               {{ label }}
             </span>
           </div>
-          <p class="workspace-approval-center-description">{{ approvalSummary(request).description }}</p>
+          <p class="workspace-approval-center-description">{{ card.summary.description }}</p>
           <p
-            v-if="request.commandPolicy"
+            v-if="card.request.commandPolicy"
             class="workspace-approval-center-policy"
-            :data-status="request.commandPolicy.status"
+            :data-status="card.request.commandPolicy.status"
           >
-            policy {{ request.commandPolicy.status }}{{ request.commandPolicy.matchedPattern ? ` · ${request.commandPolicy.matchedPattern}` : '' }} · {{ request.commandPolicy.reason }}
+            policy {{ card.request.commandPolicy.status }}{{ card.request.commandPolicy.matchedPattern ? ` · ${card.request.commandPolicy.matchedPattern}` : '' }} · {{ card.request.commandPolicy.reason }}
           </p>
           <p
-            v-if="request.fileChangePolicy"
+            v-if="card.request.fileChangePolicy"
             class="workspace-approval-center-policy"
-            :data-status="request.fileChangePolicy.status"
+            :data-status="card.request.fileChangePolicy.status"
           >
-            file policy {{ request.fileChangePolicy.status }}{{ request.fileChangePolicy.matchedPattern ? ` · ${request.fileChangePolicy.matchedPattern}` : '' }} · {{ request.fileChangePolicy.reason }}
+            file policy {{ card.request.fileChangePolicy.status }}{{ card.request.fileChangePolicy.matchedPattern ? ` · ${card.request.fileChangePolicy.matchedPattern}` : '' }} · {{ card.request.fileChangePolicy.reason }}
           </p>
           <ul class="workspace-approval-center-impact-list">
-            <li v-for="impact in approvalSummary(request).impacts" :key="`${request.id}:${impact}`">
+            <li v-for="impact in card.summary.impacts" :key="`${card.request.id}:${impact}`">
               {{ impact }}
             </li>
           </ul>
           <div class="workspace-approval-center-scope-line" aria-label="Approval scopes">
             <span
               v-for="scope in approvalScopeOptions"
-              :key="`${request.id}:${scope.scope}`"
+              :key="`${card.request.id}:${scope.scope}`"
               class="workspace-approval-center-scope"
               :data-enabled="scope.enabled"
               :title="scope.description"
@@ -66,36 +66,36 @@
               {{ scope.label }}
             </span>
           </div>
-          <p class="workspace-approval-center-recommendation">{{ approvalSummary(request).recommendation }}</p>
+          <p class="workspace-approval-center-recommendation">{{ card.summary.recommendation }}</p>
         </div>
 
         <div class="workspace-approval-center-actions">
           <button
-            v-if="request.threadId"
+            v-if="card.request.threadId"
             type="button"
-            @click="$emit('selectThread', request.threadId)"
+            @click="$emit('selectThread', card.request.threadId)"
           >
             Open
           </button>
-          <template v-if="isApprovalRequest(request)">
+          <template v-if="card.isApprovalRequest">
             <button
               v-for="scope in approvalScopeOptions"
-              :key="`${request.id}:action:${scope.scope}`"
+              :key="`${card.request.id}:action:${scope.scope}`"
               type="button"
               :data-tone="scope.scope === 'single' ? 'primary' : scope.scope === 'permanent' ? 'danger-soft' : undefined"
-              @click="respondApprovalScope(request.id, scope.scope)"
+              @click="respondApprovalScope(card.request.id, scope.scope)"
             >
               {{ scope.label }}
             </button>
-            <button type="button" data-tone="danger" @click="respondApproval(request.id, 'decline')">
+            <button type="button" data-tone="danger" @click="respondApproval(card.request.id, 'decline')">
               Decline
             </button>
           </template>
           <template v-else>
-            <button type="button" data-tone="primary" @click="respondEmptyResult(request.id)">
+            <button type="button" data-tone="primary" @click="respondEmptyResult(card.request.id)">
               Empty result
             </button>
-            <button type="button" data-tone="danger" @click="rejectRequest(request.id)">
+            <button type="button" data-tone="danger" @click="rejectRequest(card.request.id)">
               Reject
             </button>
           </template>
@@ -138,8 +138,6 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { fetchApprovalGrants, revokeApprovalGrant } from '../../api/codexGatewayStatusClient'
 import {
   APPROVAL_SCOPE_OPTIONS,
-  buildApprovalRiskSummary,
-  isApprovalRequestMethod,
   type UiApprovalDecision,
 } from '../../composables/useApprovalRisk'
 import {
@@ -148,7 +146,7 @@ import {
   buildEmptyServerRequestReply,
   buildRejectedServerRequestReply,
 } from '../../composables/threadConversationRules'
-import { formatServerRequestTime } from '../../composables/serverRequestRules'
+import { buildServerRequestCards, formatServerRequestTime } from '../../composables/serverRequestRules'
 import type { UiApprovalDecisionScope, UiApprovalGrant, UiServerRequest, UiServerRequestReply } from '../../types/codex'
 
 const props = defineProps<{
@@ -165,12 +163,13 @@ const approvalGrants = ref<UiApprovalGrant[]>([])
 const isLoadingGrants = ref(false)
 const isRevokingGrant = ref('')
 const grantError = ref('')
+const approvalCards = computed(() => buildServerRequestCards(props.pendingRequests))
 
-const highRiskCount = computed(() => props.pendingRequests
-  .filter((request) => approvalSummary(request).level === 'high')
+const highRiskCount = computed(() => approvalCards.value
+  .filter((card) => card.summary.level === 'high')
   .length)
-const mediumRiskCount = computed(() => props.pendingRequests
-  .filter((request) => approvalSummary(request).level === 'medium')
+const mediumRiskCount = computed(() => approvalCards.value
+  .filter((card) => card.summary.level === 'medium')
   .length)
 const summaryText = computed(() => {
   if (props.pendingRequests.length === 0) {
@@ -184,14 +183,6 @@ const grantSummaryText = computed(() => {
   const permanentCount = approvalGrants.value.filter((grant) => grant.scope === 'permanent').length
   return `${String(approvalGrants.value.length)} active · ${String(permanentCount)} permanent`
 })
-
-function approvalSummary(request: UiServerRequest) {
-  return buildApprovalRiskSummary(request)
-}
-
-function isApprovalRequest(request: UiServerRequest): boolean {
-  return isApprovalRequestMethod(request.method)
-}
 
 function respondApproval(requestId: number, decision: UiApprovalDecision): void {
   emit('respondServerRequest', buildApprovalDecisionReply(requestId, decision))
