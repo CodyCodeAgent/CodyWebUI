@@ -3,6 +3,7 @@ import type { UiMessage, UiServerRequest, UiToolTimelineEntry } from '../types/c
 import {
   buildApprovalDecisionReply,
   buildApprovalScopeReply,
+  buildConversationScrollMetrics,
   buildCopyText,
   buildCopyTextAt,
   buildEmptyServerRequestReply,
@@ -11,11 +12,15 @@ import {
   buildToolCallSuccessReply,
   buildToolCopyText,
   buildToolUserInputReply,
+  hasLiveOverlayDetails,
   isCopyableMessage,
   readToolQuestionAnswer,
   readToolQuestionOtherAnswer,
   readToolQuestions,
+  restoredConversationScrollTop,
+  shouldLockConversationToBottom,
   shouldShowCopyButton,
+  shouldShowScrollToBottomButton,
   toolQuestionKey,
 } from './threadConversationRules'
 
@@ -217,5 +222,109 @@ describe('thread conversation rules', () => {
         },
       },
     })
+  })
+
+  it('summarizes live overlay details and scroll-to-bottom visibility', () => {
+    expect(hasLiveOverlayDetails(null)).toBe(false)
+    expect(hasLiveOverlayDetails({
+      activityLabel: 'Thinking',
+      activityDetails: [],
+      reasoningText: '   ',
+      errorText: '',
+    })).toBe(false)
+    expect(hasLiveOverlayDetails({
+      activityLabel: 'Thinking',
+      activityDetails: ['reading files'],
+      reasoningText: '',
+      errorText: '',
+    })).toBe(true)
+    expect(hasLiveOverlayDetails({
+      activityLabel: 'Thinking',
+      activityDetails: [],
+      reasoningText: 'reasoning',
+      errorText: '',
+    })).toBe(true)
+
+    expect(shouldShowScrollToBottomButton({
+      activeThreadId: '',
+      isLoading: false,
+      messageCount: 1,
+      pendingRequestCount: 0,
+      hasLiveOverlay: false,
+      scrollState: { scrollTop: 0, scrollRatio: 0, isAtBottom: false },
+    })).toBe(false)
+    expect(shouldShowScrollToBottomButton({
+      activeThreadId: 'thread-1',
+      isLoading: true,
+      messageCount: 1,
+      pendingRequestCount: 0,
+      hasLiveOverlay: false,
+      scrollState: { scrollTop: 0, scrollRatio: 0, isAtBottom: false },
+    })).toBe(false)
+    expect(shouldShowScrollToBottomButton({
+      activeThreadId: 'thread-1',
+      isLoading: false,
+      messageCount: 0,
+      pendingRequestCount: 0,
+      hasLiveOverlay: false,
+      scrollState: { scrollTop: 0, scrollRatio: 0, isAtBottom: false },
+    })).toBe(false)
+    expect(shouldShowScrollToBottomButton({
+      activeThreadId: 'thread-1',
+      isLoading: false,
+      messageCount: 0,
+      pendingRequestCount: 0,
+      hasLiveOverlay: true,
+      scrollState: { scrollTop: 0, scrollRatio: 0, isAtBottom: false },
+    })).toBe(true)
+  })
+
+  it('calculates conversation scroll metrics and restored positions', () => {
+    expect(buildConversationScrollMetrics({
+      scrollTop: 80,
+      scrollHeight: 200,
+      clientHeight: 100,
+      bottomThresholdPx: 16,
+    })).toEqual({
+      maxScrollTop: 100,
+      scrollRatio: 0.8,
+      isAtBottom: false,
+    })
+    expect(buildConversationScrollMetrics({
+      scrollTop: 85,
+      scrollHeight: 200,
+      clientHeight: 100,
+      bottomThresholdPx: 16,
+    }).isAtBottom).toBe(true)
+    expect(buildConversationScrollMetrics({
+      scrollTop: 20,
+      scrollHeight: 80,
+      clientHeight: 100,
+      bottomThresholdPx: 16,
+    })).toEqual({
+      maxScrollTop: 0,
+      scrollRatio: 1,
+      isAtBottom: true,
+    })
+
+    expect(restoredConversationScrollTop({
+      scrollTop: 500,
+      scrollRatio: 0.25,
+      isAtBottom: false,
+    }, 200)).toBe(50)
+    expect(restoredConversationScrollTop({
+      scrollTop: -20,
+      isAtBottom: false,
+    }, 200)).toBe(0)
+    expect(restoredConversationScrollTop({
+      scrollTop: 500,
+      isAtBottom: false,
+    }, 200)).toBe(200)
+  })
+
+  it('locks live output to bottom only when the saved state is at bottom', () => {
+    expect(shouldLockConversationToBottom(null)).toBe(true)
+    expect(shouldLockConversationToBottom({ scrollTop: 0, scrollRatio: 0, isAtBottom: true })).toBe(true)
+    expect(shouldLockConversationToBottom({ scrollTop: 0, scrollRatio: 0, isAtBottom: false })).toBe(false)
   })
 })

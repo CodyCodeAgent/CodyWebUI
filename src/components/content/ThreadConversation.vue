@@ -296,16 +296,21 @@ import {
 import {
   buildApprovalDecisionReply,
   buildApprovalScopeReply,
+  buildConversationScrollMetrics,
   buildCopyTextAt as buildThreadCopyTextAt,
   buildEmptyServerRequestReply,
   buildRejectedServerRequestReply,
   buildToolCallFailureReply,
   buildToolCallSuccessReply,
   buildToolUserInputReply,
+  hasLiveOverlayDetails as hasThreadLiveOverlayDetails,
   readToolQuestionAnswer,
   readToolQuestionOtherAnswer,
   readToolQuestions,
+  restoredConversationScrollTop,
+  shouldLockConversationToBottom,
   shouldShowCopyButton as shouldShowThreadCopyButton,
+  shouldShowScrollToBottomButton as shouldShowThreadScrollToBottomButton,
   toolQuestionKey,
 } from '../../composables/threadConversationRules'
 import {
@@ -350,15 +355,18 @@ let copiedMessageTimer: number | null = null
 const trackedPendingImages = new WeakSet<HTMLImageElement>()
 
 const hasLiveOverlayDetails = computed(() => {
-  const overlay = props.liveOverlay
-  if (!overlay) return false
-  return overlay.activityDetails.length > 0 || overlay.reasoningText.trim().length > 0
+  return hasThreadLiveOverlayDetails(props.liveOverlay)
 })
 
 const showScrollToBottomButton = computed(() => {
-  if (!props.activeThreadId || props.isLoading) return false
-  if (props.messages.length === 0 && props.pendingRequests.length === 0 && !props.liveOverlay) return false
-  return props.scrollState?.isAtBottom === false
+  return shouldShowThreadScrollToBottomButton({
+    activeThreadId: props.activeThreadId,
+    isLoading: props.isLoading,
+    messageCount: props.messages.length,
+    pendingRequestCount: props.pendingRequests.length,
+    hasLiveOverlay: props.liveOverlay !== null,
+    scrollState: props.scrollState,
+  })
 })
 
 function shouldShowCopyButton(message: UiMessage, messageIndex: number): boolean {
@@ -495,21 +503,20 @@ function onScrollToBottomClick(): void {
   scheduleBottomLock(3)
 }
 
-function isAtBottom(container: HTMLElement): boolean {
-  const distance = container.scrollHeight - (container.scrollTop + container.clientHeight)
-  return distance <= BOTTOM_THRESHOLD_PX
-}
-
 function emitScrollState(container: HTMLElement): void {
   if (!props.activeThreadId) return
-  const maxScrollTop = Math.max(container.scrollHeight - container.clientHeight, 0)
-  const scrollRatio = maxScrollTop > 0 ? Math.min(Math.max(container.scrollTop / maxScrollTop, 0), 1) : 1
+  const metrics = buildConversationScrollMetrics({
+    scrollTop: container.scrollTop,
+    scrollHeight: container.scrollHeight,
+    clientHeight: container.clientHeight,
+    bottomThresholdPx: BOTTOM_THRESHOLD_PX,
+  })
   emit('updateScrollState', {
     threadId: props.activeThreadId,
     state: {
       scrollTop: container.scrollTop,
-      isAtBottom: isAtBottom(container),
-      scrollRatio,
+      isAtBottom: metrics.isAtBottom,
+      scrollRatio: metrics.scrollRatio,
     },
   })
 }
@@ -524,12 +531,13 @@ function applySavedScrollState(): void {
     return
   }
 
-  const maxScrollTop = Math.max(container.scrollHeight - container.clientHeight, 0)
-  const targetScrollTop =
-    typeof savedState.scrollRatio === 'number'
-      ? savedState.scrollRatio * maxScrollTop
-      : savedState.scrollTop
-  container.scrollTop = Math.min(Math.max(targetScrollTop, 0), maxScrollTop)
+  const metrics = buildConversationScrollMetrics({
+    scrollTop: container.scrollTop,
+    scrollHeight: container.scrollHeight,
+    clientHeight: container.clientHeight,
+    bottomThresholdPx: BOTTOM_THRESHOLD_PX,
+  })
+  container.scrollTop = restoredConversationScrollTop(savedState, metrics.maxScrollTop)
   emitScrollState(container)
 }
 
@@ -541,8 +549,7 @@ function enforceBottomState(): void {
 }
 
 function shouldLockToBottom(): boolean {
-  const savedState = props.scrollState
-  return !savedState || savedState.isAtBottom === true
+  return shouldLockConversationToBottom(props.scrollState)
 }
 
 function runBottomLockFrame(): void {

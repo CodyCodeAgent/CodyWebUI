@@ -1,6 +1,8 @@
 import { asRecord } from '../api/protocolValueReaders'
 import type {
+  ThreadScrollState,
   UiApprovalDecisionScope,
+  UiLiveOverlay,
   UiMessage,
   UiServerRequest,
   UiServerRequestReply,
@@ -19,6 +21,12 @@ export type ParsedToolQuestion = {
   question: string
   isOther: boolean
   options: string[]
+}
+
+export type ConversationScrollMetrics = {
+  maxScrollTop: number
+  scrollRatio: number
+  isAtBottom: boolean
 }
 
 export function buildToolCopyText(tool: UiToolTimelineEntry): string {
@@ -106,6 +114,57 @@ export function buildCopyTextAt(messages: UiMessage[], message: UiMessage, messa
   }
 
   return parts.join('\n\n')
+}
+
+export function hasLiveOverlayDetails(liveOverlay: UiLiveOverlay | null): boolean {
+  if (!liveOverlay) return false
+  return liveOverlay.activityDetails.length > 0 || liveOverlay.reasoningText.trim().length > 0
+}
+
+export function shouldShowScrollToBottomButton(params: {
+  activeThreadId: string
+  isLoading: boolean
+  messageCount: number
+  pendingRequestCount: number
+  hasLiveOverlay: boolean
+  scrollState: ThreadScrollState | null
+}): boolean {
+  if (!params.activeThreadId || params.isLoading) return false
+  if (params.messageCount === 0 && params.pendingRequestCount === 0 && !params.hasLiveOverlay) return false
+  return params.scrollState?.isAtBottom === false
+}
+
+export function buildConversationScrollMetrics(params: {
+  scrollTop: number
+  scrollHeight: number
+  clientHeight: number
+  bottomThresholdPx: number
+}): ConversationScrollMetrics {
+  const maxScrollTop = Math.max(params.scrollHeight - params.clientHeight, 0)
+  const scrollRatio = maxScrollTop > 0
+    ? Math.min(Math.max(params.scrollTop / maxScrollTop, 0), 1)
+    : 1
+  const distanceFromBottom = params.scrollHeight - (params.scrollTop + params.clientHeight)
+  return {
+    maxScrollTop,
+    scrollRatio,
+    isAtBottom: distanceFromBottom <= params.bottomThresholdPx,
+  }
+}
+
+export function restoredConversationScrollTop(
+  savedState: ThreadScrollState,
+  maxScrollTop: number,
+): number {
+  const targetScrollTop =
+    typeof savedState.scrollRatio === 'number'
+      ? savedState.scrollRatio * maxScrollTop
+      : savedState.scrollTop
+  return Math.min(Math.max(targetScrollTop, 0), maxScrollTop)
+}
+
+export function shouldLockConversationToBottom(scrollState: ThreadScrollState | null): boolean {
+  return !scrollState || scrollState.isAtBottom === true
 }
 
 export function toolQuestionKey(requestId: number, questionId: string): string {
