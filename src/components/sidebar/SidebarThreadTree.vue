@@ -255,6 +255,19 @@
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import type { ComponentPublicInstance } from 'vue'
 import type { UiProjectGroup, UiThread } from '../../types/codex'
+import {
+  buildSidebarPinnedThreads,
+  filterSidebarGroupsBySearch,
+  formatSidebarRelativeTime,
+  hasSidebarHiddenThreads,
+  hasSidebarThreads,
+  normalizeSidebarSearchQuery,
+  sidebarProjectDisplayName,
+  sidebarProjectPath,
+  sidebarProjectTitleText,
+  sidebarThreadState,
+  visibleSidebarThreads,
+} from '../../composables/sidebarThreadTreeRules'
 import IconTablerChevronDown from '../icons/IconTablerChevronDown.vue'
 import IconTablerChevronRight from '../icons/IconTablerChevronRight.vue'
 import IconTablerDots from '../icons/IconTablerDots.vue'
@@ -378,46 +391,16 @@ watch(
   { deep: true },
 )
 
-const normalizedSearchQuery = computed(() => props.searchQuery.trim().toLowerCase())
+const normalizedSearchQuery = computed(() => normalizeSidebarSearchQuery(props.searchQuery))
 
 const isSearchActive = computed(() => normalizedSearchQuery.value.length > 0)
 
-function threadMatchesSearch(thread: UiThread): boolean {
-  if (!isSearchActive.value) return true
-  const q = normalizedSearchQuery.value
-  return (
-    thread.title.toLowerCase().includes(q) ||
-    thread.preview.toLowerCase().includes(q)
-  )
-}
-
 const filteredGroups = computed<UiProjectGroup[]>(() => {
-  if (!isSearchActive.value) return props.groups
-  return props.groups
-    .map((group) => ({
-      ...group,
-      threads: group.threads.filter(threadMatchesSearch),
-    }))
-    .filter((group) => group.threads.length > 0)
-})
-
-const threadById = computed(() => {
-  const map = new Map<string, UiThread>()
-
-  for (const group of props.groups) {
-    for (const thread of group.threads) {
-      map.set(thread.id, thread)
-    }
-  }
-
-  return map
+  return filterSidebarGroupsBySearch(props.groups, normalizedSearchQuery.value)
 })
 
 const pinnedThreads = computed(() =>
-  pinnedThreadIds.value
-    .map((threadId) => threadById.value.get(threadId) ?? null)
-    .filter((thread): thread is UiThread => thread !== null)
-    .filter(threadMatchesSearch),
+  buildSidebarPinnedThreads(props.groups, pinnedThreadIds.value, normalizedSearchQuery.value),
 )
 const hasPinnedThreadMenuOpen = computed(() =>
   pinnedThreads.value.some((thread) => isThreadMenuOpen(thread.id)),
@@ -476,20 +459,7 @@ const groupsContainerStyle = computed<Record<string, string>>(() => {
 })
 
 function formatRelative(value: string): string {
-  const timestamp = new Date(value).getTime()
-  if (Number.isNaN(timestamp)) return 'n/a'
-
-  const diffMs = Math.abs(Date.now() - timestamp)
-  if (diffMs < 60000) return 'now'
-
-  const minutes = Math.floor(diffMs / 60000)
-  if (minutes < 60) return `${minutes}m`
-
-  const hours = Math.floor(minutes / 60)
-  if (hours < 24) return `${hours}h`
-
-  const days = Math.floor(hours / 24)
-  return `${days}d`
+  return formatSidebarRelativeTime(value)
 }
 
 function isPinned(threadId: string): boolean {
@@ -647,22 +617,15 @@ function onThreadRowLeave(threadId: string): void {
 }
 
 function getProjectDisplayName(projectName: string): string {
-  return props.projectDisplayNameById[projectName] ?? basenameFromPath(projectName)
+  return sidebarProjectDisplayName(projectName, props.projectDisplayNameById)
 }
 
 function getProjectPath(group: UiProjectGroup): string {
-  return group.cwd || group.threads[0]?.cwd || group.projectName
+  return sidebarProjectPath(group)
 }
 
 function getProjectTitleText(group: UiProjectGroup): string {
-  const displayName = getProjectDisplayName(group.projectName)
-  const path = getProjectPath(group)
-  return path ? `${displayName} (${path})` : displayName
-}
-
-function basenameFromPath(value: string): string {
-  const parts = value.split('/').filter(Boolean)
-  return parts.at(-1) ?? value
+  return sidebarProjectTitleText(group, props.projectDisplayNameById)
 }
 
 function isProjectMenuOpen(projectName: string): boolean {
@@ -1108,31 +1071,29 @@ function projectGroupStyle(projectName: string): Record<string, string> | undefi
   }
 }
 
-function projectThreads(group: UiProjectGroup): UiThread[] {
-  return group.threads.filter((thread) => !isPinned(thread.id))
-}
-
 function visibleThreads(group: UiProjectGroup): UiThread[] {
-  if (isSearchActive.value) return projectThreads(group)
-  if (isCollapsed(group.projectName)) return []
-
-  const rows = projectThreads(group)
-  return isExpanded(group.projectName) ? rows : rows.slice(0, 10)
+  return visibleSidebarThreads(group, {
+    pinnedThreadIds: pinnedThreadIds.value,
+    isSearchActive: isSearchActive.value,
+    isCollapsed: isCollapsed(group.projectName),
+    isExpanded: isExpanded(group.projectName),
+  })
 }
 
 function hasHiddenThreads(group: UiProjectGroup): boolean {
-  if (isSearchActive.value) return false
-  return !isCollapsed(group.projectName) && projectThreads(group).length > 10
+  return hasSidebarHiddenThreads(group, {
+    pinnedThreadIds: pinnedThreadIds.value,
+    isSearchActive: isSearchActive.value,
+    isCollapsed: isCollapsed(group.projectName),
+  })
 }
 
 function hasThreads(group: UiProjectGroup): boolean {
-  return projectThreads(group).length > 0
+  return hasSidebarThreads(group, pinnedThreadIds.value)
 }
 
 function getThreadState(thread: UiThread): 'working' | 'unread' | 'idle' {
-  if (thread.inProgress) return 'working'
-  if (thread.unread) return 'unread'
-  return 'idle'
+  return sidebarThreadState(thread)
 }
 
 watch(
