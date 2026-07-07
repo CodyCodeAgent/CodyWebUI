@@ -430,7 +430,7 @@ import {
   provisionWorkspaceWorkflowAgentWorktree,
   runWorkspaceWorkflowValidation,
   updateWorkspaceWorkflowAgentStatus,
-} from '../../api/codexRpcClient'
+} from '../../api/codexWorkflowClient'
 import type {
   UiWorkflowAgentStep,
   UiWorkflowDeliveryDraft,
