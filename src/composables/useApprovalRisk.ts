@@ -1,5 +1,20 @@
 import type { UiApprovalDecisionScope, UiServerRequest } from '../types/codex'
 import { asRecord, readString as readProtocolString } from '../api/protocolValueReaders'
+import {
+  COMMAND_APPROVAL_REQUEST_METHOD,
+  FILE_CHANGE_APPROVAL_REQUEST_METHOD,
+  isApprovalRequestMethod,
+  isCommandApprovalRequestMethod,
+  isFileChangeApprovalRequestMethod,
+} from '../api/codexServerRequestMethods'
+
+export {
+  COMMAND_APPROVAL_REQUEST_METHOD,
+  FILE_CHANGE_APPROVAL_REQUEST_METHOD,
+  isApprovalRequestMethod,
+  isCommandApprovalRequestMethod,
+  isFileChangeApprovalRequestMethod,
+} from '../api/codexServerRequestMethods'
 
 export type UiApprovalRiskLevel = 'low' | 'medium' | 'high'
 export type UiApprovalDecision = 'accept' | 'acceptForSession' | 'decline' | 'cancel'
@@ -20,9 +35,6 @@ export type UiApprovalScopeOption = {
   enabled: boolean
   description: string
 }
-
-export const COMMAND_APPROVAL_REQUEST_METHOD = 'item/commandExecution/requestApproval'
-export const FILE_CHANGE_APPROVAL_REQUEST_METHOD = 'item/fileChange/requestApproval'
 
 export const APPROVAL_SCOPE_OPTIONS: UiApprovalScopeOption[] = [
   {
@@ -57,18 +69,6 @@ export function approvalScopeForDecision(decision: UiApprovalDecision): UiApprov
 
 export function approvalDecisionForScope(scope: UiApprovalDecisionScope): UiApprovalDecision {
   return scope === 'session' ? 'acceptForSession' : 'accept'
-}
-
-export function isCommandApprovalRequestMethod(method: string): boolean {
-  return method === COMMAND_APPROVAL_REQUEST_METHOD
-}
-
-export function isFileChangeApprovalRequestMethod(method: string): boolean {
-  return method === FILE_CHANGE_APPROVAL_REQUEST_METHOD
-}
-
-export function isApprovalRequestMethod(method: string): boolean {
-  return isCommandApprovalRequestMethod(method) || isFileChangeApprovalRequestMethod(method)
 }
 
 function readString(value: unknown): string {

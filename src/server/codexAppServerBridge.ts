@@ -7,6 +7,11 @@ import { join } from 'node:path'
 import { cwd as getProcessCwd } from 'node:process'
 import { WebSocket, WebSocketServer } from 'ws'
 import { handleDirectoryList } from './directoryBrowser.js'
+import {
+  isApprovalRequestMethod,
+  isCommandApprovalRequestMethod,
+  isFileChangeApprovalRequestMethod,
+} from '../api/codexServerRequestMethods.js'
 import { handleImageUpload, handleLocalImage } from './imageUploads.js'
 import { NotificationDispatcher, type NotificationDispatchEvent } from './notificationDispatchService.js'
 import { buildSecurityAccessSnapshot } from './securityAccess.js'
@@ -294,18 +299,15 @@ function readServerRequestSubject(method: string, params: unknown): string {
 }
 
 function isStoredGrantEligibleRequest(method: string): boolean {
-  return (
-    method === 'item/commandExecution/requestApproval' ||
-    method === 'item/fileChange/requestApproval'
-  )
+  return isApprovalRequestMethod(method)
 }
 
 function isCommandApprovalRequest(method: string): boolean {
-  return method === 'item/commandExecution/requestApproval'
+  return isCommandApprovalRequestMethod(method)
 }
 
 function isFileChangeApprovalRequest(method: string): boolean {
-  return method === 'item/fileChange/requestApproval'
+  return isFileChangeApprovalRequestMethod(method)
 }
 
 function buildApprovalAuditInput(params: {

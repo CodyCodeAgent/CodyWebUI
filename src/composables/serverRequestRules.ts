@@ -2,15 +2,25 @@ import {
   approvalDecisionForScope,
   approvalScopeForDecision,
   buildApprovalRiskSummary,
-  isCommandApprovalRequestMethod,
-  isFileChangeApprovalRequestMethod,
   type UiApprovalDecision,
   type UiApprovalRiskSummary,
 } from './useApprovalRisk'
 import type { UiApprovalDecisionScope, UiApprovalGrant, UiServerRequest, UiServerRequestReply } from '../types/codex'
+import {
+  TOOL_CALL_REQUEST_METHOD,
+  TOOL_USER_INPUT_REQUEST_METHOD,
+  isCommandApprovalRequestMethod,
+  isFileChangeApprovalRequestMethod,
+  isToolCallRequestMethod,
+  isToolUserInputRequestMethod,
+} from '../api/codexServerRequestMethods'
 
-export const TOOL_USER_INPUT_REQUEST_METHOD = 'item/tool/requestUserInput'
-export const TOOL_CALL_REQUEST_METHOD = 'item/tool/call'
+export {
+  TOOL_CALL_REQUEST_METHOD,
+  TOOL_USER_INPUT_REQUEST_METHOD,
+  isToolCallRequestMethod,
+  isToolUserInputRequestMethod,
+} from '../api/codexServerRequestMethods'
 
 export type UiServerRequestKind =
   | 'command_approval'
@@ -32,14 +42,6 @@ export type UiServerRequestRiskCounts = {
 }
 
 export type UiServerRequestBadgeTone = 'high' | 'medium' | 'low'
-
-export function isToolUserInputRequestMethod(method: string): boolean {
-  return method === TOOL_USER_INPUT_REQUEST_METHOD
-}
-
-export function isToolCallRequestMethod(method: string): boolean {
-  return method === TOOL_CALL_REQUEST_METHOD
-}
 
 export function serverRequestKind(method: string): UiServerRequestKind {
   if (isCommandApprovalRequestMethod(method)) return 'command_approval'
