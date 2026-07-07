@@ -141,13 +141,11 @@ import {
   type UiApprovalDecision,
 } from '../../composables/useApprovalRisk'
 import {
+  approvalGrantSummaryText,
   buildApprovalDecisionReply,
   buildApprovalScopeReply,
   buildEmptyServerRequestReply,
   buildRejectedServerRequestReply,
-} from '../../composables/threadConversationRules'
-import {
-  approvalGrantSummaryText,
   buildServerRequestCards,
   formatServerRequestTime,
   serverRequestApprovalCenterSummary,

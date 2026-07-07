@@ -2,6 +2,10 @@ import { describe, expect, it } from 'vitest'
 import type { UiServerRequest } from '../types/codex'
 import {
   approvalGrantSummaryText,
+  buildApprovalDecisionReply,
+  buildApprovalScopeReply,
+  buildEmptyServerRequestReply,
+  buildRejectedServerRequestReply,
   buildServerRequestCards,
   formatServerRequestTime,
   isServerApprovalRequestKind,
@@ -103,5 +107,23 @@ describe('server request rules', () => {
       { scope: 'permanent' },
       { scope: 'permanent' },
     ])).toBe('3 active · 2 permanent')
+  })
+
+  it('builds shared server request replies', () => {
+    expect(buildApprovalDecisionReply(7, 'acceptForSession')).toEqual({
+      id: 7,
+      approvalScope: 'session',
+      result: { decision: 'acceptForSession' },
+    })
+    expect(buildApprovalScopeReply(7, 'workspace')).toEqual({
+      id: 7,
+      approvalScope: 'workspace',
+      result: { decision: 'accept' },
+    })
+    expect(buildEmptyServerRequestReply(9)).toEqual({ id: 9, result: {} })
+    expect(buildRejectedServerRequestReply(9, 'Nope')).toEqual({
+      id: 9,
+      error: { code: -32000, message: 'Nope' },
+    })
   })
 })

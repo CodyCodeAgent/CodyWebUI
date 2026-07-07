@@ -1,18 +1,12 @@
 import { asRecord } from '../api/protocolValueReaders'
 import type {
   ThreadScrollState,
-  UiApprovalDecisionScope,
   UiLiveOverlay,
   UiMessage,
   UiServerRequest,
   UiServerRequestReply,
   UiToolTimelineEntry,
 } from '../types/codex'
-import {
-  approvalDecisionForScope,
-  approvalScopeForDecision,
-  type UiApprovalDecision,
-} from './useApprovalRisk'
 import { formatToolStatus } from './threadToolTimelineRules'
 import {
   buildServerRequestCards,
@@ -21,6 +15,13 @@ import {
   serverRequestKind,
   type UiServerRequestCard,
   type UiServerRequestKind,
+} from './serverRequestRules'
+
+export {
+  buildApprovalDecisionReply,
+  buildApprovalScopeReply,
+  buildEmptyServerRequestReply,
+  buildRejectedServerRequestReply,
 } from './serverRequestRules'
 
 export type ParsedToolQuestion = {
@@ -289,22 +290,6 @@ export function readToolQuestionOtherAnswer(
   return answersByKey[toolQuestionKey(requestId, questionId)] ?? ''
 }
 
-export function buildApprovalDecisionReply(requestId: number, decision: UiApprovalDecision): UiServerRequestReply {
-  return {
-    id: requestId,
-    approvalScope: approvalScopeForDecision(decision),
-    result: { decision },
-  }
-}
-
-export function buildApprovalScopeReply(requestId: number, scope: UiApprovalDecisionScope): UiServerRequestReply {
-  return {
-    id: requestId,
-    approvalScope: scope,
-    result: { decision: approvalDecisionForScope(scope) },
-  }
-}
-
 export function buildToolUserInputReply(params: {
   request: UiServerRequest
   answersByKey: Record<string, string>
@@ -351,23 +336,6 @@ export function buildToolCallSuccessReply(requestId: number): UiServerRequestRep
     result: {
       success: true,
       contentItems: [],
-    },
-  }
-}
-
-export function buildEmptyServerRequestReply(requestId: number): UiServerRequestReply {
-  return {
-    id: requestId,
-    result: {},
-  }
-}
-
-export function buildRejectedServerRequestReply(requestId: number, message: string): UiServerRequestReply {
-  return {
-    id: requestId,
-    error: {
-      code: -32000,
-      message,
     },
   }
 }

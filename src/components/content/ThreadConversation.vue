@@ -278,14 +278,10 @@ import {
   type UiApprovalDecision,
 } from '../../composables/useApprovalRisk'
 import {
-  buildApprovalDecisionReply,
-  buildApprovalScopeReply,
   buildConversationScrollMetrics,
   buildConversationRequestCards,
   buildConversationScrollState,
   buildCopyTextAt as buildThreadCopyTextAt,
-  buildEmptyServerRequestReply,
-  buildRejectedServerRequestReply,
   buildToolCallFailureReply,
   buildToolCallSuccessReply,
   buildToolUserInputReply,
@@ -313,7 +309,13 @@ import {
   isToolTimelineExpandedByDefault,
   toolStatusTone,
 } from '../../composables/threadToolTimelineRules'
-import { serverRequestMetaLabel } from '../../composables/serverRequestRules'
+import {
+  buildApprovalDecisionReply,
+  buildApprovalScopeReply,
+  buildEmptyServerRequestReply,
+  buildRejectedServerRequestReply,
+  serverRequestMetaLabel,
+} from '../../composables/serverRequestRules'
 import IconTablerChevronDown from '../icons/IconTablerChevronDown.vue'
 import IconTablerChevronRight from '../icons/IconTablerChevronRight.vue'
 import IconTablerCopy from '../icons/IconTablerCopy.vue'

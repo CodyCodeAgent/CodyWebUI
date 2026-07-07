@@ -1,11 +1,14 @@
 import {
+  approvalDecisionForScope,
+  approvalScopeForDecision,
   buildApprovalRiskSummary,
   isCommandApprovalRequestMethod,
   isFileChangeApprovalRequestMethod,
   isApprovalRequestMethod,
+  type UiApprovalDecision,
   type UiApprovalRiskSummary,
 } from './useApprovalRisk'
-import type { UiApprovalGrant, UiServerRequest } from '../types/codex'
+import type { UiApprovalDecisionScope, UiApprovalGrant, UiServerRequest, UiServerRequestReply } from '../types/codex'
 
 export const TOOL_USER_INPUT_REQUEST_METHOD = 'item/tool/requestUserInput'
 export const TOOL_CALL_REQUEST_METHOD = 'item/tool/call'
@@ -114,4 +117,37 @@ export function approvalGrantSummaryText(cwd: string, grants: Pick<UiApprovalGra
   if (grants.length === 0) return 'Exact-match workspace and permanent grants will appear here.'
   const permanentCount = grants.filter((grant) => grant.scope === 'permanent').length
   return `${String(grants.length)} active · ${String(permanentCount)} permanent`
+}
+
+export function buildApprovalDecisionReply(requestId: number, decision: UiApprovalDecision): UiServerRequestReply {
+  return {
+    id: requestId,
+    approvalScope: approvalScopeForDecision(decision),
+    result: { decision },
+  }
+}
+
+export function buildApprovalScopeReply(requestId: number, scope: UiApprovalDecisionScope): UiServerRequestReply {
+  return {
+    id: requestId,
+    approvalScope: scope,
+    result: { decision: approvalDecisionForScope(scope) },
+  }
+}
+
+export function buildEmptyServerRequestReply(requestId: number): UiServerRequestReply {
+  return {
+    id: requestId,
+    result: {},
+  }
+}
+
+export function buildRejectedServerRequestReply(requestId: number, message: string): UiServerRequestReply {
+  return {
+    id: requestId,
+    error: {
+      code: -32000,
+      message,
+    },
+  }
 }

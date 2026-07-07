@@ -288,8 +288,9 @@ import {
   buildApprovalScopeReply,
   buildEmptyServerRequestReply,
   buildRejectedServerRequestReply,
-} from '../../composables/threadConversationRules'
-import { serverRequestActionKeyPrefix, serverRequestMetaLabel } from '../../composables/serverRequestRules'
+  serverRequestActionKeyPrefix,
+  serverRequestMetaLabel,
+} from '../../composables/serverRequestRules'
 import { buildDiffReview } from '../../composables/useDiffReview'
 import type { UiDiffLineKind, UiDiffReviewFile } from '../../composables/useDiffReview'
 import type { UiApprovalDecisionScope, UiMessage, UiServerRequest, UiServerRequestReply, UiToolingRollbackFileResult } from '../../types/codex'
