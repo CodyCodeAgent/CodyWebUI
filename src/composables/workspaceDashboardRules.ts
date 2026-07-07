@@ -26,6 +26,46 @@ export const EMPTY_WORKSPACE_SCRIPT_RUN_STATE: WorkspaceScriptRunState = {
   result: null,
 }
 
+export function defaultWorkspaceConfig(): UiWorkspaceConfig {
+  return {
+    path: null,
+    loaded: false,
+    errors: [],
+    trust: 'unknown',
+    sandboxMode: 'unknown',
+    approvalPolicy: '',
+    defaultModel: '',
+    reasoningEffort: '',
+    collaborationMode: '',
+    commandPolicy: {
+      allow: [],
+      deny: [],
+    },
+    validationCommands: [],
+    knownPorts: [],
+    portPolicy: {
+      allow: [],
+      deny: [],
+      allowExternal: false,
+      allowWildcard: false,
+    },
+    notifications: {
+      enabled: false,
+      events: [],
+      channels: [],
+    },
+    theme: {
+      skinId: '',
+      accentColor: '',
+      density: '',
+      layoutPresetId: '',
+      followSystem: null,
+    },
+    sensitivePaths: [],
+    ignorePatterns: [],
+  }
+}
+
 export function workspaceDashboardPreviewItems<T>(items: T[], limit: number): T[] {
   return items.slice(0, Math.max(0, limit))
 }

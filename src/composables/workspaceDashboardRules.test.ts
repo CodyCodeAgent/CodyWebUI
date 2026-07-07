@@ -14,6 +14,7 @@ import {
   basenameFromPath,
   completedWorkspaceScriptRuns,
   completedWorkspaceScriptState,
+  defaultWorkspaceConfig,
   failedWorkspaceScriptState,
   formatWorkspaceDuration,
   isRunnableValidationScriptName,
@@ -147,6 +148,33 @@ function problem(overrides: Partial<UiWorkspaceProblem> = {}): UiWorkspaceProble
 }
 
 describe('workspace dashboard rules', () => {
+  it('builds a fresh default workspace config', () => {
+    const first = defaultWorkspaceConfig()
+    const second = defaultWorkspaceConfig()
+
+    expect(first).toMatchObject({
+      path: null,
+      loaded: false,
+      trust: 'unknown',
+      sandboxMode: 'unknown',
+      approvalPolicy: '',
+      commandPolicy: { allow: [], deny: [] },
+      notifications: { enabled: false, events: [], channels: [] },
+      theme: {
+        skinId: '',
+        accentColor: '',
+        density: '',
+        layoutPresetId: '',
+        followSystem: null,
+      },
+    })
+    first.validationCommands.push({ name: 'test', command: 'npm test' })
+    first.notifications.channels.push({ name: 'lark', type: 'lark', enabled: true, events: [], target: '$LARK' })
+
+    expect(second.validationCommands).toEqual([])
+    expect(second.notifications.channels).toEqual([])
+  })
+
   it('builds bounded dashboard preview rows and resource metrics', () => {
     expect(workspaceDashboardPreviewItems([1, 2, 3], 2)).toEqual([1, 2])
     expect(workspaceDashboardPreviewItems([1, 2, 3], -1)).toEqual([])

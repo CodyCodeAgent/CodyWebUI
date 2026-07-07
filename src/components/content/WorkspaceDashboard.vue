@@ -346,6 +346,7 @@ import {
   basenameFromPath,
   completedWorkspaceScriptRuns,
   completedWorkspaceScriptState,
+  defaultWorkspaceConfig,
   failedWorkspaceScriptState,
   formatWorkspaceDuration as formatDuration,
   isRunnableValidationScriptName as isRunnableValidationScript,
@@ -378,7 +379,6 @@ import type {
   UiServerRequestReply,
   UiServerRequest,
   UiThread,
-  UiWorkspaceConfig,
   UiWorkspaceSessionSummary,
   UiWorkspaceScriptRun,
   UiWorkspaceSnapshot,
@@ -429,47 +429,11 @@ const isTestingNotifications = ref(false)
 const notificationTestError = ref('')
 const scriptRunStates = ref<Record<string, WorkspaceScriptRunState>>({})
 
-const defaultWorkspaceConfig: UiWorkspaceConfig = {
-  path: null,
-  loaded: false,
-  errors: [],
-  trust: 'unknown' as const,
-  sandboxMode: 'unknown' as const,
-  approvalPolicy: '',
-  defaultModel: '',
-  reasoningEffort: '',
-  collaborationMode: '',
-  commandPolicy: {
-    allow: [],
-    deny: [],
-  },
-  validationCommands: [],
-  knownPorts: [],
-  portPolicy: {
-    allow: [],
-    deny: [],
-    allowExternal: false,
-    allowWildcard: false,
-  },
-  notifications: {
-    enabled: false,
-    events: [],
-    channels: [],
-  },
-  theme: {
-    skinId: '',
-    accentColor: '',
-    density: '',
-    layoutPresetId: '',
-    followSystem: null,
-  },
-  sensitivePaths: [],
-  ignorePatterns: [],
-}
+const fallbackWorkspaceConfig = defaultWorkspaceConfig()
 
 const dirtyFiles = computed(() => workspaceDirtyFilePreview(snapshot.value))
 const warnings = computed(() => snapshot.value?.warnings ?? [])
-const workspaceConfig = computed(() => snapshot.value?.workspaceConfig ?? defaultWorkspaceConfig)
+const workspaceConfig = computed(() => snapshot.value?.workspaceConfig ?? fallbackWorkspaceConfig)
 const commandPolicyLabel = computed(() => workspaceCommandPolicyLabel(workspaceConfig.value))
 const configuredValidationCommands = computed(() => workspaceConfiguredValidationCommandPreview(workspaceConfig.value))
 const validationPlanItems = computed(() => workspaceValidationPlanItemPreview(snapshot.value?.validationPlan))
