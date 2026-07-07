@@ -1,0 +1,124 @@
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import {
+  getAvailableSkills,
+  toComposerSkill,
+  uploadComposerImage,
+} from './codexComposerClient'
+
+const rpcMock = vi.hoisted(() => ({
+  rpcCall: vi.fn(),
+  uploadLocalImage: vi.fn(),
+}))
+
+vi.mock('./codexRpcClient', () => rpcMock)
+
+afterEach(() => {
+  vi.clearAllMocks()
+})
+
+describe('codex composer client', () => {
+  it('normalizes enabled skills for composer display', () => {
+    expect(toComposerSkill({
+      name: ' docs ',
+      path: ' /skills/docs ',
+      enabled: true,
+      description: 'Long docs skill',
+      shortDescription: 'Short docs',
+      interface: {
+        displayName: 'Docs',
+        shortDescription: 'Use docs',
+      },
+      scope: 'repo',
+    })).toEqual({
+      name: 'docs',
+      path: '/skills/docs',
+      displayName: 'Docs',
+      description: 'Use docs',
+    })
+
+    expect(toComposerSkill({
+      name: 'disabled',
+      path: '/skills/disabled',
+      enabled: false,
+      description: '',
+      shortDescription: '',
+      scope: 'repo',
+    })).toBeNull()
+  })
+
+  it('loads available skills with cwd filtering, de-duping, and name sorting', async () => {
+    rpcMock.rpcCall.mockResolvedValue({
+      data: [
+        {
+          skills: [
+            {
+              name: 'zeta',
+              path: '/skills/zeta',
+              enabled: true,
+              description: '',
+              shortDescription: '',
+              scope: 'repo',
+            },
+            {
+              name: 'alpha',
+              path: '/skills/alpha',
+              enabled: true,
+              description: 'Alpha long',
+              shortDescription: '',
+              scope: 'repo',
+            },
+          ],
+        },
+        {
+          skills: [
+            {
+              name: 'alpha',
+              path: '/skills/alpha',
+              enabled: true,
+              description: 'duplicate',
+              shortDescription: '',
+              scope: 'repo',
+            },
+            {
+              name: 'beta',
+              path: '',
+              enabled: true,
+              description: '',
+              shortDescription: '',
+              scope: 'repo',
+            },
+          ],
+        },
+      ],
+    })
+
+    await expect(getAvailableSkills(' /repo ')).resolves.toEqual([
+      {
+        name: 'alpha',
+        path: '/skills/alpha',
+        displayName: 'alpha',
+        description: 'duplicate',
+      },
+      {
+        name: 'zeta',
+        path: '/skills/zeta',
+        displayName: 'zeta',
+        description: '',
+      },
+    ])
+    expect(rpcMock.rpcCall).toHaveBeenCalledWith('skills/list', { cwds: ['/repo'] })
+  })
+
+  it('wraps composer image upload failures with the file name', async () => {
+    rpcMock.uploadLocalImage.mockRejectedValue(new Error('disk full'))
+
+    await expect(uploadComposerImage({
+      name: 'screen.png',
+      type: 'image/png',
+    } as File)).rejects.toMatchObject({
+      name: 'CodexApiError',
+      message: 'disk full',
+      method: 'uploads/images',
+    })
+  })
+})
