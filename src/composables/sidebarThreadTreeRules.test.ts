@@ -10,6 +10,7 @@ import {
   formatSidebarRelativeTime,
   hasSidebarHiddenThreads,
   hasSidebarThreads,
+  isSidebarEventInsideElement,
   isSidebarPointerInProjectDropZone,
   normalizeSidebarSearchQuery,
   sidebarDropTargetIndex,
@@ -154,6 +155,45 @@ describe('sidebar thread tree rules', () => {
     expect(sidebarThreadState(thread())).toBe('idle')
     expect(sidebarThreadState(thread({ unread: true }))).toBe('unread')
     expect(sidebarThreadState(thread({ unread: true, inProgress: true }))).toBe('working')
+  })
+
+  it('detects whether menu dismiss events are inside an element', () => {
+    expect(isSidebarEventInsideElement(new Event('pointerdown'), null)).toBe(false)
+    const wrapper = { contains: () => false } as unknown as HTMLElement
+    const child = {}
+
+    expect(isSidebarEventInsideElement(new Event('pointerdown'), wrapper)).toBe(false)
+
+    const targetEvent = new Event('pointerdown')
+    Object.defineProperty(targetEvent, 'target', { value: child })
+    expect(isSidebarEventInsideElement(targetEvent, wrapper)).toBe(false)
+
+    const composedEvent = new Event('pointerdown')
+    Object.defineProperty(composedEvent, 'composedPath', {
+      value: () => [child, wrapper],
+    })
+    expect(isSidebarEventInsideElement(composedEvent, wrapper)).toBe(true)
+
+    class FakeNode {}
+    const originalNode = globalThis.Node
+    const fakeChild = new FakeNode()
+    const fakeWrapper = {
+      contains: (target: unknown) => target === fakeChild,
+    } as unknown as HTMLElement
+    Object.defineProperty(globalThis, 'Node', {
+      configurable: true,
+      value: FakeNode,
+    })
+    try {
+      const containedTargetEvent = new Event('pointerdown')
+      Object.defineProperty(containedTargetEvent, 'target', { value: fakeChild })
+      expect(isSidebarEventInsideElement(containedTargetEvent, fakeWrapper)).toBe(true)
+    } finally {
+      Object.defineProperty(globalThis, 'Node', {
+        configurable: true,
+        value: originalNode,
+      })
+    }
   })
 
   it('updates pinned thread and thread menu state', () => {

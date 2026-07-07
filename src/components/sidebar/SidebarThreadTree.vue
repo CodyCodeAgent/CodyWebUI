@@ -265,6 +265,7 @@ import {
   formatSidebarRelativeTime,
   hasSidebarHiddenThreads,
   hasSidebarThreads,
+  isSidebarEventInsideElement,
   isSidebarPointerInProjectDropZone,
   normalizeSidebarSearchQuery,
   sidebarDropTargetIndex,
@@ -649,13 +650,7 @@ function isEventInsideOpenThreadMenu(event: Event): boolean {
   if (!threadId) return false
 
   const openMenuWrapElement = threadMenuWrapElementById.get(threadId)
-  if (!openMenuWrapElement) return false
-
-  const eventPath = typeof event.composedPath === 'function' ? event.composedPath() : []
-  if (eventPath.includes(openMenuWrapElement)) return true
-
-  const target = event.target
-  return target instanceof Node ? openMenuWrapElement.contains(target) : false
+  return isSidebarEventInsideElement(event, openMenuWrapElement ?? null)
 }
 
 function onThreadMenuPointerDown(event: PointerEvent): void {
@@ -747,13 +742,7 @@ function isEventInsideOpenProjectMenu(event: Event): boolean {
   if (!projectName) return false
 
   const openMenuWrapElement = projectMenuWrapElementByName.get(projectName)
-  if (!openMenuWrapElement) return false
-
-  const eventPath = typeof event.composedPath === 'function' ? event.composedPath() : []
-  if (eventPath.includes(openMenuWrapElement)) return true
-
-  const target = event.target
-  return target instanceof Node ? openMenuWrapElement.contains(target) : false
+  return isSidebarEventInsideElement(event, openMenuWrapElement ?? null)
 }
 
 function onProjectMenuPointerDown(event: PointerEvent): void {

@@ -161,6 +161,16 @@ export function sidebarThreadState(thread: UiThread): SidebarThreadState {
   return 'idle'
 }
 
+export function isSidebarEventInsideElement(event: Event, element: HTMLElement | null): boolean {
+  if (!element) return false
+
+  const eventPath = typeof event.composedPath === 'function' ? event.composedPath() : []
+  if (eventPath.includes(element)) return true
+
+  const target = event.target
+  return typeof Node !== 'undefined' && target instanceof Node ? element.contains(target) : false
+}
+
 export function toggleSidebarPinnedThreadIds(pinnedThreadIds: string[], threadId: string): string[] {
   if (!threadId) return pinnedThreadIds
   if (pinnedThreadIds.includes(threadId)) return pinnedThreadIds.filter((id) => id !== threadId)
