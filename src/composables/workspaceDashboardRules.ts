@@ -7,6 +7,18 @@ import type {
   UiWorkspaceValidationPlan,
 } from '../types/codex'
 
+export type WorkspaceScriptRunState = {
+  isRunning: boolean
+  errorMessage: string
+  result: UiWorkspaceScriptRun | null
+}
+
+export const EMPTY_WORKSPACE_SCRIPT_RUN_STATE: WorkspaceScriptRunState = {
+  isRunning: false,
+  errorMessage: '',
+  result: null,
+}
+
 export function basenameFromPath(value: string): string {
   const parts = value.split('/').filter(Boolean)
   return parts.at(-1) ?? value
@@ -127,4 +139,75 @@ export function scriptRunEvidenceSummary(result: UiWorkspaceScriptRun | null): s
     if (parts.length > 0) items.push(`coverage ${parts.join(' · ')}`)
   }
   return items
+}
+
+export function workspaceScriptRunState(
+  states: Record<string, WorkspaceScriptRunState>,
+  scriptName: string,
+): WorkspaceScriptRunState {
+  return states[scriptName] ?? EMPTY_WORKSPACE_SCRIPT_RUN_STATE
+}
+
+export function setWorkspaceScriptRunState(
+  states: Record<string, WorkspaceScriptRunState>,
+  scriptName: string,
+  nextState: WorkspaceScriptRunState,
+): Record<string, WorkspaceScriptRunState> {
+  if (!scriptName) return states
+  return {
+    ...states,
+    [scriptName]: nextState,
+  }
+}
+
+export function runningWorkspaceScriptState(
+  previous: WorkspaceScriptRunState,
+): WorkspaceScriptRunState {
+  return {
+    isRunning: true,
+    errorMessage: '',
+    result: previous.result,
+  }
+}
+
+export function completedWorkspaceScriptState(result: UiWorkspaceScriptRun): WorkspaceScriptRunState {
+  return {
+    isRunning: false,
+    errorMessage: '',
+    result,
+  }
+}
+
+export function failedWorkspaceScriptState(
+  previous: WorkspaceScriptRunState,
+  message: string,
+): WorkspaceScriptRunState {
+  return {
+    isRunning: false,
+    errorMessage: message,
+    result: previous.result,
+  }
+}
+
+export function completedWorkspaceScriptRuns(
+  states: Record<string, WorkspaceScriptRunState>,
+): UiWorkspaceScriptRun[] {
+  return Object.values(states)
+    .map((state) => state.result)
+    .filter((result): result is UiWorkspaceScriptRun => Boolean(result))
+}
+
+export function mergedWorkspaceValidationRuns(
+  currentRuns: UiWorkspaceScriptRun[],
+  historyRuns: UiWorkspaceScriptRun[],
+): UiWorkspaceScriptRun[] {
+  const seen = new Set<string>()
+  const runs: UiWorkspaceScriptRun[] = []
+  for (const run of [...currentRuns, ...historyRuns]) {
+    const key = `${run.scriptName}:${run.command}:${run.startedAtIso}:${run.endedAtIso}`
+    if (seen.has(key)) continue
+    seen.add(key)
+    runs.push(run)
+  }
+  return runs.sort((first, second) => second.endedAtIso.localeCompare(first.endedAtIso))
 }

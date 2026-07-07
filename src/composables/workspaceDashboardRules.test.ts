@@ -10,19 +10,28 @@ import type {
 } from '../types/codex'
 import {
   basenameFromPath,
+  completedWorkspaceScriptRuns,
+  completedWorkspaceScriptState,
+  failedWorkspaceScriptState,
   formatWorkspaceDuration,
   isRunnableValidationScriptName,
   isWorkspaceValidationScriptName,
+  mergedWorkspaceValidationRuns,
+  runningWorkspaceScriptState,
   scriptProblemCount,
   scriptRunEvidenceSummary,
   scriptRunOutput,
+  setWorkspaceScriptRunState,
   validationPlanEvidenceLabel,
+  workspaceScriptRunState,
   workspaceCommandPolicyLabel,
   workspaceNotificationPolicyLabel,
   workspaceNotificationTestSummary,
   workspaceProjectContextSummary,
   workspaceThemePolicyLabel,
   workspaceValidationPlanSummary,
+  EMPTY_WORKSPACE_SCRIPT_RUN_STATE,
+  type WorkspaceScriptRunState,
 } from './workspaceDashboardRules'
 
 function workspaceConfig(overrides: Partial<UiWorkspaceConfig> = {}): UiWorkspaceConfig {
@@ -279,5 +288,64 @@ describe('workspace dashboard rules', () => {
       'tests 9 passed · 1 failed · 0 skipped · 10 total',
       'coverage stmt 87.5% · branch 80.0% · line 88.2%',
     ])
+  })
+
+  it('updates workspace script run states without losing previous evidence', () => {
+    const previousResult = scriptRun({ scriptName: 'test', output: 'old output' })
+    const previous: WorkspaceScriptRunState = {
+      isRunning: false,
+      errorMessage: '',
+      result: previousResult,
+    }
+
+    expect(workspaceScriptRunState({}, 'test')).toBe(EMPTY_WORKSPACE_SCRIPT_RUN_STATE)
+    expect(setWorkspaceScriptRunState({}, '', previous)).toEqual({})
+    expect(setWorkspaceScriptRunState({}, 'test', previous)).toEqual({ test: previous })
+    expect(runningWorkspaceScriptState(previous)).toEqual({
+      isRunning: true,
+      errorMessage: '',
+      result: previousResult,
+    })
+    expect(completedWorkspaceScriptState(scriptRun({ output: 'new output' }))).toMatchObject({
+      isRunning: false,
+      errorMessage: '',
+      result: { output: 'new output' },
+    })
+    expect(failedWorkspaceScriptState(previous, 'boom')).toEqual({
+      isRunning: false,
+      errorMessage: 'boom',
+      result: previousResult,
+    })
+  })
+
+  it('merges current and historical validation runs by stable run identity', () => {
+    const current = scriptRun({
+      scriptName: 'test',
+      command: 'npm test',
+      startedAtIso: '2026-07-07T00:00:00.000Z',
+      endedAtIso: '2026-07-07T00:00:01.000Z',
+      output: 'current',
+    })
+    const duplicateHistory = scriptRun({
+      scriptName: 'test',
+      command: 'npm test',
+      startedAtIso: '2026-07-07T00:00:00.000Z',
+      endedAtIso: '2026-07-07T00:00:01.000Z',
+      output: 'history duplicate',
+    })
+    const olderHistory = scriptRun({
+      scriptName: 'lint',
+      command: 'npm run lint',
+      startedAtIso: '2026-07-06T00:00:00.000Z',
+      endedAtIso: '2026-07-06T00:00:02.000Z',
+      output: 'older',
+    })
+
+    expect(completedWorkspaceScriptRuns({
+      test: completedWorkspaceScriptState(current),
+      empty: EMPTY_WORKSPACE_SCRIPT_RUN_STATE,
+    })).toEqual([current])
+    expect(mergedWorkspaceValidationRuns([olderHistory, current], [duplicateHistory]).map((run) => run.output))
+      .toEqual(['current', 'older'])
   })
 })

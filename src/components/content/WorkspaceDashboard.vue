@@ -344,19 +344,27 @@ import {
 import { buildWorkspaceResourceSummary } from '../../composables/useWorkspaceResources'
 import {
   basenameFromPath,
+  completedWorkspaceScriptRuns,
+  completedWorkspaceScriptState,
+  failedWorkspaceScriptState,
   formatWorkspaceDuration as formatDuration,
   isRunnableValidationScriptName as isRunnableValidationScript,
   isWorkspaceValidationScriptName,
+  mergedWorkspaceValidationRuns,
+  runningWorkspaceScriptState,
   scriptProblemCount,
   scriptRunEvidenceSummary,
   scriptRunOutput,
+  setWorkspaceScriptRunState,
   validationPlanEvidenceLabel,
+  workspaceScriptRunState,
   workspaceCommandPolicyLabel,
   workspaceNotificationPolicyLabel,
   workspaceNotificationTestSummary,
   workspaceProjectContextSummary,
   workspaceThemePolicyLabel,
   workspaceValidationPlanSummary,
+  type WorkspaceScriptRunState,
 } from '../../composables/workspaceDashboardRules'
 import type {
   UiNotificationDeliveryReport,
@@ -413,11 +421,7 @@ const isLoading = ref(false)
 const errorMessage = ref('')
 const isTestingNotifications = ref(false)
 const notificationTestError = ref('')
-const scriptRunStates = ref<Record<string, {
-  isRunning: boolean
-  errorMessage: string
-  result: UiWorkspaceScriptRun | null
-}>>({})
+const scriptRunStates = ref<Record<string, WorkspaceScriptRunState>>({})
 
 const defaultWorkspaceConfig: UiWorkspaceConfig = {
   path: null,
@@ -474,20 +478,10 @@ const validationScripts = computed(() => {
   const scripts = snapshot.value?.scripts ?? []
   return scripts.filter((script) => isWorkspaceValidationScriptName(script.name))
 })
-const completedScriptRuns = computed(() => Object.values(scriptRunStates.value)
-  .map((state) => state.result)
-  .filter((result): result is UiWorkspaceScriptRun => Boolean(result)))
-const allValidationRuns = computed(() => {
-  const seen = new Set<string>()
-  const runs: UiWorkspaceScriptRun[] = []
-  for (const run of [...completedScriptRuns.value, ...validationHistoryRuns.value]) {
-    const key = `${run.scriptName}:${run.command}:${run.startedAtIso}:${run.endedAtIso}`
-    if (seen.has(key)) continue
-    seen.add(key)
-    runs.push(run)
-  }
-  return runs.sort((first, second) => second.endedAtIso.localeCompare(first.endedAtIso))
-})
+const completedScriptRuns = computed(() => completedWorkspaceScriptRuns(scriptRunStates.value))
+const allValidationRuns = computed(() =>
+  mergedWorkspaceValidationRuns(completedScriptRuns.value, validationHistoryRuns.value),
+)
 const mobileActionBusy = computed(() => props.isMobileActionBusy === true)
 const resourceSummary = computed(() => buildWorkspaceResourceSummary({
   rateLimitSnapshot: props.rateLimitSnapshot,
@@ -503,56 +497,35 @@ const resourceMetrics = computed(() => [
   resourceSummary.value.activity,
 ])
 
-function scriptRunState(scriptName: string): {
-  isRunning: boolean
-  errorMessage: string
-  result: UiWorkspaceScriptRun | null
-} {
-  return scriptRunStates.value[scriptName] ?? {
-    isRunning: false,
-    errorMessage: '',
-    result: null,
-  }
+function scriptRunState(scriptName: string): WorkspaceScriptRunState {
+  return workspaceScriptRunState(scriptRunStates.value, scriptName)
 }
 
 function setScriptRunState(
   scriptName: string,
-  nextState: {
-    isRunning: boolean
-    errorMessage: string
-    result: UiWorkspaceScriptRun | null
-  },
+  nextState: WorkspaceScriptRunState,
 ): void {
-  scriptRunStates.value = {
-    ...scriptRunStates.value,
-    [scriptName]: nextState,
-  }
+  scriptRunStates.value = setWorkspaceScriptRunState(scriptRunStates.value, scriptName, nextState)
 }
 
 async function runScript(scriptName: string): Promise<void> {
   const cwd = props.cwd.trim()
   if (!cwd) return
 
-  setScriptRunState(scriptName, {
-    isRunning: true,
-    errorMessage: '',
-    result: scriptRunState(scriptName).result,
-  })
+  setScriptRunState(scriptName, runningWorkspaceScriptState(scriptRunState(scriptName)))
 
   try {
     const result = await runWorkspaceScript(cwd, scriptName)
-    setScriptRunState(scriptName, {
-      isRunning: false,
-      errorMessage: '',
-      result,
-    })
+    setScriptRunState(scriptName, completedWorkspaceScriptState(result))
     await loadValidationHistory()
   } catch (error) {
-    setScriptRunState(scriptName, {
-      isRunning: false,
-      errorMessage: error instanceof Error ? error.message : 'Failed to run workspace script.',
-      result: scriptRunState(scriptName).result,
-    })
+    setScriptRunState(
+      scriptName,
+      failedWorkspaceScriptState(
+        scriptRunState(scriptName),
+        error instanceof Error ? error.message : 'Failed to run workspace script.',
+      ),
+    )
   }
 }
 
