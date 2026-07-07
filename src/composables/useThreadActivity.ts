@@ -1,4 +1,5 @@
 import type { UiMessage, UiServerRequest, UiToolTimelineEntry } from '../types/codex'
+import type { UiDiffLineKind, UiDiffReview, UiDiffReviewFile } from './useDiffReview'
 import { isToolFailureStatus } from './threadToolTimelineRules'
 export { isToolFailureStatus } from './threadToolTimelineRules'
 
@@ -70,4 +71,39 @@ export function buildThreadActivitySummary(
     failedCount: entries.filter((entry) => isToolFailureStatus(entry.status)).length,
     pendingRequestCount: pendingRequests.length,
   }
+}
+
+export function buildWorkLogStatusText(input: {
+  pendingRequestCount: number
+  fileCount: number
+  commandCount: number
+}): string {
+  if (input.pendingRequestCount > 0) return `${String(input.pendingRequestCount)} waiting`
+  if (input.fileCount > 0 || input.commandCount > 0) {
+    return `${String(input.fileCount)} changed file${input.fileCount === 1 ? '' : 's'} · ${String(input.commandCount)} command${input.commandCount === 1 ? '' : 's'}`
+  }
+  return 'No changes or commands recorded yet'
+}
+
+export function workLogBadgeCount(review: UiDiffReview, commandCount: number): number {
+  return review.summary.fileCount + commandCount
+}
+
+export function workLogFullscreenFile(review: UiDiffReview, filePath: string): UiDiffReviewFile | null {
+  if (!filePath) return null
+  return review.files.find((file) => file.filePath === filePath) ?? null
+}
+
+export function shouldCloseWorkLogFullscreenFile(review: UiDiffReview, filePath: string): boolean {
+  return Boolean(filePath) && !review.files.some((file) => file.filePath === filePath)
+}
+
+export function formatWorkLogLineNumber(value: number | null): string {
+  return typeof value === 'number' ? String(value) : ''
+}
+
+export function workLogDiffLinePrefix(kind: UiDiffLineKind): string {
+  if (kind === 'add') return '+'
+  if (kind === 'remove') return '-'
+  return ''
 }

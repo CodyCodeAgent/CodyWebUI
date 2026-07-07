@@ -275,6 +275,12 @@ import { computed, ref, watch } from 'vue'
 import {
   buildThreadCommandEntries,
   buildThreadActivitySummary,
+  buildWorkLogStatusText,
+  formatWorkLogLineNumber,
+  shouldCloseWorkLogFullscreenFile,
+  workLogBadgeCount as workLogBadgeCountForReview,
+  workLogDiffLinePrefix,
+  workLogFullscreenFile,
 } from '../../composables/useThreadActivity'
 import {
   formatToolStatus,
@@ -291,7 +297,8 @@ import {
   buildEmptyServerRequestReply,
   buildRejectedServerRequestReply,
 } from '../../composables/threadConversationRules'
-import { buildDiffReview, type UiDiffReviewFile } from '../../composables/useDiffReview'
+import { buildDiffReview } from '../../composables/useDiffReview'
+import type { UiDiffLineKind } from '../../composables/useDiffReview'
 import type { UiApprovalDecisionScope, UiMessage, UiServerRequest, UiServerRequestReply, UiToolingRollbackFileResult } from '../../types/codex'
 
 const props = defineProps<{
@@ -311,18 +318,14 @@ const commandEntries = computed(() => buildThreadCommandEntries(props.messages))
 const diffReview = computed(() => buildDiffReview(props.messages))
 const fullscreenFilePath = ref('')
 const isWorkLogOpen = ref(false)
-const fullscreenFile = computed<UiDiffReviewFile | null>(() =>
-  diffReview.value.files.find((file) => file.filePath === fullscreenFilePath.value) ?? null
-)
-const workLogBadgeCount = computed(() => diffReview.value.summary.fileCount + commandEntries.value.length)
+const fullscreenFile = computed(() => workLogFullscreenFile(diffReview.value, fullscreenFilePath.value))
+const workLogBadgeCount = computed(() => workLogBadgeCountForReview(diffReview.value, commandEntries.value.length))
 const summary = computed(() => buildThreadActivitySummary(props.messages, props.pendingRequests))
-const statusText = computed(() => {
-  if (summary.value.pendingRequestCount > 0) return `${summary.value.pendingRequestCount} waiting`
-  if (diffReview.value.summary.fileCount > 0 || commandEntries.value.length > 0) {
-    return `${diffReview.value.summary.fileCount} changed file${diffReview.value.summary.fileCount === 1 ? '' : 's'} · ${commandEntries.value.length} command${commandEntries.value.length === 1 ? '' : 's'}`
-  }
-  return 'No changes or commands recorded yet'
-})
+const statusText = computed(() => buildWorkLogStatusText({
+  pendingRequestCount: summary.value.pendingRequestCount,
+  fileCount: diffReview.value.summary.fileCount,
+  commandCount: commandEntries.value.length,
+}))
 
 function formatIsoTime(value: string): string {
   const date = new Date(value)
@@ -361,13 +364,11 @@ function onRejectRequest(requestId: number): void {
 }
 
 function formatLineNumber(value: number | null): string {
-  return typeof value === 'number' ? String(value) : ''
+  return formatWorkLogLineNumber(value)
 }
 
-function diffLinePrefix(kind: string): string {
-  if (kind === 'add') return '+'
-  if (kind === 'remove') return '-'
-  return ''
+function diffLinePrefix(kind: UiDiffLineKind): string {
+  return workLogDiffLinePrefix(kind)
 }
 
 function openFullscreenDiff(filePath: string): void {
@@ -387,8 +388,7 @@ function toggleWorkLog(): void {
 }
 
 watch(diffReview, (review) => {
-  if (!fullscreenFilePath.value) return
-  if (!review.files.some((file) => file.filePath === fullscreenFilePath.value)) {
+  if (shouldCloseWorkLogFullscreenFile(review, fullscreenFilePath.value)) {
     fullscreenFilePath.value = ''
   }
 })
