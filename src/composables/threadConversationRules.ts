@@ -94,6 +94,14 @@ export function shouldShowCopyButton(messages: UiMessage[], message: UiMessage, 
   return !isAssistantResponseMessage(messages[nextCopyableIndex])
 }
 
+export function messageCopyAriaLabel(isCopied: boolean): string {
+  return isCopied ? 'Copied message' : 'Copy message'
+}
+
+export function messageCopyTitle(isCopied: boolean): string {
+  return isCopied ? 'Copied' : 'Copy message'
+}
+
 export function buildCopyTextAt(messages: UiMessage[], message: UiMessage, messageIndex: number): string {
   if (message.role === 'user') return buildCopyText(message)
 
@@ -119,6 +127,10 @@ export function buildCopyTextAt(messages: UiMessage[], message: UiMessage, messa
 export function hasLiveOverlayDetails(liveOverlay: UiLiveOverlay | null): boolean {
   if (!liveOverlay) return false
   return liveOverlay.activityDetails.length > 0 || liveOverlay.reasoningText.trim().length > 0
+}
+
+export function liveOverlayDetailsToggleLabel(isExpanded: boolean): string {
+  return isExpanded ? 'Hide details' : 'Show details'
 }
 
 export function shouldShowScrollToBottomButton(params: {
@@ -221,6 +233,14 @@ export function readToolQuestions(request: UiServerRequest): ParsedToolQuestion[
   }
 
   return parsed
+}
+
+export function toolQuestionTitle(question: Pick<ParsedToolQuestion, 'header' | 'question'>): string {
+  return question.header || question.question
+}
+
+export function shouldShowToolQuestionText(question: Pick<ParsedToolQuestion, 'header' | 'question'>): boolean {
+  return question.header.length > 0 && question.question.length > 0
 }
 
 export function readToolQuestionAnswer(

@@ -15,6 +15,9 @@ import {
   buildToolUserInputReply,
   hasLiveOverlayDetails,
   isCopyableMessage,
+  liveOverlayDetailsToggleLabel,
+  messageCopyAriaLabel,
+  messageCopyTitle,
   normalizedConversationBottomLockFrames,
   readToolQuestionAnswer,
   readToolQuestionOtherAnswer,
@@ -24,7 +27,9 @@ import {
   shouldRestoreConversationToBottom,
   shouldShowCopyButton,
   shouldShowScrollToBottomButton,
+  shouldShowToolQuestionText,
   toolQuestionKey,
+  toolQuestionTitle,
 } from './threadConversationRules'
 
 function tool(overrides: Partial<UiToolTimelineEntry> = {}): UiToolTimelineEntry {
@@ -105,6 +110,10 @@ describe('thread conversation rules', () => {
     expect(shouldShowCopyButton(messages, messages[1], 1)).toBe(false)
     expect(shouldShowCopyButton(messages, messages[2], 2)).toBe(true)
     expect(shouldShowCopyButton(messages, messages[3], 3)).toBe(true)
+    expect(messageCopyAriaLabel(false)).toBe('Copy message')
+    expect(messageCopyAriaLabel(true)).toBe('Copied message')
+    expect(messageCopyTitle(false)).toBe('Copy message')
+    expect(messageCopyTitle(true)).toBe('Copied')
   })
 
   it('combines adjacent assistant messages when copying a response', () => {
@@ -152,6 +161,10 @@ describe('thread conversation rules', () => {
         options: ['Fast', 'Careful'],
       },
     ])
+    expect(toolQuestionTitle({ header: 'Mode', question: 'Pick one' })).toBe('Mode')
+    expect(toolQuestionTitle({ header: '', question: 'Pick one' })).toBe('Pick one')
+    expect(shouldShowToolQuestionText({ header: 'Mode', question: 'Pick one' })).toBe(true)
+    expect(shouldShowToolQuestionText({ header: '', question: 'Pick one' })).toBe(false)
     expect(toolQuestionKey(42, 'choice')).toBe('42:choice')
     expect(readToolQuestionAnswer({ '42:choice': 'Careful' }, 42, 'choice', 'Fast')).toBe('Careful')
     expect(readToolQuestionAnswer({}, 42, 'choice', 'Fast')).toBe('Fast')
@@ -247,6 +260,8 @@ describe('thread conversation rules', () => {
       reasoningText: 'reasoning',
       errorText: '',
     })).toBe(true)
+    expect(liveOverlayDetailsToggleLabel(false)).toBe('Show details')
+    expect(liveOverlayDetailsToggleLabel(true)).toBe('Hide details')
 
     expect(shouldShowScrollToBottomButton({
       activeThreadId: '',

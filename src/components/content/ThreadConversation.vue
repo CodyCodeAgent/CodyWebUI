@@ -89,8 +89,8 @@
                   :key="`${request.id}:${question.id}`"
                   class="request-question"
                 >
-                  <p class="request-question-title">{{ question.header || question.question }}</p>
-                  <p v-if="question.header && question.question" class="request-question-text">{{ question.question }}</p>
+                  <p class="request-question-title">{{ toolQuestionTitle(question) }}</p>
+                  <p v-if="shouldShowToolQuestionText(question)" class="request-question-text">{{ question.question }}</p>
                   <select
                     class="request-select"
                     :value="readQuestionAnswer(request.id, question.id, question.options[0] || '')"
@@ -213,8 +213,8 @@
                 v-if="shouldShowCopyButton(message, messageIndex)"
                 class="message-copy-button"
                 type="button"
-                :aria-label="copiedMessageId === message.id ? 'Copied message' : 'Copy message'"
-                :title="copiedMessageId === message.id ? 'Copied' : 'Copy message'"
+                :aria-label="copyButtonAriaLabel(message.id)"
+                :title="copyButtonTitle(message.id)"
                 :data-copied="copiedMessageId === message.id"
                 @click="copyMessage(message, messageIndex)"
               >
@@ -238,7 +238,7 @@
                 <IconTablerChevronRight class="live-overlay-chevron" :data-expanded="isLiveOverlayExpanded" />
                 <span class="live-overlay-label">{{ liveOverlay.activityLabel }}</span>
                 <span v-if="hasLiveOverlayDetails" class="live-overlay-hint">
-                  {{ isLiveOverlayExpanded ? 'Hide details' : 'Show details' }}
+                  {{ liveOverlayDetailsLabel }}
                 </span>
               </button>
 
@@ -305,6 +305,9 @@ import {
   buildToolCallSuccessReply,
   buildToolUserInputReply,
   hasLiveOverlayDetails as hasThreadLiveOverlayDetails,
+  liveOverlayDetailsToggleLabel,
+  messageCopyAriaLabel,
+  messageCopyTitle,
   normalizedConversationBottomLockFrames,
   readToolQuestionAnswer,
   readToolQuestionOtherAnswer,
@@ -314,7 +317,9 @@ import {
   shouldRestoreConversationToBottom,
   shouldShowCopyButton as shouldShowThreadCopyButton,
   shouldShowScrollToBottomButton as shouldShowThreadScrollToBottomButton,
+  shouldShowToolQuestionText,
   toolQuestionKey,
+  toolQuestionTitle,
 } from '../../composables/threadConversationRules'
 import {
   formatToolStatus,
@@ -360,6 +365,7 @@ const trackedPendingImages = new WeakSet<HTMLImageElement>()
 const hasLiveOverlayDetails = computed(() => {
   return hasThreadLiveOverlayDetails(props.liveOverlay)
 })
+const liveOverlayDetailsLabel = computed(() => liveOverlayDetailsToggleLabel(isLiveOverlayExpanded.value))
 
 const showScrollToBottomButton = computed(() => {
   return shouldShowThreadScrollToBottomButton({
@@ -378,6 +384,18 @@ function shouldShowCopyButton(message: UiMessage, messageIndex: number): boolean
 
 function buildCopyTextAt(message: UiMessage, messageIndex: number): string {
   return buildThreadCopyTextAt(props.messages, message, messageIndex)
+}
+
+function isMessageCopied(messageId: string): boolean {
+  return copiedMessageId.value === messageId
+}
+
+function copyButtonAriaLabel(messageId: string): string {
+  return messageCopyAriaLabel(isMessageCopied(messageId))
+}
+
+function copyButtonTitle(messageId: string): string {
+  return messageCopyTitle(isMessageCopied(messageId))
 }
 
 async function writeClipboardText(text: string): Promise<void> {
