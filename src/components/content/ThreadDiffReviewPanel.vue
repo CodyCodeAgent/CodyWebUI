@@ -309,12 +309,16 @@ import {
   commentsForDiffHunk,
   diffCopyPatchButtonLabel,
   diffLinePrefix,
-  diffReviewHunkKey,
   formatBytes,
   formatCheckpointPaths,
   formatCheckpointTime,
   formatDiffLineNumber,
   formatReviewCommentAnchor,
+  failedCheckpointPatchState,
+  fileRollbackSuccessMessage,
+  hunkRollbackSuccessMessage,
+  loadedCheckpointPatchState,
+  loadingCheckpointPatchState,
   reviewCheckpointPatchStateForId,
   reviewDraftCopyLabel as reviewDraftCopyLabelForState,
   reviewHunkRollbackStateForKey,
@@ -323,7 +327,13 @@ import {
   reviewRollbackStateForPath,
   rollbackFileButtonLabel,
   rollbackHunkButtonLabel,
+  setReviewCheckpointPatchStateForId,
+  setReviewHunkRollbackStateForKey,
+  setReviewHunkStageStateForKey,
+  setReviewRollbackStateForPath,
   stageHunkButtonLabel,
+  toggleLoadedCheckpointPatchVisibility,
+  workspaceRollbackSuccessMessage,
   workspaceRollbackButtonLabel as workspaceRollbackButtonLabelForState,
 } from '../../composables/threadDiffReviewPanelRules'
 import type {
@@ -407,10 +417,6 @@ function rollbackState(filePath: string): ReviewRollbackState {
 
 function rollbackButtonLabel(filePath: string): string {
   return rollbackFileButtonLabel(rollbackState(filePath))
-}
-
-function hunkKey(filePath: string, hunkIndex: number): string {
-  return diffReviewHunkKey(filePath, hunkIndex)
 }
 
 function hunkRollbackState(filePath: string, hunkIndex: number): ReviewRollbackState {
@@ -639,32 +645,31 @@ async function onRollbackFile(filePath: string): Promise<void> {
   const didConfirm = window.confirm(`Rollback ${filePath} to the git baseline? A checkpoint patch will be saved first.`)
   if (!didConfirm) return
 
-  rollbackByPath.value = {
-    ...rollbackByPath.value,
-    [filePath]: { status: 'rollingBack', message: 'Saving checkpoint and restoring file...' },
-  }
+  rollbackByPath.value = setReviewRollbackStateForPath(
+    rollbackByPath.value,
+    filePath,
+    { status: 'rollingBack', message: 'Saving checkpoint and restoring file...' },
+  )
 
   try {
     const result = await rollbackWorkspaceFile(props.cwd, filePath)
-    const checkpointId = result.checkpoint.id
-    const cleanMessage = result.rollbackApplied
-      ? `Checkpoint ${checkpointId} saved. ${result.remainingStatus ? 'File still has git status.' : 'File is clean.'}`
-      : `Checkpoint ${checkpointId} saved. No local changes were found for this file.`
-    rollbackByPath.value = {
-      ...rollbackByPath.value,
-      [filePath]: { status: 'rolledBack', message: cleanMessage },
-    }
+    rollbackByPath.value = setReviewRollbackStateForPath(
+      rollbackByPath.value,
+      filePath,
+      { status: 'rolledBack', message: fileRollbackSuccessMessage(result) },
+    )
     emit('rollbackCompleted', result)
     await loadCheckpoints()
     await loadReviewDraft()
   } catch (error) {
-    rollbackByPath.value = {
-      ...rollbackByPath.value,
-      [filePath]: {
+    rollbackByPath.value = setReviewRollbackStateForPath(
+      rollbackByPath.value,
+      filePath,
+      {
         status: 'failed',
         message: error instanceof Error ? error.message : 'Rollback failed.',
       },
-    }
+    )
   }
 }
 
@@ -677,12 +682,9 @@ async function onRollbackWorkspace(): Promise<void> {
 
   try {
     const result = await rollbackWorkspaceChanges(props.cwd)
-    const dirtyFileCount = result.remainingStatus.files.length
     workspaceRollbackState.value = {
       status: 'rolledBack',
-      message: result.rollbackApplied
-        ? `Checkpoint ${result.checkpoint.id} saved. Restored ${String(result.restoredFileCount)} tracked change${result.restoredFileCount === 1 ? '' : 's'} and removed ${String(result.removedUntrackedCount)} untracked path${result.removedUntrackedCount === 1 ? '' : 's'}. ${dirtyFileCount === 0 ? 'Workspace is clean.' : `${String(dirtyFileCount)} file${dirtyFileCount === 1 ? '' : 's'} still need attention.`}`
-        : `Checkpoint ${result.checkpoint.id} saved. No workspace changes were present.`,
+      message: workspaceRollbackSuccessMessage(result),
     }
     emit('workspaceRollbackCompleted', result)
     await loadCheckpoints()
@@ -700,62 +702,72 @@ async function onRollbackHunk(filePath: string, hunkIndex: number): Promise<void
   const didConfirm = window.confirm(`Rollback hunk ${String(hunkIndex + 1)} in ${filePath}? A checkpoint patch will be saved first.`)
   if (!didConfirm) return
 
-  const key = hunkKey(filePath, hunkIndex)
-  hunkRollbackByKey.value = {
-    ...hunkRollbackByKey.value,
-    [key]: { status: 'rollingBack', message: 'Saving checkpoint and reverting hunk...' },
-  }
+  hunkRollbackByKey.value = setReviewHunkRollbackStateForKey(
+    hunkRollbackByKey.value,
+    filePath,
+    hunkIndex,
+    { status: 'rollingBack', message: 'Saving checkpoint and reverting hunk...' },
+  )
 
   try {
     const result = await rollbackWorkspaceHunk(props.cwd, filePath, hunkIndex)
-    hunkRollbackByKey.value = {
-      ...hunkRollbackByKey.value,
-      [key]: {
+    hunkRollbackByKey.value = setReviewHunkRollbackStateForKey(
+      hunkRollbackByKey.value,
+      filePath,
+      hunkIndex,
+      {
         status: 'rolledBack',
-        message: `Checkpoint ${result.checkpoint.id} saved. ${result.remainingStatus ? 'File still has git status.' : 'File is clean.'}`,
+        message: hunkRollbackSuccessMessage(result),
       },
-    }
+    )
     emit('hunkRollbackCompleted', result)
     await loadCheckpoints()
     await loadReviewDraft()
   } catch (error) {
-    hunkRollbackByKey.value = {
-      ...hunkRollbackByKey.value,
-      [key]: {
+    hunkRollbackByKey.value = setReviewHunkRollbackStateForKey(
+      hunkRollbackByKey.value,
+      filePath,
+      hunkIndex,
+      {
         status: 'failed',
         message: error instanceof Error ? error.message : 'Hunk rollback failed.',
       },
-    }
+    )
   }
 }
 
 async function onStageHunk(filePath: string, hunkIndex: number): Promise<void> {
   if (!canRollback.value) return
-  const key = hunkKey(filePath, hunkIndex)
-  hunkStageByKey.value = {
-    ...hunkStageByKey.value,
-    [key]: { status: 'staging', message: 'Accepting hunk into the git index...' },
-  }
+  hunkStageByKey.value = setReviewHunkStageStateForKey(
+    hunkStageByKey.value,
+    filePath,
+    hunkIndex,
+    { status: 'staging', message: 'Accepting hunk into the git index...' },
+  )
 
   try {
     const result = await stageWorkspaceHunk(props.cwd, filePath, hunkIndex)
-    hunkStageByKey.value = {
-      ...hunkStageByKey.value,
-      [key]: {
+    hunkStageByKey.value = setReviewHunkStageStateForKey(
+      hunkStageByKey.value,
+      filePath,
+      hunkIndex,
+      {
         status: 'staged',
         message: `${result.hunkHeader} accepted into the git index.`,
       },
-    }
+    )
     emit('hunkStageCompleted', result)
     await loadReviewDraft()
   } catch (error) {
-    hunkStageByKey.value = {
-      ...hunkStageByKey.value,
-      [key]: {
+    hunkStageByKey.value = setReviewHunkStageStateForKey(
+      hunkStageByKey.value,
+      filePath,
+      hunkIndex,
+      {
         status: 'failed',
         message: error instanceof Error ? error.message : 'Hunk stage failed.',
       },
-    }
+    )
   }
 }
 
@@ -764,47 +776,33 @@ async function onToggleCheckpointPatch(checkpointId: string): Promise<void> {
   if (current.status === 'loading') return
 
   if (current.status === 'loaded') {
-    checkpointPatchById.value = {
-      ...checkpointPatchById.value,
-      [checkpointId]: {
-        ...current,
-        isVisible: !current.isVisible,
-      },
-    }
+    checkpointPatchById.value = setReviewCheckpointPatchStateForId(
+      checkpointPatchById.value,
+      checkpointId,
+      toggleLoadedCheckpointPatchVisibility(current),
+    )
     return
   }
 
-  checkpointPatchById.value = {
-    ...checkpointPatchById.value,
-    [checkpointId]: {
-      status: 'loading',
-      patch: current.patch,
-      message: '',
-      isVisible: false,
-    },
-  }
+  checkpointPatchById.value = setReviewCheckpointPatchStateForId(
+    checkpointPatchById.value,
+    checkpointId,
+    loadingCheckpointPatchState(current),
+  )
 
   try {
     const result = await fetchToolingCheckpointPatch(props.cwd, checkpointId)
-    checkpointPatchById.value = {
-      ...checkpointPatchById.value,
-      [checkpointId]: {
-        status: 'loaded',
-        patch: result.patch,
-        message: '',
-        isVisible: true,
-      },
-    }
+    checkpointPatchById.value = setReviewCheckpointPatchStateForId(
+      checkpointPatchById.value,
+      checkpointId,
+      loadedCheckpointPatchState(result.patch),
+    )
   } catch (error) {
-    checkpointPatchById.value = {
-      ...checkpointPatchById.value,
-      [checkpointId]: {
-        status: 'failed',
-        patch: '',
-        message: error instanceof Error ? error.message : 'Failed to load checkpoint patch.',
-        isVisible: false,
-      },
-    }
+    checkpointPatchById.value = setReviewCheckpointPatchStateForId(
+      checkpointPatchById.value,
+      checkpointId,
+      failedCheckpointPatchState(error instanceof Error ? error.message : 'Failed to load checkpoint patch.'),
+    )
   }
 }
 

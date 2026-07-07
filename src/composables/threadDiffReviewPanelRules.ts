@@ -1,5 +1,11 @@
 import type { UiDiffLineKind } from './useDiffReview'
-import type { UiReviewComment, UiWorkspaceReviewDraft } from '../types/codex'
+import type {
+  UiReviewComment,
+  UiToolingRollbackFileResult,
+  UiToolingRollbackHunkResult,
+  UiToolingRollbackWorkspaceResult,
+  UiWorkspaceReviewDraft,
+} from '../types/codex'
 
 export type ReviewRollbackStatus = 'idle' | 'rollingBack' | 'rolledBack' | 'failed'
 export type ReviewRollbackState = {
@@ -63,6 +69,14 @@ export function reviewRollbackStateForPath(
   return states[filePath] ?? DEFAULT_ROLLBACK_STATE
 }
 
+export function setReviewRollbackStateForPath(
+  states: Record<string, ReviewRollbackState>,
+  filePath: string,
+  state: ReviewRollbackState,
+): Record<string, ReviewRollbackState> {
+  return { ...states, [filePath]: state }
+}
+
 export function rollbackFileButtonLabel(state: ReviewRollbackState): string {
   if (state.status === 'rollingBack') return 'Rolling back'
   if (state.status === 'rolledBack') return 'Rolled back'
@@ -81,6 +95,15 @@ export function reviewHunkRollbackStateForKey(
   return states[diffReviewHunkKey(filePath, hunkIndex)] ?? DEFAULT_ROLLBACK_STATE
 }
 
+export function setReviewHunkRollbackStateForKey(
+  states: Record<string, ReviewRollbackState>,
+  filePath: string,
+  hunkIndex: number,
+  state: ReviewRollbackState,
+): Record<string, ReviewRollbackState> {
+  return { ...states, [diffReviewHunkKey(filePath, hunkIndex)]: state }
+}
+
 export function rollbackHunkButtonLabel(state: ReviewRollbackState): string {
   if (state.status === 'rollingBack') return 'Rolling back'
   if (state.status === 'rolledBack') return 'Rolled back'
@@ -93,6 +116,15 @@ export function reviewHunkStageStateForKey(
   hunkIndex: number,
 ): ReviewHunkStageState {
   return states[diffReviewHunkKey(filePath, hunkIndex)] ?? DEFAULT_HUNK_STAGE_STATE
+}
+
+export function setReviewHunkStageStateForKey(
+  states: Record<string, ReviewHunkStageState>,
+  filePath: string,
+  hunkIndex: number,
+  state: ReviewHunkStageState,
+): Record<string, ReviewHunkStageState> {
+  return { ...states, [diffReviewHunkKey(filePath, hunkIndex)]: state }
 }
 
 export function stageHunkButtonLabel(state: ReviewHunkStageState): string {
@@ -142,11 +174,74 @@ export function reviewCheckpointPatchStateForId(
   return states[checkpointId] ?? DEFAULT_CHECKPOINT_PATCH_STATE
 }
 
+export function setReviewCheckpointPatchStateForId(
+  states: Record<string, ReviewCheckpointPatchState>,
+  checkpointId: string,
+  state: ReviewCheckpointPatchState,
+): Record<string, ReviewCheckpointPatchState> {
+  return { ...states, [checkpointId]: state }
+}
+
+export function toggleLoadedCheckpointPatchVisibility(state: ReviewCheckpointPatchState): ReviewCheckpointPatchState {
+  return {
+    ...state,
+    isVisible: !state.isVisible,
+  }
+}
+
+export function loadingCheckpointPatchState(current: ReviewCheckpointPatchState): ReviewCheckpointPatchState {
+  return {
+    status: 'loading',
+    patch: current.patch,
+    message: '',
+    isVisible: false,
+  }
+}
+
+export function loadedCheckpointPatchState(patch: string): ReviewCheckpointPatchState {
+  return {
+    status: 'loaded',
+    patch,
+    message: '',
+    isVisible: true,
+  }
+}
+
+export function failedCheckpointPatchState(message: string): ReviewCheckpointPatchState {
+  return {
+    status: 'failed',
+    patch: '',
+    message,
+    isVisible: false,
+  }
+}
+
 export function checkpointPatchButtonLabel(state: ReviewCheckpointPatchState): string {
   if (state.status === 'loading') return 'Loading'
   if (state.status === 'failed') return 'Retry patch'
   if (state.isVisible) return 'Hide patch'
   return 'Patch'
+}
+
+export function fileRollbackSuccessMessage(result: UiToolingRollbackFileResult): string {
+  const checkpointId = result.checkpoint.id
+  if (!result.rollbackApplied) return `Checkpoint ${checkpointId} saved. No local changes were found for this file.`
+  return `Checkpoint ${checkpointId} saved. ${result.remainingStatus ? 'File still has git status.' : 'File is clean.'}`
+}
+
+export function hunkRollbackSuccessMessage(result: UiToolingRollbackHunkResult): string {
+  return `Checkpoint ${result.checkpoint.id} saved. ${result.remainingStatus ? 'File still has git status.' : 'File is clean.'}`
+}
+
+export function workspaceRollbackSuccessMessage(result: UiToolingRollbackWorkspaceResult): string {
+  if (!result.rollbackApplied) return `Checkpoint ${result.checkpoint.id} saved. No workspace changes were present.`
+
+  const dirtyFileCount = result.remainingStatus.files.length
+  const trackedLabel = result.restoredFileCount === 1 ? 'tracked change' : 'tracked changes'
+  const untrackedLabel = result.removedUntrackedCount === 1 ? 'untracked path' : 'untracked paths'
+  const dirtyLabel = dirtyFileCount === 1 ? 'file' : 'files'
+  const dirtyVerb = dirtyFileCount === 1 ? 'needs' : 'need'
+  return `Checkpoint ${result.checkpoint.id} saved. Restored ${String(result.restoredFileCount)} ${trackedLabel} and removed ${String(result.removedUntrackedCount)} ${untrackedLabel}. ${dirtyFileCount === 0 ? 'Workspace is clean.' : `${String(dirtyFileCount)} ${dirtyLabel} still ${dirtyVerb} attention.`}`
 }
 
 export function formatDiffLineNumber(value: number | null): string {

@@ -6,10 +6,15 @@ import {
   diffCopyPatchButtonLabel,
   diffLinePrefix,
   diffReviewHunkKey,
+  failedCheckpointPatchState,
+  fileRollbackSuccessMessage,
   formatBytes,
   formatCheckpointPaths,
   formatDiffLineNumber,
   formatReviewCommentAnchor,
+  hunkRollbackSuccessMessage,
+  loadedCheckpointPatchState,
+  loadingCheckpointPatchState,
   reviewCheckpointPatchStateForId,
   reviewDraftCopyLabel,
   reviewHunkRollbackStateForKey,
@@ -18,10 +23,24 @@ import {
   reviewRollbackStateForPath,
   rollbackFileButtonLabel,
   rollbackHunkButtonLabel,
+  setReviewCheckpointPatchStateForId,
+  setReviewHunkRollbackStateForKey,
+  setReviewHunkStageStateForKey,
+  setReviewRollbackStateForPath,
   stageHunkButtonLabel,
+  toggleLoadedCheckpointPatchVisibility,
+  workspaceRollbackSuccessMessage,
   workspaceRollbackButtonLabel,
 } from './threadDiffReviewPanelRules'
-import type { UiReviewComment, UiWorkspaceReviewDraft } from '../types/codex'
+import type {
+  UiGitStatusSnapshot,
+  UiReviewComment,
+  UiToolingCheckpoint,
+  UiToolingRollbackFileResult,
+  UiToolingRollbackHunkResult,
+  UiToolingRollbackWorkspaceResult,
+  UiWorkspaceReviewDraft,
+} from '../types/codex'
 
 function reviewDraft(overrides: Partial<UiWorkspaceReviewDraft> = {}): UiWorkspaceReviewDraft {
   return {
@@ -67,6 +86,80 @@ function comment(overrides: Partial<UiReviewComment> = {}): UiReviewComment {
       lineContent: 'next',
     },
     followUpRunId: null,
+    ...overrides,
+  }
+}
+
+function checkpoint(overrides: Partial<UiToolingCheckpoint> = {}): UiToolingCheckpoint {
+  return {
+    id: 'cp-1',
+    label: 'Before rollback',
+    cwd: '/workspace/app',
+    repoRoot: '/workspace/app',
+    createdAtIso: '2026-07-07T00:00:00.000Z',
+    paths: ['src/app.ts'],
+    patchPath: '/workspace/app/.codex/checkpoints/cp-1.patch',
+    patchBytes: 1234,
+    hasPatch: true,
+    ...overrides,
+  }
+}
+
+function gitStatus(overrides: Partial<UiGitStatusSnapshot> = {}): UiGitStatusSnapshot {
+  return {
+    cwd: '/workspace/app',
+    repoRoot: '/workspace/app',
+    branch: 'main',
+    upstream: 'origin/main',
+    generatedAtIso: '2026-07-07T00:00:00.000Z',
+    stagedFileCount: 0,
+    unstagedFileCount: 0,
+    untrackedFileCount: 0,
+    conflictedFileCount: 0,
+    files: [],
+    ...overrides,
+  }
+}
+
+function rollbackFileResult(overrides: Partial<UiToolingRollbackFileResult> = {}): UiToolingRollbackFileResult {
+  return {
+    cwd: '/workspace/app',
+    repoRoot: '/workspace/app',
+    filePath: '/workspace/app/src/app.ts',
+    relativePath: 'src/app.ts',
+    checkpoint: checkpoint(),
+    rollbackApplied: true,
+    remainingStatus: '',
+    ...overrides,
+  }
+}
+
+function rollbackHunkResult(overrides: Partial<UiToolingRollbackHunkResult> = {}): UiToolingRollbackHunkResult {
+  return {
+    cwd: '/workspace/app',
+    repoRoot: '/workspace/app',
+    filePath: '/workspace/app/src/app.ts',
+    relativePath: 'src/app.ts',
+    hunkIndex: 0,
+    hunkHeader: '@@ -1 +1 @@',
+    checkpoint: checkpoint(),
+    rollbackApplied: true,
+    remainingStatus: '',
+    ...overrides,
+  }
+}
+
+function rollbackWorkspaceResult(
+  overrides: Partial<UiToolingRollbackWorkspaceResult> = {},
+): UiToolingRollbackWorkspaceResult {
+  return {
+    cwd: '/workspace/app',
+    repoRoot: '/workspace/app',
+    checkpoint: checkpoint(),
+    rollbackApplied: true,
+    restoredFileCount: 2,
+    removedUntrackedCount: 1,
+    remainingStatus: gitStatus(),
     ...overrides,
   }
 }
@@ -138,6 +231,82 @@ describe('thread diff review panel rules', () => {
       message: '',
       isVisible: false,
     })
+  })
+
+  it('updates rollback and checkpoint state maps immutably', () => {
+    expect(setReviewRollbackStateForPath({}, 'src/app.ts', {
+      status: 'rollingBack',
+      message: 'working',
+    })).toEqual({
+      'src/app.ts': { status: 'rollingBack', message: 'working' },
+    })
+
+    expect(setReviewHunkRollbackStateForKey({}, 'src/app.ts', 2, {
+      status: 'failed',
+      message: 'nope',
+    })).toEqual({
+      [diffReviewHunkKey('src/app.ts', 2)]: { status: 'failed', message: 'nope' },
+    })
+
+    expect(setReviewHunkStageStateForKey({}, 'src/app.ts', 1, {
+      status: 'staged',
+      message: 'accepted',
+    })).toEqual({
+      [diffReviewHunkKey('src/app.ts', 1)]: { status: 'staged', message: 'accepted' },
+    })
+
+    const loaded = loadedCheckpointPatchState('patch')
+    expect(setReviewCheckpointPatchStateForId({}, 'cp-1', loaded)).toEqual({ 'cp-1': loaded })
+    expect(toggleLoadedCheckpointPatchVisibility(loaded)).toEqual({
+      status: 'loaded',
+      patch: 'patch',
+      message: '',
+      isVisible: false,
+    })
+    expect(loadingCheckpointPatchState({ ...loaded, isVisible: false })).toEqual({
+      status: 'loading',
+      patch: 'patch',
+      message: '',
+      isVisible: false,
+    })
+    expect(failedCheckpointPatchState('missing')).toEqual({
+      status: 'failed',
+      patch: '',
+      message: 'missing',
+      isVisible: false,
+    })
+  })
+
+  it('builds rollback completion messages', () => {
+    expect(fileRollbackSuccessMessage(rollbackFileResult()))
+      .toBe('Checkpoint cp-1 saved. File is clean.')
+    expect(fileRollbackSuccessMessage(rollbackFileResult({
+      rollbackApplied: false,
+    }))).toBe('Checkpoint cp-1 saved. No local changes were found for this file.')
+    expect(fileRollbackSuccessMessage(rollbackFileResult({
+      remainingStatus: 'M src/app.ts',
+    }))).toBe('Checkpoint cp-1 saved. File still has git status.')
+
+    expect(hunkRollbackSuccessMessage(rollbackHunkResult()))
+      .toBe('Checkpoint cp-1 saved. File is clean.')
+
+    expect(workspaceRollbackSuccessMessage(rollbackWorkspaceResult()))
+      .toBe('Checkpoint cp-1 saved. Restored 2 tracked changes and removed 1 untracked path. Workspace is clean.')
+    expect(workspaceRollbackSuccessMessage(rollbackWorkspaceResult({
+      rollbackApplied: false,
+    }))).toBe('Checkpoint cp-1 saved. No workspace changes were present.')
+    expect(workspaceRollbackSuccessMessage(rollbackWorkspaceResult({
+      restoredFileCount: 1,
+      removedUntrackedCount: 2,
+      remainingStatus: gitStatus({
+        files: [{
+          path: 'src/app.ts',
+          status: 'modified',
+          indexStatus: ' ',
+          worktreeStatus: 'M',
+        }],
+      }),
+    }))).toBe('Checkpoint cp-1 saved. Restored 1 tracked change and removed 2 untracked paths. 1 file still needs attention.')
   })
 
   it('sorts hunk comments and formats anchors', () => {
