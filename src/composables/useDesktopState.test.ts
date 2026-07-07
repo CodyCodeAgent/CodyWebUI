@@ -225,6 +225,112 @@ describe('useDesktopState realtime messages', () => {
     state.stopRealtimeSync()
   })
 
+  it('keeps live content for threads selected after the stream starts', async () => {
+    installBrowserGlobals('thread-a')
+    const state = useDesktopState()
+
+    state.startRealtimeSync()
+    const listener = codexApiMock.getNotificationListener()
+    expect(listener).not.toBeNull()
+
+    listener?.({
+      method: 'turn/started',
+      params: {
+        threadId: 'thread-b',
+        turn: {
+          id: 'turn-b',
+          startedAt: '2026-07-07T00:00:00.000Z',
+        },
+      },
+      atIso: '2026-07-07T00:00:00.000Z',
+    })
+    listener?.({
+      method: 'item/agentMessage/delta',
+      params: {
+        threadId: 'thread-b',
+        turnId: 'turn-b',
+        itemId: 'msg-b',
+        delta: '后台实时输出',
+      },
+      atIso: '2026-07-07T00:00:01.000Z',
+    })
+    listener?.({
+      method: 'item/plan/delta',
+      params: {
+        threadId: 'thread-b',
+        turnId: 'turn-b',
+        itemId: 'plan-b',
+        delta: '1. [todo] 后台计划',
+      },
+      atIso: '2026-07-07T00:00:02.000Z',
+    })
+    listener?.({
+      method: 'item/completed',
+      params: {
+        threadId: 'thread-b',
+        turnId: 'turn-b',
+        item: {
+          id: 'msg-b',
+          type: 'agentMessage',
+          text: '后台最终输出',
+        },
+      },
+      atIso: '2026-07-07T00:00:03.000Z',
+    })
+
+    expect(state.messages.value).toEqual([])
+
+    await state.selectThread('thread-b')
+
+    expect(state.messages.value).toEqual([
+      {
+        id: 'msg-b',
+        role: 'assistant',
+        text: '后台最终输出',
+        messageType: 'agentMessage.live',
+      },
+      {
+        id: 'plan-b',
+        role: 'assistant',
+        text: '1. [todo] 后台计划',
+        messageType: 'plan.live',
+      },
+    ])
+
+    listener?.({
+      method: 'turn/plan/updated',
+      params: {
+        threadId: 'thread-b',
+        turnId: 'turn-b',
+        explanation: '计划更新',
+        plan: [
+          {
+            step: '检查实时输出',
+            status: 'inProgress',
+          },
+        ],
+      },
+      atIso: '2026-07-07T00:00:04.000Z',
+    })
+
+    expect(state.messages.value).toEqual([
+      {
+        id: 'msg-b',
+        role: 'assistant',
+        text: '后台最终输出',
+        messageType: 'agentMessage.live',
+      },
+      {
+        id: 'plan-b',
+        role: 'assistant',
+        text: '计划更新\n\n1. [doing] 检查实时输出',
+        messageType: 'plan.live',
+      },
+    ])
+
+    state.stopRealtimeSync()
+  })
+
   it('keeps message loading scoped to the selected thread', async () => {
     installBrowserGlobals('thread-a')
     const threadALoad = deferred<UiMessage[]>()

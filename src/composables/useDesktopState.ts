@@ -204,7 +204,7 @@ export function useDesktopState() {
   let autoRefreshIntervalTimer: number | null = null
   let autoRefreshCountdownTimer: number | null = null
   const realtimeSyncQueue = createDesktopRealtimeSyncQueue()
-  let activeReasoningItemId = ''
+  const activeReasoningItemIdByThreadId = new Map<string, string>()
   let shouldAutoScrollOnNextAgentEvent = false
   const pendingTurnStartsById = new Map<string, TurnStartedInfo>()
   const livePlanMessageIdByTurnId = new Map<string, string>()
@@ -252,9 +252,7 @@ export function useDesktopState() {
     if (selectedThreadId.value === nextThreadId) return
     selectedThreadId.value = nextThreadId
     saveSelectedThreadId(nextThreadId)
-    activeReasoningItemId = ''
     shouldAutoScrollOnNextAgentEvent = false
-    livePlanMessageIdByTurnId.clear()
   }
 
   function setMessagesLoadingForThread(threadId: string, isLoading: boolean): void {
@@ -758,7 +756,8 @@ export function useDesktopState() {
     }
 
     const notificationThreadId = extractThreadIdFromNotification(notification)
-    if (!notificationThreadId || notificationThreadId !== selectedThreadId.value) return
+    if (!notificationThreadId) return
+    const isSelectedNotificationThread = notificationThreadId === selectedThreadId.value
 
     const completedUserMessages = readUserMessageCompleted(notification)
     if (completedUserMessages.length > 0) {
@@ -771,7 +770,7 @@ export function useDesktopState() {
 
     const startedAgentMessageId = readAgentMessageStartedId(notification)
     if (startedAgentMessageId) {
-      activeReasoningItemId = ''
+      activeReasoningItemIdByThreadId.delete(notificationThreadId)
     }
 
     const liveAgentMessageDelta = readAgentMessageDelta(notification)
@@ -821,7 +820,7 @@ export function useDesktopState() {
 
     const startedReasoningItemId = readReasoningStartedItemId(notification)
     if (startedReasoningItemId) {
-      activeReasoningItemId = startedReasoningItemId
+      activeReasoningItemIdByThreadId.set(notificationThreadId, startedReasoningItemId)
     }
 
     const liveReasoningDelta = readReasoningDelta(notification)
@@ -837,26 +836,29 @@ export function useDesktopState() {
 
     const completedReasoningMessageId = readReasoningCompletedId(notification)
     if (completedReasoningMessageId) {
+      const activeReasoningItemId = activeReasoningItemIdByThreadId.get(notificationThreadId) ?? ''
       if (completedReasoningMessageId === liveReasoningMessageId(activeReasoningItemId)) {
-        activeReasoningItemId = ''
+        activeReasoningItemIdByThreadId.delete(notificationThreadId)
       }
     }
 
     if (isAgentContentEvent(notification)) {
-      if (shouldAutoScrollOnNextAgentEvent && selectedThreadId.value) {
+      if (isSelectedNotificationThread && shouldAutoScrollOnNextAgentEvent && selectedThreadId.value) {
         setThreadScrollState(selectedThreadId.value, {
           scrollTop: 0,
           isAtBottom: true,
           scrollRatio: 1,
         })
       }
-      activeReasoningItemId = ''
+      activeReasoningItemIdByThreadId.delete(notificationThreadId)
       clearLiveReasoningForThread(notificationThreadId)
     }
 
     if (notification.method === 'turn/completed') {
-      activeReasoningItemId = ''
-      shouldAutoScrollOnNextAgentEvent = false
+      activeReasoningItemIdByThreadId.delete(notificationThreadId)
+      if (isSelectedNotificationThread) {
+        shouldAutoScrollOnNextAgentEvent = false
+      }
       clearLiveReasoningForThread(notificationThreadId)
     }
 
@@ -1070,7 +1072,7 @@ export function useDesktopState() {
     persistedMessagesByThreadId.value = {}
     liveAgentMessagesByThreadId.value = {}
     liveReasoningTextByThreadId.value = {}
-    activeReasoningItemId = ''
+    activeReasoningItemIdByThreadId.clear()
     shouldAutoScrollOnNextAgentEvent = false
 
     try {
@@ -1576,7 +1578,7 @@ export function useDesktopState() {
       window.clearTimeout(eventSyncTimer)
       eventSyncTimer = null
     }
-    activeReasoningItemId = ''
+    activeReasoningItemIdByThreadId.clear()
     shouldAutoScrollOnNextAgentEvent = false
     loadingMessagesByThreadId.value = {}
     persistedMessagesByThreadId.value = {}
