@@ -666,11 +666,11 @@ function saveSidebarCollapsed(value: boolean): void {
 }
 
 async function initialize(): Promise<void> {
+  startRealtimeSync()
   await refreshAll()
   await ensureNewThreadWorkspace()
   hasInitialized.value = true
   await syncThreadSelectionWithRoute()
-  startRealtimeSync()
 }
 
 async function ensureNewThreadWorkspace(): Promise<void> {
