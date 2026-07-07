@@ -5,6 +5,7 @@ import {
   buildApprovalRiskSummary,
   isApprovalRequestMethod,
 } from './useApprovalRisk'
+import { serverRequestKind, type UiServerRequestKind } from './serverRequestRules'
 export { isToolFailureStatus } from './threadToolTimelineRules'
 
 export type UiThreadActivityEntry = UiToolTimelineEntry & {
@@ -35,6 +36,7 @@ export type WorkLogMetric = {
 export type PendingApprovalCard = {
   request: UiServerRequest
   summary: ReturnType<typeof buildApprovalRiskSummary>
+  kind: UiServerRequestKind
   isApprovalRequest: boolean
 }
 
@@ -133,6 +135,7 @@ export function buildPendingApprovalCards(requests: UiServerRequest[]): PendingA
   return requests.map((request) => ({
     request,
     summary: buildApprovalRiskSummary(request),
+    kind: serverRequestKind(request.method),
     isApprovalRequest: isPendingApprovalRequest(request),
   }))
 }

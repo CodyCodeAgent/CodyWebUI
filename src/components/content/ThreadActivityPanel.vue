@@ -172,7 +172,7 @@
             <template v-if="card.isApprovalRequest">
               <button
                 v-for="scope in approvalScopeOptions"
-                :key="`${card.request.id}:action:${scope.scope}`"
+                :key="`${card.request.id}:${serverRequestActionKeyPrefix(card.kind)}:${scope.scope}`"
                 class="activity-request-button"
                 :class="{ 'activity-request-button-primary': scope.scope === 'single', 'activity-request-button-danger': scope.scope === 'permanent' }"
                 type="button"
@@ -289,6 +289,7 @@ import {
   buildEmptyServerRequestReply,
   buildRejectedServerRequestReply,
 } from '../../composables/threadConversationRules'
+import { serverRequestActionKeyPrefix } from '../../composables/serverRequestRules'
 import { buildDiffReview } from '../../composables/useDiffReview'
 import type { UiDiffLineKind, UiDiffReviewFile } from '../../composables/useDiffReview'
 import type { UiApprovalDecisionScope, UiMessage, UiServerRequest, UiServerRequestReply, UiToolingRollbackFileResult } from '../../types/codex'

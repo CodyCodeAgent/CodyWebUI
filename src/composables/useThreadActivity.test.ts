@@ -196,9 +196,11 @@ describe('thread activity helpers', () => {
     expect(isPendingApprovalRequest(genericRequest)).toBe(false)
     expect(cards).toHaveLength(2)
     expect(cards[0].request).toBe(pendingRequests[0])
+    expect(cards[0].kind).toBe('command_approval')
     expect(cards[0].isApprovalRequest).toBe(true)
     expect(cards[0].summary.title).toBe('Command approval')
     expect(cards[1].request).toBe(genericRequest)
+    expect(cards[1].kind).toBe('unknown')
     expect(cards[1].isApprovalRequest).toBe(false)
   })
 

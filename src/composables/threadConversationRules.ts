@@ -12,12 +12,16 @@ import {
   approvalDecisionForScope,
   approvalScopeForDecision,
   buildApprovalRiskSummary,
-  isCommandApprovalRequestMethod,
-  isFileChangeApprovalRequestMethod,
   type UiApprovalRiskSummary,
   type UiApprovalDecision,
 } from './useApprovalRisk'
 import { formatToolStatus } from './threadToolTimelineRules'
+import {
+  isServerApprovalRequestKind,
+  serverRequestActionKeyPrefix,
+  serverRequestKind,
+  type UiServerRequestKind,
+} from './serverRequestRules'
 
 export type ParsedToolQuestion = {
   id: string
@@ -33,12 +37,7 @@ export type ConversationScrollMetrics = {
   isAtBottom: boolean
 }
 
-export type ConversationRequestKind =
-  | 'command_approval'
-  | 'file_change_approval'
-  | 'tool_user_input'
-  | 'tool_call'
-  | 'unknown'
+export type ConversationRequestKind = UiServerRequestKind
 
 export type ConversationRequestCard = {
   request: UiServerRequest
@@ -164,21 +163,15 @@ export function shouldShowScrollToBottomButton(params: {
 }
 
 export function conversationRequestKind(method: string): ConversationRequestKind {
-  if (isCommandApprovalRequestMethod(method)) return 'command_approval'
-  if (isFileChangeApprovalRequestMethod(method)) return 'file_change_approval'
-  if (method === 'item/tool/requestUserInput') return 'tool_user_input'
-  if (method === 'item/tool/call') return 'tool_call'
-  return 'unknown'
+  return serverRequestKind(method)
 }
 
 export function isConversationApprovalRequestKind(kind: ConversationRequestKind): boolean {
-  return kind === 'command_approval' || kind === 'file_change_approval'
+  return isServerApprovalRequestKind(kind)
 }
 
 export function conversationRequestActionKeyPrefix(kind: ConversationRequestKind): string {
-  if (kind === 'command_approval') return 'command'
-  if (kind === 'file_change_approval') return 'file'
-  return 'request'
+  return serverRequestActionKeyPrefix(kind)
 }
 
 export function buildConversationRequestCards(requests: UiServerRequest[]): ConversationRequestCard[] {
