@@ -229,6 +229,16 @@ import {
   stageGitPaths,
   unstageGitPaths,
 } from '../../api/codexWorkspaceGitClient'
+import {
+  canSubmitWorkspacePullRequestDraft,
+  isWorkspaceGitActionPending,
+  stagedWorkspaceFiles,
+  workspaceGitActionKey,
+  workspaceGitDraftSummary,
+  workingTreeWorkspaceFiles,
+  workspacePullRequestSummary,
+} from '../../composables/workspaceGitPanelRules'
+import type { WorkspaceGitPathAction } from '../../composables/workspaceGitPanelRules'
 import type {
   UiGitCommitResult,
   UiGitDeliveryDraft,
@@ -267,31 +277,23 @@ const prBodyDraft = ref('')
 const isPrActionPending = ref(false)
 const prResult = ref<UiPullRequestCreateResult | null>(null)
 
-const stagedFiles = computed<UiWorkspaceStatusFile[]>(() => (
-  status.value?.files.filter((file) => file.status !== '??' && file.indexStatus.length > 0) ?? []
-))
-const workingTreeFiles = computed<UiWorkspaceStatusFile[]>(() => (
-  status.value?.files.filter((file) => file.status === '??' || file.worktreeStatus.length > 0) ?? []
-))
-const draftSummary = computed(() => {
-  if (!draft.value) return 'Generate commit and PR text from staged changes.'
-  if (!draft.value.hasStagedChanges) return 'No staged changes.'
-  return `${String(draft.value.fileCount)} files, +${String(draft.value.insertions)} / -${String(draft.value.deletions)}`
-})
-const prSummary = computed(() => {
-  if (!prDraft.value) return 'Create a PR draft from commits on the current branch.'
-  return `${prDraft.value.branch || 'detached'} -> ${prDraft.value.baseBranch}, ${String(prDraft.value.commitCount)} commits, ${String(prDraft.value.fileCount)} files`
-})
-const canSubmitPr = computed(() => (
-  Boolean(props.cwd.trim() && prTitleDraft.value.trim() && prBodyDraft.value.trim() && prBaseBranchDraft.value.trim())
-))
+const stagedFiles = computed<UiWorkspaceStatusFile[]>(() => stagedWorkspaceFiles(status.value))
+const workingTreeFiles = computed<UiWorkspaceStatusFile[]>(() => workingTreeWorkspaceFiles(status.value))
+const draftSummary = computed(() => workspaceGitDraftSummary(draft.value))
+const prSummary = computed(() => workspacePullRequestSummary(prDraft.value))
+const canSubmitPr = computed(() => canSubmitWorkspacePullRequestDraft({
+  cwd: props.cwd,
+  title: prTitleDraft.value,
+  body: prBodyDraft.value,
+  baseBranch: prBaseBranchDraft.value,
+}))
 
-function actionKey(action: 'stage' | 'unstage', path: string): string {
-  return `${action}:${path}`
+function actionKey(action: WorkspaceGitPathAction, path: string): string {
+  return workspaceGitActionKey(action, path)
 }
 
-function isActionPending(action: 'stage' | 'unstage', path: string): boolean {
-  return pendingActionKey.value === actionKey(action, path)
+function isActionPending(action: WorkspaceGitPathAction, path: string): boolean {
+  return isWorkspaceGitActionPending(pendingActionKey.value, action, path)
 }
 
 async function loadStatus(): Promise<void> {
