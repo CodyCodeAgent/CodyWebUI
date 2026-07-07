@@ -3,12 +3,14 @@ import {
   buildThreadCommandEntries,
   buildThreadActivityEntries,
   buildThreadActivitySummary,
+  buildPendingApprovalCards,
   buildPendingApprovalSubtitle,
   buildWorkLogFileStatLabel,
   buildWorkLogFloatSummary,
   buildWorkLogMetrics,
   buildWorkLogStatusText,
   formatWorkLogLineNumber,
+  isPendingApprovalRequest,
   isToolFailureStatus,
   shouldCloseWorkLogFullscreenFile,
   workLogBadgeCount,
@@ -176,6 +178,28 @@ describe('thread activity helpers', () => {
     expect(workLogDiffLinePrefix('add')).toBe('+')
     expect(workLogDiffLinePrefix('remove')).toBe('-')
     expect(workLogDiffLinePrefix('context')).toBe('')
+  })
+
+  it('builds pending approval cards with stable request metadata', () => {
+    const genericRequest: UiServerRequest = {
+      id: 2,
+      method: 'custom/request',
+      threadId: 'thread-1',
+      turnId: 'turn-1',
+      itemId: 'custom-1',
+      receivedAtIso: '2026-07-04T12:01:00.000Z',
+      params: { note: 'custom' },
+    }
+    const cards = buildPendingApprovalCards([...pendingRequests, genericRequest])
+
+    expect(isPendingApprovalRequest(pendingRequests[0])).toBe(true)
+    expect(isPendingApprovalRequest(genericRequest)).toBe(false)
+    expect(cards).toHaveLength(2)
+    expect(cards[0].request).toBe(pendingRequests[0])
+    expect(cards[0].isApprovalRequest).toBe(true)
+    expect(cards[0].summary.title).toBe('Command approval')
+    expect(cards[1].request).toBe(genericRequest)
+    expect(cards[1].isApprovalRequest).toBe(false)
   })
 
   it('tracks work log badge and fullscreen file state from the diff review', () => {

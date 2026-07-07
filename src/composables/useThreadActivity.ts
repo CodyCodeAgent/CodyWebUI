@@ -1,6 +1,7 @@
 import type { UiMessage, UiServerRequest, UiToolTimelineEntry } from '../types/codex'
 import type { UiDiffLineKind, UiDiffReview, UiDiffReviewFile } from './useDiffReview'
 import { isToolFailureStatus } from './threadToolTimelineRules'
+import { buildApprovalRiskSummary } from './useApprovalRisk'
 export { isToolFailureStatus } from './threadToolTimelineRules'
 
 export type UiThreadActivityEntry = UiToolTimelineEntry & {
@@ -26,6 +27,12 @@ export type UiThreadCommandEntry = UiToolTimelineEntry & {
 export type WorkLogMetric = {
   label: string
   value: string
+}
+
+export type PendingApprovalCard = {
+  request: UiServerRequest
+  summary: ReturnType<typeof buildApprovalRiskSummary>
+  isApprovalRequest: boolean
 }
 
 export function buildThreadActivityEntries(messages: UiMessage[]): UiThreadActivityEntry[] {
@@ -113,6 +120,21 @@ export function buildWorkLogMetrics(input: {
 
 export function buildPendingApprovalSubtitle(count: number): string {
   return `${String(count)} approval${count === 1 ? '' : 's'} waiting`
+}
+
+export function isPendingApprovalRequest(request: UiServerRequest): boolean {
+  return (
+    request.method === 'item/commandExecution/requestApproval' ||
+    request.method === 'item/fileChange/requestApproval'
+  )
+}
+
+export function buildPendingApprovalCards(requests: UiServerRequest[]): PendingApprovalCard[] {
+  return requests.map((request) => ({
+    request,
+    summary: buildApprovalRiskSummary(request),
+    isApprovalRequest: isPendingApprovalRequest(request),
+  }))
 }
 
 export function buildWorkLogFileStatLabel(input: {

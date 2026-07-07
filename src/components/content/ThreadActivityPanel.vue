@@ -133,32 +133,32 @@
       </header>
 
       <div class="thread-action-required-list">
-        <article v-for="request in pendingRequests" :key="request.id" class="activity-request-card">
-          <p class="activity-request-method">{{ approvalSummary(request).title }}</p>
-          <p class="activity-request-meta">#{{ request.id }} · {{ formatIsoTime(request.receivedAtIso) }}</p>
-          <p class="activity-request-subject">{{ approvalSummary(request).subject }}</p>
+        <article v-for="card in pendingApprovalCards" :key="card.request.id" class="activity-request-card">
+          <p class="activity-request-method">{{ card.summary.title }}</p>
+          <p class="activity-request-meta">#{{ card.request.id }} · {{ formatIsoTime(card.request.receivedAtIso) }}</p>
+          <p class="activity-request-subject">{{ card.summary.subject }}</p>
           <div class="approval-risk-line">
-            <span class="approval-risk-badge" :data-level="approvalSummary(request).level">
-              {{ approvalSummary(request).level }}
+            <span class="approval-risk-badge" :data-level="card.summary.level">
+              {{ card.summary.level }}
             </span>
             <span
-              v-for="label in approvalSummary(request).riskLabels"
-              :key="`${request.id}:${label}`"
+              v-for="label in card.summary.riskLabels"
+              :key="`${card.request.id}:${label}`"
               class="approval-risk-label"
             >
               {{ label }}
             </span>
           </div>
-          <p class="activity-request-reason">{{ approvalSummary(request).description }}</p>
+          <p class="activity-request-reason">{{ card.summary.description }}</p>
           <ul class="approval-impact-list">
-            <li v-for="impact in approvalSummary(request).impacts" :key="`${request.id}:${impact}`">
+            <li v-for="impact in card.summary.impacts" :key="`${card.request.id}:${impact}`">
               {{ impact }}
             </li>
           </ul>
           <div class="approval-scope-line" aria-label="Approval scopes">
             <span
               v-for="scope in approvalScopeOptions"
-              :key="`${request.id}:${scope.scope}`"
+              :key="`${card.request.id}:${scope.scope}`"
               class="approval-scope"
               :data-enabled="scope.enabled"
               :title="scope.description"
@@ -166,29 +166,29 @@
               {{ scope.label }}
             </span>
           </div>
-          <p class="approval-recommendation">{{ approvalSummary(request).recommendation }}</p>
+          <p class="approval-recommendation">{{ card.summary.recommendation }}</p>
 
           <div class="activity-request-actions">
-            <template v-if="isApprovalRequest(request)">
+            <template v-if="card.isApprovalRequest">
               <button
                 v-for="scope in approvalScopeOptions"
-                :key="`${request.id}:action:${scope.scope}`"
+                :key="`${card.request.id}:action:${scope.scope}`"
                 class="activity-request-button"
                 :class="{ 'activity-request-button-primary': scope.scope === 'single', 'activity-request-button-danger': scope.scope === 'permanent' }"
                 type="button"
-                @click="onRespondApprovalScope(request.id, scope.scope)"
+                @click="onRespondApprovalScope(card.request.id, scope.scope)"
               >
                 {{ scope.label }}
               </button>
-              <button class="activity-request-button" type="button" @click="onRespondApproval(request.id, 'decline')">
+              <button class="activity-request-button" type="button" @click="onRespondApproval(card.request.id, 'decline')">
                 Decline
               </button>
             </template>
             <template v-else>
-              <button class="activity-request-button activity-request-button-primary" type="button" @click="onRespondEmptyResult(request.id)">
+              <button class="activity-request-button activity-request-button-primary" type="button" @click="onRespondEmptyResult(card.request.id)">
                 Empty result
               </button>
-              <button class="activity-request-button" type="button" @click="onRejectRequest(request.id)">
+              <button class="activity-request-button" type="button" @click="onRejectRequest(card.request.id)">
                 Reject
               </button>
             </template>
@@ -264,6 +264,7 @@ import {
   buildThreadCommandEntries,
   buildThreadActivitySummary,
   buildPendingApprovalSubtitle,
+  buildPendingApprovalCards,
   buildWorkLogStatusText,
   buildWorkLogFileStatLabel,
   buildWorkLogFloatSummary,
@@ -280,7 +281,6 @@ import {
 } from '../../composables/threadToolTimelineRules'
 import {
   APPROVAL_SCOPE_OPTIONS,
-  buildApprovalRiskSummary,
   type UiApprovalDecision,
 } from '../../composables/useApprovalRisk'
 import {
@@ -324,6 +324,7 @@ const workLogMetrics = computed(() => buildWorkLogMetrics({
 }))
 const summary = computed(() => buildThreadActivitySummary(props.messages, props.pendingRequests))
 const pendingApprovalSubtitle = computed(() => buildPendingApprovalSubtitle(props.pendingRequests.length))
+const pendingApprovalCards = computed(() => buildPendingApprovalCards(props.pendingRequests))
 const statusText = computed(() => buildWorkLogStatusText({
   pendingRequestCount: summary.value.pendingRequestCount,
   fileCount: diffReview.value.summary.fileCount,
@@ -334,17 +335,6 @@ function formatIsoTime(value: string): string {
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return value
   return date.toLocaleTimeString()
-}
-
-function approvalSummary(request: UiServerRequest) {
-  return buildApprovalRiskSummary(request)
-}
-
-function isApprovalRequest(request: UiServerRequest): boolean {
-  return (
-    request.method === 'item/commandExecution/requestApproval' ||
-    request.method === 'item/fileChange/requestApproval'
-  )
 }
 
 function onRespondApproval(requestId: number, decision: UiApprovalDecision): void {
