@@ -1,10 +1,10 @@
 import { computed, ref } from 'vue'
 import {
-  subscribeCodexNotifications,
-  subscribeLocalProductNotifications,
+  subscribeProductNotifications,
+  subscribeRpcNotifications,
   type ProductNotification,
   type RpcNotification,
-} from '../api/codexGateway'
+} from '../api/codexRealtimeClient'
 import { asRecord, readNumber, readString as readProtocolString } from '../api/protocolValueReaders'
 
 export type BrowserNotificationPreference = 'off' | 'important' | 'all'
@@ -311,10 +311,10 @@ export function useBrowserNotifications() {
 
   function start(): void {
     if (!stopCodexStream) {
-      stopCodexStream = subscribeCodexNotifications(notifyRpcEvent)
+      stopCodexStream = subscribeRpcNotifications(notifyRpcEvent)
     }
     if (!stopProductStream) {
-      stopProductStream = subscribeLocalProductNotifications(notifyProductEvent)
+      stopProductStream = subscribeProductNotifications(notifyProductEvent)
     }
   }
 

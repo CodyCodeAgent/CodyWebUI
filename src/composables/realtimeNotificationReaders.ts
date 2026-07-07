@@ -1,4 +1,4 @@
-import type { RpcNotification } from '../api/codexGateway'
+import type { RpcNotification } from '../api/codexRealtimeClient'
 import type { UiMessage, UiThread } from '../types/codex'
 import { buildUserMessageContentMessages } from '../api/normalizers/userMessageContent'
 import {

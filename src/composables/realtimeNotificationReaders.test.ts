@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { RpcNotification } from '../api/codexGateway'
+import type { RpcNotification } from '../api/codexRealtimeClient'
 import {
   extractThreadIdFromNotification,
   isAgentContentEvent,

@@ -5,7 +5,7 @@ import {
   shouldSendBrowserNotification,
   type BrowserNotificationEvent,
 } from './useBrowserNotifications'
-import type { ProductNotification, RpcNotification } from '../api/codexGateway'
+import type { ProductNotification, RpcNotification } from '../api/codexRealtimeClient'
 
 function buildNotification(method: string, params: unknown): RpcNotification {
   return {

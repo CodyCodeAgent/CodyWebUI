@@ -1,27 +1,35 @@
 import { computed, ref } from 'vue'
 import {
-  archiveThread,
-  compactThread,
-  forkThread,
-  getAccountRateLimits,
   getAvailableModelIds,
   getCollaborationModes,
   getCurrentModelConfig,
-  getPendingServerRequests,
-  interruptThreadTurn,
-  replyToServerRequest,
+} from '../api/codexModelClient'
+import {
+  getAccountRateLimits,
+  normalizeRateLimitSnapshot,
+} from '../api/codexRateLimitClient'
+import {
+  archiveThread,
+  compactThread,
+  forkThread,
   getThreadGroups,
   getThreadMessages,
+  interruptThreadTurn,
   renameThread,
   resumeThread,
   startThread,
-  normalizeRateLimitSnapshot,
-  subscribeCodexNotifications,
   startThreadTurn,
   steerThreadTurn,
   unarchiveThread,
+} from '../api/codexThreadClient'
+import {
+  fetchPendingServerRequests,
+  respondServerRequest,
+} from '../api/codexBridgeClient'
+import {
+  subscribeRpcNotifications,
   type RpcNotification,
-} from '../api/codexGateway'
+} from '../api/codexRealtimeClient'
 import {
   extractThreadIdFromNotification,
   isAgentContentEvent,
@@ -1474,7 +1482,7 @@ export function useDesktopState() {
     }
     void loadPendingServerRequestsFromBridge()
     void refreshRateLimits()
-    stopNotificationStream = subscribeCodexNotifications((notification) => {
+    stopNotificationStream = subscribeRpcNotifications((notification) => {
       applyRealtimeUpdates(notification)
       queueEventDrivenSync(notification)
     })
@@ -1482,7 +1490,7 @@ export function useDesktopState() {
 
   async function loadPendingServerRequestsFromBridge(): Promise<void> {
     try {
-      const rows = await getPendingServerRequests()
+      const rows = await fetchPendingServerRequests()
       for (const row of rows) {
         const request = normalizeServerRequest(row)
         if (request) {
@@ -1496,7 +1504,8 @@ export function useDesktopState() {
 
   async function respondToPendingServerRequest(reply: UiServerRequestReply): Promise<void> {
     try {
-      await replyToServerRequest(reply.id, {
+      await respondServerRequest({
+        id: reply.id,
         approvalScope: reply.approvalScope,
         result: reply.result,
         error: reply.error,

@@ -1,5 +1,5 @@
 import { computed, ref } from 'vue'
-import { getAvailableSkills } from '../api/codexGateway'
+import { getAvailableSkills } from '../api/codexComposerClient'
 import type { UiComposerSkill } from '../types/codex'
 
 type SkillTrigger = {

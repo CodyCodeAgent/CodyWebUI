@@ -1,5 +1,5 @@
 import { ref } from 'vue'
-import { uploadComposerImage } from '../api/codexGateway'
+import { uploadComposerImage } from '../api/codexComposerClient'
 import type { UiComposerImage } from '../types/codex'
 
 const MAX_IMAGE_COUNT = 8

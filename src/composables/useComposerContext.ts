@@ -8,7 +8,7 @@ import {
   fetchWorkspaceSnapshot,
   fetchWorkspaceValidationRuns,
 } from '../api/codexRpcClient'
-import { getThreadGroups } from '../api/codexGateway'
+import { getThreadGroups } from '../api/codexThreadClient'
 import type {
   UiComposerContextAttachment,
   UiComposerContextKind,

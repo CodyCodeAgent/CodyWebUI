@@ -2,11 +2,11 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { buildRollbackAuditMessage, useDesktopState } from './useDesktopState'
 import { buildThreadActivityEntries } from './useThreadActivity'
 import type { UiMessage, UiToolingRollbackFileResult } from '../types/codex'
-import type { RpcNotification } from '../api/codexGateway'
+import type { RpcNotification } from '../api/codexRealtimeClient'
 
 const SELECTED_THREAD_STORAGE_KEY = 'codex-web-local.selected-thread-id.v1'
 
-const codexGatewayMock = vi.hoisted(() => {
+const codexApiMock = vi.hoisted(() => {
   let notificationListener: ((value: RpcNotification) => void) | null = null
 
   return {
@@ -18,18 +18,18 @@ const codexGatewayMock = vi.hoisted(() => {
     getAvailableModelIds: vi.fn(async () => []),
     getCollaborationModes: vi.fn(async () => []),
     getCurrentModelConfig: vi.fn(async () => ({ model: '', reasoningEffort: '' })),
-    getPendingServerRequests: vi.fn(async () => []),
+    fetchPendingServerRequests: vi.fn(async () => []),
     getThreadGroups: vi.fn(async () => []),
     getThreadMessages: vi.fn(async (_threadId?: string): Promise<UiMessage[]> => []),
     interruptThreadTurn: vi.fn(),
     normalizeRateLimitSnapshot: vi.fn(() => null),
     renameThread: vi.fn(),
-    replyToServerRequest: vi.fn(),
+    respondServerRequest: vi.fn(),
     resumeThread: vi.fn(),
     startThread: vi.fn(),
     startThreadTurn: vi.fn(),
     steerThreadTurn: vi.fn(),
-    subscribeCodexNotifications: vi.fn((listener: (value: RpcNotification) => void) => {
+    subscribeRpcNotifications: vi.fn((listener: (value: RpcNotification) => void) => {
       notificationListener = listener
       return vi.fn(() => {
         notificationListener = null
@@ -39,7 +39,36 @@ const codexGatewayMock = vi.hoisted(() => {
   }
 })
 
-vi.mock('../api/codexGateway', () => codexGatewayMock)
+vi.mock('../api/codexBridgeClient', () => ({
+  fetchPendingServerRequests: codexApiMock.fetchPendingServerRequests,
+  respondServerRequest: codexApiMock.respondServerRequest,
+}))
+vi.mock('../api/codexModelClient', () => ({
+  getAvailableModelIds: codexApiMock.getAvailableModelIds,
+  getCollaborationModes: codexApiMock.getCollaborationModes,
+  getCurrentModelConfig: codexApiMock.getCurrentModelConfig,
+}))
+vi.mock('../api/codexRateLimitClient', () => ({
+  getAccountRateLimits: codexApiMock.getAccountRateLimits,
+  normalizeRateLimitSnapshot: codexApiMock.normalizeRateLimitSnapshot,
+}))
+vi.mock('../api/codexRealtimeClient', () => ({
+  subscribeRpcNotifications: codexApiMock.subscribeRpcNotifications,
+}))
+vi.mock('../api/codexThreadClient', () => ({
+  archiveThread: codexApiMock.archiveThread,
+  compactThread: codexApiMock.compactThread,
+  forkThread: codexApiMock.forkThread,
+  getThreadGroups: codexApiMock.getThreadGroups,
+  getThreadMessages: codexApiMock.getThreadMessages,
+  interruptThreadTurn: codexApiMock.interruptThreadTurn,
+  renameThread: codexApiMock.renameThread,
+  resumeThread: codexApiMock.resumeThread,
+  startThread: codexApiMock.startThread,
+  startThreadTurn: codexApiMock.startThreadTurn,
+  steerThreadTurn: codexApiMock.steerThreadTurn,
+  unarchiveThread: codexApiMock.unarchiveThread,
+}))
 
 class MemoryStorage implements Storage {
   private readonly values = new Map<string, string>()
@@ -133,7 +162,7 @@ describe('useDesktopState realtime messages', () => {
     const state = useDesktopState()
 
     state.startRealtimeSync()
-    const listener = codexGatewayMock.getNotificationListener()
+    const listener = codexApiMock.getNotificationListener()
     expect(listener).not.toBeNull()
 
     listener?.({
@@ -200,7 +229,7 @@ describe('useDesktopState realtime messages', () => {
     installBrowserGlobals('thread-a')
     const threadALoad = deferred<UiMessage[]>()
     const threadBLoad = deferred<UiMessage[]>()
-    codexGatewayMock.getThreadMessages.mockImplementation(async (threadId?: string) => {
+    codexApiMock.getThreadMessages.mockImplementation(async (threadId?: string) => {
       if (threadId === 'thread-a') return threadALoad.promise
       if (threadId === 'thread-b') return threadBLoad.promise
       return []
@@ -231,7 +260,7 @@ describe('useDesktopState realtime messages', () => {
     installBrowserGlobals('thread-a')
     const firstLoad = deferred<UiMessage[]>()
     const secondLoad = deferred<UiMessage[]>()
-    codexGatewayMock.getThreadMessages
+    codexApiMock.getThreadMessages
       .mockImplementationOnce(async () => firstLoad.promise)
       .mockImplementationOnce(async () => secondLoad.promise)
 
@@ -254,8 +283,8 @@ describe('useDesktopState realtime messages', () => {
   it('returns new thread ids before the first turn finishes starting', async () => {
     installBrowserGlobals()
     const turnStart = deferred<string>()
-    codexGatewayMock.startThread.mockResolvedValue('thread-new')
-    codexGatewayMock.startThreadTurn.mockImplementation(async () => turnStart.promise)
+    codexApiMock.startThread.mockResolvedValue('thread-new')
+    codexApiMock.startThreadTurn.mockImplementation(async () => turnStart.promise)
 
     const state = useDesktopState()
     const createdThreadId = await state.sendMessageToNewThread({
@@ -268,7 +297,7 @@ describe('useDesktopState realtime messages', () => {
     expect(state.selectedThreadId.value).toBe('thread-new')
     expect(state.selectedThread?.value?.inProgress).toBe(true)
     expect(state.isSendingMessage.value).toBe(false)
-    expect(codexGatewayMock.startThreadTurn).toHaveBeenCalledWith(
+    expect(codexApiMock.startThreadTurn).toHaveBeenCalledWith(
       'thread-new',
       'stream this response',
       [],
@@ -281,7 +310,7 @@ describe('useDesktopState realtime messages', () => {
 
   it('surfaces and clears new thread creation failures', async () => {
     installBrowserGlobals()
-    codexGatewayMock.startThread.mockRejectedValue(new Error('start failed'))
+    codexApiMock.startThread.mockRejectedValue(new Error('start failed'))
 
     const state = useDesktopState()
 
