@@ -3,6 +3,10 @@ import {
   buildThreadCommandEntries,
   buildThreadActivityEntries,
   buildThreadActivitySummary,
+  buildPendingApprovalSubtitle,
+  buildWorkLogFileStatLabel,
+  buildWorkLogFloatSummary,
+  buildWorkLogMetrics,
   buildWorkLogStatusText,
   formatWorkLogLineNumber,
   isToolFailureStatus,
@@ -148,6 +152,24 @@ describe('thread activity helpers', () => {
       fileCount: 0,
       commandCount: 0,
     })).toBe('No changes or commands recorded yet')
+    expect(buildWorkLogFloatSummary({
+      fileCount: 2,
+      commandCount: 3,
+    })).toBe('2 files · 3 commands')
+    expect(buildWorkLogMetrics({
+      fileCount: 2,
+      commandCount: 3,
+      addedLines: 12,
+      removedLines: 4,
+    })).toEqual([
+      { label: 'files', value: '2' },
+      { label: 'commands', value: '3' },
+      { label: 'added', value: '+12' },
+      { label: 'removed', value: '-4' },
+    ])
+    expect(buildPendingApprovalSubtitle(1)).toBe('1 approval waiting')
+    expect(buildPendingApprovalSubtitle(2)).toBe('2 approvals waiting')
+    expect(buildWorkLogFileStatLabel({ addedLines: 2, removedLines: 1 })).toBe('+2 / -1')
 
     expect(formatWorkLogLineNumber(null)).toBe('')
     expect(formatWorkLogLineNumber(12)).toBe('12')

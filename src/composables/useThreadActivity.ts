@@ -23,6 +23,11 @@ export type UiThreadCommandEntry = UiToolTimelineEntry & {
   duration: string
 }
 
+export type WorkLogMetric = {
+  label: string
+  value: string
+}
+
 export function buildThreadActivityEntries(messages: UiMessage[]): UiThreadActivityEntry[] {
   return messages
     .filter((message): message is UiMessage & { tool: UiToolTimelineEntry } => Boolean(message.tool))
@@ -83,6 +88,38 @@ export function buildWorkLogStatusText(input: {
     return `${String(input.fileCount)} changed file${input.fileCount === 1 ? '' : 's'} · ${String(input.commandCount)} command${input.commandCount === 1 ? '' : 's'}`
   }
   return 'No changes or commands recorded yet'
+}
+
+export function buildWorkLogFloatSummary(input: {
+  fileCount: number
+  commandCount: number
+}): string {
+  return `${String(input.fileCount)} files · ${String(input.commandCount)} commands`
+}
+
+export function buildWorkLogMetrics(input: {
+  fileCount: number
+  commandCount: number
+  addedLines: number
+  removedLines: number
+}): WorkLogMetric[] {
+  return [
+    { label: 'files', value: String(input.fileCount) },
+    { label: 'commands', value: String(input.commandCount) },
+    { label: 'added', value: `+${String(input.addedLines)}` },
+    { label: 'removed', value: `-${String(input.removedLines)}` },
+  ]
+}
+
+export function buildPendingApprovalSubtitle(count: number): string {
+  return `${String(count)} approval${count === 1 ? '' : 's'} waiting`
+}
+
+export function buildWorkLogFileStatLabel(input: {
+  addedLines: number
+  removedLines: number
+}): string {
+  return `+${String(input.addedLines)} / -${String(input.removedLines)}`
 }
 
 export function workLogBadgeCount(review: UiDiffReview, commandCount: number): number {

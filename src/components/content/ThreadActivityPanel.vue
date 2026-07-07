@@ -11,7 +11,7 @@
     >
       <span class="thread-work-log-float-title">Work log</span>
       <span class="thread-work-log-float-summary">
-        {{ diffReview.summary.fileCount }} files · {{ commandEntries.length }} commands
+        {{ workLogFloatSummary }}
       </span>
       <span v-if="workLogBadgeCount > 0" class="thread-work-log-float-badge">
         {{ workLogBadgeCount }}
@@ -36,21 +36,9 @@
       </header>
 
       <section class="thread-activity-metrics" aria-label="Work log summary">
-        <div class="thread-activity-metric">
-          <span class="thread-activity-metric-value">{{ diffReview.summary.fileCount }}</span>
-          <span class="thread-activity-metric-label">files</span>
-        </div>
-        <div class="thread-activity-metric">
-          <span class="thread-activity-metric-value">{{ commandEntries.length }}</span>
-          <span class="thread-activity-metric-label">commands</span>
-        </div>
-        <div class="thread-activity-metric">
-          <span class="thread-activity-metric-value">+{{ diffReview.summary.addedLines }}</span>
-          <span class="thread-activity-metric-label">added</span>
-        </div>
-        <div class="thread-activity-metric">
-          <span class="thread-activity-metric-value">-{{ diffReview.summary.removedLines }}</span>
-          <span class="thread-activity-metric-label">removed</span>
+        <div v-for="metric in workLogMetrics" :key="metric.label" class="thread-activity-metric">
+          <span class="thread-activity-metric-value">{{ metric.value }}</span>
+          <span class="thread-activity-metric-label">{{ metric.label }}</span>
         </div>
       </section>
 
@@ -75,7 +63,7 @@
               ⛶
             </button>
             <span class="work-log-status">{{ file.status }}</span>
-            <span class="work-log-stat">+{{ file.addedLines }} / -{{ file.removedLines }}</span>
+            <span class="work-log-stat">{{ fileStatLabel(file) }}</span>
           </summary>
           <p v-if="file.oldPath" class="work-log-meta">from {{ file.oldPath }}</p>
           <div v-if="file.hunks.length > 0" class="work-log-diff" aria-label="File diff">
@@ -139,7 +127,7 @@
         <div>
           <h3 class="thread-action-required-title">Action required</h3>
           <p class="thread-action-required-subtitle">
-            {{ pendingRequests.length }} approval{{ pendingRequests.length === 1 ? '' : 's' }} waiting
+            {{ pendingApprovalSubtitle }}
           </p>
         </div>
       </header>
@@ -223,7 +211,7 @@
             <div class="work-log-fullscreen-copy">
               <h3>{{ fullscreenFile.filePath }}</h3>
               <p>
-                {{ fullscreenFile.status }} · +{{ fullscreenFile.addedLines }} / -{{ fullscreenFile.removedLines }}
+                {{ fullscreenFile.status }} · {{ fileStatLabel(fullscreenFile) }}
               </p>
             </div>
             <button
@@ -275,7 +263,11 @@ import { computed, ref, watch } from 'vue'
 import {
   buildThreadCommandEntries,
   buildThreadActivitySummary,
+  buildPendingApprovalSubtitle,
   buildWorkLogStatusText,
+  buildWorkLogFileStatLabel,
+  buildWorkLogFloatSummary,
+  buildWorkLogMetrics,
   formatWorkLogLineNumber,
   shouldCloseWorkLogFullscreenFile,
   workLogBadgeCount as workLogBadgeCountForReview,
@@ -298,7 +290,7 @@ import {
   buildRejectedServerRequestReply,
 } from '../../composables/threadConversationRules'
 import { buildDiffReview } from '../../composables/useDiffReview'
-import type { UiDiffLineKind } from '../../composables/useDiffReview'
+import type { UiDiffLineKind, UiDiffReviewFile } from '../../composables/useDiffReview'
 import type { UiApprovalDecisionScope, UiMessage, UiServerRequest, UiServerRequestReply, UiToolingRollbackFileResult } from '../../types/codex'
 
 const props = defineProps<{
@@ -320,7 +312,18 @@ const fullscreenFilePath = ref('')
 const isWorkLogOpen = ref(false)
 const fullscreenFile = computed(() => workLogFullscreenFile(diffReview.value, fullscreenFilePath.value))
 const workLogBadgeCount = computed(() => workLogBadgeCountForReview(diffReview.value, commandEntries.value.length))
+const workLogFloatSummary = computed(() => buildWorkLogFloatSummary({
+  fileCount: diffReview.value.summary.fileCount,
+  commandCount: commandEntries.value.length,
+}))
+const workLogMetrics = computed(() => buildWorkLogMetrics({
+  fileCount: diffReview.value.summary.fileCount,
+  commandCount: commandEntries.value.length,
+  addedLines: diffReview.value.summary.addedLines,
+  removedLines: diffReview.value.summary.removedLines,
+}))
 const summary = computed(() => buildThreadActivitySummary(props.messages, props.pendingRequests))
+const pendingApprovalSubtitle = computed(() => buildPendingApprovalSubtitle(props.pendingRequests.length))
 const statusText = computed(() => buildWorkLogStatusText({
   pendingRequestCount: summary.value.pendingRequestCount,
   fileCount: diffReview.value.summary.fileCount,
@@ -369,6 +372,10 @@ function formatLineNumber(value: number | null): string {
 
 function diffLinePrefix(kind: UiDiffLineKind): string {
   return workLogDiffLinePrefix(kind)
+}
+
+function fileStatLabel(file: Pick<UiDiffReviewFile, 'addedLines' | 'removedLines'>): string {
+  return buildWorkLogFileStatLabel(file)
 }
 
 function openFullscreenDiff(filePath: string): void {
