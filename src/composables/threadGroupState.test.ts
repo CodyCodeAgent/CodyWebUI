@@ -6,8 +6,13 @@ import {
   markThreadUnreadState,
   mergeProjectOrder,
   mergeThreadGroups,
+  moveProjectInOrder,
   pruneThreadStateMap,
   reconcileOptimisticThreads,
+  removeProjectDisplayName,
+  removeProjectFromGroups,
+  removeProjectFromOrder,
+  renameProjectDisplayName,
   reorderStringArray,
   updateThreadBooleanState,
   upsertThreadInGroups,
@@ -200,5 +205,32 @@ describe('threadGroupState', () => {
     expect(order).toEqual(['a', 'b', 'c'])
 
     expect(pruneThreadStateMap({ keep: true, drop: true }, new Set(['keep']))).toEqual({ keep: true })
+  })
+
+  it('updates project display names without churn', () => {
+    const displayNames = { repo: 'Repo' }
+
+    expect(renameProjectDisplayName(displayNames, '', 'Ignored')).toBe(displayNames)
+    expect(renameProjectDisplayName(displayNames, 'repo', 'Repo')).toBe(displayNames)
+    expect(renameProjectDisplayName(displayNames, 'repo', 'Friendly')).toEqual({ repo: 'Friendly' })
+    expect(removeProjectDisplayName(displayNames, 'missing')).toBe(displayNames)
+    expect(removeProjectDisplayName(displayNames, 'repo')).toEqual({})
+  })
+
+  it('removes and reorders projects as pure state', () => {
+    const groups = [
+      group({ projectName: 'a', threads: [] }),
+      group({ projectName: 'b', threads: [] }),
+      group({ projectName: 'c', threads: [] }),
+    ]
+    const order = ['a', 'b', 'c']
+
+    expect(removeProjectFromOrder(order, '')).toBe(order)
+    expect(removeProjectFromOrder(order, 'missing')).toBe(order)
+    expect(removeProjectFromOrder(order, 'b')).toEqual(['a', 'c'])
+    expect(removeProjectFromGroups(groups, 'missing')).toBe(groups)
+    expect(removeProjectFromGroups(groups, 'b').map((item) => item.projectName)).toEqual(['a', 'c'])
+    expect(moveProjectInOrder(order, 'a', 99)).toEqual(['b', 'c', 'a'])
+    expect(moveProjectInOrder(order, 'missing', 0)).toBe(order)
   })
 })

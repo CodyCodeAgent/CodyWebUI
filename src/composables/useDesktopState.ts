@@ -129,11 +129,15 @@ import {
   markThreadUnreadState,
   mergeProjectOrder,
   mergeThreadGroups,
+  moveProjectInOrder,
   omitKey,
   orderGroupsByProjectOrder,
   reconcileOptimisticThreads,
+  removeProjectDisplayName,
+  removeProjectFromGroups,
+  removeProjectFromOrder,
+  renameProjectDisplayName,
   renameThreadInGroups,
-  reorderStringArray,
   updateThreadBooleanState,
   upsertThreadInGroups,
 } from './threadGroupState'
@@ -1338,32 +1342,25 @@ export function useDesktopState() {
   }
 
   function renameProject(projectName: string, displayName: string): void {
-    if (projectName.length === 0) return
-
-    const currentValue = projectDisplayNameById.value[projectName] ?? ''
-    if (currentValue === displayName) return
-
-    projectDisplayNameById.value = {
-      ...projectDisplayNameById.value,
-      [projectName]: displayName,
-    }
-    saveProjectDisplayNames(projectDisplayNameById.value)
+    const nextDisplayNames = renameProjectDisplayName(projectDisplayNameById.value, projectName, displayName)
+    if (nextDisplayNames === projectDisplayNameById.value) return
+    projectDisplayNameById.value = nextDisplayNames
+    saveProjectDisplayNames(nextDisplayNames)
   }
 
   function removeProject(projectName: string): void {
     if (projectName.length === 0) return
 
-    const nextProjectOrder = projectOrder.value.filter((name) => name !== projectName)
+    const nextProjectOrder = removeProjectFromOrder(projectOrder.value, projectName)
     if (!areStringArraysEqual(projectOrder.value, nextProjectOrder)) {
       projectOrder.value = nextProjectOrder
       saveProjectOrder(projectOrder.value)
     }
 
-    sourceGroups.value = sourceGroups.value.filter((group) => group.projectName !== projectName)
+    sourceGroups.value = removeProjectFromGroups(sourceGroups.value, projectName)
 
-    if (projectDisplayNameById.value[projectName] !== undefined) {
-      const nextDisplayNames = { ...projectDisplayNameById.value }
-      delete nextDisplayNames[projectName]
+    const nextDisplayNames = removeProjectDisplayName(projectDisplayNameById.value, projectName)
+    if (nextDisplayNames !== projectDisplayNameById.value) {
       projectDisplayNameById.value = nextDisplayNames
       saveProjectDisplayNames(nextDisplayNames)
     }
@@ -1380,14 +1377,7 @@ export function useDesktopState() {
   }
 
   function reorderProject(projectName: string, toIndex: number): void {
-    if (projectName.length === 0) return
-    if (projectOrder.value.length === 0) return
-
-    const fromIndex = projectOrder.value.indexOf(projectName)
-    if (fromIndex === -1) return
-
-    const clampedToIndex = Math.max(0, Math.min(toIndex, projectOrder.value.length - 1))
-    const nextProjectOrder = reorderStringArray(projectOrder.value, fromIndex, clampedToIndex)
+    const nextProjectOrder = moveProjectInOrder(projectOrder.value, projectName, toIndex)
     if (nextProjectOrder === projectOrder.value) return
 
     projectOrder.value = nextProjectOrder

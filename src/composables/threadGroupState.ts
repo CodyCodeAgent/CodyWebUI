@@ -52,6 +52,51 @@ export function reorderStringArray(items: string[], fromIndex: number, toIndex: 
   return nextItems
 }
 
+export function renameProjectDisplayName(
+  displayNames: Record<string, string>,
+  projectName: string,
+  displayName: string,
+): Record<string, string> {
+  if (!projectName) return displayNames
+  if ((displayNames[projectName] ?? '') === displayName) return displayNames
+  return {
+    ...displayNames,
+    [projectName]: displayName,
+  }
+}
+
+export function removeProjectDisplayName(
+  displayNames: Record<string, string>,
+  projectName: string,
+): Record<string, string> {
+  if (!projectName || displayNames[projectName] === undefined) return displayNames
+  const nextDisplayNames = { ...displayNames }
+  delete nextDisplayNames[projectName]
+  return nextDisplayNames
+}
+
+export function removeProjectFromOrder(projectOrder: string[], projectName: string): string[] {
+  if (!projectName) return projectOrder
+  const nextProjectOrder = projectOrder.filter((name) => name !== projectName)
+  return areStringArraysEqual(projectOrder, nextProjectOrder) ? projectOrder : nextProjectOrder
+}
+
+export function removeProjectFromGroups(groups: UiProjectGroup[], projectName: string): UiProjectGroup[] {
+  if (!projectName) return groups
+  const nextGroups = groups.filter((group) => group.projectName !== projectName)
+  return nextGroups.length === groups.length ? groups : nextGroups
+}
+
+export function moveProjectInOrder(projectOrder: string[], projectName: string, toIndex: number): string[] {
+  if (!projectName || projectOrder.length === 0) return projectOrder
+
+  const fromIndex = projectOrder.indexOf(projectName)
+  if (fromIndex === -1) return projectOrder
+
+  const clampedToIndex = Math.max(0, Math.min(toIndex, projectOrder.length - 1))
+  return reorderStringArray(projectOrder, fromIndex, clampedToIndex)
+}
+
 export function omitKey<TValue>(record: Record<string, TValue>, key: string): Record<string, TValue> {
   if (!(key in record)) return record
   const next = { ...record }
