@@ -154,6 +154,44 @@ export function workflowDeliveryButtonLabel(input: {
   return input.hasDraft ? 'Refresh delivery' : 'Delivery'
 }
 
+export function workflowDeliveryReadyButtonLabel(isUpdating: boolean): string {
+  return isUpdating ? 'Marking' : 'Ready merge'
+}
+
+export function workflowDeliveryMergedButtonLabel(isUpdating: boolean): string {
+  return isUpdating ? 'Marking' : 'Mark merged'
+}
+
+export function workflowRunMetaLabels(run: UiWorkflowRun): string[] {
+  return [
+    formatWorkflowTime(run.createdAtIso),
+    `${String(run.agents.length)} agents`,
+    `${String(run.validationPlan.length)} checks`,
+    `${String(run.dirtyFileCount)} dirty files`,
+  ]
+}
+
+export function workflowTemplateMetaLabels(input: {
+  agentCount: number
+  defaultStatus: string
+}): string[] {
+  return [
+    `${String(input.agentCount)} agents`,
+    formatWorkflowStatus(input.defaultStatus),
+  ]
+}
+
+export function workflowAppliedImplementationSummary(run: UiWorkflowRun): string {
+  if (!run.appliedImplementation) return ''
+  return `Applied ${run.appliedImplementation.agentName} · ${String(run.appliedImplementation.changedFileCount)} files · checkpoint ${run.appliedImplementation.checkpointId}`
+}
+
+export function workflowDeliveryStateSummary(run: UiWorkflowRun): string {
+  if (!run.deliveryState) return ''
+  const commitLabel = run.deliveryState.commitHash ? run.deliveryState.commitHash.slice(0, 12) : 'no commit'
+  return `Delivery ${formatWorkflowStatus(run.status)} · ${commitLabel}`
+}
+
 export function workflowAcceptanceGreen(run: UiWorkflowRun): boolean {
   return run.acceptance?.status === 'accepted' || run.acceptance?.status === 'ready_for_review'
 }
@@ -223,6 +261,10 @@ export function workflowImplementationOptionsSummary(run: UiWorkflowRun): string
   return `${String(options.length)} option${options.length === 1 ? '' : 's'} · ${String(readyCount)} ready · ${String(blockedCount)} gated`
 }
 
+export function workflowImplementationDiffLabel(option: UiWorkflowImplementationOption): string {
+  return `+${String(option.insertions)} / -${String(option.deletions)}`
+}
+
 export function canApplyWorkflowImplementation(
   run: UiWorkflowRun,
   option: UiWorkflowImplementationOption,
@@ -268,6 +310,30 @@ export function workflowImplementationDiscardLabel(
   if (option.comparisonStatus === 'discarded') return 'Discarded'
   if (run.appliedImplementation?.agentId === option.agentId) return 'Applied'
   return 'Discard option'
+}
+
+export function workflowAgentWorktreeButtonLabel(input: {
+  worktreeStatus: UiWorkflowAgentStep['worktreeStatus']
+  isProvisioning: boolean
+}): string {
+  if (input.isProvisioning) return 'Provisioning'
+  return input.worktreeStatus === 'ready' ? 'Worktree ready' : 'Provision worktree'
+}
+
+export function workflowValidationRunButtonLabel(scriptName: string, isRunning: boolean): string {
+  return isRunning ? 'Running' : `Run ${scriptName}`
+}
+
+export function workflowValidationResultLabel(result: WorkflowValidationResultSummary): string {
+  return `${result.command} -> ${result.status}`
+}
+
+export function workflowReplayAgentSnapshotLabel(agent: UiWorkflowReplay['agentSnapshots'][number]): string {
+  return `${agent.agentName} · ${agent.status} · ${formatWorkflowStatus(agent.worktreeStatus)}`
+}
+
+export function workflowReplayEventMetaLabel(event: UiWorkflowReplay['events'][number]): string {
+  return event.agentName ? `${event.agentName} · ${event.kind}` : event.kind
 }
 
 export function replaceWorkflowRun(runs: UiWorkflowRun[], run: UiWorkflowRun): UiWorkflowRun[] {

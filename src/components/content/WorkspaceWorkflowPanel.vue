@@ -46,8 +46,7 @@
         <p>{{ selectedTemplate.description }}</p>
       </div>
       <div class="workspace-workflow-template-meta">
-        <span>{{ selectedTemplate.steps.length }} agents</span>
-        <span>{{ formatStatus(selectedTemplate.defaultStatus) }}</span>
+        <span v-for="item in templateMetaLabels" :key="item">{{ item }}</span>
       </div>
     </section>
 
@@ -92,7 +91,7 @@
               :disabled="!canMarkReadyToMerge(run) || isUpdatingDelivery(run.id, 'ready')"
               @click="markReadyToMerge(run.id)"
             >
-              {{ isUpdatingDelivery(run.id, 'ready') ? 'Marking' : 'Ready merge' }}
+              {{ deliveryReadyButtonLabel(run.id) }}
             </button>
             <button
               type="button"
@@ -101,16 +100,13 @@
               :disabled="!canMarkMerged(run) || isUpdatingDelivery(run.id, 'merged')"
               @click="markMerged(run.id)"
             >
-              {{ isUpdatingDelivery(run.id, 'merged') ? 'Marking' : 'Mark merged' }}
+              {{ deliveryMergedButtonLabel(run.id) }}
             </button>
           </div>
         </header>
 
         <div class="workspace-workflow-run-meta">
-          <span>{{ formatTime(run.createdAtIso) }}</span>
-          <span>{{ run.agents.length }} agents</span>
-          <span>{{ run.validationPlan.length }} checks</span>
-          <span>{{ run.dirtyFileCount }} dirty files</span>
+          <span v-for="item in runMetaLabels(run)" :key="item">{{ item }}</span>
         </div>
 
         <div v-if="run.riskLabels.length > 0" class="workspace-workflow-risk-list" aria-label="Workflow risk labels">
@@ -158,11 +154,11 @@
         </section>
 
         <p v-if="run.appliedImplementation" class="workspace-workflow-applied">
-          Applied {{ run.appliedImplementation.agentName }} · {{ run.appliedImplementation.changedFileCount }} files · checkpoint {{ run.appliedImplementation.checkpointId }}
+          {{ appliedImplementationSummary(run) }}
         </p>
 
         <p v-if="run.deliveryState" class="workspace-workflow-delivery-state">
-          Delivery {{ formatStatus(run.status) }} · {{ run.deliveryState.commitHash ? run.deliveryState.commitHash.slice(0, 12) : 'no commit' }}
+          {{ deliveryStateSummary(run) }}
         </p>
 
         <section
@@ -194,7 +190,7 @@
                 </div>
                 <div>
                   <dt>diff</dt>
-                  <dd>+{{ option.insertions }} / -{{ option.deletions }}</dd>
+                  <dd>{{ implementationDiffLabel(option) }}</dd>
                 </div>
                 <div>
                   <dt>validation</dt>
@@ -312,7 +308,7 @@
                 :disabled="agent.worktreeStatus === 'ready' || isProvisioningAgent(run.id, agent.id)"
                 @click="provisionAgentWorktree(run.id, agent.id)"
               >
-                {{ agent.worktreeStatus === 'ready' ? 'Worktree ready' : 'Provision worktree' }}
+                {{ agentWorktreeButtonLabel(agent, run.id) }}
               </button>
             </div>
             <p v-if="agent.branchName" class="workspace-workflow-agent-branch">{{ agent.branchName }}</p>
@@ -340,11 +336,11 @@
               :disabled="isRunningValidation(run.id, option.scriptName)"
               @click="runWorkflowValidation(run.id, option.scriptName)"
             >
-              {{ isRunningValidation(run.id, option.scriptName) ? 'Running' : `Run ${option.scriptName}` }}
+              {{ validationRunButtonLabel(option.scriptName, run.id) }}
             </button>
           </div>
           <p v-if="validationResults[run.id]" class="workspace-workflow-validation-result" :data-status="validationResults[run.id].status">
-            {{ validationResults[run.id].command }} -> {{ validationResults[run.id].status }}
+            {{ validationResultLabel(validationResults[run.id]) }}
           </p>
         </details>
 
@@ -392,7 +388,7 @@
             </div>
             <div class="workspace-workflow-replay-agents" aria-label="Replay agent snapshots">
               <span v-for="agent in replaysByRunId[run.id].agentSnapshots" :key="agent.id">
-                {{ agent.agentName }} · {{ agent.status }} · {{ formatStatus(agent.worktreeStatus) }}
+                {{ replayAgentSnapshotLabel(agent) }}
               </span>
             </div>
             <ol v-if="replaysByRunId[run.id].events.length > 0" class="workspace-workflow-replay-events">
@@ -403,7 +399,7 @@
               >
                 <time>{{ formatTime(event.createdAtIso) }}</time>
                 <strong>{{ event.title }}</strong>
-                <span>{{ event.agentName ? `${event.agentName} · ${event.kind}` : event.kind }}</span>
+                <span>{{ replayEventMetaLabel(event) }}</span>
                 <p>{{ event.summary }}</p>
               </li>
             </ol>
@@ -440,6 +436,8 @@ import {
   canMarkReadyToMerge,
   canSkipWorkflowAgent as canSkipAgent,
   canStartWorkflowAgent as canStartAgent,
+  workflowAgentWorktreeButtonLabel,
+  workflowAppliedImplementationSummary,
   emptyWorkflowPanelState,
   formatWorkflowStatus as formatStatus,
   formatWorkflowTime as formatTime,
@@ -449,6 +447,10 @@ import {
   workflowAgentKey as agentKey,
   workflowDeliveryButtonLabel,
   workflowDeliveryKey,
+  workflowDeliveryMergedButtonLabel,
+  workflowDeliveryReadyButtonLabel,
+  workflowDeliveryStateSummary,
+  workflowImplementationDiffLabel,
   isWorkflowAgentProvisioning,
   isWorkflowAgentUpdating,
   isWorkflowDeliveryLoading,
@@ -461,18 +463,25 @@ import {
   workflowImplementationDiscardLabel,
   workflowImplementationOptions as implementationOptions,
   workflowImplementationOptionsSummary as implementationOptionsSummary,
+  workflowReplayAgentSnapshotLabel,
   prependWorkflowRun,
   replaceWorkflowRun,
   setWorkflowDeliveryDraftForRun,
   setWorkflowReplayForRun,
   setWorkflowRunError,
   setWorkflowValidationResult,
+  workflowReplayEventMetaLabel,
   workflowReplayButtonLabel,
+  workflowRunMetaLabels,
+  workflowTemplateMetaLabels,
+  workflowValidationResultLabel,
+  workflowValidationRunButtonLabel,
   workflowValidationKey as validationKey,
   workflowWorktreeLabel as worktreeLabel,
   type WorkflowValidationResultSummary,
 } from '../../composables/workspaceWorkflowRules'
 import type {
+  UiWorkflowAgentStep,
   UiWorkflowDeliveryDraft,
   UiWorkflowImplementationOption,
   UiWorkflowReplay,
@@ -526,6 +535,13 @@ const workflowBusyKeys = computed(() => ({
 const selectedTemplate = computed(() =>
   templates.value.find((template) => template.id === selectedTemplateId.value) ?? templates.value[0] ?? null
 )
+const templateMetaLabels = computed(() => selectedTemplate.value
+  ? workflowTemplateMetaLabels({
+    agentCount: selectedTemplate.value.steps.length,
+    defaultStatus: selectedTemplate.value.defaultStatus,
+  })
+  : []
+)
 const summaryText = computed(() => workspaceWorkflowSummary({
   isLoading: isLoading.value,
   runCount: runs.value.length,
@@ -578,12 +594,59 @@ function deliveryButtonLabel(runId: string): string {
   })
 }
 
+function deliveryReadyButtonLabel(runId: string): string {
+  return workflowDeliveryReadyButtonLabel(isUpdatingDelivery(runId, 'ready'))
+}
+
+function deliveryMergedButtonLabel(runId: string): string {
+  return workflowDeliveryMergedButtonLabel(isUpdatingDelivery(runId, 'merged'))
+}
+
+function runMetaLabels(run: UiWorkflowRun): string[] {
+  return workflowRunMetaLabels(run)
+}
+
+function appliedImplementationSummary(run: UiWorkflowRun): string {
+  return workflowAppliedImplementationSummary(run)
+}
+
+function deliveryStateSummary(run: UiWorkflowRun): string {
+  return workflowDeliveryStateSummary(run)
+}
+
+function implementationDiffLabel(option: UiWorkflowImplementationOption): string {
+  return workflowImplementationDiffLabel(option)
+}
+
 function implementationApplyLabel(run: UiWorkflowRun, option: UiWorkflowImplementationOption): string {
   return workflowImplementationApplyLabel(run, option, isApplyingImplementation(run.id, option.agentId))
 }
 
 function implementationDiscardLabel(run: UiWorkflowRun, option: UiWorkflowImplementationOption): string {
   return workflowImplementationDiscardLabel(run, option, isDiscardingImplementation(run.id, option.agentId))
+}
+
+function agentWorktreeButtonLabel(agent: UiWorkflowAgentStep, runId: string): string {
+  return workflowAgentWorktreeButtonLabel({
+    worktreeStatus: agent.worktreeStatus,
+    isProvisioning: isProvisioningAgent(runId, agent.id),
+  })
+}
+
+function validationRunButtonLabel(scriptName: string, runId: string): string {
+  return workflowValidationRunButtonLabel(scriptName, isRunningValidation(runId, scriptName))
+}
+
+function validationResultLabel(result: WorkflowValidationResultSummary): string {
+  return workflowValidationResultLabel(result)
+}
+
+function replayAgentSnapshotLabel(agent: UiWorkflowReplay['agentSnapshots'][number]): string {
+  return workflowReplayAgentSnapshotLabel(agent)
+}
+
+function replayEventMetaLabel(event: UiWorkflowReplay['events'][number]): string {
+  return workflowReplayEventMetaLabel(event)
 }
 
 function replaceRun(run: UiWorkflowRun): void {

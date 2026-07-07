@@ -18,6 +18,11 @@ import {
   emptyWorkflowPanelState,
   formatWorkflowStatus,
   hasWorkflowImplementationActions,
+  workflowAgentWorktreeButtonLabel,
+  workflowAppliedImplementationSummary,
+  workflowDeliveryMergedButtonLabel,
+  workflowDeliveryReadyButtonLabel,
+  workflowDeliveryStateSummary,
   isRunnableValidationScriptName,
   isWorkflowAgentProvisioning,
   isWorkflowAgentUpdating,
@@ -36,10 +41,17 @@ import {
   workflowAgentKey,
   workflowDeliveryButtonLabel,
   workflowDeliveryKey,
+  workflowImplementationDiffLabel,
   workflowImplementationApplyLabel,
   workflowImplementationDiscardLabel,
   workflowImplementationOptionsSummary,
+  workflowReplayAgentSnapshotLabel,
   workflowReplayButtonLabel,
+  workflowReplayEventMetaLabel,
+  workflowRunMetaLabels,
+  workflowTemplateMetaLabels,
+  workflowValidationResultLabel,
+  workflowValidationRunButtonLabel,
   isWorkflowReplayLoading,
   isWorkflowValidationRunning,
   workflowValidationKey,
@@ -175,6 +187,51 @@ describe('workspace workflow rules', () => {
     expect(workflowReplayButtonLabel({ isLoading: false, isExpanded: true })).toBe('Hide replay')
     expect(workflowDeliveryButtonLabel({ isLoading: true, hasDraft: false })).toBe('Generating')
     expect(workflowDeliveryButtonLabel({ isLoading: false, hasDraft: true })).toBe('Refresh delivery')
+    expect(workflowDeliveryReadyButtonLabel(true)).toBe('Marking')
+    expect(workflowDeliveryReadyButtonLabel(false)).toBe('Ready merge')
+    expect(workflowDeliveryMergedButtonLabel(true)).toBe('Marking')
+    expect(workflowDeliveryMergedButtonLabel(false)).toBe('Mark merged')
+  })
+
+  it('builds workflow display summaries', () => {
+    const workflowRun = run({
+      agents: [agent()],
+      validationPlan: ['test: npm test', 'build: npm run build'],
+      dirtyFileCount: 3,
+      appliedImplementation: {
+        agentId: 'agent-1',
+        agentName: 'Agent',
+        branchName: 'feature',
+        worktreePath: '/repo-feature',
+        appliedAtIso: '2026-07-07T00:00:00.000Z',
+        patchBytes: 123,
+        changedFileCount: 2,
+        checkpointId: 'checkpoint-1',
+      },
+      deliveryState: {
+        readyToMergeAtIso: '2026-07-07T00:00:00.000Z',
+        mergedAtIso: null,
+        commitHash: 'abcdef1234567890',
+        pullRequestUrl: null,
+        note: '',
+      },
+    })
+
+    expect(workflowRunMetaLabels(workflowRun)).toEqual([
+      new Date(workflowRun.createdAtIso).toLocaleString(),
+      '1 agents',
+      '2 checks',
+      '3 dirty files',
+    ])
+    expect(workflowTemplateMetaLabels({ agentCount: 2, defaultStatus: 'ready_to_merge' })).toEqual([
+      '2 agents',
+      'ready to merge',
+    ])
+    expect(workflowAppliedImplementationSummary(workflowRun)).toBe('Applied Agent · 2 files · checkpoint checkpoint-1')
+    expect(workflowAppliedImplementationSummary(run())).toBe('')
+    expect(workflowDeliveryStateSummary(workflowRun)).toBe('Delivery running · abcdef123456')
+    expect(workflowDeliveryStateSummary(run({ deliveryState: { ...workflowRun.deliveryState!, commitHash: null } }))).toBe('Delivery running · no commit')
+    expect(workflowDeliveryStateSummary(run())).toBe('')
   })
 
   it('evaluates delivery readiness from acceptance state', () => {
@@ -242,6 +299,7 @@ describe('workspace workflow rules', () => {
     const workflowRun = run({ implementationOptions: [readyOption, blockedOption, discardedOption] })
 
     expect(workflowImplementationOptionsSummary(workflowRun)).toBe('3 options · 1 ready · 1 gated')
+    expect(workflowImplementationDiffLabel(readyOption)).toBe('+10 / -1')
     expect(canApplyWorkflowImplementation(workflowRun, readyOption)).toBe(true)
     expect(canDiscardWorkflowImplementation(workflowRun, discardedOption)).toBe(false)
     expect(hasWorkflowImplementationActions(workflowRun, discardedOption)).toBe(true)
@@ -262,6 +320,56 @@ describe('workspace workflow rules', () => {
     expect(canApplyWorkflowImplementation(appliedRun, readyOption)).toBe(false)
     expect(workflowImplementationApplyLabel(appliedRun, option({ agentId: 'agent-2' }), false)).toBe('Apply locked')
     expect(workflowImplementationDiscardLabel(appliedRun, readyOption, false)).toBe('Applied')
+  })
+
+  it('labels agent, validation, and replay details', () => {
+    expect(workflowAgentWorktreeButtonLabel({
+      worktreeStatus: 'pending',
+      isProvisioning: true,
+    })).toBe('Provisioning')
+    expect(workflowAgentWorktreeButtonLabel({
+      worktreeStatus: 'ready',
+      isProvisioning: false,
+    })).toBe('Worktree ready')
+    expect(workflowAgentWorktreeButtonLabel({
+      worktreeStatus: 'pending',
+      isProvisioning: false,
+    })).toBe('Provision worktree')
+    expect(workflowValidationRunButtonLabel('test', true)).toBe('Running')
+    expect(workflowValidationRunButtonLabel('test', false)).toBe('Run test')
+    expect(workflowValidationResultLabel({ command: 'npm test', status: 'passed' })).toBe('npm test -> passed')
+
+    expect(workflowReplayAgentSnapshotLabel({
+      id: 'agent-1',
+      agentName: 'Agent',
+      role: 'implementation',
+      status: 'completed',
+      worktreeStatus: 'ready',
+      branchName: 'feature',
+      worktreePath: '/repo-feature',
+    })).toBe('Agent · completed · ready')
+    expect(workflowReplayEventMetaLabel({
+      id: 'event-1',
+      createdAtIso: '2026-07-07T00:00:00.000Z',
+      kind: 'validation',
+      severity: 'info',
+      title: 'Validated',
+      summary: 'Passed',
+      agentId: 'agent-1',
+      agentName: 'Agent',
+      metadata: {},
+    })).toBe('Agent · validation')
+    expect(workflowReplayEventMetaLabel({
+      id: 'event-2',
+      createdAtIso: '2026-07-07T00:00:00.000Z',
+      kind: 'delivery',
+      severity: 'info',
+      title: 'Delivered',
+      summary: 'Ready',
+      agentId: null,
+      agentName: null,
+      metadata: {},
+    })).toBe('delivery')
   })
 
   it('updates workflow panel state maps immutably', () => {
