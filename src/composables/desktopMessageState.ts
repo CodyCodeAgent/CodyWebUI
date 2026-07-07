@@ -148,6 +148,28 @@ export function upsertMessage(previous: UiMessage[], nextMessage: UiMessage): Ui
   return next
 }
 
+export function upsertMessages(previous: UiMessage[], nextMessages: UiMessage[]): UiMessage[] {
+  let next = previous
+  for (const message of nextMessages) {
+    next = upsertMessage(next, message)
+  }
+  return next
+}
+
+export function updateMessagesForThread(
+  state: Record<string, UiMessage[]>,
+  threadId: string,
+  nextMessages: UiMessage[],
+): Record<string, UiMessage[]> {
+  if (!threadId) return state
+  const previous = state[threadId] ?? []
+  if (areMessageArraysEqual(previous, nextMessages)) return state
+  return {
+    ...state,
+    [threadId]: nextMessages,
+  }
+}
+
 export function upsertLiveAssistantDelta(
   previous: UiMessage[],
   delta: {
@@ -166,6 +188,23 @@ export function upsertLiveAssistantDelta(
   })
 }
 
+export function upsertLiveAssistantDeltaForThread(
+  state: Record<string, UiMessage[]>,
+  threadId: string,
+  delta: {
+    messageId: string
+    textDelta: string
+    messageType: LiveAssistantMessageType
+  },
+): Record<string, UiMessage[]> {
+  if (!threadId) return state
+  return updateMessagesForThread(
+    state,
+    threadId,
+    upsertLiveAssistantDelta(state[threadId] ?? [], delta),
+  )
+}
+
 export function normalizeLiveReasoningTextForStorage(text: string): string {
   return text.trim().length === 0 ? '' : text
 }
@@ -177,6 +216,55 @@ export function appendLiveReasoningDelta(previous: string, delta: string): strin
 export function appendLiveReasoningSectionBreak(current: string): string {
   if (current.trim().length === 0 || current.endsWith('\n\n')) return current
   return `${current}\n\n`
+}
+
+export function updateLiveReasoningTextForThread(
+  state: Record<string, string>,
+  threadId: string,
+  text: string,
+): Record<string, string> {
+  if (!threadId) return state
+  const normalized = normalizeLiveReasoningTextForStorage(text)
+  const previous = state[threadId] ?? ''
+  if (normalized.length === 0) return previous ? omitRecordKey(state, threadId) : state
+  if (previous === normalized) return state
+  return {
+    ...state,
+    [threadId]: normalized,
+  }
+}
+
+export function appendLiveReasoningDeltaForThread(
+  state: Record<string, string>,
+  threadId: string,
+  delta: string,
+): Record<string, string> {
+  if (!threadId) return state
+  return updateLiveReasoningTextForThread(
+    state,
+    threadId,
+    appendLiveReasoningDelta(state[threadId] ?? '', delta),
+  )
+}
+
+export function appendLiveReasoningSectionBreakForThread(
+  state: Record<string, string>,
+  threadId: string,
+): Record<string, string> {
+  if (!threadId) return state
+  return updateLiveReasoningTextForThread(
+    state,
+    threadId,
+    appendLiveReasoningSectionBreak(state[threadId] ?? ''),
+  )
+}
+
+export function clearLiveReasoningTextForThread(
+  state: Record<string, string>,
+  threadId: string,
+): Record<string, string> {
+  if (!threadId || !(threadId in state)) return state
+  return omitRecordKey(state, threadId)
 }
 
 export function buildDisplayedMessages(

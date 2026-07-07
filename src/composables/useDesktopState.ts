@@ -65,17 +65,19 @@ import {
   queueDesktopRealtimeSync,
 } from './desktopRealtimeSyncQueue'
 import {
-  areMessageArraysEqual,
-  appendLiveReasoningDelta,
-  appendLiveReasoningSectionBreak,
+  appendLiveReasoningDeltaForThread,
+  appendLiveReasoningSectionBreakForThread,
   buildDisplayedMessages,
   buildLiveOverlay,
   buildRollbackAuditMessage,
+  clearLiveReasoningTextForThread,
   mergeMessages,
-  normalizeLiveReasoningTextForStorage,
   removeRedundantLiveAgentMessages,
-  upsertLiveAssistantDelta,
+  updateLiveReasoningTextForThread,
+  updateMessagesForThread,
+  upsertLiveAssistantDeltaForThread,
   upsertMessage,
+  upsertMessages,
   updateTurnActivityState,
   updateTurnErrorState,
   updateTurnSummaryState,
@@ -529,21 +531,19 @@ export function useDesktopState() {
   }
 
   function setPersistedMessagesForThread(threadId: string, nextMessages: UiMessage[]): void {
-    const previous = persistedMessagesByThreadId.value[threadId] ?? []
-    if (areMessageArraysEqual(previous, nextMessages)) return
-    persistedMessagesByThreadId.value = {
-      ...persistedMessagesByThreadId.value,
-      [threadId]: nextMessages,
-    }
+    persistedMessagesByThreadId.value = updateMessagesForThread(
+      persistedMessagesByThreadId.value,
+      threadId,
+      nextMessages,
+    )
   }
 
   function setLiveAgentMessagesForThread(threadId: string, nextMessages: UiMessage[]): void {
-    const previous = liveAgentMessagesByThreadId.value[threadId] ?? []
-    if (areMessageArraysEqual(previous, nextMessages)) return
-    liveAgentMessagesByThreadId.value = {
-      ...liveAgentMessagesByThreadId.value,
-      [threadId]: nextMessages,
-    }
+    liveAgentMessagesByThreadId.value = updateMessagesForThread(
+      liveAgentMessagesByThreadId.value,
+      threadId,
+      nextMessages,
+    )
   }
 
   function recordRollbackAudit(result: UiToolingRollbackFileResult): void {
@@ -605,31 +605,26 @@ export function useDesktopState() {
   }
 
   function setLiveReasoningText(threadId: string, text: string): void {
-    if (!threadId) return
-    const normalized = normalizeLiveReasoningTextForStorage(text)
-    const previous = liveReasoningTextByThreadId.value[threadId] ?? ''
-    if (normalized.length === 0) {
-      if (!previous) return
-      liveReasoningTextByThreadId.value = omitKey(liveReasoningTextByThreadId.value, threadId)
-      return
-    }
-    if (previous === normalized) return
-    liveReasoningTextByThreadId.value = {
-      ...liveReasoningTextByThreadId.value,
-      [threadId]: normalized,
-    }
+    liveReasoningTextByThreadId.value = updateLiveReasoningTextForThread(
+      liveReasoningTextByThreadId.value,
+      threadId,
+      text,
+    )
   }
 
   function appendLiveReasoningText(threadId: string, delta: string): void {
-    if (!threadId) return
-    const previous = liveReasoningTextByThreadId.value[threadId] ?? ''
-    setLiveReasoningText(threadId, appendLiveReasoningDelta(previous, delta))
+    liveReasoningTextByThreadId.value = appendLiveReasoningDeltaForThread(
+      liveReasoningTextByThreadId.value,
+      threadId,
+      delta,
+    )
   }
 
   function clearLiveReasoningForThread(threadId: string): void {
-    if (!threadId) return
-    if (!(threadId in liveReasoningTextByThreadId.value)) return
-    liveReasoningTextByThreadId.value = omitKey(liveReasoningTextByThreadId.value, threadId)
+    liveReasoningTextByThreadId.value = clearLiveReasoningTextForThread(
+      liveReasoningTextByThreadId.value,
+      threadId,
+    )
   }
 
   function upsertPendingServerRequest(request: UiServerRequest): void {
@@ -764,11 +759,10 @@ export function useDesktopState() {
 
     const completedUserMessages = readUserMessageCompleted(notification)
     if (completedUserMessages.length > 0) {
-      let nextMessages = persistedMessagesByThreadId.value[notificationThreadId] ?? []
-      for (const message of completedUserMessages) {
-        nextMessages = upsertMessage(nextMessages, message)
-      }
-      setPersistedMessagesForThread(notificationThreadId, nextMessages)
+      setPersistedMessagesForThread(
+        notificationThreadId,
+        upsertMessages(persistedMessagesByThreadId.value[notificationThreadId] ?? [], completedUserMessages),
+      )
     }
 
     const startedAgentMessageId = readAgentMessageStartedId(notification)
@@ -778,13 +772,14 @@ export function useDesktopState() {
 
     const liveAgentMessageDelta = readAgentMessageDelta(notification)
     if (liveAgentMessageDelta) {
-      setLiveAgentMessagesForThread(
+      liveAgentMessagesByThreadId.value = upsertLiveAssistantDeltaForThread(
+        liveAgentMessagesByThreadId.value,
         notificationThreadId,
-        upsertLiveAssistantDelta(liveAgentMessagesByThreadId.value[notificationThreadId] ?? [], {
+        {
           messageId: liveAgentMessageDelta.messageId,
           textDelta: liveAgentMessageDelta.delta,
           messageType: 'agentMessage.live',
-        }),
+        },
       )
     }
 
@@ -798,13 +793,14 @@ export function useDesktopState() {
       if (livePlanMessageDelta.turnId) {
         livePlanMessageIdByTurnId.set(livePlanMessageDelta.turnId, livePlanMessageDelta.messageId)
       }
-      setLiveAgentMessagesForThread(
+      liveAgentMessagesByThreadId.value = upsertLiveAssistantDeltaForThread(
+        liveAgentMessagesByThreadId.value,
         notificationThreadId,
-        upsertLiveAssistantDelta(liveAgentMessagesByThreadId.value[notificationThreadId] ?? [], {
+        {
           messageId: livePlanMessageDelta.messageId,
           textDelta: livePlanMessageDelta.delta,
           messageType: 'plan.live',
-        }),
+        },
       )
     }
 
@@ -833,8 +829,10 @@ export function useDesktopState() {
 
     const sectionBreakMessageId = readReasoningSectionBreakMessageId(notification)
     if (sectionBreakMessageId) {
-      const current = liveReasoningTextByThreadId.value[notificationThreadId] ?? ''
-      setLiveReasoningText(notificationThreadId, appendLiveReasoningSectionBreak(current))
+      liveReasoningTextByThreadId.value = appendLiveReasoningSectionBreakForThread(
+        liveReasoningTextByThreadId.value,
+        notificationThreadId,
+      )
     }
 
     const completedReasoningMessageId = readReasoningCompletedId(notification)

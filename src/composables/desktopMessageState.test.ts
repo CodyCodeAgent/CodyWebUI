@@ -3,11 +3,14 @@ import {
   areMessageArraysEqual,
   areTurnActivitiesEqual,
   appendLiveReasoningDelta,
+  appendLiveReasoningDeltaForThread,
   appendLiveReasoningSectionBreak,
+  appendLiveReasoningSectionBreakForThread,
   buildDisplayedMessages,
   buildRollbackAuditMessage,
   buildLiveOverlay,
   buildTurnSummaryMessage,
+  clearLiveReasoningTextForThread,
   formatTurnDuration,
   insertTurnSummaryMessage,
   mergeMessages,
@@ -15,8 +18,12 @@ import {
   normalizeMessageText,
   removeRedundantLiveAgentMessages,
   resolveTurnDurationMs,
+  updateLiveReasoningTextForThread,
+  updateMessagesForThread,
   upsertLiveAssistantDelta,
+  upsertLiveAssistantDeltaForThread,
   upsertMessage,
+  upsertMessages,
   updateTurnActivityState,
   updateTurnErrorState,
   updateTurnSummaryState,
@@ -99,6 +106,22 @@ describe('desktopMessageState', () => {
     expect(changed[0].text).toBe('updated')
   })
 
+  it('updates message maps by thread without unnecessary churn', () => {
+    const existing = message({ id: 'existing', text: 'old' })
+    const state = { 'thread-1': [existing] }
+    const nextMessages = upsertMessages(state['thread-1'], [
+      message({ id: 'existing', text: 'new' }),
+      message({ id: 'next', text: 'added' }),
+    ])
+
+    expect(nextMessages.map((row) => row.text)).toEqual(['new', 'added'])
+    expect(updateMessagesForThread(state, 'thread-1', state['thread-1'])).toBe(state)
+    expect(updateMessagesForThread(state, '', [])).toBe(state)
+    expect(updateMessagesForThread(state, 'thread-1', nextMessages)).toEqual({
+      'thread-1': nextMessages,
+    })
+  })
+
   it('appends live assistant deltas without duplicating message rows', () => {
     const first = upsertLiveAssistantDelta([], {
       messageId: 'agent-1',
@@ -120,12 +143,50 @@ describe('desktopMessageState', () => {
     })
   })
 
+  it('applies live assistant deltas to the thread message map', () => {
+    const first = upsertLiveAssistantDeltaForThread({}, 'thread-1', {
+      messageId: 'agent-1',
+      textDelta: 'hello',
+      messageType: 'agentMessage.live',
+    })
+    const second = upsertLiveAssistantDeltaForThread(first, 'thread-1', {
+      messageId: 'agent-1',
+      textDelta: ' plan',
+      messageType: 'plan.live',
+    })
+
+    expect(second['thread-1']).toHaveLength(1)
+    expect(second['thread-1'][0]).toMatchObject({
+      id: 'agent-1',
+      text: 'hello plan',
+      messageType: 'plan.live',
+    })
+    expect(upsertLiveAssistantDeltaForThread(second, '', {
+      messageId: 'agent-2',
+      textDelta: 'ignored',
+      messageType: 'agentMessage.live',
+    })).toBe(second)
+  })
+
   it('preserves live reasoning whitespace until display time', () => {
     expect(appendLiveReasoningDelta('', '  thinking')).toBe('  thinking')
     expect(appendLiveReasoningDelta('  thinking', '\nnext')).toBe('  thinking\nnext')
     expect(appendLiveReasoningDelta('', '   ')).toBe('')
     expect(appendLiveReasoningSectionBreak('  thinking')).toBe('  thinking\n\n')
     expect(appendLiveReasoningSectionBreak('  thinking\n\n')).toBe('  thinking\n\n')
+  })
+
+  it('updates live reasoning maps without losing meaningful whitespace', () => {
+    const state = updateLiveReasoningTextForThread({}, 'thread-1', '  thinking')
+    const withDelta = appendLiveReasoningDeltaForThread(state, 'thread-1', '\nnext')
+    const withBreak = appendLiveReasoningSectionBreakForThread(withDelta, 'thread-1')
+
+    expect(state).toEqual({ 'thread-1': '  thinking' })
+    expect(withDelta).toEqual({ 'thread-1': '  thinking\nnext' })
+    expect(withBreak).toEqual({ 'thread-1': '  thinking\nnext\n\n' })
+    expect(updateLiveReasoningTextForThread(withBreak, 'thread-1', '   ')).toEqual({})
+    expect(clearLiveReasoningTextForThread(withBreak, 'thread-1')).toEqual({})
+    expect(clearLiveReasoningTextForThread(withBreak, 'missing')).toBe(withBreak)
   })
 
   it('shows live assistant output before it is persisted by thread/read', () => {
