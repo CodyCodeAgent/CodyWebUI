@@ -120,7 +120,7 @@
                 :disabled="scriptRunState(script.name).isRunning"
                 @click="runScript(script.name)"
               >
-                {{ scriptRunState(script.name).isRunning ? 'Running' : 'Run' }}
+                {{ workspaceScriptRunButtonLabel(scriptRunState(script.name)) }}
               </button>
               <span v-else class="workspace-dashboard-script-manual">Manual</span>
             </div>
@@ -350,7 +350,6 @@ import {
   failedWorkspaceScriptState,
   formatWorkspaceDuration as formatDuration,
   isRunnableValidationScriptName as isRunnableValidationScript,
-  isWorkspaceValidationScriptName,
   mergedWorkspaceValidationRuns,
   runningWorkspaceScriptState,
   scriptProblemCount,
@@ -361,6 +360,7 @@ import {
   workspaceConfiguredValidationCommandPreview,
   workspaceDirtyFilePreview,
   workspaceNotificationChannelPreview,
+  workspaceScriptRunButtonLabel,
   workspaceScriptRunState,
   workspaceCommandPolicyLabel,
   workspaceNotificationPolicyLabel,
@@ -369,6 +369,7 @@ import {
   workspaceProjectContextSummary,
   workspaceResourceMetrics,
   workspaceThemePolicyLabel,
+  workspaceValidationScripts,
   workspaceValidationPlanItemPreview,
   workspaceValidationPlanSummary,
   type WorkspaceScriptRunState,
@@ -444,10 +445,7 @@ const notificationChannels = computed(() => workspaceNotificationChannelPreview(
 const notificationPolicyLabel = computed(() => workspaceNotificationPolicyLabel(workspaceConfig.value))
 const themePolicyLabel = computed(() => workspaceThemePolicyLabel(workspaceConfig.value))
 const notificationTestSummary = computed(() => workspaceNotificationTestSummary(notificationTestReport.value))
-const validationScripts = computed(() => {
-  const scripts = snapshot.value?.scripts ?? []
-  return scripts.filter((script) => isWorkspaceValidationScriptName(script.name))
-})
+const validationScripts = computed(() => workspaceValidationScripts(snapshot.value?.scripts))
 const completedScriptRuns = computed(() => completedWorkspaceScriptRuns(scriptRunStates.value))
 const allValidationRuns = computed(() =>
   mergedWorkspaceValidationRuns(completedScriptRuns.value, validationHistoryRuns.value),

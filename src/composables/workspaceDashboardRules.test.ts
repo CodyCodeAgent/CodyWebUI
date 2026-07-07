@@ -28,6 +28,7 @@ import {
   validationPlanEvidenceLabel,
   workspaceConfiguredValidationCommandPreview,
   workspaceScriptRunState,
+  workspaceScriptRunButtonLabel,
   workspaceDashboardPreviewItems,
   workspaceDirtyFilePreview,
   workspaceNotificationChannelPreview,
@@ -38,6 +39,7 @@ import {
   workspaceProjectContextSummary,
   workspaceResourceMetrics,
   workspaceThemePolicyLabel,
+  workspaceValidationScripts,
   workspaceValidationPlanItemPreview,
   workspaceValidationPlanSummary,
   EMPTY_WORKSPACE_SCRIPT_RUN_STATE,
@@ -357,6 +359,15 @@ describe('workspace dashboard rules', () => {
     expect(isWorkspaceValidationScriptName('test')).toBe(true)
     expect(isWorkspaceValidationScriptName('preview')).toBe(true)
     expect(isWorkspaceValidationScriptName('storybook')).toBe(false)
+    expect(workspaceValidationScripts([
+      { name: 'test', command: 'vitest' },
+      { name: 'storybook', command: 'storybook dev' },
+      { name: 'build', command: 'vite build' },
+    ])).toEqual([
+      { name: 'test', command: 'vitest' },
+      { name: 'build', command: 'vite build' },
+    ])
+    expect(workspaceValidationScripts(null)).toEqual([])
 
     expect(isRunnableValidationScriptName('test')).toBe(true)
     expect(isRunnableValidationScriptName('type-check')).toBe(true)
@@ -423,13 +434,16 @@ describe('workspace dashboard rules', () => {
     }
 
     expect(workspaceScriptRunState({}, 'test')).toBe(EMPTY_WORKSPACE_SCRIPT_RUN_STATE)
+    expect(workspaceScriptRunButtonLabel(EMPTY_WORKSPACE_SCRIPT_RUN_STATE)).toBe('Run')
     expect(setWorkspaceScriptRunState({}, '', previous)).toEqual({})
     expect(setWorkspaceScriptRunState({}, 'test', previous)).toEqual({ test: previous })
-    expect(runningWorkspaceScriptState(previous)).toEqual({
+    const runningState = runningWorkspaceScriptState(previous)
+    expect(runningState).toEqual({
       isRunning: true,
       errorMessage: '',
       result: previousResult,
     })
+    expect(workspaceScriptRunButtonLabel(runningState)).toBe('Running')
     expect(completedWorkspaceScriptState(scriptRun({ output: 'new output' }))).toMatchObject({
       isRunning: false,
       errorMessage: '',

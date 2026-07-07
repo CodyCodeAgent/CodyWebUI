@@ -181,6 +181,16 @@ export function isRunnableValidationScriptName(name: string): boolean {
   return isValidation && !isLongRunning
 }
 
+export function workspaceValidationScripts(
+  scripts: UiWorkspaceSnapshot['scripts'] | null | undefined,
+): UiWorkspaceSnapshot['scripts'] {
+  return (scripts ?? []).filter((script) => isWorkspaceValidationScriptName(script.name))
+}
+
+export function workspaceScriptRunButtonLabel(state: WorkspaceScriptRunState): string {
+  return state.isRunning ? 'Running' : 'Run'
+}
+
 export function validationPlanEvidenceLabel(item: UiValidationPlanItem): string {
   const evidence = item.evidence
   if (evidence.status === 'passed' || evidence.status === 'failed' || evidence.status === 'timed_out') {
