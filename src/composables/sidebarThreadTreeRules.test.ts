@@ -1,15 +1,23 @@
 import { describe, expect, it } from 'vitest'
 import type { UiProjectGroup, UiThread } from '../types/codex'
 import {
+  buildSidebarGroupsContainerStyle,
+  buildSidebarLayoutProjectOrder,
+  buildSidebarLayoutTopByProject,
   buildSidebarPinnedThreads,
   filterSidebarGroupsBySearch,
   formatSidebarRelativeTime,
   hasSidebarHiddenThreads,
   hasSidebarThreads,
+  isSidebarPointerInProjectDropZone,
   normalizeSidebarSearchQuery,
+  sidebarDropTargetIndex,
   sidebarBasenameFromPath,
+  sidebarProjectGroupStyle,
   sidebarProjectDisplayName,
+  sidebarProjectOuterHeight,
   sidebarProjectPath,
+  sidebarProjectedDropProjectIndex,
   sidebarProjectThreads,
   sidebarProjectTitleText,
   sidebarThreadState,
@@ -139,5 +147,129 @@ describe('sidebar thread tree rules', () => {
     expect(sidebarThreadState(thread())).toBe('idle')
     expect(sidebarThreadState(thread({ unread: true }))).toBe('unread')
     expect(sidebarThreadState(thread({ unread: true, inProgress: true }))).toBe('working')
+  })
+
+  it('projects drag drop indexes and layout order', () => {
+    expect(sidebarProjectedDropProjectIndex({
+      drag: null,
+      projectCount: 3,
+    })).toBeNull()
+    expect(sidebarProjectedDropProjectIndex({
+      drag: { fromIndex: 1, dropTargetIndexFull: 1 },
+      projectCount: 3,
+    })).toBeNull()
+    expect(sidebarProjectedDropProjectIndex({
+      drag: { fromIndex: 1, dropTargetIndexFull: 3 },
+      projectCount: 3,
+    })).toBe(2)
+    expect(sidebarProjectedDropProjectIndex({
+      drag: { fromIndex: 2, dropTargetIndexFull: 0 },
+      projectCount: 3,
+    })).toBe(0)
+
+    expect(buildSidebarLayoutProjectOrder({
+      projectNames: ['a', 'b', 'c'],
+      drag: { fromIndex: 0 },
+      projectedIndex: 2,
+    })).toEqual(['b', 'c', 'a'])
+    expect(buildSidebarLayoutProjectOrder({
+      projectNames: ['a', 'b', 'c'],
+      drag: null,
+      projectedIndex: 2,
+    })).toEqual(['a', 'b', 'c'])
+  })
+
+  it('calculates project layout heights and drop targets', () => {
+    expect(sidebarProjectOuterHeight({
+      measuredHeight: 40,
+      dragHeight: null,
+      isCollapsed: false,
+      expandedGapPx: 6,
+    })).toBe(46)
+    expect(sidebarProjectOuterHeight({
+      measuredHeight: 40,
+      dragHeight: 60,
+      isCollapsed: true,
+      expandedGapPx: 6,
+    })).toBe(60)
+
+    expect(buildSidebarLayoutTopByProject(['a', 'b', 'c'], (projectName) => ({
+      a: 10,
+      b: 20,
+      c: 30,
+    }[projectName] ?? 0))).toEqual({
+      a: 0,
+      b: 10,
+      c: 30,
+    })
+    expect(buildSidebarGroupsContainerStyle(-1)).toEqual({ height: '0px' })
+    expect(buildSidebarGroupsContainerStyle(42)).toEqual({ height: '42px' })
+
+    const getProjectOuterHeight = (projectName: string) => ({
+      a: 10,
+      b: 20,
+      c: 30,
+    }[projectName] ?? 0)
+
+    expect(sidebarDropTargetIndex({
+      cursorY: 4,
+      containerTop: 0,
+      projectNames: ['a', 'b', 'c'],
+      draggedProjectName: 'b',
+      getProjectOuterHeight,
+    })).toBe(0)
+    expect(sidebarDropTargetIndex({
+      cursorY: 20,
+      containerTop: 0,
+      projectNames: ['a', 'b', 'c'],
+      draggedProjectName: 'b',
+      getProjectOuterHeight,
+    })).toBe(2)
+    expect(sidebarDropTargetIndex({
+      cursorY: 80,
+      containerTop: 0,
+      projectNames: ['a', 'b', 'c'],
+      draggedProjectName: 'b',
+      getProjectOuterHeight,
+    })).toBe(3)
+  })
+
+  it('checks drag drop-zone bounds and builds stable group styles', () => {
+    const bounds = { left: 10, right: 110, top: 20, bottom: 120 }
+    expect(isSidebarPointerInProjectDropZone({ clientX: 20, clientY: -5 }, bounds, 32)).toBe(true)
+    expect(isSidebarPointerInProjectDropZone({ clientX: 9, clientY: 50 }, bounds, 32)).toBe(false)
+    expect(isSidebarPointerInProjectDropZone({ clientX: 20, clientY: 153 }, bounds, 32)).toBe(false)
+    expect(isSidebarPointerInProjectDropZone({ clientX: 20, clientY: 50 }, null, 32)).toBe(false)
+
+    expect(sidebarProjectGroupStyle({
+      projectName: 'a',
+      drag: null,
+      targetTop: 24,
+      isMenuOpen: true,
+    })).toMatchObject({
+      position: 'absolute',
+      zIndex: '45',
+      transform: 'translate3d(0, 24px, 0)',
+    })
+    expect(sidebarProjectGroupStyle({
+      projectName: 'a',
+      drag: {
+        projectName: 'a',
+        fromIndex: 0,
+        groupLeft: 12,
+        groupWidth: 240,
+        groupHeight: 80,
+        ghostTop: 99,
+        dropTargetIndexFull: 2,
+      },
+      targetTop: 24,
+      isMenuOpen: false,
+    })).toMatchObject({
+      position: 'fixed',
+      left: '12px',
+      width: '240px',
+      height: '80px',
+      transform: 'translate3d(0, 99px, 0)',
+    })
   })
 })

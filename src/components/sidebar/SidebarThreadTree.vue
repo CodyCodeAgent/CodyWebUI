@@ -256,16 +256,25 @@ import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import type { ComponentPublicInstance } from 'vue'
 import type { UiProjectGroup, UiThread } from '../../types/codex'
 import {
+  buildSidebarGroupsContainerStyle,
+  buildSidebarLayoutProjectOrder,
+  buildSidebarLayoutTopByProject,
   buildSidebarPinnedThreads,
   filterSidebarGroupsBySearch,
   formatSidebarRelativeTime,
   hasSidebarHiddenThreads,
   hasSidebarThreads,
+  isSidebarPointerInProjectDropZone,
   normalizeSidebarSearchQuery,
+  sidebarDropTargetIndex,
+  sidebarProjectGroupStyle,
   sidebarProjectDisplayName,
+  sidebarProjectOuterHeight,
   sidebarProjectPath,
+  sidebarProjectedDropProjectIndex,
   sidebarProjectTitleText,
   sidebarThreadState,
+  type SidebarActiveProjectDrag,
   visibleSidebarThreads,
 } from '../../composables/sidebarThreadTreeRules'
 import IconTablerChevronDown from '../icons/IconTablerChevronDown.vue'
@@ -312,16 +321,9 @@ type PendingProjectDrag = {
   groupOuterHeight: number
 }
 
-type ActiveProjectDrag = {
-  projectName: string
-  fromIndex: number
+type ActiveProjectDrag = SidebarActiveProjectDrag & {
   pointerOffsetY: number
-  groupLeft: number
-  groupWidth: number
-  groupHeight: number
   groupOuterHeight: number
-  ghostTop: number
-  dropTargetIndexFull: number | null
 }
 
 type DragPointerSample = {
@@ -407,44 +409,24 @@ const hasPinnedThreadMenuOpen = computed(() =>
 )
 
 const projectedDropProjectIndex = computed<number | null>(() => {
-  const drag = activeProjectDrag.value
-  if (!drag || drag.dropTargetIndexFull === null || props.groups.length === 0) return null
-
-  const boundedDropIndex = Math.max(0, Math.min(drag.dropTargetIndexFull, props.groups.length))
-  const projectedIndex = boundedDropIndex > drag.fromIndex ? boundedDropIndex - 1 : boundedDropIndex
-  const boundedProjectedIndex = Math.max(0, Math.min(projectedIndex, props.groups.length - 1))
-  return boundedProjectedIndex === drag.fromIndex ? null : boundedProjectedIndex
+  return sidebarProjectedDropProjectIndex({
+    drag: activeProjectDrag.value,
+    projectCount: props.groups.length,
+  })
 })
 
 const layoutProjectOrder = computed<string[]>(() => {
   const sourceGroups = isSearchActive.value ? filteredGroups.value : props.groups
   const names = sourceGroups.map((group) => group.projectName)
-  const drag = activeProjectDrag.value
-  const projectedIndex = projectedDropProjectIndex.value
-
-  if (!drag || projectedIndex === null) {
-    return names
-  }
-
-  const next = [...names]
-  const [movedProject] = next.splice(drag.fromIndex, 1)
-  if (!movedProject) {
-    return names
-  }
-  next.splice(projectedIndex, 0, movedProject)
-  return next
+  return buildSidebarLayoutProjectOrder({
+    projectNames: names,
+    drag: activeProjectDrag.value,
+    projectedIndex: projectedDropProjectIndex.value,
+  })
 })
 
 const layoutTopByProject = computed<Record<string, number>>(() => {
-  const topByProject: Record<string, number> = {}
-  let currentTop = 0
-
-  for (const projectName of layoutProjectOrder.value) {
-    topByProject[projectName] = currentTop
-    currentTop += getProjectOuterHeight(projectName)
-  }
-
-  return topByProject
+  return buildSidebarLayoutTopByProject(layoutProjectOrder.value, getProjectOuterHeight)
 })
 
 const groupsContainerStyle = computed<Record<string, string>>(() => {
@@ -453,9 +435,7 @@ const groupsContainerStyle = computed<Record<string, string>>(() => {
     totalHeight += getProjectOuterHeight(projectName)
   }
 
-  return {
-    height: `${Math.max(0, totalHeight)}px`,
-  }
+  return buildSidebarGroupsContainerStyle(totalHeight)
 })
 
 function formatRelative(value: string): string {
@@ -742,9 +722,12 @@ function getProjectOuterHeight(projectName: string): number {
   const measuredHeight = measuredHeightByProject.value[projectName] ?? 0
   const drag = activeProjectDrag.value
   const dragHeight = drag?.projectName === projectName ? drag.groupHeight : null
-  const baseHeight = dragHeight ?? measuredHeight
-  const gap = isCollapsed(projectName) ? 0 : PROJECT_GROUP_EXPANDED_GAP_PX
-  return Math.max(0, baseHeight + gap)
+  return sidebarProjectOuterHeight({
+    measuredHeight,
+    dragHeight,
+    isCollapsed: isCollapsed(projectName),
+    expandedGapPx: PROJECT_GROUP_EXPANDED_GAP_PX,
+  })
 }
 
 function setProjectMenuWrapRef(projectName: string, element: Element | ComponentPublicInstance | null): void {
@@ -985,52 +968,25 @@ function updateProjectDropTarget(sample: DragPointerSample): void {
   if (!drag) return
 
   drag.ghostTop = sample.clientY - drag.pointerOffsetY
-  if (!isPointerInProjectDropZone(sample)) {
+  const groupsContainer = groupsContainerRef.value
+  const containerRect = groupsContainer?.getBoundingClientRect() ?? null
+  if (!isSidebarPointerInProjectDropZone(sample, containerRect)) {
     drag.dropTargetIndexFull = null
     return
   }
 
-  const cursorY = sample.clientY
-  const groupsContainer = groupsContainerRef.value
-  if (!groupsContainer) {
+  if (!containerRect) {
     drag.dropTargetIndexFull = null
     return
   }
 
-  const containerRect = groupsContainer.getBoundingClientRect()
-  const projectIndexByName = new Map(props.groups.map((group, index) => [group.projectName, index]))
-  const nonDraggedProjectNames = props.groups
-    .map((group) => group.projectName)
-    .filter((projectName) => projectName !== drag.projectName)
-
-  let accumulatedTop = 0
-  let nextDropTarget = props.groups.length
-
-  for (const projectName of nonDraggedProjectNames) {
-    const originalIndex = projectIndexByName.get(projectName)
-    if (originalIndex === undefined) continue
-
-    const groupOuterHeight = getProjectOuterHeight(projectName)
-    const groupMiddleY = containerRect.top + accumulatedTop + groupOuterHeight / 2
-    if (cursorY < groupMiddleY) {
-      nextDropTarget = originalIndex
-      break
-    }
-
-    accumulatedTop += groupOuterHeight
-  }
-
-  drag.dropTargetIndexFull = nextDropTarget
-}
-
-function isPointerInProjectDropZone(sample: DragPointerSample): boolean {
-  const groupsContainer = groupsContainerRef.value
-  if (!groupsContainer) return false
-
-  const bounds = groupsContainer.getBoundingClientRect()
-  const xInBounds = sample.clientX >= bounds.left && sample.clientX <= bounds.right
-  const yInBounds = sample.clientY >= bounds.top - 32 && sample.clientY <= bounds.bottom + 32
-  return xInBounds && yInBounds
+  drag.dropTargetIndexFull = sidebarDropTargetIndex({
+    cursorY: sample.clientY,
+    containerTop: containerRect.top,
+    projectNames: props.groups.map((group) => group.projectName),
+    draggedProjectName: drag.projectName,
+    getProjectOuterHeight,
+  })
 }
 
 function isDraggingProject(projectName: string): boolean {
@@ -1044,31 +1000,12 @@ function projectGroupStyle(projectName: string): Record<string, string> | undefi
     .find((group) => group.projectName === projectName)
     ?.threads.some((thread) => isThreadMenuOpen(thread.id)) === true
 
-  if (!drag || drag.projectName !== projectName) {
-    return {
-      position: 'absolute',
-      top: '0',
-      left: '0',
-      right: '0',
-      zIndex: isMenuOpen ? '45' : '1',
-      transform: `translate3d(0, ${targetTop}px, 0)`,
-      willChange: 'transform',
-      transition: 'transform 180ms ease',
-    }
-  }
-
-  return {
-    position: 'fixed',
-    top: '0',
-    left: `${drag.groupLeft}px`,
-    width: `${drag.groupWidth}px`,
-    height: `${drag.groupHeight}px`,
-    zIndex: '50',
-    pointerEvents: 'none',
-    transform: `translate3d(0, ${drag.ghostTop}px, 0)`,
-    willChange: 'transform',
-    transition: 'transform 0ms linear',
-  }
+  return sidebarProjectGroupStyle({
+    projectName,
+    drag,
+    targetTop,
+    isMenuOpen,
+  })
 }
 
 function visibleThreads(group: UiProjectGroup): UiThread[] {

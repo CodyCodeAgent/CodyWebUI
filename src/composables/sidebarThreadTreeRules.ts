@@ -2,6 +2,23 @@ import type { UiProjectGroup, UiThread } from '../types/codex'
 
 export type SidebarThreadState = 'working' | 'unread' | 'idle'
 
+export type SidebarActiveProjectDrag = {
+  projectName: string
+  fromIndex: number
+  groupLeft: number
+  groupWidth: number
+  groupHeight: number
+  ghostTop: number
+  dropTargetIndexFull: number | null
+}
+
+export type SidebarProjectBounds = {
+  left: number
+  right: number
+  top: number
+  bottom: number
+}
+
 export function normalizeSidebarSearchQuery(value: string): string {
   return value.trim().toLowerCase()
 }
@@ -126,4 +143,137 @@ export function sidebarThreadState(thread: UiThread): SidebarThreadState {
   if (thread.inProgress) return 'working'
   if (thread.unread) return 'unread'
   return 'idle'
+}
+
+export function sidebarProjectedDropProjectIndex(params: {
+  drag: Pick<SidebarActiveProjectDrag, 'fromIndex' | 'dropTargetIndexFull'> | null
+  projectCount: number
+}): number | null {
+  const { drag, projectCount } = params
+  if (!drag || drag.dropTargetIndexFull === null || projectCount === 0) return null
+
+  const boundedDropIndex = Math.max(0, Math.min(drag.dropTargetIndexFull, projectCount))
+  const projectedIndex = boundedDropIndex > drag.fromIndex ? boundedDropIndex - 1 : boundedDropIndex
+  const boundedProjectedIndex = Math.max(0, Math.min(projectedIndex, projectCount - 1))
+  return boundedProjectedIndex === drag.fromIndex ? null : boundedProjectedIndex
+}
+
+export function buildSidebarLayoutProjectOrder(params: {
+  projectNames: string[]
+  drag: Pick<SidebarActiveProjectDrag, 'fromIndex'> | null
+  projectedIndex: number | null
+}): string[] {
+  const { projectNames, drag, projectedIndex } = params
+  if (!drag || projectedIndex === null) return projectNames
+
+  const next = [...projectNames]
+  const [movedProject] = next.splice(drag.fromIndex, 1)
+  if (!movedProject) return projectNames
+  next.splice(projectedIndex, 0, movedProject)
+  return next
+}
+
+export function sidebarProjectOuterHeight(params: {
+  measuredHeight: number
+  dragHeight: number | null
+  isCollapsed: boolean
+  expandedGapPx: number
+}): number {
+  const baseHeight = params.dragHeight ?? params.measuredHeight
+  const gap = params.isCollapsed ? 0 : params.expandedGapPx
+  return Math.max(0, baseHeight + gap)
+}
+
+export function buildSidebarLayoutTopByProject(
+  projectOrder: string[],
+  getProjectOuterHeight: (projectName: string) => number,
+): Record<string, number> {
+  const topByProject: Record<string, number> = {}
+  let currentTop = 0
+
+  for (const projectName of projectOrder) {
+    topByProject[projectName] = currentTop
+    currentTop += getProjectOuterHeight(projectName)
+  }
+
+  return topByProject
+}
+
+export function buildSidebarGroupsContainerStyle(totalHeight: number): Record<string, string> {
+  return {
+    height: `${Math.max(0, totalHeight)}px`,
+  }
+}
+
+export function sidebarDropTargetIndex(params: {
+  cursorY: number
+  containerTop: number
+  projectNames: string[]
+  draggedProjectName: string
+  getProjectOuterHeight: (projectName: string) => number
+}): number {
+  const projectIndexByName = new Map(params.projectNames.map((projectName, index) => [projectName, index]))
+  const nonDraggedProjectNames = params.projectNames.filter((projectName) => projectName !== params.draggedProjectName)
+  let accumulatedTop = 0
+
+  for (const projectName of nonDraggedProjectNames) {
+    const originalIndex = projectIndexByName.get(projectName)
+    if (originalIndex === undefined) continue
+
+    const groupOuterHeight = params.getProjectOuterHeight(projectName)
+    const groupMiddleY = params.containerTop + accumulatedTop + groupOuterHeight / 2
+    if (params.cursorY < groupMiddleY) {
+      return originalIndex
+    }
+
+    accumulatedTop += groupOuterHeight
+  }
+
+  return params.projectNames.length
+}
+
+export function isSidebarPointerInProjectDropZone(
+  sample: { clientX: number; clientY: number },
+  bounds: SidebarProjectBounds | null,
+  tolerancePx = 32,
+): boolean {
+  if (!bounds) return false
+  const xInBounds = sample.clientX >= bounds.left && sample.clientX <= bounds.right
+  const yInBounds = sample.clientY >= bounds.top - tolerancePx && sample.clientY <= bounds.bottom + tolerancePx
+  return xInBounds && yInBounds
+}
+
+export function sidebarProjectGroupStyle(params: {
+  projectName: string
+  drag: SidebarActiveProjectDrag | null
+  targetTop: number
+  isMenuOpen: boolean
+}): Record<string, string> {
+  const { projectName, drag, targetTop, isMenuOpen } = params
+
+  if (!drag || drag.projectName !== projectName) {
+    return {
+      position: 'absolute',
+      top: '0',
+      left: '0',
+      right: '0',
+      zIndex: isMenuOpen ? '45' : '1',
+      transform: `translate3d(0, ${targetTop}px, 0)`,
+      willChange: 'transform',
+      transition: 'transform 180ms ease',
+    }
+  }
+
+  return {
+    position: 'fixed',
+    top: '0',
+    left: `${drag.groupLeft}px`,
+    width: `${drag.groupWidth}px`,
+    height: `${drag.groupHeight}px`,
+    zIndex: '50',
+    pointerEvents: 'none',
+    transform: `translate3d(0, ${drag.ghostTop}px, 0)`,
+    willChange: 'transform',
+    transition: 'transform 0ms linear',
+  }
 }
