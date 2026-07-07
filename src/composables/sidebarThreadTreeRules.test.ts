@@ -13,6 +13,7 @@ import {
   isSidebarEventInsideElement,
   isSidebarPointerInProjectDropZone,
   normalizeSidebarSearchQuery,
+  sidebarElementFromRef,
   sidebarDropTargetIndex,
   sidebarBasenameFromPath,
   sidebarProjectGroupStyle,
@@ -194,6 +195,19 @@ describe('sidebar thread tree rules', () => {
         value: originalNode,
       })
     }
+  })
+
+  it('normalizes DOM and Vue component refs to typed elements', () => {
+    class FakeElement {}
+    class OtherElement {}
+    const element = new FakeElement()
+
+    expect(sidebarElementFromRef(element, FakeElement)).toBe(element)
+    expect(sidebarElementFromRef({ $el: element }, FakeElement)).toBe(element)
+    expect(sidebarElementFromRef({ $el: new OtherElement() }, FakeElement)).toBeNull()
+    expect(sidebarElementFromRef(new OtherElement(), FakeElement)).toBeNull()
+    expect(sidebarElementFromRef(null, FakeElement)).toBeNull()
+    expect(sidebarElementFromRef({ value: element }, FakeElement)).toBeNull()
   })
 
   it('updates pinned thread and thread menu state', () => {

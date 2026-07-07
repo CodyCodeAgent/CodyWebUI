@@ -35,6 +35,10 @@ export type SidebarProjectBounds = {
   bottom: number
 }
 
+export type SidebarElementConstructor<T> = {
+  new (...args: never[]): T
+}
+
 export function normalizeSidebarSearchQuery(value: string): string {
   return value.trim().toLowerCase()
 }
@@ -169,6 +173,17 @@ export function isSidebarEventInsideElement(event: Event, element: HTMLElement |
 
   const target = event.target
   return typeof Node !== 'undefined' && target instanceof Node ? element.contains(target) : false
+}
+
+export function sidebarElementFromRef<T>(
+  value: unknown,
+  elementConstructor: SidebarElementConstructor<T>,
+): T | null {
+  if (value instanceof elementConstructor) return value
+  if (typeof value !== 'object' || value === null || !('$el' in value)) return null
+
+  const element = value.$el
+  return element instanceof elementConstructor ? element : null
 }
 
 export function toggleSidebarPinnedThreadIds(pinnedThreadIds: string[], threadId: string): string[] {

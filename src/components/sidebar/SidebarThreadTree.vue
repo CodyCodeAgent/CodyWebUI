@@ -268,6 +268,7 @@ import {
   isSidebarEventInsideElement,
   isSidebarPointerInProjectDropZone,
   normalizeSidebarSearchQuery,
+  sidebarElementFromRef,
   sidebarDropTargetIndex,
   sidebarProjectGroupStyle,
   sidebarProjectDisplayName,
@@ -519,12 +520,7 @@ function toggleThreadMenu(threadId: string): void {
 }
 
 function setThreadMenuWrapRef(threadId: string, element: Element | ComponentPublicInstance | null): void {
-  const htmlElement =
-    element instanceof HTMLElement
-      ? element
-      : element && '$el' in element && element.$el instanceof HTMLElement
-        ? element.$el
-        : null
+  const htmlElement = sidebarElementFromRef(element, HTMLElement)
 
   if (htmlElement) {
     threadMenuWrapElementById.set(threadId, htmlElement)
@@ -539,12 +535,7 @@ function isRenamingThread(threadId: string): boolean {
 }
 
 function setThreadRenameInputRef(threadId: string, element: Element | ComponentPublicInstance | null): void {
-  const htmlElement =
-    element instanceof HTMLInputElement
-      ? element
-      : element && '$el' in element && element.$el instanceof HTMLInputElement
-        ? element.$el
-        : null
+  const htmlElement = sidebarElementFromRef(element, HTMLInputElement)
 
   if (htmlElement) {
     threadRenameInputElementById.set(threadId, htmlElement)
@@ -722,12 +713,7 @@ function getProjectOuterHeight(projectName: string): number {
 }
 
 function setProjectMenuWrapRef(projectName: string, element: Element | ComponentPublicInstance | null): void {
-  const htmlElement =
-    element instanceof HTMLElement
-      ? element
-      : element && '$el' in element && element.$el instanceof HTMLElement
-        ? element.$el
-        : null
+  const htmlElement = sidebarElementFromRef(element, HTMLElement)
 
   if (htmlElement) {
     projectMenuWrapElementByName.set(projectName, htmlElement)
@@ -795,12 +781,7 @@ function setProjectGroupRef(projectName: string, element: Element | ComponentPub
     projectGroupResizeObserver.unobserve(previousElement)
   }
 
-  const htmlElement =
-    element instanceof HTMLElement
-      ? element
-      : element && '$el' in element && element.$el instanceof HTMLElement
-        ? element.$el
-        : null
+  const htmlElement = sidebarElementFromRef(element, HTMLElement)
 
   if (htmlElement) {
     projectGroupElementByName.set(projectName, htmlElement)
