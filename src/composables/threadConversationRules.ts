@@ -1,5 +1,25 @@
-import type { UiMessage, UiToolTimelineEntry } from '../types/codex'
+import { asRecord } from '../api/protocolValueReaders'
+import type {
+  UiApprovalDecisionScope,
+  UiMessage,
+  UiServerRequest,
+  UiServerRequestReply,
+  UiToolTimelineEntry,
+} from '../types/codex'
+import {
+  approvalDecisionForScope,
+  approvalScopeForDecision,
+  type UiApprovalDecision,
+} from './useApprovalRisk'
 import { formatToolStatus } from './threadToolTimelineRules'
+
+export type ParsedToolQuestion = {
+  id: string
+  header: string
+  question: string
+  isOther: boolean
+  options: string[]
+}
 
 export function buildToolCopyText(tool: UiToolTimelineEntry): string {
   const parts = [`${tool.title}: ${tool.summary}`]
@@ -86,4 +106,139 @@ export function buildCopyTextAt(messages: UiMessage[], message: UiMessage, messa
   }
 
   return parts.join('\n\n')
+}
+
+export function toolQuestionKey(requestId: number, questionId: string): string {
+  return `${String(requestId)}:${questionId}`
+}
+
+export function readToolQuestions(request: UiServerRequest): ParsedToolQuestion[] {
+  const params = asRecord(request.params)
+  const questions = Array.isArray(params?.questions) ? params.questions : []
+  const parsed: ParsedToolQuestion[] = []
+
+  for (const row of questions) {
+    const question = asRecord(row)
+    if (!question) continue
+    const id = typeof question.id === 'string' ? question.id : ''
+    if (!id) continue
+
+    const options = Array.isArray(question.options)
+      ? question.options
+        .map((option) => asRecord(option))
+        .map((option) => option?.label)
+        .filter((option): option is string => typeof option === 'string' && option.length > 0)
+      : []
+
+    parsed.push({
+      id,
+      header: typeof question.header === 'string' ? question.header : '',
+      question: typeof question.question === 'string' ? question.question : '',
+      isOther: question.isOther === true,
+      options,
+    })
+  }
+
+  return parsed
+}
+
+export function readToolQuestionAnswer(
+  answersByKey: Record<string, string>,
+  requestId: number,
+  questionId: string,
+  fallback: string,
+): string {
+  const saved = answersByKey[toolQuestionKey(requestId, questionId)]
+  return typeof saved === 'string' && saved.length > 0 ? saved : fallback
+}
+
+export function readToolQuestionOtherAnswer(
+  answersByKey: Record<string, string>,
+  requestId: number,
+  questionId: string,
+): string {
+  return answersByKey[toolQuestionKey(requestId, questionId)] ?? ''
+}
+
+export function buildApprovalDecisionReply(requestId: number, decision: UiApprovalDecision): UiServerRequestReply {
+  return {
+    id: requestId,
+    approvalScope: approvalScopeForDecision(decision),
+    result: { decision },
+  }
+}
+
+export function buildApprovalScopeReply(requestId: number, scope: UiApprovalDecisionScope): UiServerRequestReply {
+  return {
+    id: requestId,
+    approvalScope: scope,
+    result: { decision: approvalDecisionForScope(scope) },
+  }
+}
+
+export function buildToolUserInputReply(params: {
+  request: UiServerRequest
+  answersByKey: Record<string, string>
+  otherAnswersByKey: Record<string, string>
+}): UiServerRequestReply {
+  const answers: Record<string, { answers: string[] }> = {}
+
+  for (const question of readToolQuestions(params.request)) {
+    const selected = readToolQuestionAnswer(
+      params.answersByKey,
+      params.request.id,
+      question.id,
+      question.options[0] || '',
+    )
+    const other = readToolQuestionOtherAnswer(params.otherAnswersByKey, params.request.id, question.id).trim()
+    const values = [selected, other].map((value) => value.trim()).filter((value) => value.length > 0)
+    answers[question.id] = { answers: values }
+  }
+
+  return {
+    id: params.request.id,
+    result: { answers },
+  }
+}
+
+export function buildToolCallFailureReply(requestId: number): UiServerRequestReply {
+  return {
+    id: requestId,
+    result: {
+      success: false,
+      contentItems: [
+        {
+          type: 'inputText',
+          text: 'Tool call rejected from codex-web-local UI.',
+        },
+      ],
+    },
+  }
+}
+
+export function buildToolCallSuccessReply(requestId: number): UiServerRequestReply {
+  return {
+    id: requestId,
+    result: {
+      success: true,
+      contentItems: [],
+    },
+  }
+}
+
+export function buildEmptyServerRequestReply(requestId: number): UiServerRequestReply {
+  return {
+    id: requestId,
+    result: {},
+  }
+}
+
+export function buildRejectedServerRequestReply(requestId: number, message: string): UiServerRequestReply {
+  return {
+    id: requestId,
+    error: {
+      code: -32000,
+      message,
+    },
+  }
 }

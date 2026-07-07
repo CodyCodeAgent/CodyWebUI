@@ -290,14 +290,23 @@ import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import type { ThreadScrollState, UiApprovalDecisionScope, UiLiveOverlay, UiMessage, UiServerRequest, UiServerRequestReply } from '../../types/codex'
 import {
   APPROVAL_SCOPE_OPTIONS,
-  approvalDecisionForScope,
-  approvalScopeForDecision,
   buildApprovalRiskSummary,
   type UiApprovalDecision,
 } from '../../composables/useApprovalRisk'
 import {
+  buildApprovalDecisionReply,
+  buildApprovalScopeReply,
   buildCopyTextAt as buildThreadCopyTextAt,
+  buildEmptyServerRequestReply,
+  buildRejectedServerRequestReply,
+  buildToolCallFailureReply,
+  buildToolCallSuccessReply,
+  buildToolUserInputReply,
+  readToolQuestionAnswer,
+  readToolQuestionOtherAnswer,
+  readToolQuestions,
   shouldShowCopyButton as shouldShowThreadCopyButton,
+  toolQuestionKey,
 } from '../../composables/threadConversationRules'
 import {
   formatToolStatus,
@@ -340,14 +349,6 @@ let bottomLockFramesLeft = 0
 let copiedMessageTimer: number | null = null
 const trackedPendingImages = new WeakSet<HTMLImageElement>()
 
-type ParsedToolQuestion = {
-  id: string
-  header: string
-  question: string
-  isOther: boolean
-  options: string[]
-}
-
 const hasLiveOverlayDetails = computed(() => {
   const overlay = props.liveOverlay
   if (!overlay) return false
@@ -359,12 +360,6 @@ const showScrollToBottomButton = computed(() => {
   if (props.messages.length === 0 && props.pendingRequests.length === 0 && !props.liveOverlay) return false
   return props.scrollState?.isAtBottom === false
 })
-
-function asRecord(value: unknown): Record<string, unknown> | null {
-  return value !== null && typeof value === 'object' && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : null
-}
 
 function shouldShowCopyButton(message: UiMessage, messageIndex: number): boolean {
   return shouldShowThreadCopyButton(props.messages, message, messageIndex)
@@ -424,50 +419,12 @@ function approvalSummary(request: UiServerRequest) {
   return buildApprovalRiskSummary(request)
 }
 
-function toolQuestionKey(requestId: number, questionId: string): string {
-  return `${String(requestId)}:${questionId}`
-}
-
-function readToolQuestions(request: UiServerRequest): ParsedToolQuestion[] {
-  const params = asRecord(request.params)
-  const questions = Array.isArray(params?.questions) ? params.questions : []
-  const parsed: ParsedToolQuestion[] = []
-
-  for (const row of questions) {
-    const question = asRecord(row)
-    if (!question) continue
-    const id = typeof question.id === 'string' ? question.id : ''
-    if (!id) continue
-
-    const options = Array.isArray(question.options)
-      ? question.options
-        .map((option) => asRecord(option))
-        .map((option) => option?.label)
-        .filter((option): option is string => typeof option === 'string' && option.length > 0)
-      : []
-
-    parsed.push({
-      id,
-      header: typeof question.header === 'string' ? question.header : '',
-      question: typeof question.question === 'string' ? question.question : '',
-      isOther: question.isOther === true,
-      options,
-    })
-  }
-
-  return parsed
-}
-
 function readQuestionAnswer(requestId: number, questionId: string, fallback: string): string {
-  const key = toolQuestionKey(requestId, questionId)
-  const saved = toolQuestionAnswers.value[key]
-  if (typeof saved === 'string' && saved.length > 0) return saved
-  return fallback
+  return readToolQuestionAnswer(toolQuestionAnswers.value, requestId, questionId, fallback)
 }
 
 function readQuestionOtherAnswer(requestId: number, questionId: string): string {
-  const key = toolQuestionKey(requestId, questionId)
-  return toolQuestionOtherAnswers.value[key] ?? ''
+  return readToolQuestionOtherAnswer(toolQuestionOtherAnswers.value, requestId, questionId)
 }
 
 function onQuestionAnswerChange(requestId: number, questionId: string, event: Event): void {
@@ -491,78 +448,38 @@ function onQuestionOtherAnswerInput(requestId: number, questionId: string, event
 }
 
 function onRespondApproval(requestId: number, decision: UiApprovalDecision): void {
-  emit('respondServerRequest', {
-    id: requestId,
-    approvalScope: approvalScopeForDecision(decision),
-    result: { decision },
-  })
+  emit('respondServerRequest', buildApprovalDecisionReply(requestId, decision))
 }
 
 function onRespondApprovalScope(requestId: number, scope: UiApprovalDecisionScope): void {
-  emit('respondServerRequest', {
-    id: requestId,
-    approvalScope: scope,
-    result: { decision: approvalDecisionForScope(scope) },
-  })
+  emit('respondServerRequest', buildApprovalScopeReply(requestId, scope))
 }
 
 function onRespondToolRequestUserInput(request: UiServerRequest): void {
-  const questions = readToolQuestions(request)
-  const answers: Record<string, { answers: string[] }> = {}
-
-  for (const question of questions) {
-    const selected = readQuestionAnswer(request.id, question.id, question.options[0] || '')
-    const other = readQuestionOtherAnswer(request.id, question.id).trim()
-    const values = [selected, other].map((value) => value.trim()).filter((value) => value.length > 0)
-    answers[question.id] = { answers: values }
-  }
-
-  emit('respondServerRequest', {
-    id: request.id,
-    result: { answers },
-  })
+  emit('respondServerRequest', buildToolUserInputReply({
+    request,
+    answersByKey: toolQuestionAnswers.value,
+    otherAnswersByKey: toolQuestionOtherAnswers.value,
+  }))
 }
 
 function onRespondToolCallFailure(requestId: number): void {
-  emit('respondServerRequest', {
-    id: requestId,
-    result: {
-      success: false,
-      contentItems: [
-        {
-          type: 'inputText',
-          text: 'Tool call rejected from codex-web-local UI.',
-        },
-      ],
-    },
-  })
+  emit('respondServerRequest', buildToolCallFailureReply(requestId))
 }
 
 function onRespondToolCallSuccess(requestId: number): void {
-  emit('respondServerRequest', {
-    id: requestId,
-    result: {
-      success: true,
-      contentItems: [],
-    },
-  })
+  emit('respondServerRequest', buildToolCallSuccessReply(requestId))
 }
 
 function onRespondEmptyResult(requestId: number): void {
-  emit('respondServerRequest', {
-    id: requestId,
-    result: {},
-  })
+  emit('respondServerRequest', buildEmptyServerRequestReply(requestId))
 }
 
 function onRejectUnknownRequest(requestId: number): void {
-  emit('respondServerRequest', {
-    id: requestId,
-    error: {
-      code: -32000,
-      message: 'Rejected from codex-web-local UI.',
-    },
-  })
+  emit('respondServerRequest', buildRejectedServerRequestReply(
+    requestId,
+    'Rejected from codex-web-local UI.',
+  ))
 }
 
 function scrollToBottom(): void {

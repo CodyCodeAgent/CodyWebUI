@@ -282,11 +282,15 @@ import {
 } from '../../composables/threadToolTimelineRules'
 import {
   APPROVAL_SCOPE_OPTIONS,
-  approvalDecisionForScope,
-  approvalScopeForDecision,
   buildApprovalRiskSummary,
   type UiApprovalDecision,
 } from '../../composables/useApprovalRisk'
+import {
+  buildApprovalDecisionReply,
+  buildApprovalScopeReply,
+  buildEmptyServerRequestReply,
+  buildRejectedServerRequestReply,
+} from '../../composables/threadConversationRules'
 import { buildDiffReview, type UiDiffReviewFile } from '../../composables/useDiffReview'
 import type { UiApprovalDecisionScope, UiMessage, UiServerRequest, UiServerRequestReply, UiToolingRollbackFileResult } from '../../types/codex'
 
@@ -338,36 +342,22 @@ function isApprovalRequest(request: UiServerRequest): boolean {
 }
 
 function onRespondApproval(requestId: number, decision: UiApprovalDecision): void {
-  emit('respondServerRequest', {
-    id: requestId,
-    approvalScope: approvalScopeForDecision(decision),
-    result: { decision },
-  })
+  emit('respondServerRequest', buildApprovalDecisionReply(requestId, decision))
 }
 
 function onRespondApprovalScope(requestId: number, scope: UiApprovalDecisionScope): void {
-  emit('respondServerRequest', {
-    id: requestId,
-    approvalScope: scope,
-    result: { decision: approvalDecisionForScope(scope) },
-  })
+  emit('respondServerRequest', buildApprovalScopeReply(requestId, scope))
 }
 
 function onRespondEmptyResult(requestId: number): void {
-  emit('respondServerRequest', {
-    id: requestId,
-    result: {},
-  })
+  emit('respondServerRequest', buildEmptyServerRequestReply(requestId))
 }
 
 function onRejectRequest(requestId: number): void {
-  emit('respondServerRequest', {
-    id: requestId,
-    error: {
-      code: -32000,
-      message: 'Rejected from codex-web-local activity panel.',
-    },
-  })
+  emit('respondServerRequest', buildRejectedServerRequestReply(
+    requestId,
+    'Rejected from codex-web-local activity panel.',
+  ))
 }
 
 function formatLineNumber(value: number | null): string {

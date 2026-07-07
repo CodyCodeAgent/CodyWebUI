@@ -1,11 +1,22 @@
 import { describe, expect, it } from 'vitest'
-import type { UiMessage, UiToolTimelineEntry } from '../types/codex'
+import type { UiMessage, UiServerRequest, UiToolTimelineEntry } from '../types/codex'
 import {
+  buildApprovalDecisionReply,
+  buildApprovalScopeReply,
   buildCopyText,
   buildCopyTextAt,
+  buildEmptyServerRequestReply,
+  buildRejectedServerRequestReply,
+  buildToolCallFailureReply,
+  buildToolCallSuccessReply,
   buildToolCopyText,
+  buildToolUserInputReply,
   isCopyableMessage,
+  readToolQuestionAnswer,
+  readToolQuestionOtherAnswer,
+  readToolQuestions,
   shouldShowCopyButton,
+  toolQuestionKey,
 } from './threadConversationRules'
 
 function tool(overrides: Partial<UiToolTimelineEntry> = {}): UiToolTimelineEntry {
@@ -26,6 +37,19 @@ function message(overrides: Partial<UiMessage> = {}): UiMessage {
     id: 'message-1',
     role: 'assistant',
     text: 'Answer',
+    ...overrides,
+  }
+}
+
+function serverRequest(overrides: Partial<UiServerRequest> = {}): UiServerRequest {
+  return {
+    id: 42,
+    method: 'item/tool/requestUserInput',
+    threadId: 'thread-1',
+    turnId: 'turn-1',
+    itemId: 'item-1',
+    receivedAtIso: '2026-07-07T12:00:00.000Z',
+    params: {},
     ...overrides,
   }
 }
@@ -87,5 +111,111 @@ describe('thread conversation rules', () => {
       buildCopyText(messages[1]),
       'Answer',
     ].join('\n\n'))
+  })
+
+  it('parses tool questions and reads saved answers by request/question key', () => {
+    const request = serverRequest({
+      params: {
+        questions: [
+          {
+            id: 'choice',
+            header: 'Mode',
+            question: 'Pick one',
+            isOther: true,
+            options: [
+              { label: 'Fast' },
+              { label: '' },
+              { name: 'missing-label' },
+              { label: 'Careful' },
+            ],
+          },
+          { id: '', question: 'skip me' },
+          null,
+        ],
+      },
+    })
+
+    expect(readToolQuestions(request)).toEqual([
+      {
+        id: 'choice',
+        header: 'Mode',
+        question: 'Pick one',
+        isOther: true,
+        options: ['Fast', 'Careful'],
+      },
+    ])
+    expect(toolQuestionKey(42, 'choice')).toBe('42:choice')
+    expect(readToolQuestionAnswer({ '42:choice': 'Careful' }, 42, 'choice', 'Fast')).toBe('Careful')
+    expect(readToolQuestionAnswer({}, 42, 'choice', 'Fast')).toBe('Fast')
+    expect(readToolQuestionOtherAnswer({ '42:choice': 'Custom' }, 42, 'choice')).toBe('Custom')
+    expect(readToolQuestionOtherAnswer({}, 42, 'choice')).toBe('')
+  })
+
+  it('builds approval and tool request replies', () => {
+    expect(buildApprovalDecisionReply(7, 'acceptForSession')).toEqual({
+      id: 7,
+      approvalScope: 'session',
+      result: { decision: 'acceptForSession' },
+    })
+    expect(buildApprovalScopeReply(7, 'workspace')).toEqual({
+      id: 7,
+      approvalScope: 'workspace',
+      result: { decision: 'accept' },
+    })
+    expect(buildToolCallSuccessReply(8)).toEqual({
+      id: 8,
+      result: { success: true, contentItems: [] },
+    })
+    expect(buildToolCallFailureReply(8)).toEqual({
+      id: 8,
+      result: {
+        success: false,
+        contentItems: [
+          {
+            type: 'inputText',
+            text: 'Tool call rejected from codex-web-local UI.',
+          },
+        ],
+      },
+    })
+    expect(buildEmptyServerRequestReply(9)).toEqual({ id: 9, result: {} })
+    expect(buildRejectedServerRequestReply(9, 'Nope')).toEqual({
+      id: 9,
+      error: { code: -32000, message: 'Nope' },
+    })
+  })
+
+  it('builds tool user input replies from selected and custom answers', () => {
+    const request = serverRequest({
+      params: {
+        questions: [
+          {
+            id: 'size',
+            question: 'Size?',
+            options: [{ label: 'Small' }, { label: 'Large' }],
+          },
+          {
+            id: 'note',
+            question: 'Anything else?',
+            isOther: true,
+            options: [{ label: 'Other' }],
+          },
+        ],
+      },
+    })
+
+    expect(buildToolUserInputReply({
+      request,
+      answersByKey: { '42:size': 'Large' },
+      otherAnswersByKey: { '42:note': '  custom note  ' },
+    })).toEqual({
+      id: 42,
+      result: {
+        answers: {
+          size: { answers: ['Large'] },
+          note: { answers: ['Other', 'custom note'] },
+        },
+      },
+    })
   })
 })
