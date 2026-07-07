@@ -294,7 +294,6 @@ import {
   createWorkspaceReviewComment,
   createWorkspaceReviewFollowUp,
   fetchWorkspaceReviewComments,
-  fetchWorkspaceReviewDraft,
   fetchToolingCheckpointPatch,
   fetchToolingCheckpoints,
   rollbackWorkspaceChanges,
@@ -302,7 +301,8 @@ import {
   rollbackWorkspaceHunk,
   stageWorkspaceHunk,
   updateWorkspaceReviewCommentStatus,
-} from '../../api/codexRpcClient'
+} from '../../api/codexDiffReviewClient'
+import { fetchWorkspaceReviewDraft } from '../../api/codexWorkspaceGitClient'
 import { buildDiffReview } from '../../composables/useDiffReview'
 import type { UiDiffLineKind, UiDiffReviewLine } from '../../composables/useDiffReview'
 import type {
