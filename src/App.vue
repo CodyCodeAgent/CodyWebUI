@@ -267,6 +267,19 @@ import IconTablerSearch from './components/icons/IconTablerSearch.vue'
 import IconTablerSun from './components/icons/IconTablerSun.vue'
 import IconTablerX from './components/icons/IconTablerX.vue'
 import { fetchDefaultWorkspace } from './api/codexWorkspaceResourcesClient'
+import {
+  appContentTitle,
+  autoRefreshLabel,
+  buildNewThreadFolderOptions,
+  composerThreadContextId as buildComposerThreadContextId,
+  directoryPickerInitialPath as buildDirectoryPickerInitialPath,
+  filterAppConversationMessages,
+  findNewThreadWorkspaceGroup,
+  homeComposerBusyLabel as buildHomeComposerBusyLabel,
+  knownThreadIds,
+  newThreadProjectLabel as buildNewThreadProjectLabel,
+  threadComposerBusyLabel as buildThreadComposerBusyLabel,
+} from './composables/appShellRules'
 import { useBrowserNotifications } from './composables/useBrowserNotifications'
 import { useDesktopState } from './composables/useDesktopState'
 import { useTheme } from './theme/useTheme'
@@ -363,90 +376,54 @@ const routeThreadId = computed(() => {
   return typeof rawThreadId === 'string' ? rawThreadId : ''
 })
 
-const knownThreadIdSet = computed(() => {
-  const ids = new Set<string>()
-  for (const group of projectGroups.value) {
-    for (const thread of group.threads) {
-      ids.add(thread.id)
-    }
-  }
-  return ids
-})
+const knownThreadIdSet = computed(() => knownThreadIds(projectGroups.value))
 
 const isHomeRoute = computed(() => route.name === 'home')
 const isEffectiveSidebarCollapsed = computed(() => isSidebarCollapsed.value || isMobileViewport.value)
-const contentTitle = computed(() => {
-  if (isHomeRoute.value) return 'New thread'
-  return selectedThread.value?.title ?? 'Choose a thread'
-})
-const autoRefreshButtonLabel = computed(() =>
-  isAutoRefreshEnabled.value
-    ? `Auto refresh in ${String(autoRefreshSecondsLeft.value)}s`
-    : 'Enable 4s refresh',
-)
-const filteredMessages = computed(() =>
-  messages.value.filter((message) => {
-    const type = normalizeMessageType(message.messageType, message.role)
-    if (type === 'worked') return true
-    if (type === 'turnActivity.live' || type === 'turnError.live' || type === 'agentReasoning.live') return false
-    return true
-  }),
-)
+const contentTitle = computed(() => appContentTitle({
+  isHomeRoute: isHomeRoute.value,
+  selectedThread: selectedThread.value,
+}))
+const autoRefreshButtonLabel = computed(() => autoRefreshLabel({
+  isEnabled: isAutoRefreshEnabled.value,
+  secondsLeft: autoRefreshSecondsLeft.value,
+}))
+const filteredMessages = computed(() => filterAppConversationMessages(messages.value))
 const liveOverlay = computed(() => selectedLiveOverlay.value)
-const composerThreadContextId = computed(() => (isHomeRoute.value ? '__new-thread__' : selectedThreadId.value))
+const composerThreadContextId = computed(() => buildComposerThreadContextId({
+  isHomeRoute: isHomeRoute.value,
+  selectedThreadId: selectedThreadId.value,
+}))
 const isSelectedThreadInProgress = computed(() => !isHomeRoute.value && selectedThread.value?.inProgress === true)
-const homeComposerBusyLabel = computed(() => (isSendingMessage.value ? 'Creating thread...' : ''))
-const threadComposerBusyLabel = computed(() => {
-  if (!isSendingMessage.value) return ''
-  return isSelectedThreadInProgress.value ? 'Sending guidance...' : 'Starting response...'
-})
-const directoryPickerInitialPath = computed(() => newThreadCwd.value || selectedThread.value?.cwd || '')
+const homeComposerBusyLabel = computed(() => buildHomeComposerBusyLabel(isSendingMessage.value))
+const threadComposerBusyLabel = computed(() => buildThreadComposerBusyLabel({
+  isSendingMessage: isSendingMessage.value,
+  isSelectedThreadInProgress: isSelectedThreadInProgress.value,
+}))
+const directoryPickerInitialPath = computed(() => buildDirectoryPickerInitialPath({
+  newThreadCwd: newThreadCwd.value,
+  selectedThread: selectedThread.value,
+}))
 const newThreadProjectOptions = computed<NewThreadProjectOption[]>(() =>
   newThreadFolderOptions.value.map((option) => ({
     cwd: option.value,
     label: option.label,
   })),
 )
-const newThreadFolderOptions = computed(() => {
-  const options: Array<{ value: string; label: string }> = []
-  const seenCwds = new Set<string>()
-
-  for (const group of projectGroups.value) {
-    const cwd = group.threads[0]?.cwd?.trim() ?? ''
-    if (!cwd || seenCwds.has(cwd)) continue
-    seenCwds.add(cwd)
-    options.push({
-      value: cwd,
-      label: projectDisplayNameById.value[group.projectName] ?? basenameFromPath(group.projectName),
-    })
-  }
-
-  const selectedCwd = newThreadCwd.value.trim()
-  if (selectedCwd && !seenCwds.has(selectedCwd)) {
-    options.unshift({
-      value: selectedCwd,
-      label: projectDisplayNameById.value[selectedCwd] ?? basenameFromPath(selectedCwd),
-    })
-  }
-
-  return options
-})
+const newThreadFolderOptions = computed(() => buildNewThreadFolderOptions({
+  groups: projectGroups.value,
+  projectDisplayNameById: projectDisplayNameById.value,
+  selectedCwd: newThreadCwd.value,
+}))
 const newThreadWorkspaceGroup = computed(() =>
-  projectGroups.value.find((group) =>
-    group.cwd === newThreadCwd.value || group.threads.some((thread) => thread.cwd === newThreadCwd.value),
-  ) ?? null
+  findNewThreadWorkspaceGroup(projectGroups.value, newThreadCwd.value)
 )
 const newThreadWorkspaceThreads = computed(() => newThreadWorkspaceGroup.value?.threads ?? [])
-const newThreadProjectLabel = computed(() => {
-  const group = newThreadWorkspaceGroup.value
-  if (!group) return basenameFromPath(newThreadCwd.value)
-  return projectDisplayNameById.value[group.projectName] ?? basenameFromPath(group.projectName)
-})
-
-function basenameFromPath(value: string): string {
-  const parts = value.split('/').filter(Boolean)
-  return parts.at(-1) ?? value
-}
+const newThreadProjectLabel = computed(() => buildNewThreadProjectLabel({
+  group: newThreadWorkspaceGroup.value,
+  newThreadCwd: newThreadCwd.value,
+  projectDisplayNameById: projectDisplayNameById.value,
+}))
 
 onMounted(() => {
   applyCurrentTheme()
@@ -686,14 +663,6 @@ function loadSidebarCollapsed(): boolean {
 function saveSidebarCollapsed(value: boolean): void {
   if (typeof window === 'undefined') return
   window.localStorage.setItem(SIDEBAR_COLLAPSED_STORAGE_KEY, value ? '1' : '0')
-}
-
-function normalizeMessageType(rawType: string | undefined, role: string): string {
-  const normalized = (rawType ?? '').trim()
-  if (normalized.length > 0) {
-    return normalized
-  }
-  return role.trim() || 'message'
 }
 
 async function initialize(): Promise<void> {
