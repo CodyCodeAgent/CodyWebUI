@@ -37,6 +37,24 @@ function readProtocolId(record: Record<string, unknown> | null | undefined, came
   return readString(record?.[camelKey]) || readString(record?.[snakeKey])
 }
 
+function readNotificationItemId(params: Record<string, unknown>): string {
+  const directId = readProtocolId(params, 'itemId', 'item_id')
+  if (directId) return directId
+
+  const item = asRecord(params.item)
+  return readString(item?.id)
+}
+
+function readNotificationTextDelta(params: Record<string, unknown>): string {
+  return (
+    readString(params.delta) ||
+    readString(params.textDelta) ||
+    readString(params.text_delta) ||
+    readString(params.content) ||
+    readString(params.text)
+  )
+}
+
 export function extractThreadIdFromNotification(notification: RpcNotification): string {
   const params = asRecord(notification.params)
   if (!params) return ''
@@ -247,8 +265,8 @@ export function readReasoningDelta(notification: RpcNotification): { messageId: 
   ) {
     return null
   }
-  const itemId = readProtocolId(params, 'itemId', 'item_id')
-  const delta = readString(params.delta)
+  const itemId = readNotificationItemId(params)
+  const delta = readNotificationTextDelta(params)
   if (!itemId || !delta) return null
   return { messageId: liveReasoningMessageId(itemId), delta }
 }
@@ -256,7 +274,7 @@ export function readReasoningDelta(notification: RpcNotification): { messageId: 
 export function readReasoningSectionBreakMessageId(notification: RpcNotification): string {
   const params = asRecord(notification.params)
   if (!params || notification.method !== 'item/reasoning/summaryPartAdded') return ''
-  const itemId = readProtocolId(params, 'itemId', 'item_id')
+  const itemId = readNotificationItemId(params)
   return itemId ? liveReasoningMessageId(itemId) : ''
 }
 
@@ -279,8 +297,8 @@ export function readAgentMessageStartedId(notification: RpcNotification): string
 export function readAgentMessageDelta(notification: RpcNotification): { messageId: string; delta: string } | null {
   const params = asRecord(notification.params)
   if (!params || notification.method !== 'item/agentMessage/delta') return null
-  const messageId = readProtocolId(params, 'itemId', 'item_id')
-  const delta = readString(params.delta)
+  const messageId = readNotificationItemId(params)
+  const delta = readNotificationTextDelta(params)
   if (!messageId || !delta) return null
   return { messageId, delta }
 }
@@ -310,9 +328,9 @@ export function readUserMessageCompleted(notification: RpcNotification): UiMessa
 export function readPlanMessageDelta(notification: RpcNotification): { messageId: string; turnId: string; delta: string } | null {
   const params = asRecord(notification.params)
   if (!params || notification.method !== 'item/plan/delta') return null
-  const itemId = readProtocolId(params, 'itemId', 'item_id')
+  const itemId = readNotificationItemId(params)
   const turnId = readProtocolId(params, 'turnId', 'turn_id')
-  const delta = readString(params.delta)
+  const delta = readNotificationTextDelta(params)
   if (!itemId || !delta) return null
   return { messageId: itemId, turnId, delta }
 }

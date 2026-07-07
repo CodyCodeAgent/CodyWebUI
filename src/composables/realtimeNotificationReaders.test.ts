@@ -163,6 +163,22 @@ describe('realtime notification readers', () => {
       messageId: 'item-raw',
       delta: ' raw',
     })
+    expect(readAgentMessageDelta(notification('item/agentMessage/delta', {
+      threadId: 'thread-1',
+      item: { id: 'item-nested' },
+      textDelta: ' nested',
+    }))).toEqual({
+      messageId: 'item-nested',
+      delta: ' nested',
+    })
+    expect(readAgentMessageDelta(notification('item/agentMessage/delta', {
+      threadId: 'thread-1',
+      item_id: 'item-snake-delta',
+      text_delta: ' snake',
+    }))).toEqual({
+      messageId: 'item-snake-delta',
+      delta: ' snake',
+    })
 
     expect(readAgentMessageCompleted(notification('item/completed', {
       item: {
@@ -231,6 +247,13 @@ describe('realtime notification readers', () => {
     }))).toEqual({
       messageId: 'reason-1:live-reasoning',
       delta: ' deeper',
+    })
+    expect(readReasoningDelta(notification('item/reasoning/textDelta', {
+      item: { id: 'reason-2' },
+      content: ' nested reasoning',
+    }))).toEqual({
+      messageId: 'reason-2:live-reasoning',
+      delta: ' nested reasoning',
     })
 
     expect(readPlanUpdatedMessage(notification('turn/plan/updated', {
