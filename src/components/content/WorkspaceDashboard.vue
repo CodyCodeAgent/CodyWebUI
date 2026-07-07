@@ -342,13 +342,28 @@ import {
   fetchWorkspaceValidationRuns,
 } from '../../api/codexWorkspaceResourcesClient'
 import { buildWorkspaceResourceSummary } from '../../composables/useWorkspaceResources'
+import {
+  basenameFromPath,
+  formatWorkspaceDuration as formatDuration,
+  isRunnableValidationScriptName as isRunnableValidationScript,
+  isWorkspaceValidationScriptName,
+  scriptProblemCount,
+  scriptRunEvidenceSummary,
+  scriptRunOutput,
+  validationPlanEvidenceLabel,
+  workspaceCommandPolicyLabel,
+  workspaceNotificationPolicyLabel,
+  workspaceNotificationTestSummary,
+  workspaceProjectContextSummary,
+  workspaceThemePolicyLabel,
+  workspaceValidationPlanSummary,
+} from '../../composables/workspaceDashboardRules'
 import type {
   UiNotificationDeliveryReport,
   UiRateLimitSnapshot,
   UiServerRequestReply,
   UiServerRequest,
   UiThread,
-  UiValidationPlanItem,
   UiWorkspaceConfig,
   UiWorkspaceSessionSummary,
   UiWorkspaceScriptRun,
@@ -445,60 +460,19 @@ const defaultWorkspaceConfig: UiWorkspaceConfig = {
 const dirtyFiles = computed(() => snapshot.value?.gitStatus.files.slice(0, 8) ?? [])
 const warnings = computed(() => snapshot.value?.warnings ?? [])
 const workspaceConfig = computed(() => snapshot.value?.workspaceConfig ?? defaultWorkspaceConfig)
-const commandPolicyLabel = computed(() => {
-  const policy = workspaceConfig.value.commandPolicy
-  if (policy.allow.length > 0 && policy.deny.length > 0) {
-    return `${String(policy.allow.length)} allowed · ${String(policy.deny.length)} denied`
-  }
-  if (policy.allow.length > 0) return `${String(policy.allow.length)} allowed`
-  if (policy.deny.length > 0) return `${String(policy.deny.length)} denied`
-  return 'not configured'
-})
+const commandPolicyLabel = computed(() => workspaceCommandPolicyLabel(workspaceConfig.value))
 const configuredValidationCommands = computed(() => workspaceConfig.value.validationCommands.slice(0, 6))
 const validationPlanItems = computed(() => snapshot.value?.validationPlan.items.slice(0, 10) ?? [])
-const validationPlanSummary = computed(() => {
-  const plan = snapshot.value?.validationPlan
-  if (!plan) return 'no plan'
-  const parts = [
-    `${String(plan.items.length)} items`,
-    `${String(plan.coveredCount)} covered`,
-    plan.failedCount > 0 ? `${String(plan.failedCount)} failed` : '',
-    `${String(plan.missingEvidenceCount)} missing evidence`,
-  ].filter(Boolean)
-  return parts.join(' · ')
-})
+const validationPlanSummary = computed(() => workspaceValidationPlanSummary(snapshot.value?.validationPlan))
 const projectContextSources = computed(() => snapshot.value?.projectContext.sources.slice(0, 8) ?? [])
-const projectContextSummary = computed(() => {
-  const context = snapshot.value?.projectContext
-  if (!context) return 'no context'
-  const warningCount = context.warnings.length
-  return `${String(context.presentCount)} present · ${String(context.sources.length)} tracked${warningCount > 0 ? ` · ${String(warningCount)} gaps` : ''}`
-})
+const projectContextSummary = computed(() => workspaceProjectContextSummary(snapshot.value?.projectContext))
 const notificationChannels = computed(() => workspaceConfig.value.notifications.channels.slice(0, 4))
-const notificationPolicyLabel = computed(() => {
-  const notifications = workspaceConfig.value.notifications
-  if (!notifications.enabled) return 'off'
-  const activeChannels = notifications.channels.filter((channel) => channel.enabled).length
-  return `${String(activeChannels)} channel${activeChannels === 1 ? '' : 's'}`
-})
-const themePolicyLabel = computed(() => {
-  const theme = workspaceConfig.value.theme
-  const parts = [
-    theme.skinId || '',
-    theme.layoutPresetId || '',
-    theme.density || '',
-  ].filter(Boolean)
-  return parts.length > 0 ? parts.join(' · ') : 'personal'
-})
-const notificationTestSummary = computed(() => {
-  const report = notificationTestReport.value
-  if (!report) return ''
-  if (!report.enabled) return 'Notification delivery is disabled for this workspace.'
-  return `${String(report.sentCount)} sent · ${String(report.failedCount)} failed · ${String(report.skippedCount)} skipped`
-})
+const notificationPolicyLabel = computed(() => workspaceNotificationPolicyLabel(workspaceConfig.value))
+const themePolicyLabel = computed(() => workspaceThemePolicyLabel(workspaceConfig.value))
+const notificationTestSummary = computed(() => workspaceNotificationTestSummary(notificationTestReport.value))
 const validationScripts = computed(() => {
   const scripts = snapshot.value?.scripts ?? []
-  return scripts.filter((script) => /\b(test|spec|lint|typecheck|type-check|build|preview|dev|serve)\b/iu.test(script.name))
+  return scripts.filter((script) => isWorkspaceValidationScriptName(script.name))
 })
 const completedScriptRuns = computed(() => Object.values(scriptRunStates.value)
   .map((state) => state.result)
@@ -529,17 +503,6 @@ const resourceMetrics = computed(() => [
   resourceSummary.value.activity,
 ])
 
-function basenameFromPath(value: string): string {
-  const parts = value.split('/').filter(Boolean)
-  return parts.at(-1) ?? value
-}
-
-function isRunnableValidationScript(name: string): boolean {
-  const isValidation = /(^|[:_-])(test|spec|lint|typecheck|type-check|build)($|[:_-])/iu.test(name)
-  const isLongRunning = /(^|[:_-])(dev|preview|serve|start)($|[:_-])/iu.test(name)
-  return isValidation && !isLongRunning
-}
-
 function scriptRunState(scriptName: string): {
   isRunning: boolean
   errorMessage: string
@@ -564,63 +527,6 @@ function setScriptRunState(
     ...scriptRunStates.value,
     [scriptName]: nextState,
   }
-}
-
-function formatDuration(durationMs: number): string {
-  if (durationMs < 1000) return `${String(Math.max(0, Math.round(durationMs)))}ms`
-  return `${(durationMs / 1000).toFixed(1)}s`
-}
-
-function validationPlanEvidenceLabel(item: UiValidationPlanItem): string {
-  const evidence = item.evidence
-  if (evidence.status === 'passed' || evidence.status === 'failed' || evidence.status === 'timed_out') {
-    const parts = [
-      evidence.runAtIso ? `last run ${new Date(evidence.runAtIso).toLocaleString()}` : '',
-      evidence.exitCode !== null ? `exit ${String(evidence.exitCode)}` : '',
-      evidence.durationMs !== null ? formatDuration(evidence.durationMs) : '',
-      evidence.problemCount > 0 ? `${String(evidence.problemCount)} problems` : '',
-    ].filter(Boolean)
-    return `${evidence.status}${parts.length > 0 ? ` · ${parts.join(' · ')}` : ''}`
-  }
-  if (evidence.status === 'manual') return 'Manual evidence required.'
-  if (evidence.status === 'not_applicable') return 'No command evidence is expected for this item.'
-  return item.command ? 'No matching command evidence captured yet.' : 'No runnable command is configured yet.'
-}
-
-function scriptRunOutput(result: UiWorkspaceScriptRun | null): string {
-  if (!result) return ''
-  const output = result.output.trim()
-  return output || 'No output captured.'
-}
-
-function scriptProblemCount(result: UiWorkspaceScriptRun | null): number {
-  return result?.problems?.length ?? 0
-}
-
-function scriptRunEvidenceSummary(result: UiWorkspaceScriptRun | null): string[] {
-  if (!result) return []
-  const items: string[] = []
-  const tests = result.testSummary ?? null
-  if (tests) {
-    const parts = [
-      tests.passed !== null ? `${String(tests.passed)} passed` : '',
-      tests.failed !== null ? `${String(tests.failed)} failed` : '',
-      tests.skipped !== null ? `${String(tests.skipped)} skipped` : '',
-      tests.total !== null ? `${String(tests.total)} total` : '',
-    ].filter(Boolean)
-    if (parts.length > 0) items.push(`tests ${parts.join(' · ')}`)
-  }
-  const coverage = result.coverageSummary ?? null
-  if (coverage) {
-    const parts = [
-      coverage.statements !== null ? `stmt ${coverage.statements.toFixed(1)}%` : '',
-      coverage.branches !== null ? `branch ${coverage.branches.toFixed(1)}%` : '',
-      coverage.functions !== null ? `func ${coverage.functions.toFixed(1)}%` : '',
-      coverage.lines !== null ? `line ${coverage.lines.toFixed(1)}%` : '',
-    ].filter(Boolean)
-    if (parts.length > 0) items.push(`coverage ${parts.join(' · ')}`)
-  }
-  return items
 }
 
 async function runScript(scriptName: string): Promise<void> {
