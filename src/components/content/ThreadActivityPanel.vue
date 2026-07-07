@@ -135,7 +135,7 @@
       <div class="thread-action-required-list">
         <article v-for="card in pendingApprovalCards" :key="card.request.id" class="activity-request-card">
           <p class="activity-request-method">{{ card.summary.title }}</p>
-          <p class="activity-request-meta">#{{ card.request.id }} · {{ formatServerRequestTime(card.request.receivedAtIso) }}</p>
+          <p class="activity-request-meta">{{ serverRequestMetaLabel({ request: card.request }) }}</p>
           <p class="activity-request-subject">{{ card.summary.subject }}</p>
           <div class="approval-risk-line">
             <span class="approval-risk-badge" :data-level="card.summary.level">
@@ -289,7 +289,7 @@ import {
   buildEmptyServerRequestReply,
   buildRejectedServerRequestReply,
 } from '../../composables/threadConversationRules'
-import { formatServerRequestTime, serverRequestActionKeyPrefix } from '../../composables/serverRequestRules'
+import { serverRequestActionKeyPrefix, serverRequestMetaLabel } from '../../composables/serverRequestRules'
 import { buildDiffReview } from '../../composables/useDiffReview'
 import type { UiDiffLineKind, UiDiffReviewFile } from '../../composables/useDiffReview'
 import type { UiApprovalDecisionScope, UiMessage, UiServerRequest, UiServerRequestReply, UiToolingRollbackFileResult } from '../../types/codex'

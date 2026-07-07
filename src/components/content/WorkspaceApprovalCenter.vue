@@ -20,7 +20,7 @@
         <div class="workspace-approval-center-main">
           <p class="workspace-approval-center-card-title">{{ card.summary.title }}</p>
           <p class="workspace-approval-center-meta">
-            #{{ card.request.id }} · {{ card.request.threadId || 'global' }} · {{ formatServerRequestTime(card.request.receivedAtIso, 'long') }}
+            {{ serverRequestMetaLabel({ request: card.request, includeThread: true, timeFormat: 'long' }) }}
           </p>
           <p class="workspace-approval-center-subject">{{ card.summary.subject }}</p>
           <div class="workspace-approval-center-risk-line">
@@ -152,6 +152,7 @@ import {
   formatServerRequestTime,
   serverRequestApprovalCenterSummary,
   serverRequestBadgeTone,
+  serverRequestMetaLabel,
 } from '../../composables/serverRequestRules'
 import type { UiApprovalDecisionScope, UiApprovalGrant, UiServerRequest, UiServerRequestReply } from '../../types/codex'
 

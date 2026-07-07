@@ -63,6 +63,22 @@ export function formatServerRequestTime(value: string, format: 'short' | 'long' 
   return format === 'long' ? date.toLocaleString() : date.toLocaleTimeString()
 }
 
+export function serverRequestMetaLabel(input: {
+  request: Pick<UiServerRequest, 'id' | 'threadId' | 'receivedAtIso'>
+  idPrefix?: string
+  includeThread?: boolean
+  timeFormat?: 'short' | 'long'
+}): string {
+  const parts = [
+    `${input.idPrefix ?? '#'}${String(input.request.id)}`,
+  ]
+  if (input.includeThread) {
+    parts.push(input.request.threadId || 'global')
+  }
+  parts.push(formatServerRequestTime(input.request.receivedAtIso, input.timeFormat ?? 'short'))
+  return parts.join(' · ')
+}
+
 export function buildServerRequestCards(requests: UiServerRequest[]): UiServerRequestCard[] {
   return requests.map((request) => ({
     request,

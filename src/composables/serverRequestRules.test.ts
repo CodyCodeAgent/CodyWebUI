@@ -10,6 +10,7 @@ import {
   serverRequestActionKeyPrefix,
   serverRequestApprovalCenterSummary,
   serverRequestBadgeTone,
+  serverRequestMetaLabel,
   serverRequestRiskCounts,
   serverRequestKind,
   TOOL_CALL_REQUEST_METHOD,
@@ -56,6 +57,14 @@ describe('server request rules', () => {
 
   it('falls back to raw timestamps when request time cannot be parsed', () => {
     expect(formatServerRequestTime('not-a-date')).toBe('not-a-date')
+  })
+
+  it('builds request meta labels from shared formatting rules', () => {
+    const request = serverRequest({ id: 7, threadId: '', receivedAtIso: 'not-a-date' })
+
+    expect(serverRequestMetaLabel({ request })).toBe('#7 · not-a-date')
+    expect(serverRequestMetaLabel({ request, idPrefix: 'Request #' })).toBe('Request #7 · not-a-date')
+    expect(serverRequestMetaLabel({ request, includeThread: true, timeFormat: 'long' })).toBe('#7 · global · not-a-date')
   })
 
   it('builds reusable request cards with summaries and kind metadata', () => {
