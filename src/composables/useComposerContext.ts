@@ -1,13 +1,15 @@
 import { computed, ref } from 'vue'
 import {
   fetchTerminalSessions,
+} from '../api/codexRpcClient'
+import {
   fetchWorkspacePorts,
   fetchWorkspaceDiff,
   fetchWorkspaceFile,
   fetchWorkspaceFiles,
   fetchWorkspaceSnapshot,
   fetchWorkspaceValidationRuns,
-} from '../api/codexRpcClient'
+} from '../api/codexWorkspaceResourcesClient'
 import { getThreadGroups } from '../api/codexThreadClient'
 import type {
   UiComposerContextAttachment,

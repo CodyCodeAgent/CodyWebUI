@@ -60,7 +60,7 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { fetchWorkspaceSecuritySnapshot } from '../../api/codexRpcClient'
+import { fetchWorkspaceSecuritySnapshot } from '../../api/codexWorkspaceResourcesClient'
 import type { UiWorkspaceSecurityFinding, UiWorkspaceSecuritySnapshot } from '../../types/codex'
 import IconTablerRefresh from '../icons/IconTablerRefresh.vue'
 

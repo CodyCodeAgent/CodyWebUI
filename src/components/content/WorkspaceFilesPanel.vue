@@ -113,7 +113,7 @@
 
 <script setup lang="ts">
 import { computed, defineAsyncComponent, ref, watch } from 'vue'
-import { fetchWorkspaceFile, fetchWorkspaceFiles, saveWorkspaceFile } from '../../api/codexRpcClient'
+import { fetchWorkspaceFile, fetchWorkspaceFiles, saveWorkspaceFile } from '../../api/codexWorkspaceResourcesClient'
 import type { UiWorkspaceFileContent, UiWorkspaceFileEntry, UiWorkspaceFileList } from '../../types/codex'
 import IconTablerFilePencil from '../icons/IconTablerFilePencil.vue'
 import IconTablerFolder from '../icons/IconTablerFolder.vue'

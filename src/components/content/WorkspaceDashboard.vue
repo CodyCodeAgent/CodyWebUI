@@ -333,12 +333,14 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import {
-  fetchWorkspaceSnapshot,
   fetchWorkspaceRecentSessions,
-  fetchWorkspaceValidationRuns,
   runWorkspaceScript,
   testWorkspaceNotifications,
 } from '../../api/codexRpcClient'
+import {
+  fetchWorkspaceSnapshot,
+  fetchWorkspaceValidationRuns,
+} from '../../api/codexWorkspaceResourcesClient'
 import { buildWorkspaceResourceSummary } from '../../composables/useWorkspaceResources'
 import type {
   UiNotificationDeliveryReport,

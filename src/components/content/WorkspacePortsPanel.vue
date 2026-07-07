@@ -147,7 +147,7 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { captureWorkspacePreviewScreenshot, fetchWorkspacePorts, probeWorkspacePreview } from '../../api/codexRpcClient'
+import { captureWorkspacePreviewScreenshot, fetchWorkspacePorts, probeWorkspacePreview } from '../../api/codexWorkspaceResourcesClient'
 import type { UiListeningPort, UiPortsSnapshot, UiPreviewProbe, UiPreviewScreenshot, UiWorkspaceKnownPort } from '../../types/codex'
 import IconTablerRefresh from '../icons/IconTablerRefresh.vue'
 
