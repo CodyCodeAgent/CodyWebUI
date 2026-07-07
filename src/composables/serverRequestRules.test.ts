@@ -1,12 +1,16 @@
 import { describe, expect, it } from 'vitest'
 import type { UiServerRequest } from '../types/codex'
 import {
+  approvalGrantSummaryText,
   buildServerRequestCards,
   formatServerRequestTime,
   isServerApprovalRequestKind,
   isToolCallRequestMethod,
   isToolUserInputRequestMethod,
   serverRequestActionKeyPrefix,
+  serverRequestApprovalCenterSummary,
+  serverRequestBadgeTone,
+  serverRequestRiskCounts,
   serverRequestKind,
   TOOL_CALL_REQUEST_METHOD,
   TOOL_USER_INPUT_REQUEST_METHOD,
@@ -67,5 +71,28 @@ describe('server request rules', () => {
     expect(cards[0].isApprovalRequest).toBe(true)
     expect(cards[1].kind).toBe('unknown')
     expect(cards[1].isApprovalRequest).toBe(false)
+  })
+
+  it('summarizes request cards for approval center headers', () => {
+    const cards = buildServerRequestCards([
+      serverRequest({ params: { command: 'rm -rf dist' } }),
+      serverRequest({ id: 2, method: 'item/fileChange/requestApproval', params: { grantRoot: '/repo' } }),
+    ])
+
+    expect(serverRequestRiskCounts(cards)).toEqual({ high: 1, medium: 1 })
+    expect(serverRequestBadgeTone(cards)).toBe('high')
+    expect(serverRequestBadgeTone([])).toBe('low')
+    expect(serverRequestApprovalCenterSummary([])).toBe('No local command, file, or tool approvals are waiting.')
+    expect(serverRequestApprovalCenterSummary(cards)).toBe('1 high risk · 1 medium · respond without leaving the workspace')
+  })
+
+  it('summarizes stored approval grants', () => {
+    expect(approvalGrantSummaryText('', [])).toBe('Choose a workspace to inspect reusable approvals.')
+    expect(approvalGrantSummaryText('/repo', [])).toBe('Exact-match workspace and permanent grants will appear here.')
+    expect(approvalGrantSummaryText('/repo', [
+      { scope: 'workspace' },
+      { scope: 'permanent' },
+      { scope: 'permanent' },
+    ])).toBe('3 active · 2 permanent')
   })
 })

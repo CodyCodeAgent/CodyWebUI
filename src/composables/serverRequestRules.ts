@@ -5,7 +5,7 @@ import {
   isApprovalRequestMethod,
   type UiApprovalRiskSummary,
 } from './useApprovalRisk'
-import type { UiServerRequest } from '../types/codex'
+import type { UiApprovalGrant, UiServerRequest } from '../types/codex'
 
 export const TOOL_USER_INPUT_REQUEST_METHOD = 'item/tool/requestUserInput'
 export const TOOL_CALL_REQUEST_METHOD = 'item/tool/call'
@@ -23,6 +23,13 @@ export type UiServerRequestCard = {
   kind: UiServerRequestKind
   isApprovalRequest: boolean
 }
+
+export type UiServerRequestRiskCounts = {
+  high: number
+  medium: number
+}
+
+export type UiServerRequestBadgeTone = 'high' | 'medium' | 'low'
 
 export function isToolUserInputRequestMethod(method: string): boolean {
   return method === TOOL_USER_INPUT_REQUEST_METHOD
@@ -63,4 +70,32 @@ export function buildServerRequestCards(requests: UiServerRequest[]): UiServerRe
     kind: serverRequestKind(request.method),
     isApprovalRequest: isApprovalRequestMethod(request.method),
   }))
+}
+
+export function serverRequestRiskCounts(cards: Pick<UiServerRequestCard, 'summary'>[]): UiServerRequestRiskCounts {
+  return {
+    high: cards.filter((card) => card.summary.level === 'high').length,
+    medium: cards.filter((card) => card.summary.level === 'medium').length,
+  }
+}
+
+export function serverRequestBadgeTone(cards: Pick<UiServerRequestCard, 'summary'>[]): UiServerRequestBadgeTone {
+  const counts = serverRequestRiskCounts(cards)
+  if (counts.high > 0) return 'high'
+  return cards.length > 0 ? 'medium' : 'low'
+}
+
+export function serverRequestApprovalCenterSummary(cards: Pick<UiServerRequestCard, 'summary'>[]): string {
+  if (cards.length === 0) {
+    return 'No local command, file, or tool approvals are waiting.'
+  }
+  const counts = serverRequestRiskCounts(cards)
+  return `${String(counts.high)} high risk · ${String(counts.medium)} medium · respond without leaving the workspace`
+}
+
+export function approvalGrantSummaryText(cwd: string, grants: Pick<UiApprovalGrant, 'scope'>[]): string {
+  if (!cwd) return 'Choose a workspace to inspect reusable approvals.'
+  if (grants.length === 0) return 'Exact-match workspace and permanent grants will appear here.'
+  const permanentCount = grants.filter((grant) => grant.scope === 'permanent').length
+  return `${String(grants.length)} active · ${String(permanentCount)} permanent`
 }

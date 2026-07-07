@@ -5,7 +5,7 @@
         <h3 class="workspace-approval-center-title">Approval Center</h3>
         <p class="workspace-approval-center-subtitle">{{ summaryText }}</p>
       </div>
-      <span class="workspace-approval-center-badge" :data-tone="highRiskCount > 0 ? 'high' : pendingRequests.length > 0 ? 'medium' : 'low'">
+      <span class="workspace-approval-center-badge" :data-tone="badgeTone">
         {{ pendingRequests.length }}
       </span>
     </header>
@@ -146,7 +146,13 @@ import {
   buildEmptyServerRequestReply,
   buildRejectedServerRequestReply,
 } from '../../composables/threadConversationRules'
-import { buildServerRequestCards, formatServerRequestTime } from '../../composables/serverRequestRules'
+import {
+  approvalGrantSummaryText,
+  buildServerRequestCards,
+  formatServerRequestTime,
+  serverRequestApprovalCenterSummary,
+  serverRequestBadgeTone,
+} from '../../composables/serverRequestRules'
 import type { UiApprovalDecisionScope, UiApprovalGrant, UiServerRequest, UiServerRequestReply } from '../../types/codex'
 
 const props = defineProps<{
@@ -164,25 +170,9 @@ const isLoadingGrants = ref(false)
 const isRevokingGrant = ref('')
 const grantError = ref('')
 const approvalCards = computed(() => buildServerRequestCards(props.pendingRequests))
-
-const highRiskCount = computed(() => approvalCards.value
-  .filter((card) => card.summary.level === 'high')
-  .length)
-const mediumRiskCount = computed(() => approvalCards.value
-  .filter((card) => card.summary.level === 'medium')
-  .length)
-const summaryText = computed(() => {
-  if (props.pendingRequests.length === 0) {
-    return 'No local command, file, or tool approvals are waiting.'
-  }
-  return `${String(highRiskCount.value)} high risk · ${String(mediumRiskCount.value)} medium · respond without leaving the workspace`
-})
-const grantSummaryText = computed(() => {
-  if (!props.cwd) return 'Choose a workspace to inspect reusable approvals.'
-  if (approvalGrants.value.length === 0) return 'Exact-match workspace and permanent grants will appear here.'
-  const permanentCount = approvalGrants.value.filter((grant) => grant.scope === 'permanent').length
-  return `${String(approvalGrants.value.length)} active · ${String(permanentCount)} permanent`
-})
+const badgeTone = computed(() => serverRequestBadgeTone(approvalCards.value))
+const summaryText = computed(() => serverRequestApprovalCenterSummary(approvalCards.value))
+const grantSummaryText = computed(() => approvalGrantSummaryText(props.cwd, approvalGrants.value))
 
 function respondApproval(requestId: number, decision: UiApprovalDecision): void {
   emit('respondServerRequest', buildApprovalDecisionReply(requestId, decision))
