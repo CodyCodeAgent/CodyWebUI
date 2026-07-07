@@ -1,5 +1,14 @@
 import { describe, expect, it } from 'vitest'
-import { approvalDecisionForScope, approvalScopeForDecision, buildApprovalRiskSummary } from './useApprovalRisk'
+import {
+  approvalDecisionForScope,
+  approvalScopeForDecision,
+  buildApprovalRiskSummary,
+  COMMAND_APPROVAL_REQUEST_METHOD,
+  FILE_CHANGE_APPROVAL_REQUEST_METHOD,
+  isApprovalRequestMethod,
+  isCommandApprovalRequestMethod,
+  isFileChangeApprovalRequestMethod,
+} from './useApprovalRisk'
 import type { UiServerRequest } from '../types/codex'
 
 function buildRequest(method: string, params: unknown, overrides: Partial<UiServerRequest> = {}): UiServerRequest {
@@ -25,6 +34,11 @@ describe('buildApprovalRiskSummary', () => {
     expect(approvalDecisionForScope('session')).toBe('acceptForSession')
     expect(approvalDecisionForScope('workspace')).toBe('accept')
     expect(approvalDecisionForScope('permanent')).toBe('accept')
+    expect(isCommandApprovalRequestMethod(COMMAND_APPROVAL_REQUEST_METHOD)).toBe(true)
+    expect(isFileChangeApprovalRequestMethod(FILE_CHANGE_APPROVAL_REQUEST_METHOD)).toBe(true)
+    expect(isApprovalRequestMethod(COMMAND_APPROVAL_REQUEST_METHOD)).toBe(true)
+    expect(isApprovalRequestMethod(FILE_CHANGE_APPROVAL_REQUEST_METHOD)).toBe(true)
+    expect(isApprovalRequestMethod('item/tool/call')).toBe(false)
   })
 
   it('explains high-risk command approvals', () => {

@@ -21,6 +21,9 @@ export type UiApprovalScopeOption = {
   description: string
 }
 
+export const COMMAND_APPROVAL_REQUEST_METHOD = 'item/commandExecution/requestApproval'
+export const FILE_CHANGE_APPROVAL_REQUEST_METHOD = 'item/fileChange/requestApproval'
+
 export const APPROVAL_SCOPE_OPTIONS: UiApprovalScopeOption[] = [
   {
     scope: 'single',
@@ -54,6 +57,18 @@ export function approvalScopeForDecision(decision: UiApprovalDecision): UiApprov
 
 export function approvalDecisionForScope(scope: UiApprovalDecisionScope): UiApprovalDecision {
   return scope === 'session' ? 'acceptForSession' : 'accept'
+}
+
+export function isCommandApprovalRequestMethod(method: string): boolean {
+  return method === COMMAND_APPROVAL_REQUEST_METHOD
+}
+
+export function isFileChangeApprovalRequestMethod(method: string): boolean {
+  return method === FILE_CHANGE_APPROVAL_REQUEST_METHOD
+}
+
+export function isApprovalRequestMethod(method: string): boolean {
+  return isCommandApprovalRequestMethod(method) || isFileChangeApprovalRequestMethod(method)
 }
 
 function readString(value: unknown): string {
@@ -290,11 +305,11 @@ function buildGenericApprovalSummary(request: UiServerRequest): UiApprovalRiskSu
 }
 
 export function buildApprovalRiskSummary(request: UiServerRequest): UiApprovalRiskSummary {
-  if (request.method === 'item/commandExecution/requestApproval') {
+  if (isCommandApprovalRequestMethod(request.method)) {
     return buildCommandApprovalSummary(request)
   }
 
-  if (request.method === 'item/fileChange/requestApproval') {
+  if (isFileChangeApprovalRequestMethod(request.method)) {
     return buildFileChangeApprovalSummary(request)
   }
 

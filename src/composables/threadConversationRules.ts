@@ -12,6 +12,8 @@ import {
   approvalDecisionForScope,
   approvalScopeForDecision,
   buildApprovalRiskSummary,
+  isCommandApprovalRequestMethod,
+  isFileChangeApprovalRequestMethod,
   type UiApprovalRiskSummary,
   type UiApprovalDecision,
 } from './useApprovalRisk'
@@ -162,8 +164,8 @@ export function shouldShowScrollToBottomButton(params: {
 }
 
 export function conversationRequestKind(method: string): ConversationRequestKind {
-  if (method === 'item/commandExecution/requestApproval') return 'command_approval'
-  if (method === 'item/fileChange/requestApproval') return 'file_change_approval'
+  if (isCommandApprovalRequestMethod(method)) return 'command_approval'
+  if (isFileChangeApprovalRequestMethod(method)) return 'file_change_approval'
   if (method === 'item/tool/requestUserInput') return 'tool_user_input'
   if (method === 'item/tool/call') return 'tool_call'
   return 'unknown'
