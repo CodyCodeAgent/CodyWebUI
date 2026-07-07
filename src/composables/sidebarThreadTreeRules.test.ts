@@ -18,12 +18,16 @@ import {
   sidebarBasenameFromPath,
   sidebarProjectGroupStyle,
   sidebarProjectDisplayName,
+  sidebarProjectExpansionButtonLabel,
   sidebarProjectOuterHeight,
   sidebarProjectPath,
   sidebarProjectedDropProjectIndex,
   sidebarProjectThreads,
   sidebarProjectTitleText,
   sidebarArchiveThreadClickResult,
+  sidebarArchiveThreadButtonLabel,
+  sidebarArchiveViewHeaderLabel,
+  sidebarArchiveViewToggleLabel,
   sidebarThreadState,
   sidebarThreadRenameResult,
   threadMatchesSidebarSearch,
@@ -233,6 +237,19 @@ describe('sidebar thread tree rules', () => {
   })
 
   it('handles archive confirmation and thread rename drafts', () => {
+    expect(sidebarArchiveViewHeaderLabel(false)).toBe('Threads')
+    expect(sidebarArchiveViewHeaderLabel(true)).toBe('Archived')
+    expect(sidebarArchiveViewToggleLabel(false)).toBe('Archived')
+    expect(sidebarArchiveViewToggleLabel(true)).toBe('Active')
+    expect(sidebarArchiveThreadButtonLabel({
+      archiveConfirmThreadId: '',
+      threadId: 'thread-1',
+    })).toBe('Archive')
+    expect(sidebarArchiveThreadButtonLabel({
+      archiveConfirmThreadId: 'thread-1',
+      threadId: 'thread-1',
+    })).toBe('Confirm archive')
+
     const firstArchiveClick = sidebarArchiveThreadClickResult(
       { openThreadMenuId: 'thread-1', archiveConfirmThreadId: '' },
       ['thread-1'],
@@ -266,6 +283,8 @@ describe('sidebar thread tree rules', () => {
   })
 
   it('toggles project expansion and collapse state', () => {
+    expect(sidebarProjectExpansionButtonLabel(false)).toBe('Show more')
+    expect(sidebarProjectExpansionButtonLabel(true)).toBe('Show less')
     expect(toggleSidebarProjectExpansionState({}, 'app')).toEqual({ app: true })
     expect(toggleSidebarProjectExpansionState({ app: true }, 'app')).toEqual({ app: false })
     const expanded = { app: true }

@@ -52,7 +52,7 @@
                   <button v-if="!isArchiveView" class="thread-menu-item" type="button" @click="onCompactClick(thread.id)">Compact</button>
                   <button v-if="isArchiveView" class="thread-menu-item" type="button" @click="onUnarchiveClick(thread.id)">Restore</button>
                   <button v-else class="thread-menu-item thread-menu-item-danger" type="button" @click="onArchiveClick(thread.id)">
-                    {{ archiveConfirmThreadId === thread.id ? 'Confirm archive' : 'Archive' }}
+                    {{ archiveThreadButtonLabel(thread.id) }}
                   </button>
                 </div>
               </div>
@@ -63,10 +63,10 @@
     </section>
 
     <SidebarMenuRow as="header" class="thread-tree-header-row">
-      <span class="thread-tree-header">{{ isArchiveView ? 'Archived' : 'Threads' }}</span>
+      <span class="thread-tree-header">{{ archiveViewHeaderLabel }}</span>
       <template #right>
         <button class="thread-archive-view-toggle" type="button" @click="$emit('toggle-archive-view', !isArchiveView)">
-          {{ isArchiveView ? 'Active' : 'Archived' }}
+          {{ archiveViewToggleLabel }}
         </button>
       </template>
     </SidebarMenuRow>
@@ -222,7 +222,7 @@
                       <button v-if="!isArchiveView" class="thread-menu-item" type="button" @click="onCompactClick(thread.id)">Compact</button>
                       <button v-if="isArchiveView" class="thread-menu-item" type="button" @click="onUnarchiveClick(thread.id)">Restore</button>
                       <button v-else class="thread-menu-item thread-menu-item-danger" type="button" @click="onArchiveClick(thread.id)">
-                        {{ archiveConfirmThreadId === thread.id ? 'Confirm archive' : 'Archive' }}
+                        {{ archiveThreadButtonLabel(thread.id) }}
                       </button>
                     </div>
                   </div>
@@ -243,7 +243,7 @@
               <span class="thread-show-more-spacer" />
             </template>
             <button class="thread-show-more-button" type="button" @click="toggleProjectExpansion(group.projectName)">
-              {{ isExpanded(group.projectName) ? 'Show less' : 'Show more' }}
+              {{ projectExpansionButtonLabel(group.projectName) }}
             </button>
           </SidebarMenuRow>
       </article>
@@ -268,10 +268,14 @@ import {
   isSidebarEventInsideElement,
   isSidebarPointerInProjectDropZone,
   normalizeSidebarSearchQuery,
+  sidebarArchiveThreadButtonLabel,
+  sidebarArchiveViewHeaderLabel,
+  sidebarArchiveViewToggleLabel,
   sidebarElementFromRef,
   sidebarDropTargetIndex,
   sidebarProjectGroupStyle,
   sidebarProjectDisplayName,
+  sidebarProjectExpansionButtonLabel,
   sidebarProjectOuterHeight,
   sidebarProjectPath,
   sidebarProjectedDropProjectIndex,
@@ -409,6 +413,8 @@ const isSearchActive = computed(() => normalizedSearchQuery.value.length > 0)
 const filteredGroups = computed<UiProjectGroup[]>(() => {
   return filterSidebarGroupsBySearch(props.groups, normalizedSearchQuery.value)
 })
+const archiveViewHeaderLabel = computed(() => sidebarArchiveViewHeaderLabel(props.isArchiveView))
+const archiveViewToggleLabel = computed(() => sidebarArchiveViewToggleLabel(props.isArchiveView))
 
 const pinnedThreads = computed(() =>
   buildSidebarPinnedThreads(props.groups, pinnedThreadIds.value, normalizedSearchQuery.value),
@@ -477,6 +483,13 @@ function onArchiveClick(threadId: string): void {
   archiveConfirmThreadId.value = result.menuState.archiveConfirmThreadId
   pinnedThreadIds.value = result.pinnedThreadIds
   if (result.shouldArchive) emit('archive', threadId)
+}
+
+function archiveThreadButtonLabel(threadId: string): string {
+  return sidebarArchiveThreadButtonLabel({
+    archiveConfirmThreadId: archiveConfirmThreadId.value,
+    threadId,
+  })
 }
 
 function onUnarchiveClick(threadId: string): void {
@@ -680,6 +693,10 @@ function onRemoveProject(projectName: string): void {
 
 function isExpanded(projectName: string): boolean {
   return expandedProjects.value[projectName] === true
+}
+
+function projectExpansionButtonLabel(projectName: string): string {
+  return sidebarProjectExpansionButtonLabel(isExpanded(projectName))
 }
 
 function isCollapsed(projectName: string): boolean {

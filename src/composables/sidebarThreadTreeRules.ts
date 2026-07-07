@@ -210,6 +210,25 @@ export function toggleSidebarThreadMenuState(
   }
 }
 
+export function sidebarArchiveViewHeaderLabel(isArchiveView: boolean): string {
+  return isArchiveView ? 'Archived' : 'Threads'
+}
+
+export function sidebarArchiveViewToggleLabel(isArchiveView: boolean): string {
+  return isArchiveView ? 'Active' : 'Archived'
+}
+
+export function sidebarArchiveThreadButtonLabel(params: {
+  archiveConfirmThreadId: string
+  threadId: string
+}): string {
+  return params.archiveConfirmThreadId === params.threadId ? 'Confirm archive' : 'Archive'
+}
+
+export function sidebarProjectExpansionButtonLabel(isExpanded: boolean): string {
+  return isExpanded ? 'Show less' : 'Show more'
+}
+
 export function sidebarArchiveThreadClickResult(
   state: SidebarThreadMenuState,
   pinnedThreadIds: string[],
