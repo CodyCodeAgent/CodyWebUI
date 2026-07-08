@@ -92,6 +92,18 @@ function isOptimisticUserMessage(message: UiMessage): boolean {
   return message.role === 'user' && message.messageType === 'userMessage.optimistic'
 }
 
+function isPersistedUserMessage(message: UiMessage): boolean {
+  return message.role === 'user' && !isOptimisticUserMessage(message)
+}
+
+function isMatchingUserMessage(first: UiMessage, second: UiMessage): boolean {
+  if (first.role !== 'user' || second.role !== 'user') return false
+  if (first.text !== second.text) return false
+  if (!areStringArraysEqual(first.images, second.images)) return false
+  if (!areMessageSkillsEqual(first.skills, second.skills)) return false
+  return true
+}
+
 export function removeDuplicateAdjacentUserMessages(messages: UiMessage[]): UiMessage[] {
   const next: UiMessage[] = []
   let changed = false
@@ -115,6 +127,35 @@ export function removeMessageById(messages: UiMessage[], messageId: string): UiM
   if (!messageId) return messages
   const next = messages.filter((message) => message.id !== messageId)
   return next.length === messages.length ? messages : next
+}
+
+function replaceOptimisticUserMessages(
+  previous: UiMessage[],
+  incoming: UiMessage[],
+): {
+  messages: UiMessage[]
+  consumedIncomingIds: Set<string>
+} {
+  const consumedIncomingIds = new Set<string>()
+  let changed = false
+  const messages = previous.map((previousMessage) => {
+    if (!isOptimisticUserMessage(previousMessage)) return previousMessage
+
+    const replacement = incoming.find((incomingMessage) => {
+      if (consumedIncomingIds.has(incomingMessage.id)) return false
+      return isPersistedUserMessage(incomingMessage) && isMatchingUserMessage(previousMessage, incomingMessage)
+    })
+    if (!replacement) return previousMessage
+
+    changed = true
+    consumedIncomingIds.add(replacement.id)
+    return replacement
+  })
+
+  return {
+    messages: changed ? messages : previous,
+    consumedIncomingIds,
+  }
 }
 
 function omitRecordKey<TValue>(record: Record<string, TValue>, key: string): Record<string, TValue> {
@@ -145,7 +186,9 @@ export function mergeMessages(
     return areMessageArraysEqual(previous, compacted) ? previous : compacted
   }
 
-  const mergedFromPrevious = previous.map((previousMessage) => {
+  const optimisticReplacements = replaceOptimisticUserMessages(previous, mergedIncoming)
+
+  const mergedFromPrevious = optimisticReplacements.messages.map((previousMessage) => {
     const nextMessage = incomingById.get(previousMessage.id)
     if (!nextMessage) {
       return previousMessage
@@ -157,7 +200,9 @@ export function mergeMessages(
   })
 
   const previousIdSet = new Set(previous.map((message) => message.id))
-  const appended = mergedIncoming.filter((message) => !previousIdSet.has(message.id))
+  const appended = mergedIncoming.filter((message) => {
+    return !previousIdSet.has(message.id) && !optimisticReplacements.consumedIncomingIds.has(message.id)
+  })
   const merged = removeDuplicateAdjacentUserMessages([...mergedFromPrevious, ...appended])
 
   return areMessageArraysEqual(previous, merged) ? previous : merged

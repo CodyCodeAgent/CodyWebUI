@@ -132,6 +132,31 @@ describe('desktopMessageState', () => {
     expect(removeMessageById([optimistic], optimistic.id)).toEqual([])
   })
 
+  it('replaces non-adjacent optimistic user messages without appending duplicates', () => {
+    const longOptimistic = message({
+      id: 'optimistic-user:thread-1:1',
+      role: 'user',
+      text: '这些人的菜单，都应该改成 turbine.campaigndashboard.overview',
+      messageType: 'userMessage.optimistic',
+    })
+    const shortOptimistic = message({
+      id: 'optimistic-user:thread-1:2',
+      role: 'user',
+      text: '人的菜单都在了是么？',
+      messageType: 'userMessage.optimistic',
+    })
+    const longPersisted = message({
+      id: 'server-user-long',
+      role: 'user',
+      text: longOptimistic.text,
+      messageType: 'userMessage',
+    })
+
+    const merged = mergeMessages([longOptimistic, shortOptimistic], [longPersisted], { preserveMissing: true })
+
+    expect(merged).toEqual([longPersisted, shortOptimistic])
+  })
+
   it('removes redundant live assistant messages once persisted text arrives', () => {
     const live = message({
       id: 'live-agent',
