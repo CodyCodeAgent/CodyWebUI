@@ -21,9 +21,27 @@
 
     <aside v-if="isWorkLogOpen" id="thread-work-log-panel" class="thread-activity-panel" aria-label="Thread work log">
       <header class="thread-activity-header" @pointerdown="onWorkLogDragPointerDown">
-        <div>
+        <div class="thread-activity-header-copy">
           <h2 class="thread-activity-title">Work log</h2>
           <p class="thread-activity-subtitle">{{ statusText }}</p>
+          <div class="thread-activity-view-toggle" aria-label="Diff view mode" @pointerdown.stop>
+            <button
+              class="thread-activity-view-button"
+              type="button"
+              :data-active="diffViewMode === 'unified'"
+              @click="setDiffViewMode('unified')"
+            >
+              Unified
+            </button>
+            <button
+              class="thread-activity-view-button"
+              type="button"
+              :data-active="diffViewMode === 'split'"
+              @click="setDiffViewMode('split')"
+            >
+              Split
+            </button>
+          </div>
         </div>
         <button
           class="thread-activity-close"
@@ -69,17 +87,31 @@
                   <span class="work-log-line-prefix" />
                   <code class="work-log-line-code">{{ hunk.header }}</code>
                 </div>
-                <div
-                  v-for="(line, index) in hunk.lines"
-                  :key="`${file.filePath}:${hunk.header}:${index}`"
-                  class="work-log-diff-row"
-                  :data-kind="line.kind"
-                >
-                  <span class="work-log-line-number">{{ formatLineNumber(line.oldLineNumber) }}</span>
-                  <span class="work-log-line-number">{{ formatLineNumber(line.newLineNumber) }}</span>
-                  <span class="work-log-line-prefix">{{ diffLinePrefix(line.kind) }}</span>
-                  <code class="work-log-line-code">{{ line.content }}</code>
-                </div>
+                <template v-if="diffViewMode === 'split'">
+                  <div
+                    v-for="(row, index) in splitRows(hunk.lines)"
+                    :key="`${file.filePath}:${hunk.header}:split:${index}`"
+                    class="work-log-split-row"
+                  >
+                    <span class="work-log-split-line-number" :data-kind="row.old.kind">{{ formatLineNumber(row.old.lineNumber) }}</span>
+                    <code class="work-log-split-code" :data-kind="row.old.kind">{{ row.old.content }}</code>
+                    <span class="work-log-split-line-number" :data-kind="row.new.kind">{{ formatLineNumber(row.new.lineNumber) }}</span>
+                    <code class="work-log-split-code" :data-kind="row.new.kind">{{ row.new.content }}</code>
+                  </div>
+                </template>
+                <template v-else>
+                  <div
+                    v-for="(line, index) in hunk.lines"
+                    :key="`${file.filePath}:${hunk.header}:${index}`"
+                    class="work-log-diff-row"
+                    :data-kind="line.kind"
+                  >
+                    <span class="work-log-line-number">{{ formatLineNumber(line.oldLineNumber) }}</span>
+                    <span class="work-log-line-number">{{ formatLineNumber(line.newLineNumber) }}</span>
+                    <span class="work-log-line-prefix">{{ diffLinePrefix(line.kind) }}</span>
+                    <code class="work-log-line-code">{{ line.content }}</code>
+                  </div>
+                </template>
               </section>
             </div>
             <pre v-else-if="file.patch" class="work-log-output"><code>{{ file.patch }}</code></pre>
@@ -220,6 +252,24 @@
               </p>
               <p class="work-log-fullscreen-path">{{ fullscreenFile.filePath }}</p>
             </div>
+            <div class="thread-activity-view-toggle work-log-fullscreen-view-toggle" aria-label="Diff view mode">
+              <button
+                class="thread-activity-view-button"
+                type="button"
+                :data-active="diffViewMode === 'unified'"
+                @click="setDiffViewMode('unified')"
+              >
+                Unified
+              </button>
+              <button
+                class="thread-activity-view-button"
+                type="button"
+                :data-active="diffViewMode === 'split'"
+                @click="setDiffViewMode('split')"
+              >
+                Split
+              </button>
+            </div>
             <button
               class="work-log-fullscreen-close"
               type="button"
@@ -244,17 +294,31 @@
                 <span class="work-log-line-prefix" />
                 <code class="work-log-line-code">{{ hunk.header }}</code>
               </div>
-              <div
-                v-for="(line, index) in hunk.lines"
-                :key="`fullscreen:${fullscreenFile.filePath}:${hunk.header}:${index}`"
-                class="work-log-diff-row"
-                :data-kind="line.kind"
-              >
-                <span class="work-log-line-number">{{ formatLineNumber(line.oldLineNumber) }}</span>
-                <span class="work-log-line-number">{{ formatLineNumber(line.newLineNumber) }}</span>
-                <span class="work-log-line-prefix">{{ diffLinePrefix(line.kind) }}</span>
-                <code class="work-log-line-code">{{ line.content }}</code>
-              </div>
+              <template v-if="diffViewMode === 'split'">
+                <div
+                  v-for="(row, index) in splitRows(hunk.lines)"
+                  :key="`fullscreen:${fullscreenFile.filePath}:${hunk.header}:split:${index}`"
+                  class="work-log-split-row"
+                >
+                  <span class="work-log-split-line-number" :data-kind="row.old.kind">{{ formatLineNumber(row.old.lineNumber) }}</span>
+                  <code class="work-log-split-code" :data-kind="row.old.kind">{{ row.old.content }}</code>
+                  <span class="work-log-split-line-number" :data-kind="row.new.kind">{{ formatLineNumber(row.new.lineNumber) }}</span>
+                  <code class="work-log-split-code" :data-kind="row.new.kind">{{ row.new.content }}</code>
+                </div>
+              </template>
+              <template v-else>
+                <div
+                  v-for="(line, index) in hunk.lines"
+                  :key="`fullscreen:${fullscreenFile.filePath}:${hunk.header}:${index}`"
+                  class="work-log-diff-row"
+                  :data-kind="line.kind"
+                >
+                  <span class="work-log-line-number">{{ formatLineNumber(line.oldLineNumber) }}</span>
+                  <span class="work-log-line-number">{{ formatLineNumber(line.newLineNumber) }}</span>
+                  <span class="work-log-line-prefix">{{ diffLinePrefix(line.kind) }}</span>
+                  <code class="work-log-line-code">{{ line.content }}</code>
+                </div>
+              </template>
             </section>
           </div>
           <pre v-else-if="fullscreenFile.patch" class="work-log-output work-log-output-fullscreen"><code>{{ fullscreenFile.patch }}</code></pre>
@@ -299,8 +363,8 @@ import {
   serverRequestActionKeyPrefix,
   serverRequestMetaLabel,
 } from '../../composables/serverRequestRules'
-import { buildDiffReview } from '../../composables/useDiffReview'
-import type { UiDiffLineKind, UiDiffReviewFile } from '../../composables/useDiffReview'
+import { buildDiffReview, buildSplitDiffRows } from '../../composables/useDiffReview'
+import type { UiDiffLineKind, UiDiffReviewFile, UiDiffReviewLine, UiDiffSplitRow } from '../../composables/useDiffReview'
 import type { UiApprovalDecisionScope, UiMessage, UiServerRequest, UiServerRequestReply, UiToolingRollbackFileResult } from '../../types/codex'
 
 const props = defineProps<{
@@ -320,6 +384,7 @@ const commandEntries = computed(() => buildThreadCommandEntries(props.messages))
 const diffReview = computed(() => buildDiffReview(props.messages))
 const fullscreenFilePath = ref('')
 const isWorkLogOpen = ref(false)
+const diffViewMode = ref<'unified' | 'split'>('unified')
 const workLogPosition = ref({ left: 24, top: 76 })
 const fullscreenFile = computed(() => workLogFullscreenFile(diffReview.value, fullscreenFilePath.value))
 const workLogBadgeCount = computed(() => workLogBadgeCountForReview(diffReview.value, commandEntries.value.length))
@@ -438,6 +503,14 @@ function diffLinePrefix(kind: UiDiffLineKind): string {
   return workLogDiffLinePrefix(kind)
 }
 
+function splitRows(lines: UiDiffReviewLine[]): UiDiffSplitRow[] {
+  return buildSplitDiffRows(lines)
+}
+
+function setDiffViewMode(mode: 'unified' | 'split'): void {
+  diffViewMode.value = mode
+}
+
 function fileStatLabel(file: Pick<UiDiffReviewFile, 'addedLines' | 'removedLines'>): string {
   return buildWorkLogFileStatLabel(file)
 }
@@ -512,6 +585,10 @@ onBeforeUnmount(() => {
   @apply flex shrink-0 cursor-move items-start justify-between gap-3;
 }
 
+.thread-activity-header-copy {
+  @apply min-w-0;
+}
+
 .thread-activity-close {
   @apply inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-slate-200 bg-white text-lg leading-none text-slate-600 transition hover:bg-slate-100 hover:text-slate-950;
 }
@@ -522,6 +599,18 @@ onBeforeUnmount(() => {
 
 .thread-activity-subtitle {
   @apply m-0 mt-0.5 text-xs text-slate-500;
+}
+
+.thread-activity-view-toggle {
+  @apply mt-2 inline-flex rounded-md border border-slate-200 bg-slate-100 p-0.5;
+}
+
+.thread-activity-view-button {
+  @apply rounded px-2 py-1 text-[0.68rem] font-semibold leading-4 text-slate-600 transition hover:bg-white hover:text-slate-950;
+}
+
+.thread-activity-view-button[data-active='true'] {
+  @apply bg-white text-blue-700 shadow-sm;
 }
 
 .thread-activity-metrics {
@@ -748,6 +837,47 @@ onBeforeUnmount(() => {
   @apply text-blue-900;
 }
 
+.work-log-split-row {
+  @apply grid min-w-[54rem] grid-cols-[3.25rem_minmax(22rem,1fr)_3.25rem_minmax(22rem,1fr)] border-b border-slate-100 font-mono text-xs leading-5;
+}
+
+.work-log-split-row:last-child {
+  @apply border-b-0;
+}
+
+.work-log-split-line-number {
+  @apply select-none border-r border-slate-200 px-2 text-right text-[0.68rem] text-slate-500;
+  background: rgb(248 250 252 / 0.82);
+}
+
+.work-log-split-line-number:nth-child(3) {
+  @apply border-l;
+}
+
+.work-log-split-code {
+  @apply whitespace-pre px-2 text-slate-900;
+}
+
+.work-log-split-line-number[data-kind='add'],
+.work-log-split-code[data-kind='add'] {
+  background: #e6ffec;
+}
+
+.work-log-split-line-number[data-kind='remove'],
+.work-log-split-code[data-kind='remove'] {
+  background: #ffebe9;
+}
+
+.work-log-split-line-number[data-kind='meta'],
+.work-log-split-code[data-kind='meta'] {
+  background: #ddf4ff;
+}
+
+.work-log-split-line-number[data-kind='empty'],
+.work-log-split-code[data-kind='empty'] {
+  background: #f8fafc;
+}
+
 .work-log-fullscreen-backdrop {
   @apply fixed inset-0 z-[70] flex bg-slate-950/70 p-4 backdrop-blur-sm;
 }
@@ -762,6 +892,10 @@ onBeforeUnmount(() => {
 
 .work-log-fullscreen-copy {
   @apply min-w-0;
+}
+
+.work-log-fullscreen-view-toggle {
+  @apply m-0 ml-auto shrink-0;
 }
 
 .work-log-fullscreen-copy h3 {
@@ -842,6 +976,21 @@ onBeforeUnmount(() => {
   color: #c7ccd6;
 }
 
+:global(.app-dark) .thread-activity-view-toggle {
+  border-color: #3a4250;
+  background: #181b22;
+}
+
+:global(.app-dark) .thread-activity-view-button {
+  color: #c7ccd6;
+}
+
+:global(.app-dark) .thread-activity-view-button:hover,
+:global(.app-dark) .thread-activity-view-button[data-active='true'] {
+  background: #252b36;
+  color: #93c5fd;
+}
+
 :global(.app-dark) .work-log-fullscreen-panel {
   border-color: #303643;
   background: #181b22;
@@ -873,6 +1022,40 @@ onBeforeUnmount(() => {
   border-color: #2563eb;
   background: #172c4f;
   color: #bfdbfe;
+}
+
+:global(.app-dark) .work-log-split-row {
+  border-color: #303643;
+}
+
+:global(.app-dark) .work-log-split-line-number {
+  border-color: #303643;
+  background: #20242c;
+  color: #9ca3af;
+}
+
+:global(.app-dark) .work-log-split-code {
+  color: #e5e7eb;
+}
+
+:global(.app-dark) .work-log-split-line-number[data-kind='add'],
+:global(.app-dark) .work-log-split-code[data-kind='add'] {
+  background: #123524;
+}
+
+:global(.app-dark) .work-log-split-line-number[data-kind='remove'],
+:global(.app-dark) .work-log-split-code[data-kind='remove'] {
+  background: #3b181b;
+}
+
+:global(.app-dark) .work-log-split-line-number[data-kind='meta'],
+:global(.app-dark) .work-log-split-code[data-kind='meta'] {
+  background: #15324a;
+}
+
+:global(.app-dark) .work-log-split-line-number[data-kind='empty'],
+:global(.app-dark) .work-log-split-code[data-kind='empty'] {
+  background: #181b22;
 }
 
 .activity-request-method {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildDiffReview } from './useDiffReview'
+import { buildDiffReview, buildSplitDiffRows } from './useDiffReview'
 import type { UiMessage } from '../types/codex'
 
 function fileChangeMessage(id: string, output: string, details: string[] = []): UiMessage {
@@ -90,5 +90,33 @@ describe('useDiffReview', () => {
       removedLines: 2,
     })
     expect(review.summary.hunkCount).toBe(2)
+  })
+
+  it('pairs adjacent removed and added lines for split diffs', () => {
+    const review = buildDiffReview([
+      fileChangeMessage(
+        'change-5',
+        [
+          'diff --git a/src/example.ts b/src/example.ts',
+          '--- a/src/example.ts',
+          '+++ b/src/example.ts',
+          '@@ -1,4 +1,4 @@',
+          ' const keep = true',
+          '-const oldOne = 1',
+          '-const oldTwo = 2',
+          '+const newOne = 1',
+          ' export { keep }',
+        ].join('\n'),
+      ),
+    ])
+
+    const rows = buildSplitDiffRows(review.files[0]?.hunks[0]?.lines ?? [])
+
+    expect(rows.map((row) => [row.old.kind, row.old.content, row.new.kind, row.new.content])).toEqual([
+      ['context', 'const keep = true', 'context', 'const keep = true'],
+      ['remove', 'const oldOne = 1', 'add', 'const newOne = 1'],
+      ['remove', 'const oldTwo = 2', 'empty', ''],
+      ['context', 'export { keep }', 'context', 'export { keep }'],
+    ])
   })
 })

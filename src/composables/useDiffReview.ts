@@ -9,6 +9,19 @@ export type UiDiffReviewLine = {
   newLineNumber: number | null
 }
 
+export type UiDiffSplitCellKind = UiDiffLineKind | 'empty'
+
+export type UiDiffSplitCell = {
+  kind: UiDiffSplitCellKind
+  content: string
+  lineNumber: number | null
+}
+
+export type UiDiffSplitRow = {
+  old: UiDiffSplitCell
+  new: UiDiffSplitCell
+}
+
 export type UiDiffReviewHunk = {
   header: string
   oldStart: number | null
@@ -156,6 +169,76 @@ function pushDiffLine(file: MutableDiffFile, hunk: UiDiffReviewHunk, rawLine: st
     oldLineNumber,
     newLineNumber,
   })
+}
+
+function splitCellFromLine(line: UiDiffReviewLine, side: 'old' | 'new'): UiDiffSplitCell {
+  return {
+    kind: line.kind,
+    content: line.content,
+    lineNumber: side === 'old' ? line.oldLineNumber : line.newLineNumber,
+  }
+}
+
+function emptySplitCell(): UiDiffSplitCell {
+  return {
+    kind: 'empty',
+    content: '',
+    lineNumber: null,
+  }
+}
+
+function collectConsecutiveLines(lines: UiDiffReviewLine[], startIndex: number, kind: UiDiffLineKind): UiDiffReviewLine[] {
+  const collected: UiDiffReviewLine[] = []
+  for (let index = startIndex; index < lines.length; index += 1) {
+    const line = lines[index]
+    if (!line || line.kind !== kind) break
+    collected.push(line)
+  }
+  return collected
+}
+
+export function buildSplitDiffRows(lines: UiDiffReviewLine[]): UiDiffSplitRow[] {
+  const rows: UiDiffSplitRow[] = []
+
+  for (let index = 0; index < lines.length;) {
+    const line = lines[index]
+    if (!line) break
+
+    if (line.kind === 'remove') {
+      const removedLines = collectConsecutiveLines(lines, index, 'remove')
+      const addedLines = collectConsecutiveLines(lines, index + removedLines.length, 'add')
+      const pairCount = Math.max(removedLines.length, addedLines.length)
+
+      for (let pairIndex = 0; pairIndex < pairCount; pairIndex += 1) {
+        const oldLine = removedLines[pairIndex]
+        const newLine = addedLines[pairIndex]
+        rows.push({
+          old: oldLine ? splitCellFromLine(oldLine, 'old') : emptySplitCell(),
+          new: newLine ? splitCellFromLine(newLine, 'new') : emptySplitCell(),
+        })
+      }
+
+      index += removedLines.length + addedLines.length
+      continue
+    }
+
+    if (line.kind === 'add') {
+      rows.push({
+        old: emptySplitCell(),
+        new: splitCellFromLine(line, 'new'),
+      })
+      index += 1
+      continue
+    }
+
+    rows.push({
+      old: splitCellFromLine(line, 'old'),
+      new: splitCellFromLine(line, 'new'),
+    })
+    index += 1
+  }
+
+  return rows
 }
 
 function finalizeFile(file: MutableDiffFile | null, files: MutableDiffFile[]): void {
