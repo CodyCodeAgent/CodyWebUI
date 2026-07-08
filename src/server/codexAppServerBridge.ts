@@ -16,6 +16,7 @@ import { handleImageUpload, handleLocalImage } from './imageUploads.js'
 import { NotificationDispatcher, type NotificationDispatchEvent } from './notificationDispatchService.js'
 import { buildSecurityAccessSnapshot } from './securityAccess.js'
 import { appendCodexSessionEvent, handleListCodexSessionEvents, handleListCodexWorkspaceSessions } from './sessionEventStore.js'
+import { handleListUserSettings, handleReadUserSetting, handleWriteUserSetting } from './settingsStore.js'
 import {
   handleApplyPatchToWorkspaceWorktree,
   handleApplyWorkspaceWorkflowImplementation,
@@ -1648,6 +1649,21 @@ export function createCodexBridgeMiddleware(): CodexBridgeMiddleware {
 
       if ((req.method === 'GET' || req.method === 'HEAD') && url.pathname === '/codex-api/local-image') {
         await handleLocalImage(url, res, req.method)
+        return
+      }
+
+      if (req.method === 'GET' && url.pathname === '/codex-api/settings') {
+        await handleReadUserSetting(url, res)
+        return
+      }
+
+      if (req.method === 'GET' && url.pathname === '/codex-api/settings/list') {
+        await handleListUserSettings(url, res)
+        return
+      }
+
+      if (req.method === 'POST' && url.pathname === '/codex-api/settings') {
+        await handleWriteUserSetting(req, res)
         return
       }
 

@@ -1,4 +1,5 @@
 import { computed, ref, watch } from 'vue'
+import { fetchUserSetting, writeUserSetting } from '../api/codexSettingsClient'
 import { BUILT_IN_SKINS } from './skins'
 import {
   getBuiltInSkin,
@@ -17,6 +18,8 @@ import { DEFAULT_THEME_PREFERENCES } from './tokens'
 
 const THEME_STORAGE_KEY = 'codex-web-local.theme.v1'
 const THEME_IMPORTED_SKINS_STORAGE_KEY = 'codex-web-local.theme.imported-skins.v1'
+const THEME_SETTING_KEY = 'theme.preferences.v1'
+const THEME_IMPORTED_SKINS_SETTING_KEY = 'theme.imported-skins.v1'
 
 function hasWindow(): boolean {
   return typeof window !== 'undefined'
@@ -65,6 +68,25 @@ function savePreferences(nextPreferences: ThemePreferences): void {
 function saveImportedSkins(nextSkins: SkinPack[]): void {
   if (!hasWindow()) return
   window.localStorage.setItem(THEME_IMPORTED_SKINS_STORAGE_KEY, JSON.stringify(nextSkins.slice(0, 20)))
+}
+
+async function readRemoteSetting<T>(key: string): Promise<T | null> {
+  if (!hasWindow()) return null
+  try {
+    const setting = await fetchUserSetting<T>(key)
+    return setting?.value ?? null
+  } catch {
+    return null
+  }
+}
+
+async function saveRemoteSetting(key: string, value: unknown): Promise<void> {
+  if (!hasWindow()) return
+  try {
+    await writeUserSetting(key, value)
+  } catch {
+    // Local storage remains the fallback when the optional SQLite settings store is unavailable.
+  }
 }
 
 function preferredSystemSkinId(): string {
@@ -209,12 +231,43 @@ function importSkin(value: string): SkinPack {
     skin,
   ]
   saveImportedSkins(importedSkins.value)
+  void saveRemoteSetting(THEME_IMPORTED_SKINS_SETTING_KEY, importedSkins.value.slice(0, 20))
   setSkin(skin.id)
   return skin
 }
 
+async function hydrateThemeFromSettingsStore(): Promise<void> {
+  const remoteImportedSkins = await readRemoteSetting<unknown[]>(THEME_IMPORTED_SKINS_SETTING_KEY)
+  if (Array.isArray(remoteImportedSkins)) {
+    importedSkins.value = remoteImportedSkins
+      .map((item) => {
+        try {
+          return parseSkinPack(JSON.stringify(item))
+        } catch {
+          return null
+        }
+      })
+      .filter((item): item is SkinPack => Boolean(item))
+      .slice(0, 20)
+    saveImportedSkins(importedSkins.value)
+  } else if (importedSkins.value.length > 0) {
+    void saveRemoteSetting(THEME_IMPORTED_SKINS_SETTING_KEY, importedSkins.value.slice(0, 20))
+  }
+
+  const remotePreferences = await readRemoteSetting<unknown>(THEME_SETTING_KEY)
+  if (remotePreferences) {
+    preferences.value = normalizeThemePreferences(remotePreferences, {
+      skinIds: allSkins().map((skin) => skin.id),
+    })
+    savePreferences(preferences.value)
+  } else {
+    void saveRemoteSetting(THEME_SETTING_KEY, preferences.value)
+  }
+}
+
 watch(preferences, (nextPreferences) => {
   savePreferences(nextPreferences)
+  void saveRemoteSetting(THEME_SETTING_KEY, nextPreferences)
   applyCurrentTheme()
 }, { deep: true })
 
@@ -226,6 +279,7 @@ if (hasWindow()) {
   window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
     if (preferences.value.followSystem) applyCurrentTheme()
   })
+  void hydrateThemeFromSettingsStore()
 }
 
 export function useTheme() {
