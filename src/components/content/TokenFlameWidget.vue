@@ -1,8 +1,10 @@
 <template>
   <aside
     v-if="settings.enabled && cwd.trim()"
+    ref="widgetRef"
     class="token-flame-widget"
-    :class="`token-flame-widget-${settings.defaultCorner}`"
+    :class="[{ 'is-dragging': dragState !== null }, `token-flame-widget-${settings.defaultCorner}`]"
+    :style="widgetStyle"
     :data-level="fireLevel"
     :data-calm="settings.reducedMotion"
     aria-label="Daily token flame"
@@ -11,7 +13,8 @@
       class="token-flame-button"
       type="button"
       :title="summaryTitle"
-      @click="isOpen = !isOpen"
+      @click="toggleOpen"
+      @pointerdown="startDrag"
     >
       <span class="token-flame-graphic" aria-hidden="true">
         <span class="token-flame-glow" />
@@ -57,7 +60,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
-import { fetchUserSetting } from '../../api/codexSettingsClient'
+import { fetchUserSetting, writeUserSetting } from '../../api/codexSettingsClient'
 import { fetchDailyTokenUsage } from '../../api/codexTokenUsageClient'
 import type { UiDailyTokenUsage, UiRateLimitSnapshot } from '../../types/codex'
 
@@ -68,6 +71,19 @@ type FlameSettings = {
   enabled: boolean
   defaultCorner: FlameCorner
   reducedMotion: boolean
+  position: {
+    x: number
+    y: number
+  } | null
+}
+
+type DragState = {
+  pointerId: number
+  startClientX: number
+  startClientY: number
+  startX: number
+  startY: number
+  moved: boolean
 }
 
 const props = defineProps<{
@@ -80,12 +96,18 @@ const DEFAULT_SETTINGS: FlameSettings = {
   enabled: true,
   defaultCorner: 'bottom-right',
   reducedMotion: false,
+  position: null,
 }
+const WIDGET_SIZE = 64
+const WIDGET_MARGIN = 12
 
+const widgetRef = ref<HTMLElement | null>(null)
 const isOpen = ref(false)
 const usage = ref<UiDailyTokenUsage | null>(null)
 const settings = ref<FlameSettings>({ ...DEFAULT_SETTINGS })
 const errorMessage = ref('')
+const dragState = ref<DragState | null>(null)
+let suppressNextClick = false
 let refreshTimer = 0
 
 function normalizeFlameSettings(value: unknown): FlameSettings {
@@ -105,6 +127,19 @@ function normalizeFlameSettings(value: unknown): FlameSettings {
     enabled: row.enabled !== false,
     defaultCorner,
     reducedMotion: row.reducedMotion === true,
+    position: normalizePosition(row.position),
+  }
+}
+
+function normalizePosition(value: unknown): FlameSettings['position'] {
+  const row = value !== null && typeof value === 'object' && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : null
+  if (!row || typeof row.x !== 'number' || typeof row.y !== 'number') return null
+  if (!Number.isFinite(row.x) || !Number.isFinite(row.y)) return null
+  return {
+    x: row.x,
+    y: row.y,
   }
 }
 
@@ -137,10 +172,102 @@ function estimatedTokensFromRateLimit(snapshot: UiRateLimitSnapshot | null): num
 async function loadSettings(): Promise<void> {
   try {
     const setting = await fetchUserSetting<unknown>(FLAME_SETTING_KEY)
-    settings.value = normalizeFlameSettings(setting?.value ?? DEFAULT_SETTINGS)
+    const nextSettings = normalizeFlameSettings(setting?.value ?? DEFAULT_SETTINGS)
+    settings.value = {
+      ...nextSettings,
+      position: nextSettings.position ? clampPosition(nextSettings.position) : null,
+    }
   } catch {
     settings.value = { ...DEFAULT_SETTINGS }
   }
+}
+
+function defaultPosition(corner: FlameCorner): NonNullable<FlameSettings['position']> {
+  const right = Math.max(WIDGET_MARGIN, window.innerWidth - WIDGET_SIZE - 20)
+  const bottom = Math.max(WIDGET_MARGIN, window.innerHeight - WIDGET_SIZE - 20)
+  if (corner === 'bottom-left') return { x: 20, y: bottom }
+  if (corner === 'top-right') return { x: right, y: 80 }
+  if (corner === 'top-left') return { x: 20, y: 80 }
+  return { x: right, y: bottom }
+}
+
+function clampPosition(position: NonNullable<FlameSettings['position']>): NonNullable<FlameSettings['position']> {
+  const rect = widgetRef.value?.getBoundingClientRect()
+  const width = rect?.width || WIDGET_SIZE
+  const height = rect?.height || WIDGET_SIZE
+  const maxX = Math.max(WIDGET_MARGIN, window.innerWidth - width - WIDGET_MARGIN)
+  const maxY = Math.max(WIDGET_MARGIN, window.innerHeight - height - WIDGET_MARGIN)
+  return {
+    x: Math.min(Math.max(position.x, WIDGET_MARGIN), maxX),
+    y: Math.min(Math.max(position.y, WIDGET_MARGIN), maxY),
+  }
+}
+
+function saveSettings(nextSettings = settings.value): void {
+  void writeUserSetting(FLAME_SETTING_KEY, nextSettings).catch(() => {
+    // The flame remains draggable in-session even if the optional settings store is unavailable.
+  })
+}
+
+function startDrag(event: PointerEvent): void {
+  if (event.button !== 0) return
+  const currentPosition = settings.value.position ?? defaultPosition(settings.value.defaultCorner)
+  const clampedPosition = clampPosition(currentPosition)
+  if (!settings.value.position) {
+    settings.value = { ...settings.value, position: clampedPosition }
+  }
+  dragState.value = {
+    pointerId: event.pointerId,
+    startClientX: event.clientX,
+    startClientY: event.clientY,
+    startX: clampedPosition.x,
+    startY: clampedPosition.y,
+    moved: false,
+  }
+  widgetRef.value?.setPointerCapture(event.pointerId)
+  window.addEventListener('pointermove', onPointerMove)
+  window.addEventListener('pointerup', stopDrag)
+  window.addEventListener('pointercancel', stopDrag)
+}
+
+function onPointerMove(event: PointerEvent): void {
+  const drag = dragState.value
+  if (!drag || event.pointerId !== drag.pointerId) return
+  const deltaX = event.clientX - drag.startClientX
+  const deltaY = event.clientY - drag.startClientY
+  if (!drag.moved && Math.abs(deltaX) + Math.abs(deltaY) > 3) {
+    drag.moved = true
+    suppressNextClick = true
+    isOpen.value = false
+  }
+  if (!drag.moved) return
+  event.preventDefault()
+  settings.value = {
+    ...settings.value,
+    position: clampPosition({
+      x: drag.startX + deltaX,
+      y: drag.startY + deltaY,
+    }),
+  }
+}
+
+function stopDrag(event: PointerEvent): void {
+  const drag = dragState.value
+  if (drag && event.pointerId === drag.pointerId) {
+    if (drag.moved) saveSettings()
+    dragState.value = null
+  }
+  window.removeEventListener('pointermove', onPointerMove)
+  window.removeEventListener('pointerup', stopDrag)
+  window.removeEventListener('pointercancel', stopDrag)
+}
+
+function toggleOpen(): void {
+  if (suppressNextClick) {
+    suppressNextClick = false
+    return
+  }
+  isOpen.value = !isOpen.value
 }
 
 async function loadUsage(): Promise<void> {
@@ -172,6 +299,13 @@ const fireLevelLabel = computed(() => ({
 })[fireLevel.value])
 const usageSourceLabel = computed(() => hasExactUsage.value ? 'Codex usage events' : 'Estimated from rate limit')
 const summaryTitle = computed(() => `Today: ${formattedTotalTokens.value} tokens · ${fireLevelLabel.value}`)
+const widgetStyle = computed(() => {
+  const position = settings.value.position ?? defaultPosition(settings.value.defaultCorner)
+  return {
+    left: `${position.x}px`,
+    top: `${position.y}px`,
+  }
+})
 
 watch(() => props.cwd, () => {
   usage.value = null
@@ -188,6 +322,9 @@ onMounted(() => {
 
 onUnmounted(() => {
   window.clearInterval(refreshTimer)
+  window.removeEventListener('pointermove', onPointerMove)
+  window.removeEventListener('pointerup', stopDrag)
+  window.removeEventListener('pointercancel', stopDrag)
 })
 </script>
 
@@ -198,24 +335,13 @@ onUnmounted(() => {
   @apply fixed z-40;
 }
 
-.token-flame-widget-bottom-right {
-  @apply bottom-5 right-5;
-}
-
-.token-flame-widget-bottom-left {
-  @apply bottom-5 left-5;
-}
-
-.token-flame-widget-top-right {
-  @apply right-5 top-20;
-}
-
-.token-flame-widget-top-left {
-  @apply left-5 top-20;
+.token-flame-widget.is-dragging {
+  @apply select-none;
 }
 
 .token-flame-button {
-  @apply flex h-16 w-16 flex-col items-center justify-center rounded-full border border-orange-300 bg-zinc-950 text-white shadow-xl transition hover:scale-105;
+  @apply flex h-16 w-16 cursor-move flex-col items-center justify-center rounded-full border border-orange-300 bg-zinc-950 text-white shadow-xl transition hover:scale-105;
+  touch-action: none;
 }
 
 .token-flame-graphic {

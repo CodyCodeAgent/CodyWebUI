@@ -48,6 +48,9 @@
               <input v-model="flameSettings.reducedMotion" type="checkbox" />
               <span>Calm animation</span>
             </label>
+            <button class="flame-settings-reset-position" type="button" @click="resetFlamePosition">
+              Reset position
+            </button>
           </div>
           <p v-if="saveMessage" class="flame-settings-message" :data-tone="saveTone">{{ saveMessage }}</p>
         </div>
@@ -75,6 +78,10 @@ type FlameSettings = {
   enabled: boolean
   defaultCorner: FlameCorner
   reducedMotion: boolean
+  position: {
+    x: number
+    y: number
+  } | null
 }
 
 const FLAME_SETTING_KEY = 'token-flame.widget.v1'
@@ -82,6 +89,7 @@ const DEFAULT_FLAME_SETTINGS: FlameSettings = {
   enabled: true,
   defaultCorner: 'bottom-right',
   reducedMotion: false,
+  position: null,
 }
 
 const flameLevels = [
@@ -116,6 +124,26 @@ function normalizeFlameSettings(value: unknown): FlameSettings {
     enabled: row.enabled !== false,
     defaultCorner,
     reducedMotion: row.reducedMotion === true,
+    position: normalizePosition(row.position),
+  }
+}
+
+function normalizePosition(value: unknown): FlameSettings['position'] {
+  const row = value !== null && typeof value === 'object' && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : null
+  if (!row || typeof row.x !== 'number' || typeof row.y !== 'number') return null
+  if (!Number.isFinite(row.x) || !Number.isFinite(row.y)) return null
+  return {
+    x: row.x,
+    y: row.y,
+  }
+}
+
+function resetFlamePosition(): void {
+  flameSettings.value = {
+    ...flameSettings.value,
+    position: null,
   }
 }
 
@@ -248,6 +276,10 @@ onMounted(() => {
   @apply h-4 w-4;
 }
 
+.flame-settings-reset-position {
+  @apply h-9 rounded-md border border-zinc-200 bg-white px-3 text-sm font-medium text-zinc-700 transition hover:bg-zinc-50;
+}
+
 .flame-settings-message {
   @apply mt-3 rounded-md border px-2 py-1 text-xs;
 }
@@ -307,7 +339,8 @@ onMounted(() => {
 :global(.app-dark) .flame-level-list li,
 :global(.app-dark) .app-settings-switch,
 :global(.app-dark) .flame-settings-controls select,
-:global(.app-dark) .flame-settings-checkbox {
+:global(.app-dark) .flame-settings-checkbox,
+:global(.app-dark) .flame-settings-reset-position {
   border-color: #303643;
   background: #181b22;
 }
@@ -325,5 +358,9 @@ onMounted(() => {
 :global(.app-dark) .flame-settings-controls label > span,
 :global(.app-dark) .flame-settings-controls select {
   color: #c7ccd6;
+}
+
+:global(.app-dark) .flame-settings-reset-position {
+  color: #e5e7eb;
 }
 </style>
