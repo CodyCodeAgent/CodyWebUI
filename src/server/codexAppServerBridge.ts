@@ -15,7 +15,7 @@ import {
 import { handleImageUpload, handleLocalImage } from './imageUploads.js'
 import { NotificationDispatcher, type NotificationDispatchEvent } from './notificationDispatchService.js'
 import { buildSecurityAccessSnapshot } from './securityAccess.js'
-import { appendCodexSessionEvent, handleListCodexSessionEvents, handleListCodexWorkspaceSessions } from './sessionEventStore.js'
+import { appendCodexSessionEvent, handleDailyTokenUsage, handleListCodexSessionEvents, handleListCodexWorkspaceSessions } from './sessionEventStore.js'
 import { handleListUserSettings, handleReadUserSetting, handleWriteUserSetting } from './settingsStore.js'
 import {
   handleApplyPatchToWorkspaceWorktree,
@@ -1922,6 +1922,11 @@ export function createCodexBridgeMiddleware(): CodexBridgeMiddleware {
 
       if (req.method === 'GET' && url.pathname === '/codex-api/tooling/recent-sessions') {
         await handleListCodexWorkspaceSessions(url, res)
+        return
+      }
+
+      if (req.method === 'GET' && url.pathname === '/codex-api/token-usage/today') {
+        await handleDailyTokenUsage(url, res)
         return
       }
 

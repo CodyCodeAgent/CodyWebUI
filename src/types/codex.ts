@@ -439,6 +439,23 @@ export type UiWorkspaceSessionSummaryTrail = {
   truncated: boolean
 }
 
+export type UiDailyTokenUsage = {
+  cwd: string
+  repoRoot: string
+  generatedAtIso: string
+  date: string
+  timezoneOffsetMinutes: number
+  inputTokens: number
+  outputTokens: number
+  totalTokens: number
+  tokenUsageEventCount: number
+  threadCount: number
+  turnCount: number
+  costUsd: number | null
+  costEventCount: number
+  source: 'codex-events' | 'none'
+}
+
 export type UiGatewayDiagnosticLog = {
   id: string
   createdAtIso: string

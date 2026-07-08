@@ -90,6 +90,23 @@ export type CodexWorkspaceSessionSummaryTrail = {
   truncated: boolean
 }
 
+export type CodexDailyTokenUsage = {
+  cwd: string
+  repoRoot: string
+  generatedAtIso: string
+  date: string
+  timezoneOffsetMinutes: number
+  inputTokens: number
+  outputTokens: number
+  totalTokens: number
+  tokenUsageEventCount: number
+  threadCount: number
+  turnCount: number
+  costUsd: number | null
+  costEventCount: number
+  source: 'codex-events' | 'none'
+}
+
 type SessionWorkspace = {
   cwd: string
   repoRoot: string
@@ -587,6 +604,23 @@ function metadataNumber(metadata: CodexSessionEvent['metadata'], key: string): n
   return typeof value === 'number' && Number.isFinite(value) ? value : 0
 }
 
+function todayDateString(timezoneOffsetMinutes: number, now = new Date()): string {
+  return new Date(now.getTime() - timezoneOffsetMinutes * 60_000).toISOString().slice(0, 10)
+}
+
+function localDateStringFromIso(value: string, timezoneOffsetMinutes: number): string {
+  const timestamp = Date.parse(value)
+  if (!Number.isFinite(timestamp)) return ''
+  return new Date(timestamp - timezoneOffsetMinutes * 60_000).toISOString().slice(0, 10)
+}
+
+function tokenUsageDedupKey(event: CodexSessionEvent): string {
+  const threadId = event.threadId.trim()
+  const turnId = event.turnId.trim()
+  if (threadId || turnId) return `${threadId}:${turnId}:${event.method}`
+  return event.id
+}
+
 function applySessionEventToSummary(
   summary: CodexWorkspaceSessionSummary,
   event: CodexSessionEvent,
@@ -666,6 +700,104 @@ export async function listCodexWorkspaceSessions(params: {
   }
 }
 
+export async function summarizeDailyTokenUsage(params: {
+  cwd: string
+  date?: string
+  timezoneOffsetMinutes?: number
+}): Promise<CodexDailyTokenUsage> {
+  const workspace = await getSessionWorkspace(params.cwd)
+  const timezoneOffsetMinutes = Number.isFinite(params.timezoneOffsetMinutes)
+    ? Number(params.timezoneOffsetMinutes)
+    : 0
+  const date = /^\d{4}-\d{2}-\d{2}$/u.test(params.date ?? '')
+    ? params.date!
+    : todayDateString(timezoneOffsetMinutes)
+
+  let raw = ''
+  try {
+    raw = await readFile(sessionEventPath(workspace), 'utf8')
+  } catch {
+    return {
+      cwd: workspace.cwd,
+      repoRoot: workspace.repoRoot,
+      generatedAtIso: new Date().toISOString(),
+      date,
+      timezoneOffsetMinutes,
+      inputTokens: 0,
+      outputTokens: 0,
+      totalTokens: 0,
+      tokenUsageEventCount: 0,
+      threadCount: 0,
+      turnCount: 0,
+      costUsd: null,
+      costEventCount: 0,
+      source: 'none',
+    }
+  }
+
+  const usageEventsByTurn = new Map<string, CodexSessionEvent>()
+  for (const row of raw.split(/\r?\n/u).filter(Boolean)) {
+    try {
+      const event = JSON.parse(row) as CodexSessionEvent
+      if (localDateStringFromIso(event.createdAtIso, timezoneOffsetMinutes) !== date) continue
+      const inputTokens = metadataNumber(event.metadata, 'inputTokens')
+      const outputTokens = metadataNumber(event.metadata, 'outputTokens')
+      const totalTokens = metadataNumber(event.metadata, 'totalTokens')
+      if (inputTokens <= 0 && outputTokens <= 0 && totalTokens <= 0) continue
+
+      const key = tokenUsageDedupKey(event)
+      const existing = usageEventsByTurn.get(key)
+      if (!existing || event.createdAtIso >= existing.createdAtIso) {
+        usageEventsByTurn.set(key, event)
+      }
+    } catch {
+      // Ignore malformed rows while preserving usage from valid rows.
+    }
+  }
+
+  const threads = new Set<string>()
+  const turns = new Set<string>()
+  let inputTokens = 0
+  let outputTokens = 0
+  let totalTokens = 0
+  let costUsd: number | null = null
+  let costEventCount = 0
+
+  for (const event of usageEventsByTurn.values()) {
+    const eventInputTokens = metadataNumber(event.metadata, 'inputTokens')
+    const eventOutputTokens = metadataNumber(event.metadata, 'outputTokens')
+    const eventTotalTokens = metadataNumber(event.metadata, 'totalTokens')
+    const eventCostUsd = metadataNumber(event.metadata, 'costUsd')
+    inputTokens += eventInputTokens
+    outputTokens += eventOutputTokens
+    totalTokens += eventTotalTokens || eventInputTokens + eventOutputTokens
+    if (event.threadId) threads.add(event.threadId)
+    if (event.turnId) turns.add(`${event.threadId}:${event.turnId}`)
+    if (eventCostUsd > 0) {
+      costUsd = (costUsd ?? 0) + eventCostUsd
+      costEventCount += 1
+    }
+  }
+
+  const tokenUsageEventCount = usageEventsByTurn.size
+  return {
+    cwd: workspace.cwd,
+    repoRoot: workspace.repoRoot,
+    generatedAtIso: new Date().toISOString(),
+    date,
+    timezoneOffsetMinutes,
+    inputTokens,
+    outputTokens,
+    totalTokens,
+    tokenUsageEventCount,
+    threadCount: threads.size,
+    turnCount: turns.size || tokenUsageEventCount,
+    costUsd,
+    costEventCount,
+    source: tokenUsageEventCount > 0 ? 'codex-events' : 'none',
+  }
+}
+
 function setJson(res: ServerResponse, statusCode: number, payload: unknown): void {
   res.statusCode = statusCode
   res.setHeader('Content-Type', 'application/json; charset=utf-8')
@@ -693,6 +825,19 @@ export async function handleListCodexWorkspaceSessions(url: URL, res: ServerResp
     setJson(res, 200, { result })
   } catch (error) {
     const message = error instanceof Error && error.message ? error.message : 'Failed to list Codex workspace sessions'
+    setJson(res, 400, { error: message })
+  }
+}
+
+export async function handleDailyTokenUsage(url: URL, res: ServerResponse): Promise<void> {
+  try {
+    const cwd = url.searchParams.get('cwd') ?? ''
+    const date = url.searchParams.get('date') ?? undefined
+    const timezoneOffsetMinutes = Number(url.searchParams.get('timezoneOffsetMinutes') ?? '0')
+    const result = await summarizeDailyTokenUsage({ cwd, date, timezoneOffsetMinutes })
+    setJson(res, 200, { result })
+  } catch (error) {
+    const message = error instanceof Error && error.message ? error.message : 'Failed to summarize daily token usage'
     setJson(res, 400, { error: message })
   }
 }

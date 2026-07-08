@@ -161,6 +161,10 @@
           :is-loading="isLoadingRateLimits"
           @refresh="refreshRateLimits"
         />
+        <TokenFlameWidget
+          :cwd="tokenFlameCwd"
+          :rate-limit-snapshot="rateLimitSnapshot"
+        />
 
         <div v-if="desktopError" class="content-error" role="alert">
           <span class="content-error-text">{{ desktopError }}</span>
@@ -283,6 +287,7 @@ import NewThreadSetupModal, { type NewThreadProjectOption } from './components/c
 import RateLimitFloatingStatus from './components/content/RateLimitFloatingStatus.vue'
 import WorkspaceDashboard from './components/content/WorkspaceDashboard.vue'
 import AppSettingsPage from './components/content/AppSettingsPage.vue'
+import TokenFlameWidget from './components/content/TokenFlameWidget.vue'
 import BrowserNotificationsPanel from './components/content/BrowserNotificationsPanel.vue'
 import SidebarThreadControls from './components/sidebar/SidebarThreadControls.vue'
 import IconTablerFolder from './components/icons/IconTablerFolder.vue'
@@ -451,6 +456,7 @@ const newThreadProjectLabel = computed(() => buildNewThreadProjectLabel({
   newThreadCwd: newThreadCwd.value,
   projectDisplayNameById: projectDisplayNameById.value,
 }))
+const tokenFlameCwd = computed(() => selectedThread.value?.cwd?.trim() || newThreadCwd.value)
 
 onMounted(() => {
   applyCurrentTheme()

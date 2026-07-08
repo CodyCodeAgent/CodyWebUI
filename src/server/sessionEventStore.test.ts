@@ -9,6 +9,7 @@ import {
   codexSessionEventFromNotification,
   listCodexSessionEvents,
   listCodexWorkspaceSessions,
+  summarizeDailyTokenUsage,
 } from './sessionEventStore'
 
 const execFileAsync = promisify(execFile)
@@ -267,5 +268,67 @@ describe('session event store', () => {
     expect(trail.sessions).toHaveLength(1)
     expect(trail.sessions[0]?.threadId).toBe('thread-b')
     expect(trail.truncated).toBe(true)
+  })
+
+  it('summarizes daily token usage by local date and deduplicates turns', async () => {
+    const repo = await createRepo()
+
+    await appendCodexSessionEvent(repo, {
+      method: 'turn/completed',
+      atIso: '2026-07-05T16:50:00.000Z',
+      params: {
+        turn: { id: 'turn-a', threadId: 'thread-a' },
+        usage: {
+          input_tokens: 100,
+          output_tokens: 40,
+          total_tokens: 140,
+          cost_usd: 0.01,
+        },
+      },
+    })
+    await appendCodexSessionEvent(repo, {
+      method: 'turn/completed',
+      atIso: '2026-07-05T16:55:00.000Z',
+      params: {
+        turn: { id: 'turn-a', threadId: 'thread-a' },
+        usage: {
+          input_tokens: 120,
+          output_tokens: 50,
+          total_tokens: 170,
+          cost_usd: 0.02,
+        },
+      },
+    })
+    await appendCodexSessionEvent(repo, {
+      method: 'turn/completed',
+      atIso: '2026-07-05T16:05:00.000Z',
+      params: {
+        turn: { id: 'turn-b', threadId: 'thread-b' },
+        usage: {
+          input_tokens: 200,
+          output_tokens: 80,
+          total_tokens: 280,
+        },
+      },
+    })
+
+    const usage = await summarizeDailyTokenUsage({
+      cwd: repo,
+      date: '2026-07-06',
+      timezoneOffsetMinutes: -480,
+    })
+
+    expect(usage).toMatchObject({
+      date: '2026-07-06',
+      inputTokens: 320,
+      outputTokens: 130,
+      totalTokens: 450,
+      tokenUsageEventCount: 2,
+      threadCount: 2,
+      turnCount: 2,
+      costUsd: 0.02,
+      costEventCount: 1,
+      source: 'codex-events',
+    })
   })
 })
