@@ -115,7 +115,21 @@
       </li>
 
       <li
-        v-for="(message, messageIndex) in messages"
+        v-if="hiddenMessagesCount > 0"
+        class="conversation-item conversation-item-history"
+      >
+        <button
+          class="conversation-history-button"
+          type="button"
+          @click="onLoadEarlierMessages"
+        >
+          Show {{ nextHistoryPageSize }} earlier messages
+          <span>{{ hiddenMessagesCount }} hidden</span>
+        </button>
+      </li>
+
+      <li
+        v-for="(message, renderedMessageIndex) in visibleMessages"
         :key="message.id"
         class="conversation-item"
         :data-role="message.role"
@@ -195,13 +209,13 @@
               </article>
 
               <button
-                v-if="shouldShowCopyButton(message, messageIndex)"
+                v-if="shouldShowCopyButton(message, renderedMessageIndex)"
                 class="message-copy-button"
                 type="button"
                 :aria-label="copyButtonAriaLabel(message.id)"
                 :title="copyButtonTitle(message.id)"
                 :data-copied="copiedMessageId === message.id"
-                @click="copyMessage(message, messageIndex)"
+                @click="copyMessage(message, renderedMessageIndex)"
               >
                 <IconTablerCopy class="message-copy-icon" />
               </button>
@@ -286,11 +300,16 @@ import {
   buildToolCallSuccessReply,
   buildToolUserInputReply,
   conversationRequestActionKeyPrefix,
+  DEFAULT_VISIBLE_MESSAGE_COUNT,
   hasLiveOverlayDetails as hasThreadLiveOverlayDetails,
+  hiddenMessageCount as hiddenThreadMessageCount,
   isConversationApprovalRequestKind,
   liveOverlayDetailsToggleLabel,
+  MESSAGE_HISTORY_PAGE_SIZE,
   messageCopyAriaLabel,
   messageCopyTitle,
+  nextVisibleMessageCount,
+  normalizedVisibleMessageCount,
   normalizedConversationBottomLockFrames,
   readToolQuestionAnswer,
   readToolQuestionOtherAnswer,
@@ -303,6 +322,7 @@ import {
   shouldShowToolQuestionText,
   toolQuestionKey,
   toolQuestionTitle,
+  visibleMessageStartIndex,
 } from '../../composables/threadConversationRules'
 import {
   formatToolStatus,
@@ -342,9 +362,11 @@ const bottomAnchorRef = ref<HTMLElement | null>(null)
 const modalImageUrl = ref('')
 const copiedMessageId = ref('')
 const isLiveOverlayExpanded = ref(false)
+const visibleMessageCount = ref(DEFAULT_VISIBLE_MESSAGE_COUNT)
 const toolQuestionAnswers = ref<Record<string, string>>({})
 const toolQuestionOtherAnswers = ref<Record<string, string>>({})
 const BOTTOM_THRESHOLD_PX = 16
+const HISTORY_TOP_THRESHOLD_PX = 12
 
 let scrollRestoreFrame = 0
 let bottomLockFrame = 0
@@ -357,6 +379,20 @@ const hasLiveOverlayDetails = computed(() => {
 })
 const liveOverlayDetailsLabel = computed(() => liveOverlayDetailsToggleLabel(isLiveOverlayExpanded.value))
 const conversationRequestCards = computed(() => buildConversationRequestCards(props.pendingRequests))
+const normalizedVisibleMessagesCount = computed(() => normalizedVisibleMessageCount(
+  props.messages.length,
+  visibleMessageCount.value,
+))
+const visibleMessagesStartIndex = computed(() => visibleMessageStartIndex(
+  props.messages.length,
+  normalizedVisibleMessagesCount.value,
+))
+const hiddenMessagesCount = computed(() => hiddenThreadMessageCount(
+  props.messages.length,
+  normalizedVisibleMessagesCount.value,
+))
+const visibleMessages = computed(() => props.messages.slice(visibleMessagesStartIndex.value))
+const nextHistoryPageSize = computed(() => Math.min(MESSAGE_HISTORY_PAGE_SIZE, hiddenMessagesCount.value))
 
 const showScrollToBottomButton = computed(() => {
   return shouldShowThreadScrollToBottomButton({
@@ -369,12 +405,16 @@ const showScrollToBottomButton = computed(() => {
   })
 })
 
-function shouldShowCopyButton(message: UiMessage, messageIndex: number): boolean {
-  return shouldShowThreadCopyButton(props.messages, message, messageIndex)
+function toAbsoluteMessageIndex(renderedMessageIndex: number): number {
+  return visibleMessagesStartIndex.value + renderedMessageIndex
 }
 
-function buildCopyTextAt(message: UiMessage, messageIndex: number): string {
-  return buildThreadCopyTextAt(props.messages, message, messageIndex)
+function shouldShowCopyButton(message: UiMessage, renderedMessageIndex: number): boolean {
+  return shouldShowThreadCopyButton(props.messages, message, toAbsoluteMessageIndex(renderedMessageIndex))
+}
+
+function buildCopyTextAt(message: UiMessage, renderedMessageIndex: number): string {
+  return buildThreadCopyTextAt(props.messages, message, toAbsoluteMessageIndex(renderedMessageIndex))
 }
 
 function isMessageCopied(messageId: string): boolean {
@@ -406,8 +446,8 @@ async function writeClipboardText(text: string): Promise<void> {
   textarea.remove()
 }
 
-async function copyMessage(message: UiMessage, messageIndex: number): Promise<void> {
-  const text = buildCopyTextAt(message, messageIndex)
+async function copyMessage(message: UiMessage, renderedMessageIndex: number): Promise<void> {
+  const text = buildCopyTextAt(message, renderedMessageIndex)
   if (text.length === 0) return
 
   await writeClipboardText(text)
@@ -503,6 +543,22 @@ function scrollToBottom(): void {
 function onScrollToBottomClick(): void {
   enforceBottomState()
   scheduleBottomLock(3)
+}
+
+async function revealEarlierMessages(): Promise<void> {
+  if (hiddenMessagesCount.value <= 0) return
+  const container = conversationListRef.value
+  const previousScrollHeight = container?.scrollHeight ?? 0
+  visibleMessageCount.value = nextVisibleMessageCount(props.messages.length, visibleMessageCount.value)
+  await nextTick()
+  if (container) {
+    container.scrollTop += container.scrollHeight - previousScrollHeight
+    emitScrollState(container)
+  }
+}
+
+function onLoadEarlierMessages(): void {
+  void revealEarlierMessages()
 }
 
 function emitScrollState(container: HTMLElement): void {
@@ -644,6 +700,7 @@ watch(
   () => {
     modalImageUrl.value = ''
     isLiveOverlayExpanded.value = false
+    visibleMessageCount.value = DEFAULT_VISIBLE_MESSAGE_COUNT
   },
   { flush: 'post' },
 )
@@ -651,6 +708,9 @@ watch(
 function onConversationScroll(): void {
   const container = conversationListRef.value
   if (!container || props.isLoading) return
+  if (container.scrollTop <= HISTORY_TOP_THRESHOLD_PX && hiddenMessagesCount.value > 0) {
+    void revealEarlierMessages()
+  }
   emitScrollState(container)
 }
 
@@ -704,6 +764,18 @@ onBeforeUnmount(() => {
 
 .conversation-item-overlay {
   @apply justify-center;
+}
+
+.conversation-item-history {
+  @apply justify-center;
+}
+
+.conversation-history-button {
+  @apply mx-auto flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 shadow-sm transition hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-300;
+}
+
+.conversation-history-button span {
+  @apply text-slate-400;
 }
 
 .message-row {

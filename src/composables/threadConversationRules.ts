@@ -42,6 +42,28 @@ export type ConversationRequestKind = UiServerRequestKind
 
 export type ConversationRequestCard = UiServerRequestCard
 
+export const DEFAULT_VISIBLE_MESSAGE_COUNT = 80
+export const MESSAGE_HISTORY_PAGE_SIZE = 80
+
+export function normalizedVisibleMessageCount(messageCount: number, requestedCount: number): number {
+  const normalizedMessageCount = Math.max(Math.trunc(messageCount), 0)
+  const normalizedRequestedCount = Math.max(Math.trunc(requestedCount), DEFAULT_VISIBLE_MESSAGE_COUNT)
+  return Math.min(normalizedRequestedCount, normalizedMessageCount)
+}
+
+export function visibleMessageStartIndex(messageCount: number, visibleCount: number): number {
+  return Math.max(Math.trunc(messageCount) - Math.max(Math.trunc(visibleCount), 0), 0)
+}
+
+export function hiddenMessageCount(messageCount: number, visibleCount: number): number {
+  return visibleMessageStartIndex(messageCount, visibleCount)
+}
+
+export function nextVisibleMessageCount(messageCount: number, visibleCount: number, pageSize = MESSAGE_HISTORY_PAGE_SIZE): number {
+  const nextCount = Math.max(Math.trunc(visibleCount), 0) + Math.max(Math.trunc(pageSize), 1)
+  return normalizedVisibleMessageCount(messageCount, nextCount)
+}
+
 export function buildToolCopyText(tool: UiToolTimelineEntry): string {
   const parts = [`${tool.title}: ${tool.summary}`]
   if (tool.status.trim().length > 0) {

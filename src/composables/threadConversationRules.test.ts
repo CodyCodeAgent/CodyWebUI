@@ -16,13 +16,17 @@ import {
   buildToolUserInputReply,
   conversationRequestActionKeyPrefix,
   conversationRequestKind,
+  DEFAULT_VISIBLE_MESSAGE_COUNT,
   hasLiveOverlayDetails,
+  hiddenMessageCount,
   isConversationApprovalRequestKind,
   isCopyableMessage,
   liveOverlayDetailsToggleLabel,
   messageCopyAriaLabel,
   messageCopyTitle,
+  nextVisibleMessageCount,
   normalizedConversationBottomLockFrames,
+  normalizedVisibleMessageCount,
   readToolQuestionAnswer,
   readToolQuestionOtherAnswer,
   readToolQuestions,
@@ -34,6 +38,7 @@ import {
   shouldShowToolQuestionText,
   toolQuestionKey,
   toolQuestionTitle,
+  visibleMessageStartIndex,
 } from './threadConversationRules'
 
 function tool(overrides: Partial<UiToolTimelineEntry> = {}): UiToolTimelineEntry {
@@ -393,5 +398,16 @@ describe('thread conversation rules', () => {
     expect(normalizedConversationBottomLockFrames(1.8)).toBe(1)
     expect(normalizedConversationBottomLockFrames(0)).toBe(1)
     expect(normalizedConversationBottomLockFrames(-2)).toBe(1)
+  })
+
+  it('calculates visible message windows for long conversations', () => {
+    expect(DEFAULT_VISIBLE_MESSAGE_COUNT).toBe(80)
+    expect(normalizedVisibleMessageCount(40, 80)).toBe(40)
+    expect(normalizedVisibleMessageCount(200, 20)).toBe(80)
+    expect(normalizedVisibleMessageCount(200, 120)).toBe(120)
+    expect(visibleMessageStartIndex(200, 80)).toBe(120)
+    expect(hiddenMessageCount(200, 80)).toBe(120)
+    expect(nextVisibleMessageCount(200, 80)).toBe(160)
+    expect(nextVisibleMessageCount(120, 80)).toBe(120)
   })
 })
