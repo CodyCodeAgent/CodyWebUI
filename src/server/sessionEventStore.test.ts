@@ -331,4 +331,23 @@ describe('session event store', () => {
       source: 'codex-events',
     })
   })
+
+  it('returns empty daily token usage for non-git directories', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'codex-web-session-events-non-git-'))
+    tempDirs.push(dir)
+    const resolvedDir = await realpath(dir)
+
+    await expect(summarizeDailyTokenUsage({
+      cwd: dir,
+      date: '2026-07-06',
+      timezoneOffsetMinutes: -480,
+    })).resolves.toMatchObject({
+      cwd: resolvedDir,
+      repoRoot: resolvedDir,
+      date: '2026-07-06',
+      totalTokens: 0,
+      tokenUsageEventCount: 0,
+      source: 'none',
+    })
+  })
 })

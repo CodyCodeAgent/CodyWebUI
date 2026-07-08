@@ -318,6 +318,40 @@ async function getSessionWorkspace(cwd: string): Promise<SessionWorkspace> {
   }
 }
 
+async function resolveExistingDirectory(cwd: string): Promise<string> {
+  const requestedCwd = cwd.trim()
+  if (!requestedCwd) throw new Error('cwd is required')
+
+  const resolvedCwd = await realpath(resolve(requestedCwd))
+  const cwdStat = await stat(resolvedCwd)
+  if (!cwdStat.isDirectory()) throw new Error('cwd must be a directory')
+  return resolvedCwd
+}
+
+function emptyDailyTokenUsage(input: {
+  cwd: string
+  repoRoot: string
+  date: string
+  timezoneOffsetMinutes: number
+}): CodexDailyTokenUsage {
+  return {
+    cwd: input.cwd,
+    repoRoot: input.repoRoot,
+    generatedAtIso: new Date().toISOString(),
+    date: input.date,
+    timezoneOffsetMinutes: input.timezoneOffsetMinutes,
+    inputTokens: 0,
+    outputTokens: 0,
+    totalTokens: 0,
+    tokenUsageEventCount: 0,
+    threadCount: 0,
+    turnCount: 0,
+    costUsd: null,
+    costEventCount: 0,
+    source: 'none',
+  }
+}
+
 function sessionEventRoot(workspace: SessionWorkspace): string {
   return join(workspace.gitCommonDir, 'codex-web-audit')
 }
@@ -705,34 +739,35 @@ export async function summarizeDailyTokenUsage(params: {
   date?: string
   timezoneOffsetMinutes?: number
 }): Promise<CodexDailyTokenUsage> {
-  const workspace = await getSessionWorkspace(params.cwd)
   const timezoneOffsetMinutes = Number.isFinite(params.timezoneOffsetMinutes)
     ? Number(params.timezoneOffsetMinutes)
     : 0
   const date = /^\d{4}-\d{2}-\d{2}$/u.test(params.date ?? '')
     ? params.date!
     : todayDateString(timezoneOffsetMinutes)
+  const fallbackCwd = await resolveExistingDirectory(params.cwd)
+  let workspace: SessionWorkspace
+  try {
+    workspace = await getSessionWorkspace(params.cwd)
+  } catch {
+    return emptyDailyTokenUsage({
+      cwd: fallbackCwd,
+      repoRoot: fallbackCwd,
+      date,
+      timezoneOffsetMinutes,
+    })
+  }
 
   let raw = ''
   try {
     raw = await readFile(sessionEventPath(workspace), 'utf8')
   } catch {
-    return {
+    return emptyDailyTokenUsage({
       cwd: workspace.cwd,
       repoRoot: workspace.repoRoot,
-      generatedAtIso: new Date().toISOString(),
       date,
       timezoneOffsetMinutes,
-      inputTokens: 0,
-      outputTokens: 0,
-      totalTokens: 0,
-      tokenUsageEventCount: 0,
-      threadCount: 0,
-      turnCount: 0,
-      costUsd: null,
-      costEventCount: 0,
-      source: 'none',
-    }
+    })
   }
 
   const usageEventsByTurn = new Map<string, CodexSessionEvent>()
