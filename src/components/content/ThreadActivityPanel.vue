@@ -1,5 +1,5 @@
 <template>
-  <div class="thread-activity-host">
+  <div class="thread-activity-host" :style="workLogHostStyle">
     <button
       class="thread-work-log-float-button"
       type="button"
@@ -7,7 +7,8 @@
       aria-controls="thread-work-log-panel"
       :aria-label="isWorkLogOpen ? 'Close work log' : 'Open work log'"
       :title="isWorkLogOpen ? 'Close work log' : 'Open work log'"
-      @click="toggleWorkLog"
+      @click="onWorkLogFloatClick"
+      @pointerdown="onWorkLogDragPointerDown"
     >
       <span class="thread-work-log-float-title">Work log</span>
       <span class="thread-work-log-float-summary">
@@ -19,7 +20,7 @@
     </button>
 
     <aside v-if="isWorkLogOpen" id="thread-work-log-panel" class="thread-activity-panel" aria-label="Thread work log">
-      <header class="thread-activity-header">
+      <header class="thread-activity-header" @pointerdown="onWorkLogDragPointerDown">
         <div>
           <h2 class="thread-activity-title">Work log</h2>
           <p class="thread-activity-subtitle">{{ statusText }}</p>
@@ -30,6 +31,7 @@
           aria-label="Close work log"
           title="Close work log"
           @click="closeWorkLog"
+          @pointerdown.stop
         >
           ×
         </button>
@@ -53,7 +55,7 @@
         >
           <details class="work-log-file-details">
             <summary class="work-log-summary">
-              <span class="work-log-primary">{{ file.filePath }}</span>
+              <span class="work-log-primary" :title="file.filePath">{{ displayFilePath(file.filePath) }}</span>
               <span class="work-log-status">{{ file.status }}</span>
               <span class="work-log-stat">{{ fileStatLabel(file) }}</span>
               <span class="work-log-summary-spacer" />
@@ -212,10 +214,11 @@
         <section class="work-log-fullscreen-panel">
           <header class="work-log-fullscreen-header">
             <div class="work-log-fullscreen-copy">
-              <h3>{{ fullscreenFile.filePath }}</h3>
+              <h3 :title="fullscreenFile.filePath">{{ displayFilePath(fullscreenFile.filePath) }}</h3>
               <p>
                 {{ fullscreenFile.status }} · {{ fileStatLabel(fullscreenFile) }}
               </p>
+              <p class="work-log-fullscreen-path">{{ fullscreenFile.filePath }}</p>
             </div>
             <button
               class="work-log-fullscreen-close"
@@ -223,6 +226,7 @@
               aria-label="Close fullscreen diff"
               title="Close"
               @click="closeFullscreenDiff"
+              @pointerdown.stop
             >
               ×
             </button>
@@ -262,12 +266,13 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import {
   buildThreadCommandEntries,
   buildThreadActivitySummary,
   buildPendingApprovalSubtitle,
   buildPendingApprovalCards,
+  buildWorkLogDisplayPath,
   buildWorkLogStatusText,
   buildWorkLogFileStatLabel,
   buildWorkLogFloatSummary,
@@ -315,6 +320,7 @@ const commandEntries = computed(() => buildThreadCommandEntries(props.messages))
 const diffReview = computed(() => buildDiffReview(props.messages))
 const fullscreenFilePath = ref('')
 const isWorkLogOpen = ref(false)
+const workLogPosition = ref({ left: 24, top: 76 })
 const fullscreenFile = computed(() => workLogFullscreenFile(diffReview.value, fullscreenFilePath.value))
 const workLogBadgeCount = computed(() => workLogBadgeCountForReview(diffReview.value, commandEntries.value.length))
 const workLogFloatSummary = computed(() => buildWorkLogFloatSummary({
@@ -335,6 +341,75 @@ const statusText = computed(() => buildWorkLogStatusText({
   fileCount: diffReview.value.summary.fileCount,
   commandCount: commandEntries.value.length,
 }))
+const workLogHostStyle = computed(() => ({
+  left: `${String(workLogPosition.value.left)}px`,
+  top: `${String(workLogPosition.value.top)}px`,
+}))
+
+let dragStart:
+  | {
+    pointerId: number
+    startX: number
+    startY: number
+    left: number
+    top: number
+    moved: boolean
+  }
+  | null = null
+let wasWorkLogDragged = false
+
+function workLogPanelWidth(): number {
+  if (typeof window === 'undefined') return 288
+  const availableWidth = Math.max(window.innerWidth - 48, 160)
+  return isWorkLogOpen.value ? Math.min(544, availableWidth) : Math.min(288, window.innerWidth - 32)
+}
+
+function clampWorkLogPosition(left: number, top: number): { left: number; top: number } {
+  if (typeof window === 'undefined') return { left, top }
+  const panelWidth = workLogPanelWidth()
+  const maxLeft = Math.max(window.innerWidth - panelWidth - 8, 8)
+  const maxTop = Math.max(window.innerHeight - 80, 8)
+  return {
+    left: Math.min(Math.max(left, 8), maxLeft),
+    top: Math.min(Math.max(top, 8), maxTop),
+  }
+}
+
+function onWorkLogDragPointerDown(event: PointerEvent): void {
+  if (event.button !== 0) return
+
+  dragStart = {
+    pointerId: event.pointerId,
+    startX: event.clientX,
+    startY: event.clientY,
+    left: workLogPosition.value.left,
+    top: workLogPosition.value.top,
+    moved: false,
+  }
+  window.addEventListener('pointermove', onWorkLogDragPointerMove)
+  window.addEventListener('pointerup', onWorkLogDragPointerUp, { once: true })
+}
+
+function onWorkLogDragPointerMove(event: PointerEvent): void {
+  if (!dragStart || event.pointerId !== dragStart.pointerId) return
+  const deltaX = event.clientX - dragStart.startX
+  const deltaY = event.clientY - dragStart.startY
+  if (!dragStart.moved && Math.abs(deltaX) + Math.abs(deltaY) > 3) {
+    dragStart.moved = true
+    wasWorkLogDragged = true
+  }
+  if (!dragStart.moved) return
+
+  event.preventDefault()
+  workLogPosition.value = clampWorkLogPosition(dragStart.left + deltaX, dragStart.top + deltaY)
+}
+
+function onWorkLogDragPointerUp(event: PointerEvent): void {
+  if (dragStart && event.pointerId === dragStart.pointerId) {
+    dragStart = null
+  }
+  window.removeEventListener('pointermove', onWorkLogDragPointerMove)
+}
 
 function onRespondApproval(requestId: number, decision: UiApprovalDecision): void {
   emit('respondServerRequest', buildApprovalDecisionReply(requestId, decision))
@@ -367,6 +442,10 @@ function fileStatLabel(file: Pick<UiDiffReviewFile, 'addedLines' | 'removedLines
   return buildWorkLogFileStatLabel(file)
 }
 
+function displayFilePath(filePath: string): string {
+  return buildWorkLogDisplayPath(filePath, props.cwd)
+}
+
 function openFullscreenDiff(filePath: string): void {
   fullscreenFilePath.value = filePath
 }
@@ -379,7 +458,11 @@ function closeWorkLog(): void {
   isWorkLogOpen.value = false
 }
 
-function toggleWorkLog(): void {
+function onWorkLogFloatClick(): void {
+  if (wasWorkLogDragged) {
+    wasWorkLogDragged = false
+    return
+  }
   isWorkLogOpen.value = !isWorkLogOpen.value
 }
 
@@ -388,21 +471,24 @@ watch(diffReview, (review) => {
     fullscreenFilePath.value = ''
   }
 })
+
+onBeforeUnmount(() => {
+  window.removeEventListener('pointermove', onWorkLogDragPointerMove)
+})
 </script>
 
 <style scoped>
 @reference "tailwindcss";
 
 .thread-activity-host {
-  position: sticky;
-  top: 0;
+  position: fixed;
   z-index: 35;
-  align-self: flex-start;
-  margin: 0 0 0.5rem 1.5rem;
+  margin: 0;
+  touch-action: none;
 }
 
 .thread-work-log-float-button {
-  @apply grid max-w-[calc(100vw-2rem)] grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 rounded-lg border border-slate-200 bg-white px-4 py-2 text-left text-slate-800 shadow-lg transition hover:border-blue-300 hover:bg-blue-50;
+  @apply grid max-w-[calc(100vw-2rem)] cursor-move grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 rounded-lg border border-slate-200 bg-white px-4 py-2 text-left text-slate-800 shadow-lg transition hover:border-blue-300 hover:bg-blue-50;
   width: min(18rem, calc(100vw - 2rem));
 }
 
@@ -423,7 +509,7 @@ watch(diffReview, (review) => {
 }
 
 .thread-activity-header {
-  @apply flex shrink-0 items-start justify-between gap-3;
+  @apply flex shrink-0 cursor-move items-start justify-between gap-3;
 }
 
 .thread-activity-close {
@@ -686,6 +772,10 @@ watch(diffReview, (review) => {
 .work-log-fullscreen-meta,
 .work-log-fullscreen-empty {
   @apply m-0 mt-1 text-xs text-slate-600;
+}
+
+.work-log-fullscreen-path {
+  @apply break-all font-mono;
 }
 
 .work-log-fullscreen-close {

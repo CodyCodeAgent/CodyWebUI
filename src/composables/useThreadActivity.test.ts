@@ -5,6 +5,7 @@ import {
   buildThreadActivitySummary,
   buildPendingApprovalCards,
   buildPendingApprovalSubtitle,
+  buildWorkLogDisplayPath,
   buildWorkLogFileStatLabel,
   buildWorkLogFloatSummary,
   buildWorkLogMetrics,
@@ -172,6 +173,11 @@ describe('thread activity helpers', () => {
     expect(buildPendingApprovalSubtitle(1)).toBe('1 approval waiting')
     expect(buildPendingApprovalSubtitle(2)).toBe('2 approvals waiting')
     expect(buildWorkLogFileStatLabel({ addedLines: 2, removedLines: 1 })).toBe('+2 / -1')
+    expect(buildWorkLogDisplayPath(
+      '/data00/home/gouchao/code/life-csr/worktrees/money/src/app.ts',
+      '/data00/home/gouchao/code/life-csr/worktrees/money',
+    )).toBe('src/app.ts')
+    expect(buildWorkLogDisplayPath('/data00/home/gouchao/code/life-csr/worktrees/money/src/app.ts')).toBe('.../money/src/app.ts')
 
     expect(formatWorkLogLineNumber(null)).toBe('')
     expect(formatWorkLogLineNumber(12)).toBe('12')

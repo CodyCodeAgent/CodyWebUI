@@ -137,6 +137,23 @@ export function buildWorkLogFileStatLabel(input: {
   return `+${String(input.addedLines)} / -${String(input.removedLines)}`
 }
 
+export function buildWorkLogDisplayPath(filePath: string, cwd = ''): string {
+  const normalizedPath = filePath.trim()
+  if (!normalizedPath) return ''
+
+  const normalizedCwd = cwd.trim().replace(/\/+$/u, '')
+  if (normalizedCwd && normalizedPath === normalizedCwd) {
+    return normalizedPath.split('/').filter(Boolean).at(-1) ?? normalizedPath
+  }
+  if (normalizedCwd && normalizedPath.startsWith(`${normalizedCwd}/`)) {
+    return normalizedPath.slice(normalizedCwd.length + 1)
+  }
+
+  const parts = normalizedPath.split('/').filter(Boolean)
+  if (parts.length <= 3) return normalizedPath
+  return `.../${parts.slice(-3).join('/')}`
+}
+
 export function workLogBadgeCount(review: UiDiffReview, commandCount: number): number {
   return review.summary.fileCount + commandCount
 }
