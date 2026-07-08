@@ -16,6 +16,7 @@ import {
   mergeMessages,
   mergeTurnActivity,
   normalizeMessageText,
+  removeDuplicateAdjacentUserMessages,
   removeRedundantLiveAgentMessages,
   resolveTurnDurationMs,
   updateLiveReasoningTextForThread,
@@ -81,6 +82,34 @@ describe('desktopMessageState', () => {
     const merged = mergeMessages([previousOnly], [persisted], { preserveMissing: true })
 
     expect(merged.map((row) => row.id)).toEqual(['live', 'persisted'])
+  })
+
+  it('compacts adjacent duplicate user messages even when ids differ', () => {
+    const firstUser = message({
+      id: 'user-live',
+      role: 'user',
+      text: '我觉得可以，干吧',
+      images: ['/image.png'],
+      skills: [{ name: 'review', path: '/skills/review', displayName: 'review', description: '' }],
+      messageType: 'userMessage',
+    })
+    const secondUser = message({
+      ...firstUser,
+      id: 'user-persisted',
+    })
+    const assistant = message({ id: 'assistant', role: 'assistant', text: '收到' })
+    const laterSameText = message({
+      ...firstUser,
+      id: 'user-later',
+    })
+
+    expect(removeDuplicateAdjacentUserMessages([firstUser, secondUser, assistant, laterSameText])).toEqual([
+      firstUser,
+      assistant,
+      laterSameText,
+    ])
+    expect(mergeMessages([firstUser], [firstUser, secondUser])).toEqual([firstUser])
+    expect(buildDisplayedMessages([firstUser, secondUser], [], null)).toEqual([firstUser])
   })
 
   it('removes redundant live assistant messages once persisted text arrives', () => {

@@ -24,6 +24,23 @@ function areStringArraysEqual(first?: string[], second?: string[]): boolean {
   return true
 }
 
+function areMessageSkillsEqual(first?: UiMessage['skills'], second?: UiMessage['skills']): boolean {
+  const left = Array.isArray(first) ? first : []
+  const right = Array.isArray(second) ? second : []
+  if (left.length !== right.length) return false
+  for (let index = 0; index < left.length; index += 1) {
+    if (
+      left[index]?.name !== right[index]?.name ||
+      left[index]?.path !== right[index]?.path ||
+      left[index]?.displayName !== right[index]?.displayName ||
+      left[index]?.description !== right[index]?.description
+    ) {
+      return false
+    }
+  }
+  return true
+}
+
 function areMessageToolsEqual(first: UiMessage['tool'], second: UiMessage['tool']): boolean {
   if (!first && !second) return true
   if (!first || !second) return false
@@ -46,6 +63,7 @@ function areMessageFieldsEqual(first: UiMessage, second: UiMessage): boolean {
     first.role === second.role &&
     first.text === second.text &&
     areStringArraysEqual(first.images, second.images) &&
+    areMessageSkillsEqual(first.skills, second.skills) &&
     areMessageToolsEqual(first.tool, second.tool) &&
     first.messageType === second.messageType &&
     first.rawPayload === second.rawPayload &&
@@ -59,6 +77,30 @@ export function areMessageArraysEqual(first: UiMessage[], second: UiMessage[]): 
     if (first[index] !== second[index]) return false
   }
   return true
+}
+
+function isDuplicateAdjacentUserMessage(previous: UiMessage | undefined, next: UiMessage): boolean {
+  if (!previous) return false
+  if (previous.role !== 'user' || next.role !== 'user') return false
+  if (previous.text !== next.text) return false
+  if (!areStringArraysEqual(previous.images, next.images)) return false
+  if (!areMessageSkillsEqual(previous.skills, next.skills)) return false
+  return true
+}
+
+export function removeDuplicateAdjacentUserMessages(messages: UiMessage[]): UiMessage[] {
+  const next: UiMessage[] = []
+  let changed = false
+
+  for (const message of messages) {
+    if (isDuplicateAdjacentUserMessage(next.at(-1), message)) {
+      changed = true
+      continue
+    }
+    next.push(message)
+  }
+
+  return changed ? next : messages
 }
 
 function omitRecordKey<TValue>(record: Record<string, TValue>, key: string): Record<string, TValue> {
@@ -85,7 +127,8 @@ export function mergeMessages(
   })
 
   if (options.preserveMissing !== true) {
-    return areMessageArraysEqual(previous, mergedIncoming) ? previous : mergedIncoming
+    const compacted = removeDuplicateAdjacentUserMessages(mergedIncoming)
+    return areMessageArraysEqual(previous, compacted) ? previous : compacted
   }
 
   const mergedFromPrevious = previous.map((previousMessage) => {
@@ -101,7 +144,7 @@ export function mergeMessages(
 
   const previousIdSet = new Set(previous.map((message) => message.id))
   const appended = mergedIncoming.filter((message) => !previousIdSet.has(message.id))
-  const merged = [...mergedFromPrevious, ...appended]
+  const merged = removeDuplicateAdjacentUserMessages([...mergedFromPrevious, ...appended])
 
   return areMessageArraysEqual(previous, merged) ? previous : merged
 }
@@ -275,8 +318,9 @@ export function buildDisplayedMessages(
   const combined = persistedMessages === liveAgentMessages
     ? persistedMessages
     : [...persistedMessages, ...liveAgentMessages]
+  const compacted = removeDuplicateAdjacentUserMessages(combined)
 
-  return turnSummary ? insertTurnSummaryMessage(combined, turnSummary) : combined
+  return turnSummary ? insertTurnSummaryMessage(compacted, turnSummary) : compacted
 }
 
 export function formatTurnDuration(durationMs: number): string {

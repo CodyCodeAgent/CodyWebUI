@@ -619,7 +619,9 @@ watch(
   () => props.liveOverlay,
   async (overlay) => {
     if (!overlay) return
-    if (!hasLiveOverlayDetails.value) {
+    if (overlay.reasoningText.trim().length > 0) {
+      isLiveOverlayExpanded.value = true
+    } else if (!hasLiveOverlayDetails.value) {
       isLiveOverlayExpanded.value = false
     }
     await nextTick()
