@@ -970,9 +970,7 @@ export function useDesktopState() {
     } finally {
       if (latestMessageLoadRequestIdByThreadId.get(threadId) === requestId) {
         latestMessageLoadRequestIdByThreadId.delete(threadId)
-        if (shouldShowLoading) {
-          setMessagesLoadingForThread(threadId, false)
-        }
+        setMessagesLoadingForThread(threadId, false)
       }
     }
   }

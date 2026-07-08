@@ -152,6 +152,7 @@ async function flushPromises(): Promise<void> {
 }
 
 afterEach(() => {
+  vi.useRealTimers()
   vi.unstubAllGlobals()
   vi.clearAllMocks()
 })
@@ -384,6 +385,69 @@ describe('useDesktopState realtime messages', () => {
     firstLoad.resolve([{ id: 'old', role: 'assistant', text: 'old response' }])
     await firstPromise
     expect(state.messages.value.map((message) => message.text)).toEqual(['new response'])
+  })
+
+  it('clears visible message loading when a silent refresh supersedes it', async () => {
+    vi.useFakeTimers()
+    installBrowserGlobals('thread-a')
+    const firstLoad = deferred<UiMessage[]>()
+    const silentLoad = deferred<UiMessage[]>()
+    const threadGroups = [
+      {
+        projectName: 'repo',
+        cwd: '/workspace/repo',
+        threads: [
+          {
+            id: 'thread-a',
+            title: 'Thread A',
+            projectName: 'repo',
+            cwd: '/workspace/repo',
+            createdAtIso: '2026-07-07T00:00:00.000Z',
+            updatedAtIso: '2026-07-07T00:01:00.000Z',
+            preview: 'hello',
+            unread: false,
+            inProgress: true,
+          },
+        ],
+      },
+    ]
+    codexApiMock.getThreadGroups.mockResolvedValue(threadGroups as unknown as never[])
+    codexApiMock.getThreadMessages
+      .mockImplementationOnce(async () => firstLoad.promise)
+      .mockImplementationOnce(async () => silentLoad.promise)
+
+    const state = useDesktopState()
+    state.startRealtimeSync()
+    const listener = codexApiMock.getNotificationListener()
+    expect(listener).not.toBeNull()
+
+    const firstPromise = state.selectThread('thread-a')
+    await flushPromises()
+    expect(state.isLoadingMessages.value).toBe(true)
+
+    listener?.({
+      method: 'thread/updated',
+      params: {
+        threadId: 'thread-a',
+      },
+      atIso: '2026-07-07T00:00:01.000Z',
+    })
+    await vi.advanceTimersByTimeAsync(220)
+    await flushPromises()
+    expect(codexApiMock.getThreadMessages).toHaveBeenCalledTimes(2)
+    expect(state.isLoadingMessages.value).toBe(true)
+
+    silentLoad.resolve([{ id: 'silent', role: 'assistant', text: 'loaded response' }])
+    await flushPromises()
+    expect(state.messages.value.map((message) => message.text)).toEqual(['loaded response'])
+    expect(state.isLoadingMessages.value).toBe(false)
+
+    firstLoad.resolve([{ id: 'stale', role: 'assistant', text: 'stale response' }])
+    await firstPromise
+    expect(state.messages.value.map((message) => message.text)).toEqual(['loaded response'])
+    expect(state.isLoadingMessages.value).toBe(false)
+
+    state.stopRealtimeSync()
   })
 
   it('returns new thread ids before the first turn finishes starting', async () => {
