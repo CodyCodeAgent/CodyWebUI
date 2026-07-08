@@ -52,6 +52,7 @@ function message(overrides: Partial<UiMessage> = {}): UiMessage {
 describe('app shell rules', () => {
   it('formats route and composer labels', () => {
     expect(appContentTitle({ isHomeRoute: true, selectedThread: thread({ title: 'Ignored' }) })).toBe('New thread')
+    expect(appContentTitle({ isHomeRoute: false, isSettingsRoute: true, selectedThread: thread({ title: 'Ignored' }) })).toBe('Settings')
     expect(appContentTitle({ isHomeRoute: false, selectedThread: thread({ title: 'Active' }) })).toBe('Active')
     expect(appContentTitle({ isHomeRoute: false, selectedThread: null })).toBe('Choose a thread')
     expect(autoRefreshLabel({ isEnabled: true, secondsLeft: 3 })).toBe('Auto refresh in 3s')

@@ -38,8 +38,10 @@ export function knownThreadIds(groups: UiProjectGroup[]): Set<string> {
 
 export function appContentTitle(input: {
   isHomeRoute: boolean
+  isSettingsRoute?: boolean
   selectedThread: Pick<UiThread, 'title'> | null | undefined
 }): string {
+  if (input.isSettingsRoute) return 'Settings'
   if (input.isHomeRoute) return 'New thread'
   return input.selectedThread?.title ?? 'Choose a thread'
 }

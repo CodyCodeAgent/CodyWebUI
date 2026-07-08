@@ -47,6 +47,16 @@
           >
             <IconTablerFolder class="sidebar-search-toggle-icon" />
           </button>
+          <button
+            class="sidebar-search-toggle"
+            type="button"
+            :aria-pressed="isSettingsRoute"
+            aria-label="Settings"
+            title="Settings"
+            @click="openSettings"
+          >
+            <IconTablerSettings class="sidebar-search-toggle-icon" />
+          </button>
         </SidebarThreadControls>
 
         <div v-if="!isEffectiveSidebarCollapsed && isSidebarSearchVisible" class="sidebar-search-bar">
@@ -117,6 +127,16 @@
               >
                 <IconTablerFolder class="sidebar-search-toggle-icon" />
               </button>
+              <button
+                class="sidebar-search-toggle"
+                type="button"
+                :aria-pressed="isSettingsRoute"
+                aria-label="Settings"
+                title="Settings"
+                @click="openSettings"
+              >
+                <IconTablerSettings class="sidebar-search-toggle-icon" />
+              </button>
             </SidebarThreadControls>
           </template>
           <template #actions>
@@ -150,7 +170,10 @@
         </div>
 
         <section class="content-body">
-          <template v-if="isHomeRoute">
+          <template v-if="isSettingsRoute">
+            <AppSettingsPage />
+          </template>
+          <template v-else-if="isHomeRoute">
             <div class="content-grid new-thread-grid">
               <div class="new-thread-empty">
                 <p class="new-thread-hero">Let's build</p>
@@ -259,11 +282,13 @@ import DirectoryPickerModal from './components/content/DirectoryPickerModal.vue'
 import NewThreadSetupModal, { type NewThreadProjectOption } from './components/content/NewThreadSetupModal.vue'
 import RateLimitFloatingStatus from './components/content/RateLimitFloatingStatus.vue'
 import WorkspaceDashboard from './components/content/WorkspaceDashboard.vue'
+import AppSettingsPage from './components/content/AppSettingsPage.vue'
 import BrowserNotificationsPanel from './components/content/BrowserNotificationsPanel.vue'
 import SidebarThreadControls from './components/sidebar/SidebarThreadControls.vue'
 import IconTablerFolder from './components/icons/IconTablerFolder.vue'
 import IconTablerMoon from './components/icons/IconTablerMoon.vue'
 import IconTablerSearch from './components/icons/IconTablerSearch.vue'
+import IconTablerSettings from './components/icons/IconTablerSettings.vue'
 import IconTablerSun from './components/icons/IconTablerSun.vue'
 import IconTablerX from './components/icons/IconTablerX.vue'
 import { fetchDefaultWorkspace } from './api/codexWorkspaceResourcesClient'
@@ -379,9 +404,11 @@ const routeThreadId = computed(() => {
 const knownThreadIdSet = computed(() => knownThreadIds(projectGroups.value))
 
 const isHomeRoute = computed(() => route.name === 'home')
+const isSettingsRoute = computed(() => route.name === 'settings')
 const isEffectiveSidebarCollapsed = computed(() => isSidebarCollapsed.value || isMobileViewport.value)
 const contentTitle = computed(() => appContentTitle({
   isHomeRoute: isHomeRoute.value,
+  isSettingsRoute: isSettingsRoute.value,
   selectedThread: selectedThread.value,
 }))
 const autoRefreshButtonLabel = computed(() => autoRefreshLabel({
@@ -468,6 +495,11 @@ function onSidebarSearchKeydown(event: KeyboardEvent): void {
 
 function openDirectoryPicker(): void {
   isDirectoryPickerOpen.value = true
+}
+
+function openSettings(): void {
+  if (route.name === 'settings') return
+  void router.push({ name: 'settings' })
 }
 
 function onSelectProjectDirectory(path: string): void {
@@ -695,7 +727,7 @@ async function syncThreadSelectionWithRoute(): Promise<void> {
   isRouteSyncInProgress.value = true
 
   try {
-    if (route.name === 'home') {
+    if (route.name === 'home' || route.name === 'settings') {
       if (selectedThreadId.value !== '') {
         await selectThread('')
       }
@@ -740,7 +772,7 @@ watch(
   async (threadId) => {
     if (!hasInitialized.value) return
     if (isRouteSyncInProgress.value) return
-    if (isHomeRoute.value) return
+    if (isHomeRoute.value || isSettingsRoute.value) return
 
     if (!threadId) {
       if (route.name !== 'home') {
