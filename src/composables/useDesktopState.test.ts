@@ -450,6 +450,67 @@ describe('useDesktopState realtime messages', () => {
     state.stopRealtimeSync()
   })
 
+  it('shows outgoing user messages before the turn start response finishes', async () => {
+    installBrowserGlobals('thread-a')
+    const turnStart = deferred<string>()
+    const threadGroups = [
+      {
+        projectName: 'repo',
+        cwd: '/workspace/repo',
+        threads: [
+          {
+            id: 'thread-a',
+            title: 'Thread A',
+            projectName: 'repo',
+            cwd: '/workspace/repo',
+            createdAtIso: '2026-07-07T00:00:00.000Z',
+            updatedAtIso: '2026-07-07T00:01:00.000Z',
+            preview: 'hello',
+            unread: false,
+            inProgress: true,
+          },
+        ],
+      },
+    ]
+    codexApiMock.startThreadTurn.mockImplementation(async () => turnStart.promise)
+    codexApiMock.getThreadGroups.mockResolvedValue(threadGroups as unknown as never[])
+    codexApiMock.getThreadMessages.mockResolvedValue([
+      {
+        id: 'server-user',
+        role: 'user',
+        text: '我觉得可以，干吧',
+        messageType: 'userMessage',
+      },
+    ])
+
+    const state = useDesktopState()
+    const sendPromise = state.sendMessageToSelectedThread({
+      text: '我觉得可以，干吧',
+      images: [],
+      skills: [],
+    })
+
+    expect(state.messages.value).toEqual([
+      expect.objectContaining({
+        role: 'user',
+        text: '我觉得可以，干吧',
+        messageType: 'userMessage.optimistic',
+      }),
+    ])
+
+    turnStart.resolve('turn-1')
+    await sendPromise
+
+    expect(state.messages.value).toEqual([
+      expect.objectContaining({
+        id: 'server-user',
+        role: 'user',
+        text: '我觉得可以，干吧',
+        messageType: 'userMessage',
+      }),
+    ])
+  })
+
   it('returns new thread ids before the first turn finishes starting', async () => {
     installBrowserGlobals()
     const turnStart = deferred<string>()

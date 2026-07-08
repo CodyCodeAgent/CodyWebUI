@@ -88,19 +88,33 @@ function isDuplicateAdjacentUserMessage(previous: UiMessage | undefined, next: U
   return true
 }
 
+function isOptimisticUserMessage(message: UiMessage): boolean {
+  return message.role === 'user' && message.messageType === 'userMessage.optimistic'
+}
+
 export function removeDuplicateAdjacentUserMessages(messages: UiMessage[]): UiMessage[] {
   const next: UiMessage[] = []
   let changed = false
 
   for (const message of messages) {
-    if (isDuplicateAdjacentUserMessage(next.at(-1), message)) {
+    const previous = next.at(-1)
+    if (isDuplicateAdjacentUserMessage(previous, message)) {
       changed = true
+      if (previous && isOptimisticUserMessage(previous) && !isOptimisticUserMessage(message)) {
+        next.splice(next.length - 1, 1, message)
+      }
       continue
     }
     next.push(message)
   }
 
   return changed ? next : messages
+}
+
+export function removeMessageById(messages: UiMessage[], messageId: string): UiMessage[] {
+  if (!messageId) return messages
+  const next = messages.filter((message) => message.id !== messageId)
+  return next.length === messages.length ? messages : next
 }
 
 function omitRecordKey<TValue>(record: Record<string, TValue>, key: string): Record<string, TValue> {

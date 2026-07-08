@@ -72,6 +72,7 @@ import {
   buildRollbackAuditMessage,
   clearLiveReasoningTextForThread,
   mergeMessages,
+  removeMessageById,
   removeRedundantLiveAgentMessages,
   updateLiveReasoningTextForThread,
   updateMessagesForThread,
@@ -231,6 +232,7 @@ export function useDesktopState() {
   const livePlanMessageIdByTurnId = new Map<string, string>()
   const latestMessageLoadRequestIdByThreadId = new Map<string, number>()
   let nextMessageLoadRequestId = 0
+  let nextOptimisticUserMessageId = 0
 
   const allThreads = computed(() => flattenThreads(projectGroups.value))
   const selectedThread = computed(() =>
@@ -558,6 +560,37 @@ export function useDesktopState() {
 
     const previous = persistedMessagesByThreadId.value[threadId] ?? []
     setPersistedMessagesForThread(threadId, upsertMessage(previous, buildRollbackAuditMessage(result)))
+  }
+
+  function addOptimisticUserMessage(
+    threadId: string,
+    turnInput: {
+      text: string
+      images: UiComposerSubmitPayload['images']
+      skills: UiComposerSubmitPayload['skills']
+    },
+  ): string {
+    if (!threadId) return ''
+
+    nextOptimisticUserMessageId += 1
+    const messageId = `optimistic-user:${threadId}:${String(nextOptimisticUserMessageId)}`
+    const message: UiMessage = {
+      id: messageId,
+      role: 'user',
+      text: turnInput.text,
+      images: turnInput.images.map((image) => image.url).filter((url) => url.trim().length > 0),
+      skills: turnInput.skills,
+      messageType: 'userMessage.optimistic',
+    }
+    const previous = persistedMessagesByThreadId.value[threadId] ?? []
+    setPersistedMessagesForThread(threadId, upsertMessage(previous, message))
+    return messageId
+  }
+
+  function removeOptimisticUserMessage(threadId: string, messageId: string): void {
+    if (!threadId || !messageId) return
+    const previous = persistedMessagesByThreadId.value[threadId] ?? []
+    setPersistedMessagesForThread(threadId, removeMessageById(previous, messageId))
   }
 
   function beginPendingTurnForThread(
@@ -1122,10 +1155,12 @@ export function useDesktopState() {
     isSendingMessage.value = true
     error.value = ''
     beginPendingTurnForThread(threadId)
+    const optimisticMessageId = addOptimisticUserMessage(threadId, turnInput)
 
     try {
       await startTurnForThread(threadId, turnInput.text, turnInput.images, turnInput.skills)
     } catch (unknownError) {
+      removeOptimisticUserMessage(threadId, optimisticMessageId)
       throw failPendingTurnForThread(threadId, unknownError, 'Unknown application error')
     } finally {
       isSendingMessage.value = false
@@ -1148,10 +1183,12 @@ export function useDesktopState() {
     isSendingMessage.value = true
     error.value = ''
     beginPendingTurnForThread(turnInput.threadId)
+    const optimisticMessageId = addOptimisticUserMessage(turnInput.threadId, turnInput)
 
     try {
       await startTurnForThread(turnInput.threadId, turnInput.text, turnInput.images, turnInput.skills)
     } catch (unknownError) {
+      removeOptimisticUserMessage(turnInput.threadId, optimisticMessageId)
       throw failPendingTurnForThread(turnInput.threadId, unknownError, 'Unknown application error')
     } finally {
       isSendingMessage.value = false
@@ -1175,12 +1212,18 @@ export function useDesktopState() {
     isSendingMessage.value = true
     error.value = ''
     beginSteeringTurnForThread(threadId)
+    const optimisticMessageId = addOptimisticUserMessage(threadId, {
+      text: nextText,
+      images: nextImages,
+      skills: nextSkills,
+    })
 
     try {
       await steerThreadTurn(threadId, turnId, nextText, nextImages, nextSkills)
       queueDesktopRealtimeSync(realtimeSyncQueue, threadId)
       await syncFromNotifications()
     } catch (unknownError) {
+      removeOptimisticUserMessage(threadId, optimisticMessageId)
       shouldAutoScrollOnNextAgentEvent = false
       const errorMessage = unknownError instanceof Error ? unknownError.message : 'Failed to steer active turn'
       setTurnErrorForThread(threadId, errorMessage)
@@ -1228,8 +1271,10 @@ export function useDesktopState() {
         [threadId]: true,
       }
       beginPendingTurnForThread(threadId)
+      const optimisticMessageId = addOptimisticUserMessage(threadId, turnInput)
 
       void startTurnForThread(threadId, turnInput.text, turnInput.images, turnInput.skills).catch((unknownError) => {
+        removeOptimisticUserMessage(threadId, optimisticMessageId)
         failPendingTurnForThread(threadId, unknownError, 'Unknown application error')
       })
       return threadId

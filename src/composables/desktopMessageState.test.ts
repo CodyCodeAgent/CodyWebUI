@@ -17,6 +17,7 @@ import {
   mergeTurnActivity,
   normalizeMessageText,
   removeDuplicateAdjacentUserMessages,
+  removeMessageById,
   removeRedundantLiveAgentMessages,
   resolveTurnDurationMs,
   updateLiveReasoningTextForThread,
@@ -110,6 +111,25 @@ describe('desktopMessageState', () => {
     ])
     expect(mergeMessages([firstUser], [firstUser, secondUser])).toEqual([firstUser])
     expect(buildDisplayedMessages([firstUser, secondUser], [], null)).toEqual([firstUser])
+  })
+
+  it('replaces optimistic user messages with persisted matches', () => {
+    const optimistic = message({
+      id: 'optimistic-user:thread-1:1',
+      role: 'user',
+      text: 'run it',
+      messageType: 'userMessage.optimistic',
+    })
+    const persisted = message({
+      id: 'server-user',
+      role: 'user',
+      text: 'run it',
+      messageType: 'userMessage',
+    })
+
+    expect(removeDuplicateAdjacentUserMessages([optimistic, persisted])).toEqual([persisted])
+    expect(mergeMessages([optimistic], [persisted], { preserveMissing: true })).toEqual([persisted])
+    expect(removeMessageById([optimistic], optimistic.id)).toEqual([])
   })
 
   it('removes redundant live assistant messages once persisted text arrives', () => {
