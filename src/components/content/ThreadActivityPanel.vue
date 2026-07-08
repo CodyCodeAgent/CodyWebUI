@@ -46,49 +46,52 @@
         <h3 class="thread-activity-section-title">Changed files</h3>
         <p v-if="diffReview.files.length === 0" class="thread-activity-empty">No file changes recorded yet.</p>
 
-        <details
+        <div
           v-for="file in diffReview.files"
           :key="file.filePath"
-          class="work-log-card"
+          class="work-log-card work-log-file-card"
         >
-          <summary class="work-log-summary">
-            <span class="work-log-primary">{{ file.filePath }}</span>
-            <button
-              class="work-log-fullscreen-button"
-              type="button"
-              aria-label="Open diff fullscreen"
-              title="Open diff fullscreen"
-              @click.stop.prevent="openFullscreenDiff(file.filePath)"
-            >
-              ⛶
-            </button>
-            <span class="work-log-status">{{ file.status }}</span>
-            <span class="work-log-stat">{{ fileStatLabel(file) }}</span>
-          </summary>
-          <p v-if="file.oldPath" class="work-log-meta">from {{ file.oldPath }}</p>
-          <div v-if="file.hunks.length > 0" class="work-log-diff" aria-label="File diff">
-            <section v-for="hunk in file.hunks" :key="`${file.filePath}:${hunk.header}`" class="work-log-hunk">
-              <div class="work-log-diff-row work-log-diff-row-hunk">
-                <span class="work-log-line-number" />
-                <span class="work-log-line-number" />
-                <span class="work-log-line-prefix" />
-                <code class="work-log-line-code">{{ hunk.header }}</code>
-              </div>
-              <div
-                v-for="(line, index) in hunk.lines"
-                :key="`${file.filePath}:${hunk.header}:${index}`"
-                class="work-log-diff-row"
-                :data-kind="line.kind"
-              >
-                <span class="work-log-line-number">{{ formatLineNumber(line.oldLineNumber) }}</span>
-                <span class="work-log-line-number">{{ formatLineNumber(line.newLineNumber) }}</span>
-                <span class="work-log-line-prefix">{{ diffLinePrefix(line.kind) }}</span>
-                <code class="work-log-line-code">{{ line.content }}</code>
-              </div>
-            </section>
-          </div>
-          <pre v-else-if="file.patch" class="work-log-output"><code>{{ file.patch }}</code></pre>
-        </details>
+          <details class="work-log-file-details">
+            <summary class="work-log-summary">
+              <span class="work-log-primary">{{ file.filePath }}</span>
+              <span class="work-log-status">{{ file.status }}</span>
+              <span class="work-log-stat">{{ fileStatLabel(file) }}</span>
+              <span class="work-log-summary-spacer" />
+            </summary>
+            <p v-if="file.oldPath" class="work-log-meta">from {{ file.oldPath }}</p>
+            <div v-if="file.hunks.length > 0" class="work-log-diff" aria-label="File diff">
+              <section v-for="hunk in file.hunks" :key="`${file.filePath}:${hunk.header}`" class="work-log-hunk">
+                <div class="work-log-diff-row work-log-diff-row-hunk">
+                  <span class="work-log-line-number" />
+                  <span class="work-log-line-number" />
+                  <span class="work-log-line-prefix" />
+                  <code class="work-log-line-code">{{ hunk.header }}</code>
+                </div>
+                <div
+                  v-for="(line, index) in hunk.lines"
+                  :key="`${file.filePath}:${hunk.header}:${index}`"
+                  class="work-log-diff-row"
+                  :data-kind="line.kind"
+                >
+                  <span class="work-log-line-number">{{ formatLineNumber(line.oldLineNumber) }}</span>
+                  <span class="work-log-line-number">{{ formatLineNumber(line.newLineNumber) }}</span>
+                  <span class="work-log-line-prefix">{{ diffLinePrefix(line.kind) }}</span>
+                  <code class="work-log-line-code">{{ line.content }}</code>
+                </div>
+              </section>
+            </div>
+            <pre v-else-if="file.patch" class="work-log-output"><code>{{ file.patch }}</code></pre>
+          </details>
+          <button
+            class="work-log-fullscreen-button"
+            type="button"
+            aria-label="Open diff fullscreen"
+            title="Open diff fullscreen"
+            @click="openFullscreenDiff(file.filePath)"
+          >
+            ⛶
+          </button>
+        </div>
 
         <h3 class="thread-activity-section-title thread-activity-section-title-spaced">Commands</h3>
         <p v-if="commandEntries.length === 0" class="thread-activity-empty">No commands recorded yet.</p>
@@ -519,8 +522,20 @@ watch(diffReview, (review) => {
   @apply border-blue-200 bg-blue-50;
 }
 
+.work-log-file-card {
+  @apply relative;
+}
+
+.work-log-file-details {
+  @apply block;
+}
+
 .work-log-summary {
   @apply grid cursor-pointer grid-cols-[minmax(0,1fr)_2rem_auto_auto] items-center gap-2 text-xs;
+}
+
+.work-log-file-card .work-log-summary {
+  @apply grid-cols-[minmax(0,1fr)_auto_auto_2rem];
 }
 
 .work-log-primary {
@@ -533,7 +548,7 @@ watch(diffReview, (review) => {
 }
 
 .work-log-fullscreen-button {
-  @apply inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-slate-200 bg-white text-sm leading-none text-slate-600 transition hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700;
+  @apply absolute right-3 top-2 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-slate-200 bg-white text-sm leading-none text-slate-600 transition hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700;
 }
 
 .work-log-card[data-tone='success'] .work-log-status {
