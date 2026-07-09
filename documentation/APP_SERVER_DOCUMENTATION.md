@@ -11,6 +11,7 @@
 
 - Bundle: [codex_app_server_protocol.schemas.json](app-server-schemas/json/codex_app_server_protocol.schemas.json)
 - Root index: [ClientRequest.json](app-server-schemas/json/ClientRequest.json), [ServerRequest.json](app-server-schemas/json/ServerRequest.json), [ServerNotification.json](app-server-schemas/json/ServerNotification.json)
+- Usage guide: [APP_SERVER_SCHEMA_USAGE.md](APP_SERVER_SCHEMA_USAGE.md)
 
 ## Client -> Server Methods (полный список)
 
