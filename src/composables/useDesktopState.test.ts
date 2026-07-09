@@ -664,6 +664,140 @@ describe('useDesktopState realtime messages', () => {
     expect(state.projectGroups.value.flatMap((group) => group.threads).map((thread) => thread.id)).toEqual(['thread-new'])
   })
 
+  it('keeps a new thread readable from optimistic send through live stream and final refresh', async () => {
+    vi.useFakeTimers()
+    installBrowserGlobals()
+    const turnStart = deferred<string>()
+    codexApiMock.startThread.mockResolvedValue('thread-new')
+    codexApiMock.startThreadTurn.mockImplementation(async () => turnStart.promise)
+    codexApiMock.getThreadGroups.mockResolvedValue([])
+    codexApiMock.getThreadMessages.mockResolvedValue([])
+
+    const state = useDesktopState()
+    state.startRealtimeSync()
+    const listener = codexApiMock.getNotificationListener()
+    expect(listener).not.toBeNull()
+
+    const createdThreadId = await state.sendMessageToNewThread({
+      text: '帮我检查实时输出',
+      images: [],
+      skills: [],
+    }, '/repo')
+
+    expect(createdThreadId).toBe('thread-new')
+    expect(state.selectedThreadId.value).toBe('thread-new')
+    expect(state.selectedThread.value).toMatchObject({
+      id: 'thread-new',
+      cwd: '/repo',
+      inProgress: true,
+    })
+    expect(state.messages.value).toEqual([
+      expect.objectContaining({
+        role: 'user',
+        text: '帮我检查实时输出',
+        messageType: 'userMessage.optimistic',
+      }),
+    ])
+
+    turnStart.resolve('turn-1')
+    await flushPromises()
+
+    listener?.({
+      method: 'item/agentMessage/delta',
+      params: {
+        threadId: 'thread-new',
+        turnId: 'turn-1',
+        itemId: 'agent-1',
+        delta: '正在检查',
+      },
+      atIso: '2026-07-07T00:00:01.000Z',
+    })
+
+    expect(state.messages.value.map((message) => message.text)).toEqual([
+      '帮我检查实时输出',
+      '正在检查',
+    ])
+
+    codexApiMock.getThreadMessages.mockResolvedValue([
+      {
+        id: 'user-1',
+        role: 'user',
+        text: '帮我检查实时输出',
+        messageType: 'userMessage',
+      },
+      {
+        id: 'agent-1',
+        role: 'assistant',
+        text: '正在检查，已经完成。',
+        messageType: 'agentMessage',
+      },
+    ])
+    listener?.({
+      method: 'item/completed',
+      params: {
+        threadId: 'thread-new',
+        turnId: 'turn-1',
+        item: {
+          id: 'user-1',
+          type: 'userMessage',
+          content: [
+            { type: 'text', text: '帮我检查实时输出', text_elements: [] },
+          ],
+        },
+      },
+      atIso: '2026-07-07T00:00:02.000Z',
+    })
+    listener?.({
+      method: 'item/completed',
+      params: {
+        threadId: 'thread-new',
+        turnId: 'turn-1',
+        item: {
+          id: 'agent-1',
+          type: 'agentMessage',
+          text: '正在检查，已经完成。',
+        },
+      },
+      atIso: '2026-07-07T00:00:03.000Z',
+    })
+    listener?.({
+      method: 'turn/completed',
+      params: {
+        threadId: 'thread-new',
+        turn: {
+          id: 'turn-1',
+          completedAt: '2026-07-07T00:00:04.000Z',
+        },
+      },
+      atIso: '2026-07-07T00:00:04.000Z',
+    })
+    await vi.advanceTimersByTimeAsync(220)
+    await flushPromises()
+
+    expect(state.messages.value).toEqual([
+      expect.objectContaining({
+        id: 'user-1',
+        role: 'user',
+        text: '帮我检查实时输出',
+        messageType: 'userMessage',
+      }),
+      expect.objectContaining({
+        role: 'system',
+        messageType: 'worked',
+      }),
+      expect.objectContaining({
+        id: 'agent-1',
+        role: 'assistant',
+        text: '正在检查，已经完成。',
+        messageType: 'agentMessage',
+      }),
+    ])
+    expect(state.messages.value.filter((message) => message.text === '帮我检查实时输出')).toHaveLength(1)
+    expect(state.messages.value.filter((message) => message.id === 'agent-1')).toHaveLength(1)
+
+    state.stopRealtimeSync()
+  })
+
   it('surfaces and clears new thread creation failures', async () => {
     installBrowserGlobals()
     codexApiMock.startThread.mockRejectedValue(new Error('start failed'))
