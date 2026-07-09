@@ -85,6 +85,24 @@ describe('desktopMessageState', () => {
     expect(merged.map((row) => row.id)).toEqual(['live', 'persisted'])
   })
 
+  it('deduplicates repeated incoming ids before they reach the rendered thread', () => {
+    const previous = [
+      message({ id: 'user-1', role: 'user', text: 'question' }),
+      message({ id: 'assistant-1', role: 'assistant', text: 'old answer' }),
+    ]
+    const incoming = [
+      message({ id: 'user-1', role: 'user', text: 'question' }),
+      message({ id: 'assistant-1', role: 'assistant', text: 'new answer' }),
+      message({ id: 'assistant-1', role: 'assistant', text: 'duplicate answer' }),
+      message({ id: 'assistant-2', role: 'assistant', text: 'next answer' }),
+    ]
+
+    const merged = mergeMessages(previous, incoming)
+
+    expect(merged.map((row) => row.id)).toEqual(['user-1', 'assistant-1', 'assistant-2'])
+    expect(merged[1].text).toBe('new answer')
+  })
+
   it('compacts adjacent duplicate user messages even when ids differ', () => {
     const firstUser = message({
       id: 'user-live',
@@ -168,6 +186,43 @@ describe('desktopMessageState', () => {
 
     expect(removeRedundantLiveAgentMessages([live, unrelated], incoming)).toEqual([unrelated])
     expect(normalizeMessageText(' hello\n\nworld ')).toBe('hello world')
+  })
+
+  it('removes live assistant rows when the same persisted item id arrives', () => {
+    const live = message({
+      id: 'agent-1',
+      text: 'partial stream',
+      messageType: 'agentMessage.live',
+    })
+    const persisted = message({
+      id: 'agent-1',
+      text: 'final response',
+      messageType: 'agentMessage',
+    })
+
+    expect(removeRedundantLiveAgentMessages([live], [persisted])).toEqual([])
+    expect(buildDisplayedMessages([persisted], [live], null)).toEqual([persisted])
+  })
+
+  it('removes superseded optimistic user messages from displayed rows even when separated', () => {
+    const optimistic = message({
+      id: 'optimistic-user:thread-1:1',
+      role: 'user',
+      text: '重复消息',
+      messageType: 'userMessage.optimistic',
+    })
+    const assistant = message({ id: 'assistant-1', role: 'assistant', text: '处理中' })
+    const persisted = message({
+      id: 'server-user-1',
+      role: 'user',
+      text: '重复消息',
+      messageType: 'userMessage',
+    })
+
+    expect(buildDisplayedMessages([optimistic, assistant, persisted], [], null)).toEqual([
+      persisted,
+      assistant,
+    ])
   })
 
   it('upserts changed messages and keeps unchanged upserts stable', () => {

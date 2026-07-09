@@ -126,6 +126,7 @@ type PendingServerRequest = {
   receivedAtIso: string
   commandPolicy: ToolingCommandPolicyEvaluation | null
   fileChangePolicy: ToolingFileChangePolicyEvaluation | null
+  isSmokeInjected?: boolean
 }
 
 type DiagnosticServerRequest = {
@@ -301,6 +302,10 @@ function readServerRequestSubject(method: string, params: unknown): string {
 
 function isStoredGrantEligibleRequest(method: string): boolean {
   return isApprovalRequestMethod(method)
+}
+
+function areSmokeHooksEnabled(): boolean {
+  return process.env.CODY_WEB_UI_ENABLE_SMOKE_HOOKS === '1'
 }
 
 function isCommandApprovalRequest(method: string): boolean {
@@ -659,10 +664,38 @@ async function handleRunWorkspaceWorkflowValidationWithNotifications(
 }
 
 export const CODEX_APP_SERVER_ARGS = ['app-server', '--listen', 'stdio://'] as const
+export const APP_SERVER_RPC_TIMEOUT_MS = 20_000
+export const APP_SERVER_DIAGNOSTICS_RPC_TIMEOUT_MS = 5_000
+export const APP_SERVER_RESTART_COOLDOWN_MS = 1_750
+export const APP_SERVER_TIMEOUT_RECOVERY_METHODS = new Set([
+  'thread/read',
+  'thread/loaded/list',
+])
+
+export function appServerRpcTimeoutMessage(method: string, timeoutMs: number): string {
+  return `codex app-server RPC ${method} timed out after ${String(timeoutMs)}ms`
+}
+
+export function shouldRecoverAppServerAfterRpcTimeout(input: {
+  method: string
+  pendingClientRequestCount: number
+  pendingServerRequestCount: number
+}): boolean {
+  return (
+    APP_SERVER_TIMEOUT_RECOVERY_METHODS.has(input.method) &&
+    input.pendingClientRequestCount === 0 &&
+    input.pendingServerRequestCount === 0
+  )
+}
+
+export function isAppServerAlreadyInitializedError(payload: unknown): boolean {
+  return /already initialized/iu.test(getErrorMessage(payload, ''))
+}
 
 class AppServerProcess {
   private process: ChildProcessWithoutNullStreams | null = null
   private initialized = false
+  private initializePromise: Promise<void> | null = null
   private readBuffer = ''
   private nextId = 1
   private stopping = false
@@ -676,6 +709,7 @@ class AppServerProcess {
   private notificationCount = 0
   private serverRequestCount = 0
   private logSequence = 0
+  private restartReadyAtMs = 0
   private readonly recentLogs: AppServerDiagnosticLog[] = []
   private readonly notificationCountsByMethod = new Map<string, number>()
   private readonly mcpServers = new Map<string, McpServerDiagnostic>()
@@ -683,6 +717,7 @@ class AppServerProcess {
   private readonly notificationListeners = new Set<(value: { method: string; params: unknown }) => void>()
   private readonly pendingServerRequests = new Map<number, PendingServerRequest>()
   private readonly pendingServerRequestApprovalScopes = new Map<number, ToolingApprovalDecisionScope>()
+  private nextSmokeServerRequestId = 900_000
 
   private start(): void {
     if (this.process) return
@@ -723,6 +758,12 @@ class AppServerProcess {
     })
 
     proc.on('exit', (code, signal) => {
+      const isCurrentProcess = this.process === proc
+      if (!isCurrentProcess && this.process !== null) {
+        this.pushLog('info', 'bridge', 'stale codex app-server process exited after replacement')
+        return
+      }
+
       this.exitedAtIso = new Date().toISOString()
       this.exitCode = typeof code === 'number' ? code : null
       this.exitSignal = signal ?? null
@@ -739,6 +780,7 @@ class AppServerProcess {
       this.pendingServerRequestApprovalScopes.clear()
       this.process = null
       this.initialized = false
+      this.initializePromise = null
       this.readBuffer = ''
       this.pushLog(this.stopping ? 'info' : 'error', 'bridge', failure.message)
     })
@@ -876,7 +918,9 @@ class AppServerProcess {
     }
     this.pendingServerRequests.delete(requestId)
 
-    this.sendServerRequestReply(requestId, reply)
+    if (!pendingRequest.isSmokeInjected) {
+      this.sendServerRequestReply(requestId, reply)
+    }
     const requestParams = asRecord(pendingRequest.params)
     const threadId =
       typeof requestParams?.threadId === 'string' && requestParams.threadId.length > 0
@@ -1150,27 +1194,88 @@ class AppServerProcess {
     })
   }
 
-  private async call(method: string, params: unknown): Promise<unknown> {
+  private async call(method: string, params: unknown, timeoutMs = APP_SERVER_RPC_TIMEOUT_MS): Promise<unknown> {
     this.start()
     const id = this.nextId++
     this.sentClientRequestCount += 1
 
     return new Promise((resolve, reject) => {
-      this.pending.set(id, { resolve, reject })
+      const timeout = setTimeout(() => {
+        if (!this.pending.delete(id)) return
 
-      this.sendLine({
-        jsonrpc: '2.0',
-        id,
-        method,
-        params,
-      } satisfies JsonRpcCall)
+        this.failedClientRequestCount += 1
+        const error = new Error(appServerRpcTimeoutMessage(method, timeoutMs))
+        this.pushLog('error', 'bridge', error.message)
+        this.recoverAfterRpcTimeout(method)
+        reject(error)
+      }, timeoutMs)
+      timeout.unref?.()
+
+      this.pending.set(id, {
+        resolve: (value) => {
+          clearTimeout(timeout)
+          resolve(value)
+        },
+        reject: (reason) => {
+          clearTimeout(timeout)
+          reject(reason)
+        },
+      })
+
+      try {
+        this.sendLine({
+          jsonrpc: '2.0',
+          id,
+          method,
+          params,
+        } satisfies JsonRpcCall)
+      } catch (error) {
+        clearTimeout(timeout)
+        this.pending.delete(id)
+        this.failedClientRequestCount += 1
+        reject(error)
+      }
     })
   }
 
-  private async ensureInitialized(): Promise<void> {
-    if (this.initialized) return
+  private recoverAfterRpcTimeout(method: string): void {
+    if (!shouldRecoverAppServerAfterRpcTimeout({
+      method,
+      pendingClientRequestCount: this.pending.size,
+      pendingServerRequestCount: this.pendingServerRequests.size,
+    })) {
+      return
+    }
 
-    await this.call('initialize', {
+    this.pushLog(
+      'warning',
+      'bridge',
+      `restarting codex app-server after ${method} timed out to clear a stuck read request`,
+    )
+    this.restartReadyAtMs = Date.now() + APP_SERVER_RESTART_COOLDOWN_MS
+    this.dispose()
+  }
+
+  private async waitForRestartCooldown(): Promise<void> {
+    const delayMs = this.restartReadyAtMs - Date.now()
+    if (delayMs <= 0) return
+
+    await new Promise<void>((resolve) => {
+      const timer = setTimeout(resolve, delayMs)
+      timer.unref?.()
+    })
+  }
+
+  private async ensureInitialized(timeoutMs = APP_SERVER_RPC_TIMEOUT_MS): Promise<void> {
+    if (this.initialized) return
+    if (this.initializePromise) {
+      await this.initializePromise
+      return
+    }
+
+    await this.waitForRestartCooldown()
+
+    this.initializePromise = this.call('initialize', {
       clientInfo: {
         name: 'cody-web-ui',
         version: '0.1.0',
@@ -1178,14 +1283,27 @@ class AppServerProcess {
       capabilities: {
         experimentalApi: true,
       },
-    })
+    }, timeoutMs)
+      .then(() => {
+        this.initialized = true
+      })
+      .catch((error) => {
+        if (!isAppServerAlreadyInitializedError(error)) {
+          throw error
+        }
+        this.initialized = true
+        this.pushLog('warning', 'bridge', 'codex app-server was already initialized; reusing existing session.')
+      })
+      .finally(() => {
+        this.initializePromise = null
+      })
 
-    this.initialized = true
+    await this.initializePromise
   }
 
-  async rpc(method: string, params: unknown): Promise<unknown> {
-    await this.ensureInitialized()
-    return this.call(method, params)
+  async rpc(method: string, params: unknown, timeoutMs = APP_SERVER_RPC_TIMEOUT_MS): Promise<unknown> {
+    await this.ensureInitialized(timeoutMs)
+    return this.call(method, params, timeoutMs)
   }
 
   onNotification(listener: (value: { method: string; params: unknown }) => void): () => void {
@@ -1196,8 +1314,6 @@ class AppServerProcess {
   }
 
   async respondToServerRequest(payload: unknown): Promise<void> {
-    await this.ensureInitialized()
-
     const body = asRecord(payload)
     if (!body) {
       throw new Error('Invalid response payload: expected object')
@@ -1206,6 +1322,11 @@ class AppServerProcess {
     const id = body.id
     if (typeof id !== 'number' || !Number.isInteger(id)) {
       throw new Error('Invalid response payload: "id" must be an integer')
+    }
+
+    const pendingRequest = this.pendingServerRequests.get(id)
+    if (!pendingRequest?.isSmokeInjected) {
+      await this.ensureInitialized()
     }
 
     if (
@@ -1240,13 +1361,49 @@ class AppServerProcess {
     return Array.from(this.pendingServerRequests.values())
   }
 
-  async listMcpServerInventory(): Promise<McpServerDiagnostic[]> {
+  injectSmokeServerRequest(payload: unknown): PendingServerRequest {
+    if (!areSmokeHooksEnabled()) {
+      throw new Error('Smoke hooks are disabled')
+    }
+
+    const body = asRecord(payload)
+    if (!body) {
+      throw new Error('Invalid smoke request payload: expected object')
+    }
+
+    const method = readString(body.method)
+    if (!method) {
+      throw new Error('Invalid smoke request payload: "method" is required')
+    }
+
+    const id = typeof body.id === 'number' && Number.isInteger(body.id)
+      ? body.id
+      : this.nextSmokeServerRequestId++
+    const pendingRequest: PendingServerRequest = {
+      id,
+      method,
+      params: body.params ?? {},
+      receivedAtIso: new Date().toISOString(),
+      commandPolicy: asRecord(body.commandPolicy) as ToolingCommandPolicyEvaluation | null,
+      fileChangePolicy: asRecord(body.fileChangePolicy) as ToolingFileChangePolicyEvaluation | null,
+      isSmokeInjected: true,
+    }
+
+    this.pendingServerRequests.set(id, pendingRequest)
+    this.emitNotification({
+      method: 'server/request',
+      params: pendingRequest,
+    })
+    return pendingRequest
+  }
+
+  async listMcpServerInventory(timeoutMs = APP_SERVER_DIAGNOSTICS_RPC_TIMEOUT_MS): Promise<McpServerDiagnostic[]> {
     const result = await this.rpc('mcpServerStatus/list', {
       cursor: null,
       detail: 'toolsAndAuthOnly',
       limit: 100,
       threadId: null,
-    })
+    }, timeoutMs)
     return normalizeMcpServerInventory(result)
   }
 
@@ -1304,6 +1461,7 @@ class AppServerProcess {
     this.stopping = true
     this.process = null
     this.initialized = false
+    this.initializePromise = null
     this.readBuffer = ''
 
     const failure = new Error('codex app-server stopped')
@@ -1587,21 +1745,17 @@ async function buildGatewayDiagnostics(
   appServer: AppServerProcess,
   methodCatalog: MethodCatalog,
 ): Promise<GatewayDiagnostics> {
-  const [methodsResult, notificationsResult, mcpInventoryResult] = await Promise.allSettled([
+  const [methodsResult, notificationsResult] = await Promise.allSettled([
     methodCatalog.listMethods(),
     methodCatalog.listNotificationMethods(),
-    appServer.listMcpServerInventory(),
   ])
   const methods = methodsResult.status === 'fulfilled' ? methodsResult.value : []
   const notifications = notificationsResult.status === 'fulfilled' ? notificationsResult.value : []
-  const mcpInventory = mcpInventoryResult.status === 'fulfilled' ? mcpInventoryResult.value : []
   const errors = [
     resultErrorMessage(methodsResult),
     resultErrorMessage(notificationsResult),
   ].filter(Boolean)
   const appDiagnostics = appServer.getDiagnostics()
-  appDiagnostics.mcpServers = mergeMcpServerDiagnostics(appDiagnostics.mcpServers, mcpInventory)
-  appDiagnostics.mcpInventoryError = resultErrorMessage(mcpInventoryResult)
 
   return {
     generatedAtIso: new Date().toISOString(),
@@ -1969,6 +2123,17 @@ export function createCodexBridgeMiddleware(): CodexBridgeMiddleware {
 
       if (req.method === 'GET' && url.pathname === '/codex-api/server-requests/pending') {
         setJson(res, 200, { data: appServer.listPendingServerRequests() })
+        return
+      }
+
+      if (req.method === 'POST' && url.pathname === '/codex-api/smoke/server-requests') {
+        if (!areSmokeHooksEnabled()) {
+          setJson(res, 404, { error: 'Not found' })
+          return
+        }
+        const payload = await readJsonBody(req)
+        const result = appServer.injectSmokeServerRequest(payload)
+        setJson(res, 200, { result })
         return
       }
 

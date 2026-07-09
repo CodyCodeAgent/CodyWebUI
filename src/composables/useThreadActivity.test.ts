@@ -5,11 +5,14 @@ import {
   buildThreadActivitySummary,
   buildPendingApprovalCards,
   buildPendingApprovalSubtitle,
+  buildWorkLogActionState,
   buildWorkLogDisplayPath,
   buildWorkLogDisplayPathParts,
   buildWorkLogFileStatLabel,
+  buildWorkLogBadgeText,
   buildWorkLogFloatSummary,
   buildWorkLogMetrics,
+  buildWorkLogTriggerLabel,
   filterWorkLogFiles,
   buildWorkLogStatusText,
   formatWorkLogLineNumber,
@@ -161,6 +164,19 @@ describe('thread activity helpers', () => {
       fileCount: 2,
       commandCount: 3,
     })).toBe('2 files · 3 commands')
+    expect(buildWorkLogTriggerLabel({
+      isOpen: false,
+      fileCount: 2,
+      commandCount: 3,
+    })).toBe('Open work log: 2 files · 3 commands')
+    expect(buildWorkLogTriggerLabel({
+      isOpen: true,
+      fileCount: 2,
+      commandCount: 3,
+    })).toBe('Close work log: 2 files · 3 commands')
+    expect(buildWorkLogBadgeText(0)).toBe('')
+    expect(buildWorkLogBadgeText(9)).toBe('9')
+    expect(buildWorkLogBadgeText(100)).toBe('99+')
     expect(buildWorkLogMetrics({
       fileCount: 2,
       commandCount: 3,
@@ -221,12 +237,46 @@ describe('thread activity helpers', () => {
   })
 
   it('tracks work log badge and fullscreen file state from the diff review', () => {
-    expect(workLogBadgeCount(diffReview, 3)).toBe(4)
+    expect(workLogBadgeCount(diffReview)).toBe(1)
     expect(workLogFullscreenFile(diffReview, 'src/app.ts')?.status).toBe('modified')
     expect(workLogFullscreenFile(diffReview, 'missing.ts')).toBeNull()
     expect(shouldCloseWorkLogFullscreenFile(diffReview, '')).toBe(false)
     expect(shouldCloseWorkLogFullscreenFile(diffReview, 'src/app.ts')).toBe(false)
     expect(shouldCloseWorkLogFullscreenFile(diffReview, 'missing.ts')).toBe(true)
+  })
+
+  it('builds the thread-header work log action state', () => {
+    expect(buildWorkLogActionState({
+      isOpen: false,
+      fileCount: 0,
+      commandCount: 0,
+    })).toEqual({
+      badgeCount: 0,
+      badgeText: '',
+      floatSummary: '0 files · 0 commands',
+      triggerLabel: 'Open work log: 0 files · 0 commands',
+    })
+
+    expect(buildWorkLogActionState({
+      isOpen: true,
+      fileCount: 9,
+      commandCount: 2,
+    })).toEqual({
+      badgeCount: 9,
+      badgeText: '9',
+      floatSummary: '9 files · 2 commands',
+      triggerLabel: 'Close work log: 9 files · 2 commands',
+    })
+
+    expect(buildWorkLogActionState({
+      isOpen: false,
+      fileCount: 120,
+      commandCount: 1,
+    })).toMatchObject({
+      badgeCount: 120,
+      badgeText: '99+',
+      triggerLabel: 'Open work log: 120 files · 1 command',
+    })
   })
 
   it('filters work log files by full path, display path, and old path', () => {

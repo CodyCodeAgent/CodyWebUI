@@ -1,15 +1,39 @@
 <template>
   <section class="conversation-root">
-    <p v-if="isLoading" class="conversation-loading">Loading messages...</p>
+    <p v-if="showBlockingLoading" class="conversation-loading">Loading messages...</p>
+
+    <article v-else-if="showBlockingLoadError" class="conversation-load-error" role="alert">
+      <p class="conversation-load-error-title">Could not load this thread.</p>
+      <p class="conversation-load-error-message">{{ loadError }}</p>
+      <button type="button" class="conversation-load-error-retry" @click="emit('retryLoad')">Retry</button>
+    </article>
 
     <p
-      v-else-if="messages.length === 0 && pendingRequests.length === 0 && !liveOverlay"
+      v-else-if="showEmptyConversation"
       class="conversation-empty"
     >
       No messages in this thread yet.
     </p>
 
-    <ul v-else ref="conversationListRef" class="conversation-list" @scroll="onConversationScroll">
+    <ul
+      v-else
+      ref="conversationListRef"
+      class="conversation-list"
+      data-testid="conversation-list"
+      @scroll="onConversationScroll"
+    >
+      <li v-if="showRefreshStatus" class="conversation-item conversation-item-refresh">
+        <p class="conversation-refresh-status">Refreshing messages...</p>
+      </li>
+
+      <li v-if="showInlineLoadError" class="conversation-item conversation-item-refresh">
+        <article class="conversation-load-error conversation-load-error-inline" role="alert">
+          <p class="conversation-load-error-title">Message refresh failed.</p>
+          <p class="conversation-load-error-message">{{ loadError }}</p>
+          <button type="button" class="conversation-load-error-retry" @click="emit('retryLoad')">Retry</button>
+        </article>
+      </li>
+
       <li
         v-for="card in conversationRequestCards"
         :key="`server-request:${card.request.id}`"
@@ -119,6 +143,7 @@
         class="conversation-item conversation-item-history"
       >
         <button
+          data-testid="conversation-history-button"
           class="conversation-history-button"
           type="button"
           @click="onLoadEarlierMessages"
@@ -133,8 +158,10 @@
         v-for="(message, renderedMessageIndex) in visibleMessages"
         :key="message.id"
         class="conversation-item"
+        data-testid="conversation-message"
         :data-role="message.role"
         :data-message-type="message.messageType || ''"
+        :data-message-id="message.id"
       >
         <div class="message-row" :data-role="message.role" :data-message-type="message.messageType || ''">
           <div class="message-stack" :data-role="message.role">
@@ -222,6 +249,7 @@
 
               <button
                 v-if="shouldShowCopyButton(message, renderedMessageIndex)"
+                data-testid="conversation-copy-button"
                 class="message-copy-button"
                 type="button"
                 :aria-label="copyButtonAriaLabel(message.id)"
@@ -240,6 +268,7 @@
           <div class="message-stack">
             <article class="live-overlay-inline" aria-live="polite">
               <button
+                data-testid="conversation-live-overlay-toggle"
                 class="live-overlay-toggle"
                 type="button"
                 :aria-expanded="isLiveOverlayExpanded"
@@ -253,7 +282,7 @@
                 </span>
               </button>
 
-              <div v-if="isLiveOverlayExpanded && hasLiveOverlayDetails" class="live-overlay-details">
+              <div v-if="isLiveOverlayExpanded && hasLiveOverlayDetails" class="live-overlay-details" data-testid="conversation-live-overlay-details">
                 <ul v-if="liveOverlay.activityDetails.length > 0" class="live-overlay-detail-list">
                   <li v-for="detail in liveOverlay.activityDetails" :key="detail" class="live-overlay-detail-item">
                     {{ detail }}
@@ -262,6 +291,7 @@
                 <p
                   v-if="liveOverlay.reasoningText"
                   class="live-overlay-reasoning"
+                  data-testid="conversation-live-overlay-reasoning"
                 >
                   {{ liveOverlay.reasoningText }}
                 </p>
@@ -328,8 +358,12 @@ import {
   readToolQuestionOtherAnswer,
   readToolQuestions,
   restoredConversationScrollTop,
+  shouldShowBlockingConversationLoadError,
   shouldLockConversationToBottom,
   shouldRestoreConversationToBottom,
+  shouldShowBlockingConversationLoading,
+  shouldShowInlineConversationLoadError,
+  shouldShowConversationRefreshStatus,
   shouldShowCopyButton as shouldShowThreadCopyButton,
   shouldShowScrollToBottomButton as shouldShowThreadScrollToBottomButton,
   shouldShowToolQuestionText,
@@ -364,6 +398,7 @@ const props = defineProps<{
   pendingRequests: UiServerRequest[]
   liveOverlay: UiLiveOverlay | null
   isLoading: boolean
+  loadError: string
   activeThreadId: string
   scrollState: ThreadScrollState | null
 }>()
@@ -371,6 +406,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   updateScrollState: [payload: { threadId: string; state: ThreadScrollState }]
   respondServerRequest: [payload: UiServerRequestReply]
+  retryLoad: []
 }>()
 const approvalScopeOptions = APPROVAL_SCOPE_OPTIONS
 
@@ -378,7 +414,7 @@ const conversationListRef = ref<HTMLElement | null>(null)
 const bottomAnchorRef = ref<HTMLElement | null>(null)
 const modalImageUrl = ref('')
 const copiedMessageId = ref('')
-const isLiveOverlayExpanded = ref(false)
+const isLiveOverlayExpanded = ref((props.liveOverlay?.reasoningText ?? '').trim().length > 0)
 const visibleMessageCount = ref(DEFAULT_VISIBLE_MESSAGE_COUNT)
 const openToolMessageIds = ref<Record<string, boolean>>({})
 const expandedToolOutputIds = ref<Record<string, boolean>>({})
@@ -416,6 +452,38 @@ const visibleMessageWindowLabel = computed(() => visibleMessageWindowSummary(
   props.messages.length,
   normalizedVisibleMessagesCount.value,
 ))
+const showBlockingLoading = computed(() => shouldShowBlockingConversationLoading({
+  isLoading: props.isLoading,
+  messageCount: props.messages.length,
+  pendingRequestCount: props.pendingRequests.length,
+  hasLiveOverlay: props.liveOverlay !== null,
+}))
+const showRefreshStatus = computed(() => shouldShowConversationRefreshStatus({
+  isLoading: props.isLoading,
+  messageCount: props.messages.length,
+  pendingRequestCount: props.pendingRequests.length,
+  hasLiveOverlay: props.liveOverlay !== null,
+}))
+const showBlockingLoadError = computed(() => shouldShowBlockingConversationLoadError({
+  isLoading: props.isLoading,
+  loadError: props.loadError,
+  messageCount: props.messages.length,
+  pendingRequestCount: props.pendingRequests.length,
+  hasLiveOverlay: props.liveOverlay !== null,
+}))
+const showInlineLoadError = computed(() => shouldShowInlineConversationLoadError({
+  isLoading: props.isLoading,
+  loadError: props.loadError,
+  messageCount: props.messages.length,
+  pendingRequestCount: props.pendingRequests.length,
+  hasLiveOverlay: props.liveOverlay !== null,
+}))
+const showEmptyConversation = computed(() =>
+  !showBlockingLoadError.value &&
+  props.messages.length === 0 &&
+  props.pendingRequests.length === 0 &&
+  props.liveOverlay === null,
+)
 
 const showScrollToBottomButton = computed(() => {
   return shouldShowThreadScrollToBottomButton({
@@ -822,6 +890,37 @@ onBeforeUnmount(() => {
   @apply m-0 px-6 text-sm text-slate-500;
 }
 
+.conversation-load-error {
+  @apply mx-6 max-w-2xl rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800 shadow-sm;
+  background: color-mix(in srgb, var(--color-danger) 10%, var(--color-panel));
+  border-color: color-mix(in srgb, var(--color-danger) 36%, var(--color-border));
+  color: var(--color-text);
+}
+
+.conversation-load-error-inline {
+  @apply mx-0 w-full max-w-180;
+}
+
+.conversation-load-error-title {
+  @apply m-0 font-semibold;
+}
+
+.conversation-load-error-message {
+  @apply m-0 mt-1 break-words text-xs leading-5 text-rose-700;
+  color: color-mix(in srgb, var(--color-danger) 34%, var(--color-text-muted));
+}
+
+.conversation-load-error-retry {
+  @apply mt-3 inline-flex h-8 items-center rounded-md border border-rose-200 bg-white px-3 text-xs font-semibold text-rose-700 transition hover:bg-rose-100 focus:outline-none focus:ring-2 focus:ring-rose-200;
+  background: var(--color-surface);
+  border-color: color-mix(in srgb, var(--color-danger) 42%, var(--color-border));
+  color: color-mix(in srgb, var(--color-danger) 34%, var(--color-text));
+}
+
+.conversation-load-error-retry:hover {
+  background: color-mix(in srgb, var(--color-danger) 12%, var(--color-surface));
+}
+
 .conversation-list {
   @apply h-full min-h-0 list-none m-0 px-6 py-0 overflow-y-auto overflow-x-visible flex flex-col gap-3;
 }
@@ -840,6 +939,14 @@ onBeforeUnmount(() => {
 
 .conversation-item-history {
   @apply flex-col items-center justify-center gap-1;
+}
+
+.conversation-item-refresh {
+  @apply justify-center;
+}
+
+.conversation-refresh-status {
+  @apply m-0 rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-500 shadow-sm;
 }
 
 .conversation-history-button {

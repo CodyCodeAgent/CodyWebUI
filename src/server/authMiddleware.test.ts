@@ -50,7 +50,7 @@ function cookiesFrom(response: Response): string {
     ? getSetCookie.call(response.headers)
     : [response.headers.get('set-cookie') ?? '']
   return rows
-    .flatMap((row) => row.split(/,(?=\s*codex_web_local_)/u))
+    .flatMap((row) => row.split(/,(?=\s*cody_web_ui_)/u))
     .map((row) => row.split(';')[0]?.trim() ?? '')
     .filter(Boolean)
     .join('; ')
@@ -92,8 +92,8 @@ describe('authMiddleware', () => {
     })
     expect(loginPayload.deviceId).toHaveLength(32)
     const cookie = cookiesFrom(login)
-    expect(cookie).toContain('codex_web_local_token=')
-    expect(cookie).toContain('codex_web_local_device=')
+    expect(cookie).toContain('cody_web_ui_token=')
+    expect(cookie).toContain('cody_web_ui_device=')
 
     const protectedAfterLogin = await fetch(`${server.baseUrl}/protected`, {
       headers: { cookie },
@@ -119,7 +119,7 @@ describe('authMiddleware', () => {
       headers: { cookie },
     })
     expect(logout.status).toBe(200)
-    expect(cookiesFrom(logout)).toContain('codex_web_local_token=')
+    expect(cookiesFrom(logout)).toContain('cody_web_ui_token=')
 
     const protectedAfterLogout = await fetch(`${server.baseUrl}/protected`, {
       headers: { cookie },

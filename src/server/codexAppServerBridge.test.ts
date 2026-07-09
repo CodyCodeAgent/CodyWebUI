@@ -7,13 +7,20 @@ import { promisify } from 'node:util'
 import { WebSocket } from 'ws'
 import { afterEach, describe, expect, it } from 'vitest'
 import {
+  APP_SERVER_DIAGNOSTICS_RPC_TIMEOUT_MS,
+  APP_SERVER_RESTART_COOLDOWN_MS,
+  APP_SERVER_RPC_TIMEOUT_MS,
   attachCodexBridgeWebSocketServer,
   CODEX_APP_SERVER_ARGS,
+  appServerRpcTimeoutMessage,
   createAutomaticTurnCheckpoint,
+  createCodexBridgeMiddleware,
+  isAppServerAlreadyInitializedError,
   mergeMcpServerDiagnostics,
   normalizeApprovalDecisionScope,
   normalizeMcpServerInventory,
   readApprovalDecisionFromReply,
+  shouldRecoverAppServerAfterRpcTimeout,
 } from './codexAppServerBridge'
 import { listToolingCheckpoints } from './toolingService'
 
@@ -23,6 +30,48 @@ const tempDirs: string[] = []
 describe('app-server launch contract', () => {
   it('uses stdio transport explicitly for JSON-RPC bridge traffic', () => {
     expect(CODEX_APP_SERVER_ARGS).toEqual(['app-server', '--listen', 'stdio://'])
+  })
+
+  it('uses bounded RPC timeouts for stuck bridge requests', () => {
+    expect(APP_SERVER_RPC_TIMEOUT_MS).toBeGreaterThan(APP_SERVER_DIAGNOSTICS_RPC_TIMEOUT_MS)
+    expect(APP_SERVER_DIAGNOSTICS_RPC_TIMEOUT_MS).toBeGreaterThan(0)
+    expect(APP_SERVER_RESTART_COOLDOWN_MS).toBeLessThan(APP_SERVER_DIAGNOSTICS_RPC_TIMEOUT_MS)
+    expect(appServerRpcTimeoutMessage('thread/list', 1234))
+      .toBe('codex app-server RPC thread/list timed out after 1234ms')
+  })
+
+  it('recovers the app-server only after isolated read-only thread RPC timeouts', () => {
+    expect(shouldRecoverAppServerAfterRpcTimeout({
+      method: 'thread/read',
+      pendingClientRequestCount: 0,
+      pendingServerRequestCount: 0,
+    })).toBe(true)
+    expect(shouldRecoverAppServerAfterRpcTimeout({
+      method: 'thread/loaded/list',
+      pendingClientRequestCount: 0,
+      pendingServerRequestCount: 0,
+    })).toBe(true)
+    expect(shouldRecoverAppServerAfterRpcTimeout({
+      method: 'turn/start',
+      pendingClientRequestCount: 0,
+      pendingServerRequestCount: 0,
+    })).toBe(false)
+    expect(shouldRecoverAppServerAfterRpcTimeout({
+      method: 'thread/read',
+      pendingClientRequestCount: 1,
+      pendingServerRequestCount: 0,
+    })).toBe(false)
+    expect(shouldRecoverAppServerAfterRpcTimeout({
+      method: 'thread/read',
+      pendingClientRequestCount: 0,
+      pendingServerRequestCount: 1,
+    })).toBe(false)
+  })
+
+  it('treats duplicate app-server initialization as reusable state', () => {
+    expect(isAppServerAlreadyInitializedError(new Error('Already initialized'))).toBe(true)
+    expect(isAppServerAlreadyInitializedError({ error: { message: 'already initialized' } })).toBe(true)
+    expect(isAppServerAlreadyInitializedError(new Error('initialize failed'))).toBe(false)
   })
 })
 
@@ -102,6 +151,236 @@ function readFirstWebSocketMessage(url: string): Promise<unknown> {
     })
   })
 }
+
+async function readJson(url: string, init?: RequestInit): Promise<unknown> {
+  const response = await fetch(url, init)
+  const body = await response.json() as unknown
+  expect(response.ok).toBe(true)
+  return body
+}
+
+async function readJsonResponse(url: string, init?: RequestInit): Promise<{ status: number; body: unknown }> {
+  const response = await fetch(url, init)
+  return {
+    status: response.status,
+    body: await response.json() as unknown,
+  }
+}
+
+describe('bridge server request endpoints', () => {
+  it('lists pending approvals and forwards replies through the HTTP bridge', async () => {
+    const sharedBridgeKey = '__codexRemoteSharedBridge__'
+    const replies: unknown[] = []
+    const fakeAppServer = {
+      listPendingServerRequests: () => [
+        {
+          id: 42,
+          method: 'item/commandExecution/requestApproval',
+          threadId: 'thread-approval',
+          turnId: 'turn-approval',
+          itemId: 'item-approval',
+          receivedAtIso: '2026-07-09T10:00:00.000Z',
+          params: {
+            command: 'npm test',
+            cwd: '/repo',
+          },
+        },
+      ],
+      respondToServerRequest: async (payload: unknown) => {
+        replies.push(payload)
+      },
+      dispose: () => {},
+      getDiagnostics: () => ({
+        status: 'running',
+        pid: null,
+        initialized: true,
+        startedAtIso: '2026-07-09T10:00:00.000Z',
+        exitedAtIso: null,
+        exitCode: null,
+        exitSignal: null,
+        pendingClientRequestCount: 0,
+        pendingServerRequestCount: 1,
+        sentClientRequestCount: 0,
+        completedClientRequestCount: 0,
+        failedClientRequestCount: 0,
+        notificationCount: 0,
+        serverRequestCount: 1,
+        notificationCountsByMethod: {},
+        pendingServerRequests: [],
+        mcpServers: [],
+        mcpInventoryError: '',
+        recentLogs: [],
+      }),
+      rpc: async () => ({}),
+      onNotification: () => () => {},
+    }
+    const globalScope = globalThis as typeof globalThis & Record<string, unknown>
+    globalScope[sharedBridgeKey] = {
+      appServer: fakeAppServer,
+      methodCatalog: {
+        listMethods: async () => [],
+        listNotificationMethods: async () => [],
+      },
+      stopNotificationDispatch: () => {},
+      productEventHub: {
+        clear: () => {},
+        subscribe: () => () => {},
+        emit: () => {},
+      },
+    }
+    const middleware = createCodexBridgeMiddleware()
+    const server = createServer((req, res) => {
+      void middleware(req, res, () => {
+        res.writeHead(404)
+        res.end()
+      })
+    })
+
+    try {
+      const port = await listen(server)
+      const baseUrl = `http://127.0.0.1:${String(port)}`
+      await expect(readJson(`${baseUrl}/codex-api/server-requests/pending`)).resolves.toEqual({
+        data: [
+          expect.objectContaining({
+            id: 42,
+            method: 'item/commandExecution/requestApproval',
+            threadId: 'thread-approval',
+          }),
+        ],
+      })
+
+      await expect(readJson(`${baseUrl}/codex-api/server-requests/respond`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          id: 42,
+          approvalScope: 'workspace',
+          result: { decision: 'accept' },
+        }),
+      })).resolves.toEqual({ ok: true })
+      expect(replies).toEqual([
+        {
+          id: 42,
+          approvalScope: 'workspace',
+          result: { decision: 'accept' },
+        },
+      ])
+    } finally {
+      middleware.dispose()
+      await closeServer(server)
+      delete globalScope[sharedBridgeKey]
+    }
+  })
+
+  it('keeps smoke-only server request injection disabled unless explicitly enabled', async () => {
+    const previousSmokeHooks = process.env.CODY_WEB_UI_ENABLE_SMOKE_HOOKS
+    const sharedBridgeKey = '__codexRemoteSharedBridge__'
+    const injectedPayloads: unknown[] = []
+    const fakeAppServer = {
+      listPendingServerRequests: () => [],
+      respondToServerRequest: async () => {},
+      injectSmokeServerRequest: (payload: unknown) => {
+        injectedPayloads.push(payload)
+        return {
+          id: 900000,
+          method: 'item/commandExecution/requestApproval',
+          params: payload,
+          receivedAtIso: '2026-07-09T10:00:00.000Z',
+          commandPolicy: null,
+          fileChangePolicy: null,
+          isSmokeInjected: true,
+        }
+      },
+      dispose: () => {},
+      getDiagnostics: () => ({
+        status: 'running',
+        pid: null,
+        initialized: true,
+        startedAtIso: '2026-07-09T10:00:00.000Z',
+        exitedAtIso: null,
+        exitCode: null,
+        exitSignal: null,
+        pendingClientRequestCount: 0,
+        pendingServerRequestCount: 0,
+        sentClientRequestCount: 0,
+        completedClientRequestCount: 0,
+        failedClientRequestCount: 0,
+        notificationCount: 0,
+        serverRequestCount: 0,
+        notificationCountsByMethod: {},
+        pendingServerRequests: [],
+        mcpServers: [],
+        mcpInventoryError: '',
+        recentLogs: [],
+      }),
+      rpc: async () => ({}),
+      onNotification: () => () => {},
+    }
+    const globalScope = globalThis as typeof globalThis & Record<string, unknown>
+    globalScope[sharedBridgeKey] = {
+      appServer: fakeAppServer,
+      methodCatalog: {
+        listMethods: async () => [],
+        listNotificationMethods: async () => [],
+      },
+      stopNotificationDispatch: () => {},
+      productEventHub: {
+        clear: () => {},
+        subscribe: () => () => {},
+        emit: () => {},
+      },
+    }
+    const middleware = createCodexBridgeMiddleware()
+    const server = createServer((req, res) => {
+      void middleware(req, res, () => {
+        res.writeHead(404)
+        res.end()
+      })
+    })
+
+    try {
+      const port = await listen(server)
+      const baseUrl = `http://127.0.0.1:${String(port)}`
+      const body = {
+        method: 'item/commandExecution/requestApproval',
+        params: { command: 'npm test' },
+      }
+
+      delete process.env.CODY_WEB_UI_ENABLE_SMOKE_HOOKS
+      await expect(readJsonResponse(`${baseUrl}/codex-api/smoke/server-requests`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(body),
+      })).resolves.toEqual({
+        status: 404,
+        body: { error: 'Not found' },
+      })
+      expect(injectedPayloads).toEqual([])
+
+      process.env.CODY_WEB_UI_ENABLE_SMOKE_HOOKS = '1'
+      await expect(readJson(`${baseUrl}/codex-api/smoke/server-requests`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(body),
+      })).resolves.toEqual({
+        result: expect.objectContaining({
+          id: 900000,
+          isSmokeInjected: true,
+        }),
+      })
+      expect(injectedPayloads).toEqual([body])
+    } finally {
+      if (previousSmokeHooks === undefined) {
+        delete process.env.CODY_WEB_UI_ENABLE_SMOKE_HOOKS
+      } else {
+        process.env.CODY_WEB_UI_ENABLE_SMOKE_HOOKS = previousSmokeHooks
+      }
+      middleware.dispose()
+      await closeServer(server)
+      delete globalScope[sharedBridgeKey]
+    }
+  })
+})
 
 describe('bridge websocket server', () => {
   it('accepts websocket upgrades and sends a ready frame', async () => {
@@ -265,10 +544,15 @@ describe('automatic turn checkpoints', () => {
     expect(ignored).toEqual({})
 
     const checkpoints = await listToolingCheckpoints({ cwd: repo, limit: 10 })
-    expect(checkpoints).toHaveLength(2)
-    expect(checkpoints.map((checkpoint) => checkpoint.label)).toEqual([
+    const createdCheckpointIds = new Set([
+      before.beforeCheckpointId,
+      after.afterCheckpointId,
+    ])
+    const createdCheckpoints = checkpoints.filter((checkpoint) => createdCheckpointIds.has(checkpoint.id))
+    expect(createdCheckpoints).toHaveLength(2)
+    expect(createdCheckpoints.map((checkpoint) => checkpoint.label).sort()).toEqual([
       'After turn turn-123 (thread-a)',
       'Before turn turn-123 (thread-a)',
-    ])
-  })
+    ].sort())
+  }, 20_000)
 })

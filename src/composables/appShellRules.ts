@@ -62,6 +62,14 @@ export function composerThreadContextId(input: {
   return input.isHomeRoute ? '__new-thread__' : input.selectedThreadId
 }
 
+export function shouldShowThreadWorkLogAction(input: {
+  isHomeRoute: boolean
+  isSettingsRoute: boolean
+  selectedThreadId: string
+}): boolean {
+  return !input.isHomeRoute && !input.isSettingsRoute && input.selectedThreadId.trim().length > 0
+}
+
 export function threadComposerBusyLabel(input: {
   isSendingMessage: boolean
   isSelectedThreadInProgress: boolean

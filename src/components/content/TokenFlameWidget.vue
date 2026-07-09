@@ -523,24 +523,24 @@ onUnmounted(() => {
 }
 
 :global(.app-dark) .token-flame-popover {
-  border-color: #303643;
-  background: #181b22;
-  color: #f3f4f6;
+  border-color: var(--color-border);
+  background: var(--color-panel);
+  color: var(--color-text);
 }
 
 :global(.app-dark) .token-flame-popover-header p,
 :global(.app-dark) .token-flame-stats dt {
-  color: #9ca3af;
+  color: var(--color-text-muted);
 }
 
 :global(.app-dark) .token-flame-popover-header button,
 :global(.app-dark) .token-flame-stats div {
-  border-color: #303643;
-  background: #20242c;
-  color: #e5e7eb;
+  border-color: var(--color-border);
+  background: var(--color-elevated);
+  color: var(--color-text);
 }
 
 :global(.app-dark) .token-flame-stats dd {
-  color: #f3f4f6;
+  color: var(--color-text);
 }
 </style>

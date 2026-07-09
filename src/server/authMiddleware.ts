@@ -2,8 +2,8 @@ import { randomBytes, timingSafeEqual } from 'node:crypto'
 import type { IncomingMessage } from 'node:http'
 import type { RequestHandler, Request, Response, NextFunction } from 'express'
 
-const TOKEN_COOKIE = 'codex_web_local_token'
-const DEVICE_COOKIE = 'codex_web_local_device'
+const TOKEN_COOKIE = 'cody_web_ui_token'
+const DEVICE_COOKIE = 'cody_web_ui_device'
 const DEFAULT_SESSION_TTL_MS = 8 * 60 * 60 * 1000
 const DEFAULT_RATE_LIMIT_WINDOW_MS = 5 * 60 * 1000
 const DEFAULT_RATE_LIMIT_BLOCK_MS = 15 * 60 * 1000

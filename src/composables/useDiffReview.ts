@@ -85,6 +85,37 @@ function readFallbackPaths(tool: UiToolTimelineEntry): string[] {
     .filter((value) => value.length > 0)
 }
 
+function statusFromDetailLabel(label: string): string {
+  const normalized = label.trim().toLowerCase()
+  if (['add', 'added', 'create', 'created', 'new'].includes(normalized)) return 'added'
+  if (['delete', 'deleted', 'remove', 'removed'].includes(normalized)) return 'deleted'
+  if (['rename', 'renamed', 'move', 'moved'].includes(normalized)) return 'renamed'
+  return 'modified'
+}
+
+function fallbackFilesFromDetails(tool: UiToolTimelineEntry, messageId: string): MutableDiffFile[] {
+  const files: MutableDiffFile[] = []
+  for (const detail of tool.details) {
+    const trimmed = detail.trim()
+    if (!trimmed || trimmed.toLowerCase().startsWith('status:')) continue
+
+    const separatorIndex = trimmed.indexOf(': ')
+    const label = separatorIndex >= 0 ? trimmed.slice(0, separatorIndex) : 'update'
+    const rawPath = separatorIndex >= 0 ? trimmed.slice(separatorIndex + 2) : trimmed
+    const moveParts = rawPath.split(' -> ').map((part) => part.trim()).filter(Boolean)
+    const filePath = moveParts.at(-1) || rawPath.trim()
+    if (!filePath) continue
+
+    const file = createFile(filePath, messageId, statusFromDetailLabel(label))
+    if (moveParts.length > 1) {
+      file.oldPath = moveParts[0] ?? null
+      file.status = 'renamed'
+    }
+    files.push(file)
+  }
+  return files
+}
+
 function createFile(filePath: string, messageId: string, status = 'modified'): MutableDiffFile {
   return {
     filePath,
@@ -380,10 +411,15 @@ export function buildDiffReview(messages: UiMessage[]): UiDiffReview {
   const byPath = new Map<string, UiDiffReviewFile>()
 
   for (const message of messages) {
-    if (message.tool?.kind !== 'fileChange' || !message.tool.output) continue
-    const parsedFiles = parseUnifiedPatch(message.tool.output, message.id, readFallbackPaths(message.tool))
+    if (message.tool?.kind !== 'fileChange') continue
+    const parsedFiles = message.tool.output?.trim()
+      ? parseUnifiedPatch(message.tool.output, message.id, readFallbackPaths(message.tool))
+      : fallbackFilesFromDetails(message.tool, message.id)
+    const filesForMessage = parsedFiles.length > 0
+      ? parsedFiles
+      : fallbackFilesFromDetails(message.tool, message.id)
 
-    for (const file of parsedFiles) {
+    for (const file of filesForMessage) {
       const immutableFile: UiDiffReviewFile = {
         ...file,
         patch: file.patch,

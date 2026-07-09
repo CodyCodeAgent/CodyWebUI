@@ -1,11 +1,11 @@
 <template>
-  <section class="workspace-approval-center" aria-label="Workspace approval center">
+  <section class="workspace-approval-center" aria-label="Workspace approval center" data-testid="workspace-approval-center">
     <header class="workspace-approval-center-header">
       <div>
         <h3 class="workspace-approval-center-title">Approval Center</h3>
         <p class="workspace-approval-center-subtitle">{{ summaryText }}</p>
       </div>
-      <span class="workspace-approval-center-badge" :data-tone="badgeTone">
+      <span class="workspace-approval-center-badge" :data-tone="badgeTone" data-testid="workspace-approval-center-badge">
         {{ pendingRequests.length }}
       </span>
     </header>
@@ -16,6 +16,7 @@
         :key="card.request.id"
         class="workspace-approval-center-card"
         :data-risk="card.summary.level"
+        data-testid="workspace-approval-card"
       >
         <div class="workspace-approval-center-main">
           <p class="workspace-approval-center-card-title">{{ card.summary.title }}</p>
@@ -83,19 +84,21 @@
               :key="`${card.request.id}:action:${scope.scope}`"
               type="button"
               :data-tone="scope.scope === 'single' ? 'primary' : scope.scope === 'permanent' ? 'danger-soft' : undefined"
+              :data-scope="scope.scope"
+              data-testid="workspace-approval-scope"
               @click="respondApprovalScope(card.request.id, scope.scope)"
             >
               {{ scope.label }}
             </button>
-            <button type="button" data-tone="danger" @click="respondApproval(card.request.id, 'decline')">
+            <button type="button" data-tone="danger" data-testid="workspace-approval-decline" @click="respondApproval(card.request.id, 'decline')">
               Decline
             </button>
           </template>
           <template v-else>
-            <button type="button" data-tone="primary" @click="respondEmptyResult(card.request.id)">
+            <button type="button" data-tone="primary" data-testid="workspace-request-empty" @click="respondEmptyResult(card.request.id)">
               Empty result
             </button>
-            <button type="button" data-tone="danger" @click="rejectRequest(card.request.id)">
+            <button type="button" data-tone="danger" data-testid="workspace-request-reject" @click="rejectRequest(card.request.id)">
               Reject
             </button>
           </template>

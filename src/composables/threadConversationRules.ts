@@ -80,6 +80,56 @@ export function historyPageButtonLabel(hiddenCount: number, pageSize = MESSAGE_H
   return `Show ${count} earlier message${count === 1 ? '' : 's'}`
 }
 
+export function shouldShowBlockingConversationLoading(input: {
+  isLoading: boolean
+  messageCount: number
+  pendingRequestCount: number
+  hasLiveOverlay: boolean
+}): boolean {
+  if (!input.isLoading) return false
+  return input.messageCount <= 0 && input.pendingRequestCount <= 0 && !input.hasLiveOverlay
+}
+
+export function shouldShowConversationRefreshStatus(input: {
+  isLoading: boolean
+  messageCount: number
+  pendingRequestCount: number
+  hasLiveOverlay: boolean
+}): boolean {
+  if (!input.isLoading) return false
+  return !shouldShowBlockingConversationLoading(input)
+}
+
+export function hasConversationContent(input: {
+  messageCount: number
+  pendingRequestCount: number
+  hasLiveOverlay: boolean
+}): boolean {
+  return input.messageCount > 0 || input.pendingRequestCount > 0 || input.hasLiveOverlay
+}
+
+export function shouldShowBlockingConversationLoadError(input: {
+  isLoading: boolean
+  loadError: string
+  messageCount: number
+  pendingRequestCount: number
+  hasLiveOverlay: boolean
+}): boolean {
+  if (input.isLoading || input.loadError.trim().length <= 0) return false
+  return !hasConversationContent(input)
+}
+
+export function shouldShowInlineConversationLoadError(input: {
+  isLoading: boolean
+  loadError: string
+  messageCount: number
+  pendingRequestCount: number
+  hasLiveOverlay: boolean
+}): boolean {
+  if (input.isLoading || input.loadError.trim().length <= 0) return false
+  return hasConversationContent(input)
+}
+
 export function buildToolCopyText(tool: UiToolTimelineEntry): string {
   const parts = [`${tool.title}: ${tool.summary}`]
   if (tool.status.trim().length > 0) {

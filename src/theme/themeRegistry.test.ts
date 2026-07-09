@@ -102,6 +102,32 @@ describe('theme registry', () => {
     expect(variables['--density-scale']).toBe('1.12')
   })
 
+  it('keeps dark skin CSS variable palettes distinct', () => {
+    const controlTower = getBuiltInSkin('control-tower')
+    const terminal = getBuiltInSkin('terminal')
+    expect(controlTower).not.toBeNull()
+    expect(terminal).not.toBeNull()
+
+    const basePreferences = {
+      skinId: 'control-tower',
+      accentColor: '',
+      density: 'comfortable',
+      layoutPresetId: 'ops-dashboard',
+      followSystem: false,
+    } as const
+    const controlVariables = themeTokensToCssVariables(resolveThemeTokens(controlTower!, basePreferences))
+    const terminalVariables = themeTokensToCssVariables(resolveThemeTokens(terminal!, {
+      ...basePreferences,
+      skinId: 'terminal',
+    }))
+
+    expect(controlVariables['--color-background']).not.toBe(terminalVariables['--color-background'])
+    expect(controlVariables['--color-panel']).not.toBe(terminalVariables['--color-panel'])
+    expect(controlVariables['--color-accent']).not.toBe(terminalVariables['--color-accent'])
+    expect(controlVariables['--color-code-background']).toBe(controlVariables['--color-terminal-background'])
+    expect(terminalVariables['--color-code-background']).toBe('#000000')
+  })
+
   it('round-trips skin JSON and validates malformed imports', () => {
     const skin = getBuiltInSkin('terminal')
     expect(skin).not.toBeNull()

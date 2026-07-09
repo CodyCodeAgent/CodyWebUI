@@ -76,6 +76,29 @@ describe('useDiffReview', () => {
     })
   })
 
+  it('uses file change details when the app-server item has no diff output', () => {
+    const review = buildDiffReview([
+      fileChangeMessage('change-empty-output', '', [
+        'status: completed',
+        'update: src/settings.ts',
+        'rename: src/OldWidget.vue -> src/Widget.vue',
+        'delete: src/removed.ts',
+      ]),
+    ])
+
+    expect(review.summary).toMatchObject({
+      fileCount: 3,
+      hunkCount: 0,
+      addedLines: 0,
+      removedLines: 0,
+    })
+    expect(review.files.map((file) => [file.filePath, file.oldPath, file.status])).toEqual([
+      ['src/removed.ts', null, 'deleted'],
+      ['src/settings.ts', null, 'modified'],
+      ['src/Widget.vue', 'src/OldWidget.vue', 'renamed'],
+    ])
+  })
+
   it('aggregates repeated changes to the same file', () => {
     const review = buildDiffReview([
       fileChangeMessage('change-3', '@@ -1 +1 @@\n-a\n+b', ['update: src/same.ts']),

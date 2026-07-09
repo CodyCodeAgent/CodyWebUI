@@ -76,12 +76,13 @@ async function readRemoteSetting<T>(key: string): Promise<T | null> {
   }
 }
 
-async function saveRemoteSetting(key: string, value: unknown): Promise<void> {
+async function saveRemoteSetting(key: string, value: unknown, label = 'theme settings'): Promise<void> {
   if (!hasWindow()) return
   try {
     await writeUserSetting(key, value)
+    themePersistenceError.value = ''
   } catch {
-    // Keep the browser-local theme if remote settings persistence fails.
+    themePersistenceError.value = `Could not save ${label}; check the local settings database.`
   }
 }
 
@@ -94,6 +95,7 @@ const initialImportedSkins = loadImportedSkins()
 const importedSkins = ref<SkinPack[]>(initialImportedSkins)
 const preferences = ref<ThemePreferences>(loadPreferences(initialImportedSkins))
 const workspacePreferences = ref<WorkspaceThemePreferences | null>(null)
+const themePersistenceError = ref('')
 
 function allSkins(): SkinPack[] {
   const importedById = new Map(importedSkins.value.map((skin) => [skin.id, skin]))
@@ -227,7 +229,7 @@ function importSkin(value: string): SkinPack {
     skin,
   ]
   saveImportedSkins(importedSkins.value)
-  void saveRemoteSetting(DESKTOP_SETTING_KEYS.themeImportedSkins, importedSkins.value.slice(0, 20))
+  void saveRemoteSetting(DESKTOP_SETTING_KEYS.themeImportedSkins, importedSkins.value.slice(0, 20), 'imported skins')
   setSkin(skin.id)
   return skin
 }
@@ -247,7 +249,7 @@ async function hydrateThemeFromSettingsStore(): Promise<void> {
       .slice(0, 20)
     saveImportedSkins(importedSkins.value)
   } else if (importedSkins.value.length > 0) {
-    void saveRemoteSetting(DESKTOP_SETTING_KEYS.themeImportedSkins, importedSkins.value.slice(0, 20))
+    void saveRemoteSetting(DESKTOP_SETTING_KEYS.themeImportedSkins, importedSkins.value.slice(0, 20), 'imported skins')
   }
 
   const remotePreferences = await readRemoteSetting<unknown>(DESKTOP_SETTING_KEYS.theme)
@@ -275,6 +277,7 @@ if (hasWindow()) {
   window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
     if (preferences.value.followSystem) applyCurrentTheme()
   })
+  applyCurrentTheme()
   void hydrateThemeFromSettingsStore()
 }
 
@@ -283,6 +286,7 @@ export function useTheme() {
     preferences,
     effectivePreferences,
     workspacePreferences,
+    themePersistenceError,
     availableSkins,
     activeSkin: resolvedSkin,
     activeTokens: resolvedTokens,

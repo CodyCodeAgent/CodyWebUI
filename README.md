@@ -34,7 +34,7 @@ protocol.
 - Switch model, reasoning effort, and Codex collaboration mode.
 - Review command and file-change approval requests.
 - Inspect changed files and diff previews.
-- Track a floating work log for commands and file changes.
+- Open a header work log for commands and file changes.
 - Persist app preferences in local SQLite.
 - View account rate limits and token usage.
 - Use a configurable token flame widget for daily usage intensity.
@@ -110,6 +110,13 @@ Start the Vite development server:
 npm run dev
 ```
 
+Run the built local server:
+
+```bash
+npm run build
+npm start -- --no-password
+```
+
 Build the production frontend and CLI bundle:
 
 ```bash
@@ -119,16 +126,103 @@ npm run build
 Run tests:
 
 ```bash
-npm test
+npm run verify
 ```
 
 Useful targeted checks while developing:
 
 ```bash
+npm test
+npm run typecheck
 npm test -- src/server/settingsStore.test.ts
 npm test -- src/composables/useDesktopState.test.ts
 git diff --check
 ```
+
+`npm run verify` builds the app and runs the default non-token validation
+suite: typecheck, unit tests, whitespace checks, packaged CLI smoke, approval
+center browser smoke, composer input smoke, Settings theme persistence and
+visual-health smoke, empty thread lifecycle smoke, and Work log browser smoke
+with panel/fullscreen visual-health checks. It also runs `smoke:turn` in its
+default skip mode and `smoke:turn-approval` in its default skip mode to confirm
+the opt-in live-turn smokes are installed. It does **not** start a real Codex
+turn, so it does not intentionally spend model tokens.
+
+Manual smoke checks before publishing or sharing a build:
+
+- Run `npm run build && npm run smoke:cli` to verify the packaged CLI can
+  start, serve the app shell, and answer the local meta API.
+- Run `npm run smoke:approval` to browser-test the Approval Center: it enables
+  smoke-only bridge hooks, injects a pending command approval, verifies the
+  badge/card/actions render, clicks the Session action, and confirms the
+  pending request is resolved.
+- Run `npm run smoke:composer` to browser-test that the real composer input is
+  enabled and the send button activates after typing, without sending to a
+  model.
+- Run `npm run smoke:theme` to browser-test Settings theme controls against a
+  temporary SQLite settings database, clear browser storage, reload, verify the
+  theme persisted through the server settings API, and assert the Settings page
+  still renders without horizontal overflow, with visible theme/flame cards,
+  accessible text contrast, and a populated desktop screenshot.
+- Run `npm run smoke:thread` to verify the real app-server thread lifecycle:
+  create an empty thread and read it back. Empty app-server threads can be
+  readable before they appear in `thread/list` or accept archive cleanup because
+  they may not have a materialized rollout yet; CodyWebUI keeps newly created
+  threads visible in the UI with an optimistic local row while the first turn is
+  starting. Add `--require-listed` or set
+  `CODY_WEB_UI_SMOKE_REQUIRE_THREAD_LIST=1` when you specifically want to
+  diagnose app-server list materialization.
+- Run `npm run smoke:turn` to confirm the opt-in turn smoke is installed. By
+  default it skips without starting a model turn.
+- Run `npm run smoke:turn-approval` to confirm the opt-in natural approval
+  smoke is installed. By default it skips without starting a model turn.
+- Run `npm run smoke:worklog` to let CodyWebUI find a recent real Codex thread
+  with file changes and browser-test the header Work log badge, panel layout,
+  file search, fullscreen diff, split/unified switching, and populated desktop
+  screenshots. Use `npm run smoke:worklog -- --thread-id <id>` when you want a
+  deterministic thread fixture. Add `--require-diff` or set
+  `CODY_WEB_UI_SMOKE_REQUIRE_WORKLOG=1` when this check should fail instead of
+  skipping if no real diff thread is available.
+- Real `turn/start` message submission is intentionally not part of the default
+  smoke suite because it starts an actual Codex turn and can consume model
+  tokens. To explicitly verify a live model response end to end, run:
+
+  ```bash
+  CODY_WEB_UI_SMOKE_ALLOW_TURN=1 npm run smoke:turn
+  ```
+
+  The opt-in smoke connects to `/codex-api/ws` before sending the turn and
+  reports realtime lifecycle and live-delta evidence after the response lands.
+  It tolerates the short empty-rollout window that can appear immediately after
+  `turn/start` before the app-server has written readable thread content.
+  You can pass `-- --cwd <path> --message <prompt> --model <model>
+  --effort <effort> --timeout-ms <ms> --require-live-delta` to customize that
+  opt-in smoke and make live assistant/plan/reasoning delta frames mandatory.
+- Natural command approval is also intentionally opt-in because it starts a
+  real Codex turn and depends on the model choosing to execute the requested
+  command. To diagnose whether a genuine app-server
+  `item/commandExecution/requestApproval` reaches the bridge and can be
+  resolved, run:
+
+  ```bash
+  CODY_WEB_UI_SMOKE_ALLOW_TURN_APPROVAL=1 npm run smoke:turn-approval
+  ```
+
+  The smoke asks Codex to run a harmless command, waits for the natural pending
+  approval request, responds with `decline`, verifies the pending request is
+  cleared, and archives the created thread best-effort. It starts the diagnostic
+  turn with `approvalPolicy: "untrusted"` and a read-only sandbox override, but
+  the check is still not deterministic: if the model answers without actually
+  invoking command execution, no approval request exists for CodyWebUI to render.
+  Use `npm run smoke:approval` as the deterministic browser regression for the
+  approval UI, bridge pending queue, and response path.
+- Start the built server with `npm start -- --no-password`.
+- Open a Codex thread that contains file changes and verify the header Work log
+  badge matches the changed-file count.
+- Open the Work log panel and verify changed files, line counts, diff preview,
+  and fullscreen diff still render.
+- Open Settings, change skin, density, layout, and accent, then reload and
+  verify the selected theme persists.
 
 ## Architecture
 
@@ -188,8 +282,7 @@ Please keep changes focused, add tests for behavior that crosses the app-server
 boundary, and run:
 
 ```bash
-npm test
-npm run build
+npm run verify
 ```
 
 ## License

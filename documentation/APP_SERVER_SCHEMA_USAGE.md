@@ -206,6 +206,57 @@ Incorrect payload:
 That object may look reasonable from the UI point of view, but it is not a
 valid `CollaborationMode` because `settings` is required.
 
+## Server Requests And Approvals
+
+Server requests are app-server-to-client calls listed in:
+
+- `documentation/app-server-schemas/typescript/ServerRequest.ts`
+- `documentation/app-server-schemas/typescript/CommandExecutionRequestApprovalParams.ts`
+- `documentation/app-server-schemas/typescript/FileChangeRequestApprovalParams.ts`
+
+For `turn/start` flows, command approval reaches CodyWebUI as a server request
+with method `item/commandExecution/requestApproval`. File-change approval uses
+`item/fileChange/requestApproval`.
+
+Important boundary: the app-server only sends these requests after a turn
+actually starts a command or file-change operation that needs approval. A prompt
+asking the model to run a command is not proof that an approval request will be
+created; the model may answer in text without invoking command execution. Even
+setting `approvalPolicy: "untrusted"` and a read-only sandbox only changes the
+policy used if command execution happens. It does not force the model to create
+a `commandExecution` item. In that case `thread/read` can show a completed
+assistant message while
+`/codex-api/server-requests/pending` stays empty. That is model behavior, not an
+approval rendering failure.
+
+Testing rule:
+
+- Use deterministic injected pending requests for browser regressions of the
+  approval UI, bridge pending queue, and response path.
+- Use real `turn/start` approval smokes only as diagnostic checks. If the model
+  does not invoke command execution, the smoke should report an inconclusive
+  model/tool-use outcome rather than implying CodyWebUI failed to render a
+  request that never existed.
+- When a real server request exists, verify both surfaces: the floating
+  approval UI renders the request, and posting a response removes the request
+  from `/codex-api/server-requests/pending`.
+
+## Empty Thread Materialization
+
+`thread/start` can return a thread id that is immediately readable by
+`thread/read` before the thread has a materialized rollout. During that window,
+`thread/list` and `thread/archive` may not behave like they do for threads that
+already contain a user turn.
+
+CodyWebUI should therefore treat these as separate guarantees:
+
+- `thread/start` returning an id plus `thread/read` returning the same id proves
+  that the empty thread exists.
+- `thread/list` containing the id proves list materialization, which may require
+  a first turn.
+- The UI should keep a just-created thread visible optimistically while the
+  first turn starts, then reconcile with app-server list/read data later.
+
 ## Testing Checklist
 
 For every schema-facing change, add or update tests that prove:
@@ -289,4 +340,3 @@ When reviewing a PR that touches app-server integration, ask:
 
 If any answer is unclear, pause and inspect the schema before approving the
 change.
-

@@ -12,6 +12,7 @@ import {
   knownThreadIds,
   newThreadProjectLabel,
   normalizeAppMessageType,
+  shouldShowThreadWorkLogAction,
   threadComposerBusyLabel,
 } from './appShellRules'
 import type { UiMessage, UiProjectGroup, UiThread } from '../types/codex'
@@ -59,6 +60,26 @@ describe('app shell rules', () => {
     expect(autoRefreshLabel({ isEnabled: false, secondsLeft: 0 })).toBe('Enable 4s refresh')
     expect(composerThreadContextId({ isHomeRoute: true, selectedThreadId: 'thread-1' })).toBe('__new-thread__')
     expect(composerThreadContextId({ isHomeRoute: false, selectedThreadId: 'thread-1' })).toBe('thread-1')
+    expect(shouldShowThreadWorkLogAction({
+      isHomeRoute: false,
+      isSettingsRoute: false,
+      selectedThreadId: 'thread-1',
+    })).toBe(true)
+    expect(shouldShowThreadWorkLogAction({
+      isHomeRoute: true,
+      isSettingsRoute: false,
+      selectedThreadId: 'thread-1',
+    })).toBe(false)
+    expect(shouldShowThreadWorkLogAction({
+      isHomeRoute: false,
+      isSettingsRoute: true,
+      selectedThreadId: 'thread-1',
+    })).toBe(false)
+    expect(shouldShowThreadWorkLogAction({
+      isHomeRoute: false,
+      isSettingsRoute: false,
+      selectedThreadId: '',
+    })).toBe(false)
     expect(homeComposerBusyLabel(true)).toBe('Creating thread...')
     expect(threadComposerBusyLabel({ isSendingMessage: false, isSelectedThreadInProgress: true })).toBe('')
     expect(threadComposerBusyLabel({ isSendingMessage: true, isSelectedThreadInProgress: true })).toBe('Sending guidance...')

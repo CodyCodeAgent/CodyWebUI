@@ -990,7 +990,7 @@ export type UiWorkspaceValidationPlan = {
 export type UiWorkspaceContextKind =
   | 'agents'
   | 'codex_config'
-  | 'codex_web'
+  | 'cody_web_ui'
   | 'ai_ignore'
   | 'git_ignore'
   | 'local_skill'

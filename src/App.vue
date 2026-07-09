@@ -140,6 +140,15 @@
             </SidebarThreadControls>
           </template>
           <template #actions>
+            <ThreadActivityPanel
+              v-if="shouldShowWorkLogAction"
+              :messages="filteredMessages"
+              :pending-requests="selectedThreadServerRequests"
+              :cwd="selectedThread?.cwd ?? ''"
+              :thread-id="selectedThreadId"
+              @respond-server-request="onRespondServerRequest"
+              @rollback-completed="onRollbackCompleted"
+            />
             <div class="content-notifications-host">
               <BrowserNotificationsPanel
                 :preference="browserNotifications.preference.value"
@@ -219,27 +228,19 @@
             <div class="content-grid">
               <div class="content-workbench">
                 <div class="content-thread">
-                  <ThreadActivityPanel
-                    class="content-activity"
-                    :messages="filteredMessages"
-                    :pending-requests="selectedThreadServerRequests"
-                    :cwd="selectedThread?.cwd ?? ''"
-                    :thread-id="selectedThreadId"
-                    @respond-server-request="onRespondServerRequest"
-                    @rollback-completed="onRollbackCompleted"
-                  />
-
                   <ThreadConversation :messages="filteredMessages" :is-loading="isLoadingMessages"
+                    :load-error="selectedMessageLoadError"
                     :active-thread-id="composerThreadContextId" :scroll-state="selectedThreadScrollState"
                     :live-overlay="liveOverlay"
                     :pending-requests="selectedThreadServerRequests"
                     @update-scroll-state="onUpdateThreadScrollState"
-                    @respond-server-request="onRespondServerRequest" />
+                    @respond-server-request="onRespondServerRequest"
+                    @retry-load="onRetryLoadMessages" />
                 </div>
               </div>
 
               <ThreadComposer :active-thread-id="composerThreadContextId"
-                :disabled="isSendingMessage || isLoadingMessages" :models="availableModelIds"
+                :disabled="isSendingMessage" :models="availableModelIds"
                 :selected-model="selectedModelId" :selected-reasoning-effort="selectedReasoningEffort"
                 :collaboration-modes="collaborationModeOptions"
                 :selected-collaboration-mode="selectedCollaborationModeName"
@@ -308,6 +309,7 @@ import {
   homeComposerBusyLabel as buildHomeComposerBusyLabel,
   knownThreadIds,
   newThreadProjectLabel as buildNewThreadProjectLabel,
+  shouldShowThreadWorkLogAction,
   threadComposerBusyLabel as buildThreadComposerBusyLabel,
 } from './composables/appShellRules'
 import {
@@ -338,6 +340,7 @@ const {
   selectedThreadServerRequests,
   allPendingServerRequests,
   selectedLiveOverlay,
+  selectedMessageLoadError,
   selectedThreadId,
   isArchiveView,
   rateLimitSnapshot,
@@ -359,6 +362,7 @@ const {
   refreshAll,
   refreshRateLimits,
   selectThread,
+  loadMessages,
   setThreadScrollState,
   archiveThreadById,
   unarchiveThreadById,
@@ -437,6 +441,11 @@ const homeComposerBusyLabel = computed(() => buildHomeComposerBusyLabel(isSendin
 const threadComposerBusyLabel = computed(() => buildThreadComposerBusyLabel({
   isSendingMessage: isSendingMessage.value,
   isSelectedThreadInProgress: isSelectedThreadInProgress.value,
+}))
+const shouldShowWorkLogAction = computed(() => shouldShowThreadWorkLogAction({
+  isHomeRoute: isHomeRoute.value,
+  isSettingsRoute: isSettingsRoute.value,
+  selectedThreadId: selectedThreadId.value,
 }))
 const directoryPickerInitialPath = computed(() => buildDirectoryPickerInitialPath({
   newThreadCwd: newThreadCwd.value,
@@ -550,6 +559,12 @@ function onSelectThread(threadId: string): void {
   if (!threadId) return
   if (route.name === 'thread' && routeThreadId.value === threadId) return
   void router.push({ name: 'thread', params: { threadId } })
+}
+
+function onRetryLoadMessages(): void {
+  const threadId = selectedThreadId.value
+  if (!threadId) return
+  void loadMessages(threadId)
 }
 
 function onArchiveThread(threadId: string): void {
@@ -755,7 +770,7 @@ async function hydrateDefaultNewThreadCwdFromSettingsStore(): Promise<void> {
 async function initialize(): Promise<void> {
   startRealtimeSync()
   await hydrateDefaultNewThreadCwdFromSettingsStore()
-  await refreshAll()
+  await refreshAll({ loadSelectedMessages: false })
   await ensureNewThreadWorkspace()
   hasInitialized.value = true
   await syncThreadSelectionWithRoute()
@@ -971,10 +986,6 @@ async function submitFirstMessageForNewThread(payload: UiComposerSubmitPayload):
 
 .content-thread {
   @apply flex flex-1 flex-col min-h-0 overflow-visible;
-}
-
-.content-activity {
-  @apply shrink-0;
 }
 
 .content-thread :deep(.conversation-root) {

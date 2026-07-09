@@ -7,11 +7,11 @@
   "author": "Pavel Voronin",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/pavel-voronin/cody-web-ui.git"
+    "url": "git+https://github.com/CodyCodeAgent/CodyWebUI.git"
   },
-  "homepage": "https://github.com/pavel-voronin/cody-web-ui#readme",
+  "homepage": "https://github.com/CodyCodeAgent/CodyWebUI#readme",
   "bugs": {
-    "url": "https://github.com/pavel-voronin/cody-web-ui/issues"
+    "url": "https://github.com/CodyCodeAgent/CodyWebUI/issues"
   },
   "keywords": [
     "codex",
@@ -28,14 +28,26 @@
   },
   "files": [
     "dist/",
-    "dist-cli/"
+    "dist-cli/",
+    "scripts/"
   ],
   "scripts": {
     "dev": "vite",
+    "start": "node dist-cli/index.js",
     "test": "vitest run",
+    "typecheck": "vue-tsc --noEmit",
+    "smoke:cli": "node scripts/smoke-cli.mjs",
+    "smoke:approval": "node scripts/smoke-approval.mjs",
+    "smoke:composer": "node scripts/smoke-composer.mjs",
+    "smoke:theme": "node scripts/smoke-theme.mjs",
+    "smoke:thread": "node scripts/smoke-thread.mjs",
+    "smoke:turn": "node scripts/smoke-turn.mjs",
+    "smoke:turn-approval": "node scripts/smoke-turn-approval.mjs",
+    "smoke:worklog": "node scripts/smoke-worklog.mjs",
     "build:frontend": "vue-tsc --noEmit && vite build",
     "build:cli": "tsup",
     "build": "npm run build:frontend && npm run build:cli",
+    "verify": "npm run typecheck && npm test && git diff --check && npm run build && npm run smoke:cli && npm run smoke:approval && npm run smoke:composer && npm run smoke:theme && npm run smoke:thread && npm run smoke:worklog && npm run smoke:turn && npm run smoke:turn-approval",
     "preview": "vite preview",
     "prepublishOnly": "npm run build"
   },
@@ -54,6 +66,8 @@
     "@types/node": "^22.13.2",
     "@types/ws": "^8.18.1",
     "@vitejs/plugin-vue": "^5.2.1",
+    "@vue/test-utils": "^2.4.11",
+    "happy-dom": "^20.10.6",
     "tailwindcss": "^4.1.18",
     "tsup": "^8.4.0",
     "typescript": "^5.7.3",

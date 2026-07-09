@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { DESKTOP_SETTING_KEYS, DESKTOP_STORAGE_KEYS } from './desktopSettingsKeys'
 import { buildRollbackAuditMessage, useDesktopState } from './useDesktopState'
 import { buildThreadActivityEntries } from './useThreadActivity'
-import type { UiMessage, UiToolingRollbackFileResult } from '../types/codex'
+import type { UiMessage, UiProjectGroup, UiToolingRollbackFileResult } from '../types/codex'
 import type { RpcNotification } from '../api/codexRealtimeClient'
 
 const codexApiMock = vi.hoisted(() => {
@@ -24,7 +24,7 @@ const codexApiMock = vi.hoisted(() => {
       updatedAtIso: '2026-07-07T00:00:00.000Z',
     })),
     fetchPendingServerRequests: vi.fn(async () => []),
-    getThreadGroups: vi.fn(async () => []),
+    getThreadGroups: vi.fn(async (): Promise<UiProjectGroup[]> => []),
     getThreadMessages: vi.fn(async (_threadId?: string): Promise<UiMessage[]> => []),
     interruptThreadTurn: vi.fn(),
     normalizeRateLimitSnapshot: vi.fn(() => null),
@@ -200,6 +200,37 @@ describe('useDesktopState realtime messages', () => {
     )
   })
 
+  it('can refresh shell data without reading the persisted selected thread messages', async () => {
+    installBrowserGlobals('stale-large-thread')
+    const groups: UiProjectGroup[] = [
+      {
+        projectName: 'Project',
+        cwd: '/repo',
+        threads: [
+          {
+            id: 'stale-large-thread',
+            title: 'Large old thread',
+            projectName: 'Project',
+            cwd: '/repo',
+            createdAtIso: '2026-07-07T00:00:00.000Z',
+            updatedAtIso: '2026-07-08T00:00:00.000Z',
+            preview: 'Large old thread',
+            unread: false,
+            inProgress: false,
+          },
+        ],
+      },
+    ]
+    codexApiMock.getThreadGroups.mockImplementationOnce(async () => groups)
+    const state = useDesktopState()
+
+    await state.refreshAll({ loadSelectedMessages: false })
+
+    expect(codexApiMock.getThreadGroups).toHaveBeenCalledOnce()
+    expect(codexApiMock.getThreadMessages).not.toHaveBeenCalled()
+    expect(state.selectedThreadId.value).toBe('stale-large-thread')
+  })
+
   it('renders live assistant deltas before the turn completes', () => {
     installBrowserGlobals('thread-live')
     const state = useDesktopState()
@@ -313,6 +344,74 @@ describe('useDesktopState realtime messages', () => {
       },
     ])
     expect(codexApiMock.getThreadMessages).not.toHaveBeenCalled()
+
+    state.stopRealtimeSync()
+  })
+
+  it('tracks and resolves pending server approval requests for the selected thread', async () => {
+    installBrowserGlobals('thread-approval')
+    const state = useDesktopState()
+
+    state.startRealtimeSync()
+    const listener = codexApiMock.getNotificationListener()
+    expect(listener).not.toBeNull()
+
+    listener?.({
+      method: 'server/request',
+      params: {
+        id: 71,
+        method: 'item/commandExecution/requestApproval',
+        receivedAtIso: '2026-07-07T00:00:00.000Z',
+        params: {
+          threadId: 'thread-approval',
+          turnId: 'turn-approval',
+          itemId: 'command-1',
+          command: 'npm test',
+          cwd: '/repo',
+        },
+      },
+      atIso: '2026-07-07T00:00:00.000Z',
+    })
+    listener?.({
+      method: 'server/request',
+      params: {
+        id: 72,
+        method: 'item/fileChange/requestApproval',
+        receivedAtIso: '2026-07-07T00:00:01.000Z',
+        params: {
+          turnId: 'turn-global',
+          itemId: 'file-1',
+          grantRoot: '/repo',
+        },
+      },
+      atIso: '2026-07-07T00:00:01.000Z',
+    })
+
+    expect(state.selectedThreadServerRequests.value.map((request) => request.id)).toEqual([71, 72])
+    expect(state.allPendingServerRequests.value.map((request) => request.id)).toEqual([71, 72])
+
+    await state.respondToPendingServerRequest({
+      id: 71,
+      approvalScope: 'workspace',
+      result: { decision: 'accept' },
+    })
+
+    expect(codexApiMock.respondServerRequest).toHaveBeenCalledWith({
+      id: 71,
+      approvalScope: 'workspace',
+      result: { decision: 'accept' },
+      error: undefined,
+    })
+    expect(state.selectedThreadServerRequests.value.map((request) => request.id)).toEqual([72])
+
+    listener?.({
+      method: 'server/request/resolved',
+      params: { request_id: 72 },
+      atIso: '2026-07-07T00:00:02.000Z',
+    })
+
+    expect(state.selectedThreadServerRequests.value).toEqual([])
+    expect(state.allPendingServerRequests.value).toEqual([])
 
     state.stopRealtimeSync()
   })
@@ -541,6 +640,29 @@ describe('useDesktopState realtime messages', () => {
     state.stopRealtimeSync()
   })
 
+  it('keeps thread selection usable when message loading fails and clears the error after retry', async () => {
+    installBrowserGlobals('thread-a')
+    codexApiMock.getThreadMessages
+      .mockRejectedValueOnce(new Error('codex app-server RPC thread/read timed out after 20000ms'))
+      .mockResolvedValueOnce([{ id: 'loaded', role: 'assistant', text: 'loaded after retry' }])
+
+    const state = useDesktopState()
+
+    await expect(state.selectThread('thread-a')).resolves.toBeUndefined()
+
+    expect(state.selectedThreadId.value).toBe('thread-a')
+    expect(state.isLoadingMessages.value).toBe(false)
+    expect(state.selectedMessageLoadError.value).toBe('codex app-server RPC thread/read timed out after 20000ms')
+    expect(state.messages.value).toEqual([])
+
+    await state.loadMessages('thread-a')
+
+    expect(state.selectedMessageLoadError.value).toBe('')
+    expect(state.messages.value).toEqual([
+      { id: 'loaded', role: 'assistant', text: 'loaded after retry' },
+    ])
+  })
+
   it('shows outgoing user messages before the turn start response finishes', async () => {
     installBrowserGlobals('thread-a')
     const turnStart = deferred<string>()
@@ -600,6 +722,43 @@ describe('useDesktopState realtime messages', () => {
         messageType: 'userMessage',
       }),
     ])
+  })
+
+  it('removes optimistic outgoing messages when selected thread turn start fails', async () => {
+    installBrowserGlobals('thread-a')
+    codexApiMock.startThreadTurn.mockRejectedValue(new Error('turn start failed'))
+
+    const state = useDesktopState()
+    state.projectGroups.value = [
+      {
+        projectName: 'repo',
+        cwd: '/workspace/repo',
+        threads: [
+          {
+            id: 'thread-a',
+            title: 'Thread A',
+            projectName: 'repo',
+            cwd: '/workspace/repo',
+            createdAtIso: '2026-07-07T00:00:00.000Z',
+            updatedAtIso: '2026-07-07T00:01:00.000Z',
+            preview: '',
+            unread: false,
+            inProgress: false,
+          },
+        ],
+      },
+    ]
+
+    await expect(state.sendMessageToSelectedThread({
+      text: '这条应该失败后撤回',
+      images: [],
+      skills: [],
+    })).rejects.toThrow('turn start failed')
+
+    expect(state.messages.value).toEqual([])
+    expect(state.error.value).toBe('turn start failed')
+    expect(state.isSendingMessage.value).toBe(false)
+    expect(state.projectGroups.value[0]?.threads[0]?.inProgress).not.toBe(true)
   })
 
   it('sends explicit default collaboration mode after switching back from plan', async () => {

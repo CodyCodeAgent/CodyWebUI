@@ -221,6 +221,7 @@ export function useDesktopState() {
 
   const isLoadingThreads = ref(false)
   const loadingMessagesByThreadId = ref<Record<string, boolean>>({})
+  const messageLoadErrorByThreadId = ref<Record<string, string>>({})
   const isSendingMessage = ref(false)
   const isInterruptingTurn = ref(false)
   const isLoadingRateLimits = ref(false)
@@ -271,6 +272,7 @@ export function useDesktopState() {
       turnErrorByThreadId.value,
     ),
   )
+  const selectedMessageLoadError = computed(() => messageLoadErrorByThreadId.value[selectedThreadId.value] ?? '')
   const messages = computed<UiMessage[]>(() => {
     const threadId = selectedThreadId.value
     if (!threadId) return []
@@ -300,6 +302,18 @@ export function useDesktopState() {
     loadingMessagesByThreadId.value = {
       ...loadingMessagesByThreadId.value,
       [threadId]: true,
+    }
+  }
+
+  function setMessageLoadErrorForThread(threadId: string, message: string): void {
+    if (!threadId) return
+    if (!message) {
+      messageLoadErrorByThreadId.value = omitKey(messageLoadErrorByThreadId.value, threadId)
+      return
+    }
+    messageLoadErrorByThreadId.value = {
+      ...messageLoadErrorByThreadId.value,
+      [threadId]: message,
     }
   }
 
@@ -496,6 +510,9 @@ export function useDesktopState() {
     turnSummaryByThreadId.value = pruned.turnSummaryByThreadId
     turnActivityByThreadId.value = pruned.turnActivityByThreadId
     turnErrorByThreadId.value = pruned.turnErrorByThreadId
+    messageLoadErrorByThreadId.value = Object.fromEntries(
+      Object.entries(messageLoadErrorByThreadId.value).filter(([threadId]) => activeThreadIds.has(threadId)),
+    )
     activeTurnIdByThreadId.value = pruned.activeTurnIdByThreadId
     eventUnreadByThreadId.value = pruned.eventUnreadByThreadId
     inProgressById.value = pruned.inProgressById
@@ -1027,6 +1044,7 @@ export function useDesktopState() {
     if (shouldShowLoading) {
       setMessagesLoadingForThread(threadId, true)
     }
+    setMessageLoadErrorForThread(threadId, '')
 
     try {
       if (resumedThreadById.value[threadId] !== true) {
@@ -1057,6 +1075,13 @@ export function useDesktopState() {
         version,
       )
       markThreadAsRead(threadId)
+    } catch (unknownError) {
+      if (latestMessageLoadRequestIdByThreadId.get(threadId) === requestId) {
+        const message = unknownError instanceof Error && unknownError.message
+          ? unknownError.message
+          : 'Failed to load messages.'
+        setMessageLoadErrorForThread(threadId, message)
+      }
     } finally {
       if (latestMessageLoadRequestIdByThreadId.get(threadId) === requestId) {
         latestMessageLoadRequestIdByThreadId.delete(threadId)
@@ -1065,7 +1090,7 @@ export function useDesktopState() {
     }
   }
 
-  async function refreshAll() {
+  async function refreshAll(options: { loadSelectedMessages?: boolean } = {}) {
     error.value = ''
 
     try {
@@ -1076,7 +1101,9 @@ export function useDesktopState() {
         refreshCollaborationModes(),
         refreshRateLimits(),
       ])
-      await loadMessages(selectedThreadId.value)
+      if (options.loadSelectedMessages !== false) {
+        await loadMessages(selectedThreadId.value)
+      }
     } catch (unknownError) {
       error.value = unknownError instanceof Error ? unknownError.message : 'Unknown application error'
     }
@@ -1671,6 +1698,7 @@ export function useDesktopState() {
     turnActivityByThreadId.value = {}
     turnSummaryByThreadId.value = {}
     turnErrorByThreadId.value = {}
+    messageLoadErrorByThreadId.value = {}
     activeTurnIdByThreadId.value = {}
   }
 
@@ -1682,6 +1710,7 @@ export function useDesktopState() {
     selectedThreadServerRequests,
     allPendingServerRequests,
     selectedLiveOverlay,
+    selectedMessageLoadError,
     selectedThreadId,
     isArchiveView,
     rateLimitSnapshot,
@@ -1703,6 +1732,7 @@ export function useDesktopState() {
     refreshAll,
     refreshRateLimits,
     selectThread,
+    loadMessages,
     setThreadScrollState,
     archiveThreadById,
     unarchiveThreadById,

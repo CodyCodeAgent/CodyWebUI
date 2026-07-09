@@ -3,7 +3,14 @@
     <header class="workspace-theme-panel-header">
       <div>
         <h3 class="workspace-theme-panel-title">Theme</h3>
-        <p class="workspace-theme-panel-subtitle">{{ activeSkin.name }} · {{ activeLayoutPreset.name }}</p>
+        <p class="workspace-theme-panel-subtitle" data-testid="theme-summary">{{ themeSummary }}</p>
+        <p
+          v-if="themeDetail"
+          class="workspace-theme-panel-detail"
+          data-testid="theme-detail"
+        >
+          {{ themeDetail }}
+        </p>
       </div>
       <button class="workspace-theme-panel-reset" type="button" @click="resetTheme">Reset</button>
     </header>
@@ -14,6 +21,14 @@
       data-testid="theme-workspace-binding"
     >
       Workspace binding active · {{ workspaceThemeSummary }}
+    </p>
+    <p
+      v-if="themePersistenceError"
+      class="workspace-theme-panel-persistence-error"
+      data-testid="theme-persistence-error"
+      role="alert"
+    >
+      {{ themePersistenceError }}
     </p>
 
     <div class="workspace-theme-panel-grid">
@@ -109,6 +124,7 @@ const {
   activeSkin,
   activeLayoutPreset,
   workspacePreferences,
+  themePersistenceError,
   setSkin,
   setAccentColor,
   setDensity,
@@ -127,6 +143,19 @@ const skinJsonMessage = ref('')
 const skinJsonMessageTone = ref<'success' | 'danger'>('success')
 const accentDraft = computed(() => effectivePreferences.value.accentColor || activeSkin.value.tokens.color.accent)
 const hasWorkspaceThemeBinding = computed(() => workspacePreferences.value !== null)
+const selectedSkinName = computed(() =>
+  availableSkins.value.find((skin) => skin.id === effectivePreferences.value.skinId)?.name ?? activeSkin.value.name,
+)
+const themeSummary = computed(() => {
+  const mode = effectivePreferences.value.followSystem ? 'Following system' : selectedSkinName.value
+  return `${mode} · ${activeLayoutPreset.value.name}`
+})
+const themeDetail = computed(() => {
+  if (hasWorkspaceThemeBinding.value) return 'Workspace theme overrides personal preferences.'
+  if (effectivePreferences.value.followSystem) return `Active skin now: ${activeSkin.value.name}.`
+  if (effectivePreferences.value.accentColor) return `Accent override: ${effectivePreferences.value.accentColor}.`
+  return ''
+})
 const workspaceThemeSummary = computed(() => {
   const theme = workspacePreferences.value
   if (!theme) return 'personal defaults'
@@ -215,11 +244,23 @@ watch(() => props.workspaceTheme, (theme) => {
   color: var(--color-text);
 }
 
+.workspace-theme-panel-detail {
+  @apply m-0 mt-1 text-xs text-zinc-500;
+  color: var(--color-text-muted);
+}
+
 .workspace-theme-panel-workspace-binding {
   @apply m-0 mt-3 rounded-md border border-sky-200 bg-sky-50 px-2 py-1 text-xs font-medium text-sky-700;
   background: color-mix(in srgb, var(--color-accent) 12%, transparent);
   border-color: color-mix(in srgb, var(--color-accent) 32%, var(--color-border));
   color: var(--color-accent);
+}
+
+.workspace-theme-panel-persistence-error {
+  @apply m-0 mt-3 rounded-md border border-rose-200 bg-rose-50 px-2 py-1 text-xs font-medium text-rose-700;
+  background: color-mix(in srgb, var(--color-danger) 12%, var(--color-panel));
+  border-color: color-mix(in srgb, var(--color-danger) 32%, var(--color-border));
+  color: color-mix(in srgb, var(--color-danger) 42%, var(--color-text));
 }
 
 .workspace-theme-panel-reset,

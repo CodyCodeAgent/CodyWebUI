@@ -171,9 +171,10 @@ export function mergeMessages(
   options: { preserveMissing?: boolean } = {},
 ): UiMessage[] {
   const previousById = new Map(previous.map((message) => [message.id, message]))
-  const incomingById = new Map(incoming.map((message) => [message.id, message]))
+  const dedupedIncoming = removeDuplicateMessageIds(incoming)
+  const incomingById = new Map(dedupedIncoming.map((message) => [message.id, message]))
 
-  const mergedIncoming = incoming.map((incomingMessage) => {
+  const mergedIncoming = dedupedIncoming.map((incomingMessage) => {
     const previousMessage = previousById.get(incomingMessage.id)
     if (previousMessage && areMessageFieldsEqual(previousMessage, incomingMessage)) {
       return previousMessage
@@ -199,11 +200,11 @@ export function mergeMessages(
     return nextMessage
   })
 
-  const previousIdSet = new Set(previous.map((message) => message.id))
+  const previousIdSet = new Set(optimisticReplacements.messages.map((message) => message.id))
   const appended = mergedIncoming.filter((message) => {
     return !previousIdSet.has(message.id) && !optimisticReplacements.consumedIncomingIds.has(message.id)
   })
-  const merged = removeDuplicateAdjacentUserMessages([...mergedFromPrevious, ...appended])
+  const merged = removeDuplicateAdjacentUserMessages(removeDuplicateMessageIds([...mergedFromPrevious, ...appended]))
 
   return areMessageArraysEqual(previous, merged) ? previous : merged
 }
@@ -213,6 +214,11 @@ export function normalizeMessageText(value: string): string {
 }
 
 export function removeRedundantLiveAgentMessages(previous: UiMessage[], incoming: UiMessage[]): UiMessage[] {
+  const incomingAssistantIds = new Set(
+    incoming
+      .filter((message) => message.role === 'assistant' && message.id.trim().length > 0)
+      .map((message) => message.id),
+  )
   const incomingAssistantTexts = new Set(
     incoming
       .filter((message) => message.role === 'assistant')
@@ -220,18 +226,77 @@ export function removeRedundantLiveAgentMessages(previous: UiMessage[], incoming
       .filter((text) => text.length > 0),
   )
 
-  if (incomingAssistantTexts.size === 0) {
+  if (incomingAssistantIds.size === 0 && incomingAssistantTexts.size === 0) {
     return previous
   }
 
   const next = previous.filter((message) => {
     if (message.messageType !== 'agentMessage.live' && message.messageType !== 'plan.live') return true
+    if (incomingAssistantIds.has(message.id)) return false
     const normalized = normalizeMessageText(message.text)
     if (normalized.length === 0) return false
     return !incomingAssistantTexts.has(normalized)
   })
 
   return next.length === previous.length ? previous : next
+}
+
+function removeDuplicateMessageIds(messages: UiMessage[]): UiMessage[] {
+  const seenIds = new Set<string>()
+  const next: UiMessage[] = []
+  let changed = false
+
+  for (const message of messages) {
+    if (message.id.trim().length > 0 && seenIds.has(message.id)) {
+      changed = true
+      continue
+    }
+    if (message.id.trim().length > 0) {
+      seenIds.add(message.id)
+    }
+    next.push(message)
+  }
+
+  return changed ? next : messages
+}
+
+function removeSupersededOptimisticUserMessages(messages: UiMessage[]): UiMessage[] {
+  const persistedUsers = messages.filter(isPersistedUserMessage)
+  if (persistedUsers.length === 0) return messages
+
+  const consumedPersistedIds = new Set<string>()
+  const next: UiMessage[] = []
+  let changed = false
+
+  for (const message of messages) {
+    if (consumedPersistedIds.has(message.id)) {
+      changed = true
+      continue
+    }
+
+    if (!isOptimisticUserMessage(message)) {
+      next.push(message)
+      continue
+    }
+
+    const replacement = persistedUsers.find((persisted) => {
+      if (consumedPersistedIds.has(persisted.id)) return false
+      return isMatchingUserMessage(message, persisted)
+    })
+    if (!replacement) {
+      next.push(message)
+      continue
+    }
+
+    changed = true
+    const alreadyDisplayed = next.some((displayed) => isPersistedUserMessage(displayed) && isMatchingUserMessage(displayed, replacement))
+    if (!alreadyDisplayed) {
+      next.push(replacement)
+    }
+    consumedPersistedIds.add(replacement.id)
+  }
+
+  return changed ? next : messages
 }
 
 export function upsertMessage(previous: UiMessage[], nextMessage: UiMessage): UiMessage[] {
@@ -377,7 +442,9 @@ export function buildDisplayedMessages(
   const combined = persistedMessages === liveAgentMessages
     ? persistedMessages
     : [...persistedMessages, ...liveAgentMessages]
-  const compacted = removeDuplicateAdjacentUserMessages(combined)
+  const compacted = removeSupersededOptimisticUserMessages(
+    removeDuplicateAdjacentUserMessages(removeDuplicateMessageIds(combined)),
+  )
 
   return turnSummary ? insertTurnSummaryMessage(compacted, turnSummary) : compacted
 }

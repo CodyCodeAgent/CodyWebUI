@@ -542,7 +542,7 @@ export type ToolingWorkspaceValidationPlan = {
 export type ToolingWorkspaceContextKind =
   | 'agents'
   | 'codex_config'
-  | 'codex_web'
+  | 'cody_web_ui'
   | 'ai_ignore'
   | 'git_ignore'
   | 'local_skill'
@@ -4874,7 +4874,7 @@ async function buildWorkspaceProjectContext(repoRoot: string): Promise<ToolingWo
   const fixedSources = await Promise.all([
     readWorkspaceContextSource({ repoRoot, relativePath: 'AGENTS.md', kind: 'agents', title: 'AGENTS.md' }),
     readWorkspaceContextSource({ repoRoot, relativePath: 'agents.md', kind: 'agents', title: 'agents.md', required: false }),
-    readWorkspaceContextSource({ repoRoot, relativePath: '.cody-web-ui.yml', kind: 'codex_web', title: '.cody-web-ui.yml' }),
+    readWorkspaceContextSource({ repoRoot, relativePath: '.cody-web-ui.yml', kind: 'cody_web_ui', title: '.cody-web-ui.yml' }),
     readWorkspaceContextSource({ repoRoot, relativePath: '.codex/config.toml', kind: 'codex_config', title: 'Codex config', required: false }),
     readWorkspaceContextSource({ repoRoot, relativePath: '.codex/config.json', kind: 'codex_config', title: 'Codex config', required: false }),
     readWorkspaceContextSource({ repoRoot, relativePath: '.mcp.json', kind: 'mcp_config', title: 'MCP config', required: false }),

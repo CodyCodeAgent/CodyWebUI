@@ -46,7 +46,7 @@ notifications:
     - name: Remote supervision webhook
       type: webhook
       enabled: false
-      urlEnv: CODEX_WEB_NOTIFICATION_WEBHOOK_URL
+      urlEnv: CODY_WEB_UI_NOTIFICATION_WEBHOOK_URL
       events:
         - approval_required
         - task_failed

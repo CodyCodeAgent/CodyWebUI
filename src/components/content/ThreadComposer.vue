@@ -1,5 +1,5 @@
 <template>
-  <form class="thread-composer" @submit.prevent="onSubmit">
+  <form class="thread-composer" data-testid="thread-composer" @submit.prevent="onSubmit">
     <div
       class="thread-composer-shell"
       :data-drag-active="isDraggingImages"
@@ -57,6 +57,7 @@
         ref="draftInputRef"
         v-model="draft"
         class="thread-composer-input"
+        data-testid="thread-composer-input"
         rows="1"
         :placeholder="placeholderText"
         :disabled="disabled || !activeThreadId"
@@ -181,6 +182,7 @@
           </button>
           <button
             class="thread-composer-submit"
+            data-testid="thread-composer-submit"
             type="submit"
             :aria-label="submitButtonLabel"
             :title="submitButtonLabel"

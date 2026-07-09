@@ -32,8 +32,12 @@ import {
   readToolQuestionOtherAnswer,
   readToolQuestions,
   restoredConversationScrollTop,
+  shouldShowBlockingConversationLoadError,
   shouldLockConversationToBottom,
   shouldRestoreConversationToBottom,
+  shouldShowBlockingConversationLoading,
+  shouldShowConversationRefreshStatus,
+  shouldShowInlineConversationLoadError,
   shouldShowCopyButton,
   shouldShowScrollToBottomButton,
   shouldShowToolQuestionText,
@@ -419,5 +423,99 @@ describe('thread conversation rules', () => {
     expect(historyPageButtonLabel(120)).toBe('Show 80 earlier messages')
     expect(historyPageButtonLabel(1)).toBe('Show 1 earlier message')
     expect(historyPageButtonLabel(20, 80)).toBe('Show 20 earlier messages')
+  })
+
+  it('blocks the conversation only for empty initial message loads', () => {
+    expect(shouldShowBlockingConversationLoading({
+      isLoading: true,
+      messageCount: 0,
+      pendingRequestCount: 0,
+      hasLiveOverlay: false,
+    })).toBe(true)
+    expect(shouldShowConversationRefreshStatus({
+      isLoading: true,
+      messageCount: 0,
+      pendingRequestCount: 0,
+      hasLiveOverlay: false,
+    })).toBe(false)
+
+    expect(shouldShowBlockingConversationLoading({
+      isLoading: true,
+      messageCount: 1,
+      pendingRequestCount: 0,
+      hasLiveOverlay: false,
+    })).toBe(false)
+    expect(shouldShowConversationRefreshStatus({
+      isLoading: true,
+      messageCount: 1,
+      pendingRequestCount: 0,
+      hasLiveOverlay: false,
+    })).toBe(true)
+
+    expect(shouldShowBlockingConversationLoading({
+      isLoading: true,
+      messageCount: 0,
+      pendingRequestCount: 1,
+      hasLiveOverlay: false,
+    })).toBe(false)
+    expect(shouldShowBlockingConversationLoading({
+      isLoading: true,
+      messageCount: 0,
+      pendingRequestCount: 0,
+      hasLiveOverlay: true,
+    })).toBe(false)
+    expect(shouldShowConversationRefreshStatus({
+      isLoading: false,
+      messageCount: 10,
+      pendingRequestCount: 0,
+      hasLiveOverlay: false,
+    })).toBe(false)
+  })
+
+  it('shows load errors as blocking only when no conversation content is available', () => {
+    expect(shouldShowBlockingConversationLoadError({
+      isLoading: false,
+      loadError: 'thread/read timed out',
+      messageCount: 0,
+      pendingRequestCount: 0,
+      hasLiveOverlay: false,
+    })).toBe(true)
+    expect(shouldShowInlineConversationLoadError({
+      isLoading: false,
+      loadError: 'thread/read timed out',
+      messageCount: 0,
+      pendingRequestCount: 0,
+      hasLiveOverlay: false,
+    })).toBe(false)
+
+    expect(shouldShowBlockingConversationLoadError({
+      isLoading: false,
+      loadError: 'thread/read timed out',
+      messageCount: 1,
+      pendingRequestCount: 0,
+      hasLiveOverlay: false,
+    })).toBe(false)
+    expect(shouldShowInlineConversationLoadError({
+      isLoading: false,
+      loadError: 'thread/read timed out',
+      messageCount: 1,
+      pendingRequestCount: 0,
+      hasLiveOverlay: false,
+    })).toBe(true)
+
+    expect(shouldShowBlockingConversationLoadError({
+      isLoading: true,
+      loadError: 'thread/read timed out',
+      messageCount: 0,
+      pendingRequestCount: 0,
+      hasLiveOverlay: false,
+    })).toBe(false)
+    expect(shouldShowInlineConversationLoadError({
+      isLoading: false,
+      loadError: '   ',
+      messageCount: 1,
+      pendingRequestCount: 0,
+      hasLiveOverlay: false,
+    })).toBe(false)
   })
 })

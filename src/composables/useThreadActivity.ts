@@ -33,6 +33,13 @@ export type WorkLogMetric = {
   value: string
 }
 
+export type WorkLogActionState = {
+  badgeCount: number
+  badgeText: string
+  floatSummary: string
+  triggerLabel: string
+}
+
 export type WorkLogDisplayPath = {
   label: string
   directory: string
@@ -107,7 +114,35 @@ export function buildWorkLogFloatSummary(input: {
   fileCount: number
   commandCount: number
 }): string {
-  return `${String(input.fileCount)} files · ${String(input.commandCount)} commands`
+  return `${String(input.fileCount)} file${input.fileCount === 1 ? '' : 's'} · ${String(input.commandCount)} command${input.commandCount === 1 ? '' : 's'}`
+}
+
+export function buildWorkLogTriggerLabel(input: {
+  isOpen: boolean
+  fileCount: number
+  commandCount: number
+}): string {
+  const action = input.isOpen ? 'Close' : 'Open'
+  return `${action} work log: ${buildWorkLogFloatSummary(input)}`
+}
+
+export function buildWorkLogBadgeText(count: number): string {
+  if (count <= 0) return ''
+  return count > 99 ? '99+' : String(count)
+}
+
+export function buildWorkLogActionState(input: {
+  isOpen: boolean
+  fileCount: number
+  commandCount: number
+}): WorkLogActionState {
+  const badgeCount = Math.max(Math.trunc(input.fileCount), 0)
+  return {
+    badgeCount,
+    badgeText: buildWorkLogBadgeText(badgeCount),
+    floatSummary: buildWorkLogFloatSummary(input),
+    triggerLabel: buildWorkLogTriggerLabel(input),
+  }
 }
 
 export function buildWorkLogMetrics(input: {
@@ -196,8 +231,8 @@ export function filterWorkLogFiles(
   })
 }
 
-export function workLogBadgeCount(review: UiDiffReview, commandCount: number): number {
-  return review.summary.fileCount + commandCount
+export function workLogBadgeCount(review: UiDiffReview): number {
+  return review.summary.fileCount
 }
 
 export function workLogFullscreenFile(review: UiDiffReview, filePath: string): UiDiffReviewFile | null {

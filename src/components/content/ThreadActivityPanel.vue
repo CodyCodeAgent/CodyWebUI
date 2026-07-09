@@ -1,34 +1,36 @@
 <template>
-  <div class="thread-activity-host" :style="workLogHostStyle">
+  <div class="thread-activity-host">
     <button
-      class="thread-work-log-float-button"
+      class="thread-work-log-trigger"
       type="button"
       :aria-expanded="isWorkLogOpen"
       aria-controls="thread-work-log-panel"
-      :aria-label="isWorkLogOpen ? 'Close work log' : 'Open work log'"
-      aria-keyshortcuts="ArrowUp ArrowDown ArrowLeft ArrowRight"
-      :title="isWorkLogOpen ? 'Close work log' : 'Open work log'"
-      @click="onWorkLogFloatClick"
-      @keydown="onWorkLogKeyboardMove"
-      @pointerdown="onWorkLogDragPointerDown"
+      :aria-label="workLogTriggerLabel"
+      :title="workLogTriggerLabel"
+      data-testid="thread-work-log-trigger"
+      @click="toggleWorkLog"
     >
-      <span class="thread-work-log-float-title">Work log</span>
-      <span class="thread-work-log-float-summary">
-        {{ workLogFloatSummary }}
-      </span>
-      <span v-if="workLogBadgeCount > 0" class="thread-work-log-float-badge">
-        {{ workLogBadgeCount }}
+      <IconTablerClipboardList class="thread-work-log-trigger-icon" />
+      <span v-if="workLogBadgeCount > 0" class="thread-work-log-trigger-badge" data-testid="thread-work-log-badge">
+        {{ workLogBadgeText }}
       </span>
     </button>
 
-    <aside v-if="isWorkLogOpen" id="thread-work-log-panel" class="thread-activity-panel" aria-label="Thread work log">
-      <header class="thread-activity-header" @pointerdown="onWorkLogDragPointerDown">
+    <aside
+      v-if="isWorkLogOpen"
+      id="thread-work-log-panel"
+      class="thread-activity-panel"
+      aria-label="Thread work log"
+      data-testid="thread-work-log-panel"
+    >
+      <header class="thread-activity-header">
         <div class="thread-activity-header-copy">
           <h2 class="thread-activity-title">Work log</h2>
           <p class="thread-activity-subtitle">{{ statusText }}</p>
           <div class="thread-activity-view-toggle" aria-label="Diff view mode" @pointerdown.stop>
             <button
               class="thread-activity-view-button"
+              data-testid="thread-work-log-view-unified"
               type="button"
               :data-active="diffViewMode === 'unified'"
               @click="setDiffViewMode('unified')"
@@ -37,6 +39,7 @@
             </button>
             <button
               class="thread-activity-view-button"
+              data-testid="thread-work-log-view-split"
               type="button"
               :data-active="diffViewMode === 'split'"
               @click="setDiffViewMode('split')"
@@ -51,7 +54,6 @@
           aria-label="Close work log"
           title="Close work log"
           @click="closeWorkLog"
-          @pointerdown.stop
         >
           ×
         </button>
@@ -75,6 +77,7 @@
           <span>Search files</span>
           <input
             v-model="workLogFileQuery"
+            data-testid="thread-work-log-file-search"
             type="search"
             autocomplete="off"
             spellcheck="false"
@@ -88,6 +91,7 @@
           v-for="file in filteredDiffFiles"
           :key="file.filePath"
           class="work-log-card work-log-file-card"
+          data-testid="thread-work-log-file"
         >
           <details class="work-log-file-details" @toggle="onFileDetailsToggle(file.filePath, $event)">
             <summary class="work-log-summary">
@@ -145,6 +149,7 @@
           </details>
           <button
             class="work-log-fullscreen-button"
+            data-testid="thread-work-log-fullscreen"
             type="button"
             aria-label="Open diff fullscreen"
             title="Open diff fullscreen"
@@ -241,13 +246,20 @@
                 v-for="scope in approvalScopeOptions"
                 :key="`${card.request.id}:${serverRequestActionKeyPrefix(card.kind)}:${scope.scope}`"
                 class="activity-request-button"
+                data-testid="thread-approval-scope"
                 :class="{ 'activity-request-button-primary': scope.scope === 'single', 'activity-request-button-danger': scope.scope === 'permanent' }"
                 type="button"
+                :data-scope="scope.scope"
                 @click="onRespondApprovalScope(card.request.id, scope.scope)"
               >
                 {{ scope.label }}
               </button>
-              <button class="activity-request-button" type="button" @click="onRespondApproval(card.request.id, 'decline')">
+              <button
+                class="activity-request-button"
+                data-testid="thread-approval-decline"
+                type="button"
+                @click="onRespondApproval(card.request.id, 'decline')"
+              >
                 Decline
               </button>
             </template>
@@ -268,6 +280,7 @@
       <div
         v-if="fullscreenFile"
         class="work-log-fullscreen-backdrop"
+        data-testid="thread-work-log-fullscreen-dialog"
         role="dialog"
         aria-modal="true"
         aria-label="Fullscreen diff"
@@ -285,6 +298,7 @@
             <div class="thread-activity-view-toggle work-log-fullscreen-view-toggle" aria-label="Diff view mode">
               <button
                 class="thread-activity-view-button"
+                data-testid="thread-work-log-fullscreen-view-unified"
                 type="button"
                 :data-active="diffViewMode === 'unified'"
                 @click="setDiffViewMode('unified')"
@@ -293,6 +307,7 @@
               </button>
               <button
                 class="thread-activity-view-button"
+                data-testid="thread-work-log-fullscreen-view-split"
                 type="button"
                 :data-active="diffViewMode === 'split'"
                 @click="setDiffViewMode('split')"
@@ -360,21 +375,21 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
+import IconTablerClipboardList from '../icons/IconTablerClipboardList.vue'
 import {
   buildThreadCommandEntries,
   buildThreadActivitySummary,
   buildPendingApprovalSubtitle,
   buildPendingApprovalCards,
+  buildWorkLogActionState,
   buildWorkLogDisplayPathParts,
   buildWorkLogStatusText,
   buildWorkLogFileStatLabel,
-  buildWorkLogFloatSummary,
   buildWorkLogMetrics,
   filterWorkLogFiles,
   formatWorkLogLineNumber,
   shouldCloseWorkLogFullscreenFile,
-  workLogBadgeCount as workLogBadgeCountForReview,
   workLogDiffLinePrefix,
   workLogFullscreenFile,
 } from '../../composables/useThreadActivity'
@@ -394,11 +409,6 @@ import {
   serverRequestActionKeyPrefix,
   serverRequestMetaLabel,
 } from '../../composables/serverRequestRules'
-import {
-  clampFloatingPosition,
-  floatingKeyboardDelta,
-  moveFloatingPosition,
-} from '../../composables/floatingPositionRules'
 import { buildDiffReview, buildSplitDiffRows, sliceDiffHunkLines } from '../../composables/useDiffReview'
 import type { UiDiffLineKind, UiDiffReviewFile, UiDiffReviewLine, UiDiffSplitRow } from '../../composables/useDiffReview'
 import type { UiApprovalDecisionScope, UiMessage, UiServerRequest, UiServerRequestReply, UiToolingRollbackFileResult } from '../../types/codex'
@@ -415,7 +425,6 @@ const emit = defineEmits<{
   rollbackCompleted: [result: UiToolingRollbackFileResult]
 }>()
 const approvalScopeOptions = APPROVAL_SCOPE_OPTIONS
-const WORK_LOG_POSITION_STORAGE_KEY = 'cody-web-ui.work-log-position.v1'
 const WORK_LOG_PREVIEW_HUNK_LINE_LIMIT = 120
 
 const commandEntries = computed(() => buildThreadCommandEntries(props.messages))
@@ -426,14 +435,17 @@ const diffViewMode = ref<'unified' | 'split'>('unified')
 const workLogFileQuery = ref('')
 const openFileDetailsByPath = ref<Record<string, boolean>>({})
 const openCommandDetailsById = ref<Record<string, boolean>>({})
-const workLogPosition = ref(readStoredWorkLogPosition())
 const fullscreenFile = computed(() => workLogFullscreenFile(diffReview.value, fullscreenFilePath.value))
 const filteredDiffFiles = computed(() => filterWorkLogFiles(diffReview.value.files, workLogFileQuery.value, props.cwd))
-const workLogBadgeCount = computed(() => workLogBadgeCountForReview(diffReview.value, commandEntries.value.length))
-const workLogFloatSummary = computed(() => buildWorkLogFloatSummary({
+const workLogActionState = computed(() => buildWorkLogActionState({
+  isOpen: isWorkLogOpen.value,
   fileCount: diffReview.value.summary.fileCount,
   commandCount: commandEntries.value.length,
 }))
+const workLogBadgeCount = computed(() => workLogActionState.value.badgeCount)
+const workLogBadgeText = computed(() => workLogActionState.value.badgeText)
+const workLogFloatSummary = computed(() => workLogActionState.value.floatSummary)
+const workLogTriggerLabel = computed(() => workLogActionState.value.triggerLabel)
 const workLogMetrics = computed(() => buildWorkLogMetrics({
   fileCount: diffReview.value.summary.fileCount,
   commandCount: commandEntries.value.length,
@@ -448,126 +460,6 @@ const statusText = computed(() => buildWorkLogStatusText({
   fileCount: diffReview.value.summary.fileCount,
   commandCount: commandEntries.value.length,
 }))
-const workLogHostStyle = computed(() => ({
-  left: `${String(workLogPosition.value.left)}px`,
-  top: `${String(workLogPosition.value.top)}px`,
-}))
-
-let dragStart:
-  | {
-    pointerId: number
-    startX: number
-    startY: number
-    left: number
-    top: number
-    moved: boolean
-  }
-  | null = null
-let wasWorkLogDragged = false
-
-function workLogPanelWidth(): number {
-  if (typeof window === 'undefined') return 288
-  const availableWidth = Math.max(window.innerWidth - 48, 160)
-  return isWorkLogOpen.value ? Math.min(544, availableWidth) : Math.min(288, window.innerWidth - 32)
-}
-
-function readStoredWorkLogPosition(): { left: number; top: number } {
-  if (typeof window === 'undefined') return { left: 24, top: 76 }
-  try {
-    const raw = window.localStorage.getItem(WORK_LOG_POSITION_STORAGE_KEY)
-    if (!raw) return { left: 24, top: 76 }
-    const parsed = JSON.parse(raw) as Partial<{ left: number; top: number }>
-    if (typeof parsed.left !== 'number' || typeof parsed.top !== 'number') return { left: 24, top: 76 }
-    return { left: parsed.left, top: parsed.top }
-  } catch {
-    return { left: 24, top: 76 }
-  }
-}
-
-function saveWorkLogPosition(): void {
-  if (typeof window === 'undefined') return
-  try {
-    window.localStorage.setItem(WORK_LOG_POSITION_STORAGE_KEY, JSON.stringify(workLogPosition.value))
-  } catch {
-    // Position persistence is best-effort; the floating control should keep working in-session.
-  }
-}
-
-function clampWorkLogPosition(left: number, top: number): { left: number; top: number } {
-  if (typeof window === 'undefined') return { left, top }
-  const panelWidth = workLogPanelWidth()
-  const maxLeft = Math.max(window.innerWidth - panelWidth - 8, 8)
-  const maxTop = Math.max(window.innerHeight - 80, 8)
-  const next = clampFloatingPosition(
-    { x: left, y: top },
-    { minX: 8, maxX: maxLeft, minY: 8, maxY: maxTop },
-  )
-  return { left: next.x, top: next.y }
-}
-
-function onWorkLogDragPointerDown(event: PointerEvent): void {
-  if (event.button !== 0) return
-
-  dragStart = {
-    pointerId: event.pointerId,
-    startX: event.clientX,
-    startY: event.clientY,
-    left: workLogPosition.value.left,
-    top: workLogPosition.value.top,
-    moved: false,
-  }
-  window.addEventListener('pointermove', onWorkLogDragPointerMove)
-  window.addEventListener('pointerup', onWorkLogDragPointerUp, { once: true })
-}
-
-function onWorkLogDragPointerMove(event: PointerEvent): void {
-  if (!dragStart || event.pointerId !== dragStart.pointerId) return
-  const deltaX = event.clientX - dragStart.startX
-  const deltaY = event.clientY - dragStart.startY
-  if (!dragStart.moved && Math.abs(deltaX) + Math.abs(deltaY) > 3) {
-    dragStart.moved = true
-    wasWorkLogDragged = true
-  }
-  if (!dragStart.moved) return
-
-  event.preventDefault()
-  workLogPosition.value = clampWorkLogPosition(dragStart.left + deltaX, dragStart.top + deltaY)
-}
-
-function onWorkLogDragPointerUp(event: PointerEvent): void {
-  if (dragStart && event.pointerId === dragStart.pointerId) {
-    if (dragStart.moved) saveWorkLogPosition()
-    dragStart = null
-  }
-  window.removeEventListener('pointermove', onWorkLogDragPointerMove)
-}
-
-function onWorkLogKeyboardMove(event: KeyboardEvent): void {
-  const delta = floatingKeyboardDelta(event.key, {
-    shiftKey: event.shiftKey,
-    altKey: event.altKey,
-  })
-  if (!delta) return
-
-  event.preventDefault()
-  event.stopPropagation()
-
-  const panelWidth = workLogPanelWidth()
-  const maxLeft = typeof window === 'undefined' ? workLogPosition.value.left : Math.max(window.innerWidth - panelWidth - 8, 8)
-  const maxTop = typeof window === 'undefined' ? workLogPosition.value.top : Math.max(window.innerHeight - 80, 8)
-  const next = moveFloatingPosition(
-    { x: workLogPosition.value.left, y: workLogPosition.value.top },
-    delta,
-    { minX: 8, maxX: maxLeft, minY: 8, maxY: maxTop },
-  )
-  workLogPosition.value = { left: next.x, top: next.y }
-  saveWorkLogPosition()
-}
-
-function onWorkLogWindowResize(): void {
-  workLogPosition.value = clampWorkLogPosition(workLogPosition.value.left, workLogPosition.value.top)
-  saveWorkLogPosition()
-}
 
 function onRespondApproval(requestId: number, decision: UiApprovalDecision): void {
   emit('respondServerRequest', buildApprovalDecisionReply(requestId, decision))
@@ -658,11 +550,7 @@ function closeWorkLog(): void {
   isWorkLogOpen.value = false
 }
 
-function onWorkLogFloatClick(): void {
-  if (wasWorkLogDragged) {
-    wasWorkLogDragged = false
-    return
-  }
+function toggleWorkLog(): void {
   isWorkLogOpen.value = !isWorkLogOpen.value
 }
 
@@ -678,51 +566,33 @@ watch(() => props.threadId, () => {
   openCommandDetailsById.value = {}
   fullscreenFilePath.value = ''
 })
-
-onMounted(() => {
-  onWorkLogWindowResize()
-  window.addEventListener('resize', onWorkLogWindowResize)
-})
-
-onBeforeUnmount(() => {
-  window.removeEventListener('resize', onWorkLogWindowResize)
-  window.removeEventListener('pointermove', onWorkLogDragPointerMove)
-})
 </script>
 
 <style scoped>
 @reference "tailwindcss";
 
 .thread-activity-host {
-  position: fixed;
-  z-index: 35;
-  margin: 0;
-  touch-action: none;
+  @apply relative z-40 flex items-center;
 }
 
-.thread-work-log-float-button {
-  @apply grid max-w-[calc(100vw-2rem)] cursor-move grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 rounded-lg border border-slate-200 bg-white px-4 py-2 text-left text-slate-800 shadow-lg transition hover:border-blue-300 hover:bg-blue-50;
-  width: min(18rem, calc(100vw - 2rem));
+.thread-work-log-trigger {
+  @apply relative inline-flex h-9 w-9 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-200;
 }
 
-.thread-work-log-float-title {
-  @apply min-w-0 text-xs font-semibold uppercase tracking-normal text-slate-600;
+.thread-work-log-trigger-icon {
+  @apply h-5 w-5;
 }
 
-.thread-work-log-float-summary {
-  @apply col-start-1 min-w-0 truncate text-xs text-slate-500;
-}
-
-.thread-work-log-float-badge {
-  @apply col-start-2 row-span-2 row-start-1 inline-flex h-6 min-w-6 items-center justify-center rounded-full bg-blue-600 px-2 text-xs font-semibold text-white;
+.thread-work-log-trigger-badge {
+  @apply absolute -right-2 -top-2 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-red-600 px-1 text-[0.68rem] font-semibold leading-none text-white ring-2 ring-white;
 }
 
 .thread-activity-panel {
-  @apply absolute left-0 top-[calc(100%+0.5rem)] z-50 flex max-h-[min(72vh,48rem)] min-h-0 w-[min(34rem,calc(100vw-3rem))] flex-col gap-3 overflow-hidden rounded-lg border border-slate-200 bg-white p-3 shadow-2xl;
+  @apply absolute right-0 top-[calc(100%+0.5rem)] z-50 flex max-h-[min(72vh,48rem)] min-h-0 w-[min(34rem,calc(100vw-3rem))] flex-col gap-3 overflow-hidden rounded-lg border border-slate-200 bg-white p-3 shadow-2xl;
 }
 
 .thread-activity-header {
-  @apply flex shrink-0 cursor-move items-start justify-between gap-3;
+  @apply flex shrink-0 items-start justify-between gap-3;
 }
 
 .thread-activity-header-copy {
@@ -1114,143 +984,142 @@ onBeforeUnmount(() => {
 }
 
 :global(.app-dark) .thread-action-required-float {
-  border-color: #92400e;
-  background: #2f2412;
-  color: #fef3c7;
+  border-color: color-mix(in srgb, var(--color-warning) 52%, var(--color-border));
+  background: color-mix(in srgb, var(--color-warning) 16%, var(--color-panel));
+  color: color-mix(in srgb, var(--color-warning) 28%, var(--color-text));
 }
 
 :global(.app-dark) .thread-action-required-header {
-  border-color: #78350f;
+  border-color: color-mix(in srgb, var(--color-warning) 45%, var(--color-border));
 }
 
 :global(.app-dark) .thread-action-required-title,
 :global(.app-dark) .thread-action-required-subtitle {
-  color: #fde68a;
+  color: color-mix(in srgb, var(--color-warning) 28%, var(--color-text));
 }
 
 :global(.app-dark) .thread-action-required-list .activity-request-card {
-  border-color: #92400e;
-  background: #181b22;
+  border-color: color-mix(in srgb, var(--color-warning) 52%, var(--color-border));
+  background: var(--color-panel);
 }
 
-:global(.app-dark) .thread-work-log-float-button,
+:global(.app-dark) .thread-work-log-trigger,
 :global(.app-dark) .thread-activity-close {
-  border-color: #3a4250;
-  background: #252b36;
-  color: #d1d5db;
+  border-color: var(--color-border);
+  background: var(--color-elevated);
+  color: var(--color-text-muted);
 }
 
-:global(.app-dark) .thread-work-log-float-button:hover,
+:global(.app-dark) .thread-work-log-trigger:hover,
 :global(.app-dark) .thread-activity-close:hover {
-  border-color: #2563eb;
-  background: #172c4f;
-  color: #bfdbfe;
+  border-color: color-mix(in srgb, var(--color-accent) 52%, var(--color-border));
+  background: color-mix(in srgb, var(--color-accent) 16%, var(--color-panel));
+  color: color-mix(in srgb, var(--color-accent) 28%, var(--color-text));
 }
 
-:global(.app-dark) .thread-work-log-float-title,
-:global(.app-dark) .thread-work-log-float-summary {
-  color: #c7ccd6;
+:global(.app-dark) .thread-work-log-trigger-badge {
+  --tw-ring-color: var(--color-panel);
 }
 
 :global(.app-dark) .thread-activity-view-toggle {
-  border-color: #3a4250;
-  background: #181b22;
+  border-color: var(--color-border);
+  background: var(--color-panel);
 }
 
 :global(.app-dark) .thread-activity-view-button {
-  color: #c7ccd6;
+  color: var(--color-text-muted);
 }
 
 :global(.app-dark) .thread-activity-view-button:hover,
 :global(.app-dark) .thread-activity-view-button[data-active='true'] {
-  background: #252b36;
-  color: #93c5fd;
+  background: var(--color-elevated);
+  color: var(--color-accent);
 }
 
 :global(.app-dark) .thread-activity-section-count,
 :global(.app-dark) .work-log-directory,
 :global(.app-dark) .work-log-file-filter span {
-  color: #9ca3af;
+  color: var(--color-text-muted);
 }
 
 :global(.app-dark) .work-log-file-filter {
-  border-color: #303643;
-  background: #181b22;
+  border-color: var(--color-border);
+  background: var(--color-panel);
 }
 
 :global(.app-dark) .work-log-file-filter input {
-  color: #e5e7eb;
+  color: var(--color-text);
 }
 
 :global(.app-dark) .work-log-file-filter input::placeholder {
-  color: #6b7280;
+  color: color-mix(in srgb, var(--color-text-muted) 70%, transparent);
 }
 
 :global(.app-dark) .work-log-fullscreen-panel {
-  border-color: #303643;
-  background: #181b22;
-  color: #e5e7eb;
+  border-color: var(--color-border);
+  background: var(--color-panel);
+  color: var(--color-text);
 }
 
 :global(.app-dark) .work-log-fullscreen-header,
 :global(.app-dark) .work-log-fullscreen-meta {
-  border-color: #303643;
-  background: #20242c;
+  border-color: var(--color-border);
+  background: var(--color-elevated);
 }
 
 :global(.app-dark) .work-log-fullscreen-copy h3,
 :global(.app-dark) .work-log-fullscreen-copy p,
 :global(.app-dark) .work-log-fullscreen-meta,
 :global(.app-dark) .work-log-fullscreen-empty {
-  color: #c7ccd6;
+  color: var(--color-text-muted);
 }
 
 :global(.app-dark) .work-log-fullscreen-close,
 :global(.app-dark) .work-log-fullscreen-button {
-  border-color: #3a4250;
-  background: #252b36;
-  color: #d1d5db;
+  border-color: var(--color-border);
+  background: var(--color-elevated);
+  color: var(--color-text-muted);
 }
 
 :global(.app-dark) .work-log-fullscreen-close:hover,
 :global(.app-dark) .work-log-fullscreen-button:hover {
-  border-color: #2563eb;
-  background: #172c4f;
-  color: #bfdbfe;
+  border-color: color-mix(in srgb, var(--color-accent) 52%, var(--color-border));
+  background: color-mix(in srgb, var(--color-accent) 16%, var(--color-panel));
+  color: color-mix(in srgb, var(--color-accent) 28%, var(--color-text));
 }
 
 :global(.app-dark) .work-log-split-row {
-  border-color: #303643;
+  border-color: var(--color-border);
 }
 
 :global(.app-dark) .work-log-split-line-number {
-  border-color: #303643;
-  background: #20242c;
-  color: #9ca3af;
+  border-color: var(--color-border);
+  background: var(--color-elevated);
+  color: var(--color-text-muted);
 }
 
 :global(.app-dark) .work-log-split-code {
-  color: #e5e7eb;
+  color: var(--color-text);
 }
 
 :global(.app-dark) .work-log-split-line-number[data-kind='add'],
 :global(.app-dark) .work-log-split-code[data-kind='add'] {
-  background: #123524;
+  background: color-mix(in srgb, var(--color-success) 16%, var(--color-panel));
 }
 
 :global(.app-dark) .work-log-split-line-number[data-kind='remove'],
 :global(.app-dark) .work-log-split-code[data-kind='remove'] {
-  background: #3b181b;
+  background: color-mix(in srgb, var(--color-danger) 16%, var(--color-panel));
 }
 
 :global(.app-dark) .work-log-split-line-number[data-kind='meta'],
 :global(.app-dark) .work-log-split-code[data-kind='meta'] {
-  background: #15324a;
+  background: color-mix(in srgb, var(--color-info) 16%, var(--color-panel));
 }
 
 :global(.app-dark) .work-log-split-line-number[data-kind='empty'],
 :global(.app-dark) .work-log-split-code[data-kind='empty'] {
-  background: #181b22;
+  background: var(--color-panel);
 }
 
 .activity-request-method {
