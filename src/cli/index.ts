@@ -2,6 +2,11 @@ import { createServer } from 'node:http'
 import { Command } from 'commander'
 import { createServer as createApp } from '../server/httpServer.js'
 import { generatePassword } from '../server/password.js'
+import {
+  buildStartupBanner,
+  normalizeListenHost,
+  parseListenPort,
+} from './cliStartup.js'
 
 const program = new Command()
   .name('codex-web-local')
@@ -13,8 +18,13 @@ const program = new Command()
   .parse()
 
 const opts = program.opts<{ host: string; port: string; password: string | boolean }>()
-const port = parseInt(opts.port, 10)
-const host = opts.host.trim() || '127.0.0.1'
+let port = 3000
+try {
+  port = parseListenPort(opts.port)
+} catch (error) {
+  program.error(error instanceof Error ? error.message : 'Invalid port')
+}
+const host = normalizeListenHost(opts.host)
 
 let password: string | undefined
 if (opts.password === false) {
@@ -30,27 +40,7 @@ const server = createServer(app)
 const disposeWebSocketServer = attachWebSocketServer(server)
 
 server.listen(port, host, () => {
-  const lines = [
-    '',
-    'Codex Web Local is running!',
-    '',
-    `  Local:    http://${host === '127.0.0.1' ? '127.0.0.1' : host}:${String(port)}`,
-  ]
-
-  if (password) {
-    lines.push(`  Password: ${password}`)
-  } else {
-    lines.push('  Password: disabled')
-  }
-
-  if (host === '0.0.0.0' || host === '::' || host === '*') {
-    lines.push('  Warning: listening on all interfaces. Use HTTPS and a strong password for remote access.')
-  } else if (host !== '127.0.0.1' && host !== 'localhost' && host !== '::1') {
-    lines.push('  Warning: listening on a non-loopback host. Review firewall, HTTPS, and authentication settings.')
-  }
-
-  lines.push('')
-  console.log(lines.join('\n'))
+  console.log(buildStartupBanner({ host, port, password }))
 })
 
 function shutdown() {
