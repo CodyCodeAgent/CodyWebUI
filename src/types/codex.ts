@@ -901,7 +901,7 @@ export type UiWorkspaceSnapshot = {
   projectContext: UiWorkspaceProjectContext
   workspaceConfig: UiWorkspaceConfig
   configFiles: {
-    codexWeb: boolean
+    codyWebUi: boolean
     agents: boolean
     aiIgnore: boolean
     gitIgnore: boolean

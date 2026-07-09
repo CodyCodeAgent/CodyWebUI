@@ -232,7 +232,7 @@ describe('thread conversation rules', () => {
         contentItems: [
           {
             type: 'inputText',
-            text: 'Tool call rejected from codex-web-local UI.',
+            text: 'Tool call rejected from cody-web-ui UI.',
           },
         ],
       },

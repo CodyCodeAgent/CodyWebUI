@@ -213,7 +213,7 @@ describe('useComposerContext helpers', () => {
         ],
       },
       workspaceConfig: {
-        path: '/repo/.codex-web.yml',
+        path: '/repo/.cody-web-ui.yml',
         loaded: true,
         errors: [],
         trust: 'trusted',
@@ -250,7 +250,7 @@ describe('useComposerContext helpers', () => {
         ignorePatterns: ['tmp/**'],
       },
       configFiles: {
-        codexWeb: true,
+        codyWebUi: true,
         agents: false,
         aiIgnore: true,
         gitIgnore: true,

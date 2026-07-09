@@ -415,7 +415,7 @@ const emit = defineEmits<{
   rollbackCompleted: [result: UiToolingRollbackFileResult]
 }>()
 const approvalScopeOptions = APPROVAL_SCOPE_OPTIONS
-const WORK_LOG_POSITION_STORAGE_KEY = 'codex-web-local.work-log-position.v1'
+const WORK_LOG_POSITION_STORAGE_KEY = 'cody-web-ui.work-log-position.v1'
 const WORK_LOG_PREVIEW_HUNK_LINE_LIMIT = 120
 
 const commandEntries = computed(() => buildThreadCommandEntries(props.messages))
@@ -584,7 +584,7 @@ function onRespondEmptyResult(requestId: number): void {
 function onRejectRequest(requestId: number): void {
   emit('respondServerRequest', buildRejectedServerRequestReply(
     requestId,
-    'Rejected from codex-web-local activity panel.',
+    'Rejected from cody-web-ui activity panel.',
   ))
 }
 

@@ -1,5 +1,5 @@
 {
-  "name": "codex-web-local",
+  "name": "cody-web-ui",
   "version": "0.1.0",
   "description": "CodyWebUI is a local-first web control surface for Codex and future AI coding agents",
   "type": "module",
@@ -7,11 +7,11 @@
   "author": "Pavel Voronin",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/pavel-voronin/codex-web-local.git"
+    "url": "git+https://github.com/pavel-voronin/cody-web-ui.git"
   },
-  "homepage": "https://github.com/pavel-voronin/codex-web-local#readme",
+  "homepage": "https://github.com/pavel-voronin/cody-web-ui#readme",
   "bugs": {
-    "url": "https://github.com/pavel-voronin/codex-web-local/issues"
+    "url": "https://github.com/pavel-voronin/cody-web-ui/issues"
   },
   "keywords": [
     "codex",
@@ -24,7 +24,7 @@
     "node": ">=18"
   },
   "bin": {
-    "codex-web-local": "dist-cli/index.js"
+    "cody-web-ui": "dist-cli/index.js"
   },
   "files": [
     "dist/",

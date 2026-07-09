@@ -87,7 +87,7 @@ describe('buildApprovalRiskSummary', () => {
           allowPatterns: ['test'],
           denyPatterns: ['publish*'],
           matchedPattern: 'test',
-          reason: 'Command matched .codex-web.yml allow policy: test',
+          reason: 'Command matched .cody-web-ui.yml allow policy: test',
         },
       }),
     )

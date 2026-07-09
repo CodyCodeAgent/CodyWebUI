@@ -108,7 +108,7 @@ type DragState = {
   startY: number
 }
 
-const POSITION_STORAGE_KEY = 'codex-web-local.rate-limit-position.v1'
+const POSITION_STORAGE_KEY = 'cody-web-ui.rate-limit-position.v1'
 const DEFAULT_CARD_WIDTH = 224
 const CARD_MARGIN = 12
 

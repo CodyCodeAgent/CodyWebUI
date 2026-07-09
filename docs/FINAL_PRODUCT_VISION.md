@@ -46,7 +46,7 @@ Workspace 是最顶层的产品对象，不只是一个 `cwd`。
 
 - 本地目录、git 仓库、分支和 worktree 感知。
 - 多仓库项目。
-- workspace 级配置文件 `.codex-web.yml`。
+- workspace 级配置文件 `.cody-web-ui.yml`。
 - 默认模型、reasoning effort、协作模式、sandbox 模式和审批策略。
 - 项目脚本、启动命令、已知端口和验证命令。
 - 来自 `AGENTS.md`、Codex config、本地 skills、MCP servers 和自定义规则的项目上下文。
@@ -604,7 +604,7 @@ src/theme/
 - 追踪 workspace roots。
 - 提供文件树和文件读取 API。
 - 执行 workspace 边界限制。
-- 加载 `.codex-web.yml`。
+- 加载 `.cody-web-ui.yml`。
 - 加载项目 rules、scripts 和 known ports。
 - 应用 ignore 和敏感路径策略。
 

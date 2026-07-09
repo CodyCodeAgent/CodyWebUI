@@ -21,7 +21,7 @@ async function git(cwd: string, args: string[]): Promise<string> {
 }
 
 async function createRepo(): Promise<string> {
-  const dir = await mkdtemp(join(tmpdir(), 'codex-web-session-events-'))
+  const dir = await mkdtemp(join(tmpdir(), 'cody-web-ui-session-events-'))
   tempDirs.push(dir)
   await git(dir, ['init'])
   return dir
@@ -333,7 +333,7 @@ describe('session event store', () => {
   })
 
   it('returns empty daily token usage for non-git directories', async () => {
-    const dir = await mkdtemp(join(tmpdir(), 'codex-web-session-events-non-git-'))
+    const dir = await mkdtemp(join(tmpdir(), 'cody-web-ui-session-events-non-git-'))
     tempDirs.push(dir)
     const resolvedDir = await realpath(dir)
 

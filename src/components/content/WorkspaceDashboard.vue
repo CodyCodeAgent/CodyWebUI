@@ -159,7 +159,7 @@
         <p v-else class="workspace-dashboard-empty">No test, lint, typecheck, build, or preview script detected.</p>
 
         <div class="workspace-dashboard-config-grid">
-          <span :data-present="snapshot?.configFiles.codexWeb">.codex-web.yml</span>
+          <span :data-present="snapshot?.configFiles.codyWebUi">.cody-web-ui.yml</span>
           <span :data-present="snapshot?.configFiles.agents">AGENTS.md</span>
           <span :data-present="snapshot?.configFiles.aiIgnore">.aiignore</span>
           <span :data-present="snapshot?.configFiles.gitIgnore">.gitignore</span>

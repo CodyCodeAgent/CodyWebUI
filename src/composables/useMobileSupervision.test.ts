@@ -86,7 +86,7 @@ function snapshot(overrides: Partial<UiWorkspaceSnapshot> = {}): UiWorkspaceSnap
       ignorePatterns: [],
     },
     configFiles: {
-      codexWeb: false,
+      codyWebUi: false,
       agents: false,
       aiIgnore: false,
       gitIgnore: false,

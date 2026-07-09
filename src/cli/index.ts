@@ -9,7 +9,7 @@ import {
 } from './cliStartup.js'
 
 const program = new Command()
-  .name('codex-web-local')
+  .name('cody-web-ui')
   .description('Web interface for Codex app-server')
   .option('-p, --port <port>', 'port to listen on', '3000')
   .option('--host <host>', 'host to listen on', '127.0.0.1')

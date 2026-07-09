@@ -4,7 +4,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http'
 import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
 
-const DEFAULT_SETTINGS_DB_PATH = join(homedir(), '.codex-web-local', 'settings.sqlite3')
+const DEFAULT_SETTINGS_DB_PATH = join(homedir(), '.cody-web-ui', 'settings.sqlite3')
 const MAX_SETTING_KEY_LENGTH = 160
 const MAX_SETTING_VALUE_BYTES = 256 * 1024
 
@@ -15,7 +15,7 @@ export type UserSetting = {
 }
 
 function settingsDbPath(): string {
-  return process.env.CODEX_WEB_LOCAL_SETTINGS_DB?.trim() || DEFAULT_SETTINGS_DB_PATH
+  return process.env.CODY_WEB_UI_SETTINGS_DB?.trim() || DEFAULT_SETTINGS_DB_PATH
 }
 
 function setJson(res: ServerResponse, statusCode: number, payload: unknown): void {

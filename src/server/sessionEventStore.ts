@@ -353,7 +353,7 @@ function emptyDailyTokenUsage(input: {
 }
 
 function sessionEventRoot(workspace: SessionWorkspace): string {
-  return join(workspace.gitCommonDir, 'codex-web-audit')
+  return join(workspace.gitCommonDir, 'cody-web-ui-audit')
 }
 
 function sessionEventPath(workspace: SessionWorkspace): string {

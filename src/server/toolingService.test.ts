@@ -78,11 +78,11 @@ async function git(cwd: string, args: string[]): Promise<string> {
 }
 
 async function createRepo(): Promise<string> {
-  const dir = await mkdtemp(join(tmpdir(), 'codex-web-tooling-'))
+  const dir = await mkdtemp(join(tmpdir(), 'cody-web-ui-tooling-'))
   tempDirs.push(dir)
   await git(dir, ['init'])
-  await git(dir, ['config', 'user.email', 'codex-web-local@example.test'])
-  await git(dir, ['config', 'user.name', 'Codex Web Local'])
+  await git(dir, ['config', 'user.email', 'cody-web-ui@example.test'])
+  await git(dir, ['config', 'user.name', 'CodyWebUI'])
   await writeFile(join(dir, 'example.txt'), 'one\n', 'utf8')
   await git(dir, ['add', 'example.txt'])
   await git(dir, ['commit', '-m', 'initial'])
@@ -529,7 +529,7 @@ describe('toolingService', () => {
     expect(result.rollbackApplied).toBe(true)
     expect(result.remainingStatus).toBe('')
     await expect(readFile(join(repo, 'new-file.txt'), 'utf8')).rejects.toThrow()
-    await expect(readFile(join(repo, '.git/codex-web-checkpoints', result.checkpoint.id, 'untracked/new-file.txt'), 'utf8')).resolves.toBe('draft\n')
+    await expect(readFile(join(repo, '.git/cody-web-ui-checkpoints', result.checkpoint.id, 'untracked/new-file.txt'), 'utf8')).resolves.toBe('draft\n')
   })
 
   it('rolls back one modified hunk while preserving another hunk', async () => {
@@ -604,7 +604,7 @@ describe('toolingService', () => {
     await expect(readFile(join(repo, 'untracked.txt'), 'utf8')).rejects.toThrow()
     expect(checkpointPatch.patch).toContain('+two')
     expect(checkpointPatch.patch).toContain('+staged')
-    await expect(readFile(join(repo, '.git/codex-web-checkpoints', result.checkpoint.id, 'untracked/untracked.txt'), 'utf8')).resolves.toBe('draft\n')
+    await expect(readFile(join(repo, '.git/cody-web-ui-checkpoints', result.checkpoint.id, 'untracked/untracked.txt'), 'utf8')).resolves.toBe('draft\n')
   })
 
   it('records auditable rollback and checkpoint events', async () => {
@@ -805,7 +805,7 @@ describe('toolingService', () => {
       packageManager: '',
       configFiles: {
         aiIgnore: true,
-        codexWeb: false,
+        codyWebUi: false,
       },
     })
     expect(snapshot.gitStatus.dirtyFileCount).toBe(4)
@@ -858,10 +858,10 @@ describe('toolingService', () => {
       }),
     ]))
     expect(snapshot.validationPlan.missingEvidenceCount).toBeGreaterThanOrEqual(2)
-    expect(snapshot.warnings).toContain('No .codex-web.yml found for workspace-specific policy and validation defaults.')
+    expect(snapshot.warnings).toContain('No .cody-web-ui.yml found for workspace-specific policy and validation defaults.')
   })
 
-  it('loads workspace policy from .codex-web.yml', async () => {
+  it('loads workspace policy from .cody-web-ui.yml', async () => {
     const repo = await createRepo()
     await writeFile(join(repo, 'AGENTS.md'), [
       '# Project instructions',
@@ -888,7 +888,7 @@ describe('toolingService', () => {
         },
       },
     }, null, 2), 'utf8')
-    await writeFile(join(repo, '.codex-web.yml'), [
+    await writeFile(join(repo, '.cody-web-ui.yml'), [
       'workspace:',
       '  trust: trusted',
       '  sandboxMode: workspace-write',
@@ -930,7 +930,7 @@ describe('toolingService', () => {
 
     const snapshot = await getWorkspaceSnapshot(repo)
 
-    expect(snapshot.configFiles.codexWeb).toBe(true)
+    expect(snapshot.configFiles.codyWebUi).toBe(true)
     expect(snapshot.workspaceConfig).toMatchObject({
       loaded: true,
       trust: 'trusted',
@@ -1014,12 +1014,12 @@ describe('toolingService', () => {
       }),
     ]))
     expect(snapshot.validationPlan.requiredCount).toBeGreaterThanOrEqual(2)
-    expect(snapshot.warnings).not.toContain('No .codex-web.yml found for workspace-specific policy and validation defaults.')
+    expect(snapshot.warnings).not.toContain('No .cody-web-ui.yml found for workspace-specific policy and validation defaults.')
   })
 
   it('detects secrets, sensitive paths, and high-risk files in workspace changes', async () => {
     const repo = await createRepo()
-    await writeFile(join(repo, '.codex-web.yml'), [
+    await writeFile(join(repo, '.cody-web-ui.yml'), [
       'security:',
       '  sensitivePaths:',
       '    - .env*',
@@ -1073,7 +1073,7 @@ describe('toolingService', () => {
         build: 'vite build',
       },
     }, null, 2), 'utf8')
-    await writeFile(join(repo, '.codex-web.yml'), [
+    await writeFile(join(repo, '.cody-web-ui.yml'), [
       'workspace:',
       '  trust: trusted',
       '  sandboxMode: workspace-write',
@@ -1960,7 +1960,7 @@ describe('toolingService', () => {
         test: 'node -e "console.log(\'ok\')"',
       },
     }, null, 2), 'utf8')
-    await writeFile(join(repo, '.codex-web.yml'), [
+    await writeFile(join(repo, '.cody-web-ui.yml'), [
       'commands:',
       '  deny:',
       '    - test',
@@ -1970,7 +1970,7 @@ describe('toolingService', () => {
     await expect(runWorkspaceScript({
       cwd: repo,
       scriptName: 'test',
-    })).rejects.toThrow('Command is denied by .codex-web.yml policy: test')
+    })).rejects.toThrow('Command is denied by .cody-web-ui.yml policy: test')
   })
 
   it('enforces workspace command allow policy for terminal sessions', async () => {
@@ -1981,7 +1981,7 @@ describe('toolingService', () => {
         dev: 'node -e "setTimeout(() => {}, 1000)"',
       },
     }, null, 2), 'utf8')
-    await writeFile(join(repo, '.codex-web.yml'), [
+    await writeFile(join(repo, '.cody-web-ui.yml'), [
       'commands:',
       '  allow:',
       '    - test',
@@ -1991,12 +1991,12 @@ describe('toolingService', () => {
     await expect(startWorkspaceTerminalSession({
       cwd: repo,
       scriptName: 'dev',
-    })).rejects.toThrow('Command is not allowed by .codex-web.yml policy')
+    })).rejects.toThrow('Command is not allowed by .cody-web-ui.yml policy')
   })
 
   it('evaluates workspace command policy for app-server approval commands', async () => {
     const repo = await createRepo()
-    await writeFile(join(repo, '.codex-web.yml'), [
+    await writeFile(join(repo, '.cody-web-ui.yml'), [
       'commands:',
       '  allow:',
       '    - test',
@@ -2026,21 +2026,21 @@ describe('toolingService', () => {
     })).resolves.toMatchObject({
       status: 'denied',
       matchedPattern: 'publish*',
-      reason: 'Command is denied by .codex-web.yml policy: publish*',
+      reason: 'Command is denied by .cody-web-ui.yml policy: publish*',
     })
     await expect(evaluateWorkspaceCommandPolicy({
       cwd: repo,
       command: 'git status',
     })).resolves.toMatchObject({
       status: 'denied',
-      reason: 'Command is not allowed by .codex-web.yml policy',
+      reason: 'Command is not allowed by .cody-web-ui.yml policy',
     })
   })
 
   it('evaluates workspace file change policy for app-server approvals', async () => {
     const repo = await createRepo()
     await writeFile(join(repo, '.gitignore'), 'ignored/**\n', 'utf8')
-    await writeFile(join(repo, '.codex-web.yml'), [
+    await writeFile(join(repo, '.cody-web-ui.yml'), [
       'workspace:',
       '  sandboxMode: workspace-write',
       'security:',
@@ -2081,7 +2081,7 @@ describe('toolingService', () => {
       category: 'outside_workspace',
     })
 
-    await writeFile(join(repo, '.codex-web.yml'), [
+    await writeFile(join(repo, '.cody-web-ui.yml'), [
       'workspace:',
       '  sandboxMode: read-only',
       '',
@@ -2098,7 +2098,7 @@ describe('toolingService', () => {
 
   it('returns configured known ports and required-port warnings', async () => {
     const repo = await createRepo()
-    await writeFile(join(repo, '.codex-web.yml'), [
+    await writeFile(join(repo, '.cody-web-ui.yml'), [
       'ports:',
       '  known:',
       '    - name: local-app',
@@ -2163,7 +2163,7 @@ describe('toolingService', () => {
     await mkdir(join(repo, 'tmp'), { recursive: true })
     await writeFile(join(repo, '.env'), 'TOKEN=secret\n', 'utf8')
     await writeFile(join(repo, 'tmp/cache.txt'), 'cached\n', 'utf8')
-    await writeFile(join(repo, '.codex-web.yml'), [
+    await writeFile(join(repo, '.cody-web-ui.yml'), [
       'security:',
       '  sensitivePaths:',
       '    - .env*',
@@ -2728,7 +2728,7 @@ describe('toolingService', () => {
 
   it('exposes notification policy without leaking raw webhook URLs', async () => {
     const repo = await createRepo()
-    await writeFile(join(repo, '.codex-web.yml'), [
+    await writeFile(join(repo, '.cody-web-ui.yml'), [
       'notifications:',
       '  enabled: true',
       '  events:',

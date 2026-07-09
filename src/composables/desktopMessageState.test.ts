@@ -56,7 +56,7 @@ function rollbackResult(overrides: Partial<UiToolingRollbackFileResult> = {}): U
       repoRoot: '/workspace/app',
       createdAtIso: '2026-07-07T00:00:00.000Z',
       paths: ['src/app.ts'],
-      patchPath: '/workspace/app/.git/codex-web-checkpoints/checkpoint-1/workspace.patch',
+      patchPath: '/workspace/app/.git/cody-web-ui-checkpoints/checkpoint-1/workspace.patch',
       patchBytes: 128,
       hasPatch: true,
     },

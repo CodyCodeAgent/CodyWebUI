@@ -453,7 +453,7 @@ export type ToolingWorkspaceSnapshot = {
   projectContext: ToolingWorkspaceProjectContext
   workspaceConfig: ToolingWorkspaceConfig
   configFiles: {
-    codexWeb: boolean
+    codyWebUi: boolean
     agents: boolean
     aiIgnore: boolean
     gitIgnore: boolean
@@ -1285,7 +1285,7 @@ type TerminalSessionRecord = {
   process: ChildProcessWithoutNullStreams | null
 }
 
-const TERMINAL_SESSIONS_KEY = '__codexWebLocalTerminalSessions__'
+const TERMINAL_SESSIONS_KEY = '__codyWebUiLocalTerminalSessions__'
 
 function terminalSessionStore(): Map<string, TerminalSessionRecord> {
   const globalScope = globalThis as typeof globalThis & {
@@ -1465,11 +1465,11 @@ export async function getDefaultWorkspace(): Promise<ToolingDefaultWorkspace> {
 }
 
 function checkpointRoot(workspace: GitWorkspace): string {
-  return join(workspace.gitCommonDir, 'codex-web-checkpoints')
+  return join(workspace.gitCommonDir, 'cody-web-ui-checkpoints')
 }
 
 function auditRoot(workspace: GitWorkspace): string {
-  return join(workspace.gitCommonDir, 'codex-web-audit')
+  return join(workspace.gitCommonDir, 'cody-web-ui-audit')
 }
 
 function auditLogPath(workspace: GitWorkspace): string {
@@ -1489,7 +1489,7 @@ function workspaceApprovalGrantsPath(workspace: GitWorkspace): string {
 }
 
 function permanentApprovalGrantsRoot(): string {
-  return join(homedir(), '.codex-web-local')
+  return join(homedir(), '.cody-web-ui')
 }
 
 function permanentApprovalGrantsPath(): string {
@@ -3052,7 +3052,7 @@ export function evaluatePortPolicy(params: {
       port: params.port,
       exposure: params.exposure,
       matchedRule: `deny:${denyMatch}`,
-      reason: `Port ${String(params.port)} is denied by .codex-web.yml ports.policy.deny.`,
+      reason: `Port ${String(params.port)} is denied by .cody-web-ui.yml ports.policy.deny.`,
     }
   }
 
@@ -3064,7 +3064,7 @@ export function evaluatePortPolicy(params: {
       port: params.port,
       exposure: params.exposure,
       matchedRule: 'allowlist',
-      reason: `Port ${String(params.port)} is not listed in .codex-web.yml ports.policy.allow.`,
+      reason: `Port ${String(params.port)} is not listed in .cody-web-ui.yml ports.policy.allow.`,
     }
   }
 
@@ -3098,7 +3098,7 @@ export function evaluatePortPolicy(params: {
       exposure: params.exposure,
       matchedRule: allowMatch ? `allow:${allowMatch}` : 'default',
       reason: allowMatch
-        ? `Port ${String(params.port)} is allowed by .codex-web.yml ports.policy.allow.`
+        ? `Port ${String(params.port)} is allowed by .cody-web-ui.yml ports.policy.allow.`
         : `Port ${String(params.port)} is allowed by the workspace port exposure policy.`,
     }
   }
@@ -3501,7 +3501,7 @@ function buildWorkspaceValidationPlan(params: {
       command: command.command,
       scriptName: command.name,
       targetUrl: null,
-      reason: 'Configured in .codex-web.yml validation.commands.',
+      reason: 'Configured in .cody-web-ui.yml validation.commands.',
       evidence,
     })
   }
@@ -3540,8 +3540,8 @@ function buildWorkspaceValidationPlan(params: {
       scriptName: null,
       targetUrl,
       reason: port.required
-        ? 'Required workspace preview port from .codex-web.yml.'
-        : 'Known workspace preview port from .codex-web.yml.',
+        ? 'Required workspace preview port from .cody-web-ui.yml.'
+        : 'Known workspace preview port from .cody-web-ui.yml.',
       evidence: {
         status: 'manual',
         runAtIso: null,
@@ -3566,7 +3566,7 @@ function buildWorkspaceValidationPlan(params: {
       command: '',
       scriptName: null,
       targetUrl: null,
-      reason: `No ${kind} validation command was found in .codex-web.yml or package scripts.`,
+      reason: `No ${kind} validation command was found in .cody-web-ui.yml or package scripts.`,
       evidence: {
         status: 'missing',
         runAtIso: null,
@@ -4206,7 +4206,7 @@ function emptyWorkspaceConfig(path: string | null = null): ToolingWorkspaceConfi
 }
 
 async function readWorkspaceConfig(repoRoot: string): Promise<ToolingWorkspaceConfig> {
-  const configPath = join(repoRoot, '.codex-web.yml')
+  const configPath = join(repoRoot, '.cody-web-ui.yml')
   if (!(await pathExists(configPath))) return emptyWorkspaceConfig(null)
 
   try {
@@ -4245,7 +4245,7 @@ async function readWorkspaceConfig(repoRoot: string): Promise<ToolingWorkspaceCo
     }
   } catch (error) {
     const config = emptyWorkspaceConfig(configPath)
-    config.errors = [error instanceof Error ? error.message : 'Failed to parse .codex-web.yml']
+    config.errors = [error instanceof Error ? error.message : 'Failed to parse .cody-web-ui.yml']
     return config
   }
 }
@@ -4254,13 +4254,13 @@ export async function getWorkspaceNotificationDispatchConfig(
   cwd: string,
 ): Promise<ToolingWorkspaceNotificationDispatchConfig> {
   const workspace = await getWorkspaceRoot(cwd)
-  const configPath = join(workspace.root, '.codex-web.yml')
+  const configPath = join(workspace.root, '.cody-web-ui.yml')
   if (!(await pathExists(configPath))) {
     return {
       enabled: false,
       events: [],
       channels: [],
-      warnings: ['No .codex-web.yml notification policy found.'],
+      warnings: ['No .cody-web-ui.yml notification policy found.'],
     }
   }
 
@@ -4344,7 +4344,7 @@ function evaluateCommandPolicyFromConfig(params: {
       allowPatterns,
       denyPatterns,
       matchedPattern: denyMatch,
-      reason: `Command is denied by .codex-web.yml policy: ${denyMatch}`,
+      reason: `Command is denied by .cody-web-ui.yml policy: ${denyMatch}`,
     }
   }
 
@@ -4375,7 +4375,7 @@ function evaluateCommandPolicyFromConfig(params: {
       allowPatterns,
       denyPatterns,
       matchedPattern: '',
-      reason: 'Command is not allowed by .codex-web.yml policy',
+      reason: 'Command is not allowed by .cody-web-ui.yml policy',
     }
   }
 
@@ -4388,7 +4388,7 @@ function evaluateCommandPolicyFromConfig(params: {
     allowPatterns,
     denyPatterns,
     matchedPattern: allowMatch,
-    reason: `Command matched .codex-web.yml allow policy: ${allowMatch}`,
+    reason: `Command matched .cody-web-ui.yml allow policy: ${allowMatch}`,
   }
 }
 
@@ -4549,7 +4549,7 @@ export async function evaluateWorkspaceFileChangePolicy(params: {
       sandboxMode: config.sandboxMode,
       category: 'read_only',
       matchedPattern: 'workspace.sandboxMode=read-only',
-      reason: 'Workspace is configured read-only in .codex-web.yml.',
+      reason: 'Workspace is configured read-only in .cody-web-ui.yml.',
     }
   }
 
@@ -4739,7 +4739,7 @@ async function readWorkspaceConfigFiles(repoRoot: string): Promise<ToolingWorksp
     join(repoRoot, 'agents.md'),
   ]
   return {
-    codexWeb: await pathExists(join(repoRoot, '.codex-web.yml')),
+    codyWebUi: await pathExists(join(repoRoot, '.cody-web-ui.yml')),
     agents: (await Promise.all(agentsPaths.map(pathExists))).some(Boolean),
     aiIgnore: await pathExists(join(repoRoot, '.aiignore')),
     gitIgnore: await pathExists(join(repoRoot, '.gitignore')),
@@ -4874,7 +4874,7 @@ async function buildWorkspaceProjectContext(repoRoot: string): Promise<ToolingWo
   const fixedSources = await Promise.all([
     readWorkspaceContextSource({ repoRoot, relativePath: 'AGENTS.md', kind: 'agents', title: 'AGENTS.md' }),
     readWorkspaceContextSource({ repoRoot, relativePath: 'agents.md', kind: 'agents', title: 'agents.md', required: false }),
-    readWorkspaceContextSource({ repoRoot, relativePath: '.codex-web.yml', kind: 'codex_web', title: '.codex-web.yml' }),
+    readWorkspaceContextSource({ repoRoot, relativePath: '.cody-web-ui.yml', kind: 'codex_web', title: '.cody-web-ui.yml' }),
     readWorkspaceContextSource({ repoRoot, relativePath: '.codex/config.toml', kind: 'codex_config', title: 'Codex config', required: false }),
     readWorkspaceContextSource({ repoRoot, relativePath: '.codex/config.json', kind: 'codex_config', title: 'Codex config', required: false }),
     readWorkspaceContextSource({ repoRoot, relativePath: '.mcp.json', kind: 'mcp_config', title: 'MCP config', required: false }),
@@ -4914,14 +4914,14 @@ function buildWorkspaceWarnings(snapshot: Omit<ToolingWorkspaceSnapshot, 'warnin
   if (snapshot.gitStatus.dirtyFileCount > 20) {
     warnings.push(`${String(snapshot.gitStatus.dirtyFileCount)} dirty files detected. Review scope before starting autonomous work.`)
   }
-  if (!snapshot.configFiles.codexWeb) {
-    warnings.push('No .codex-web.yml found for workspace-specific policy and validation defaults.')
+  if (!snapshot.configFiles.codyWebUi) {
+    warnings.push('No .cody-web-ui.yml found for workspace-specific policy and validation defaults.')
   }
   for (const error of snapshot.workspaceConfig.errors) {
-    warnings.push(`.codex-web.yml could not be parsed: ${error}`)
+    warnings.push(`.cody-web-ui.yml could not be parsed: ${error}`)
   }
   if (snapshot.workspaceConfig.loaded && snapshot.workspaceConfig.trust !== 'trusted') {
-    warnings.push('Workspace trust is not marked trusted in .codex-web.yml.')
+    warnings.push('Workspace trust is not marked trusted in .cody-web-ui.yml.')
   }
   if (snapshot.workspaceConfig.sandboxMode === 'danger') {
     warnings.push('Workspace config requests danger sandbox mode. Review approvals before running commands.')
@@ -4931,7 +4931,7 @@ function buildWorkspaceWarnings(snapshot: Omit<ToolingWorkspaceSnapshot, 'warnin
     snapshot.workspaceConfig.commandPolicy.allow.length === 0 &&
     snapshot.workspaceConfig.commandPolicy.deny.length === 0
   ) {
-    warnings.push('.codex-web.yml does not define command allowlist or denylist policy.')
+    warnings.push('.cody-web-ui.yml does not define command allowlist or denylist policy.')
   }
   if (!snapshot.configFiles.aiIgnore) {
     warnings.push('No .aiignore found; sensitive paths rely on default protections only.')
@@ -6977,7 +6977,7 @@ export async function commitStagedWorkspaceChanges(params: {
   if (!draft.hasStagedChanges) throw new Error('No staged changes to commit')
 
   const commitMessage = normalizeCommitMessage(params.commitMessage?.trim() || draft.commitMessage)
-  const messagePath = join(workspace.gitCommonDir, 'codex-web-audit', `commit-message-${randomUUID()}.txt`)
+  const messagePath = join(workspace.gitCommonDir, 'cody-web-ui-audit', `commit-message-${randomUUID()}.txt`)
   await mkdir(dirname(messagePath), { recursive: true })
   try {
     await writeFile(messagePath, `${commitMessage}\n`, 'utf8')
@@ -7039,7 +7039,7 @@ export async function createWorkspacePullRequest(params: {
   const isDraft = params.draft ?? true
   const dryRun = params.dryRun ?? false
   const createdAtIso = new Date().toISOString()
-  const bodyPath = join(workspace.gitCommonDir, 'codex-web-audit', `pr-body-${randomUUID()}.md`)
+  const bodyPath = join(workspace.gitCommonDir, 'cody-web-ui-audit', `pr-body-${randomUUID()}.md`)
   await mkdir(dirname(bodyPath), { recursive: true })
   await writeFile(bodyPath, `${body}\n`, 'utf8')
 
@@ -7335,7 +7335,7 @@ export async function probeWorkspacePreview(params: {
       signal: controller.signal,
       headers: {
         accept: 'text/html,application/xhtml+xml,text/plain;q=0.9,*/*;q=0.5',
-        'user-agent': 'codex-web-local-preview-probe',
+        'user-agent': 'cody-web-ui-preview-probe',
       },
     })
     statusCode = response.status
@@ -7445,7 +7445,7 @@ export async function captureWorkspacePreviewScreenshot(params: {
   let data: Buffer | null = null
   let errorMessage = ''
 
-  const tempRoot = await mkdtemp(join(tmpdir(), 'codex-web-preview-shot-'))
+  const tempRoot = await mkdtemp(join(tmpdir(), 'cody-web-ui-preview-shot-'))
   try {
     const chromePath = await findChromeExecutable()
     if (!chromePath) {

@@ -6,7 +6,7 @@ describe('desktopSettingsKeys', () => {
     const values = Object.values(DESKTOP_STORAGE_KEYS)
 
     expect(new Set(values).size).toBe(values.length)
-    expect(values.every((key) => key.startsWith('codex-web-local.'))).toBe(true)
+    expect(values.every((key) => key.startsWith('cody-web-ui.'))).toBe(true)
     expect(values.every((key) => /\.v\d+$/.test(key))).toBe(true)
   })
 

@@ -24,9 +24,9 @@ vi.mock('./codexAppServerBridge.js', () => ({
 const tempDirs: string[] = []
 
 async function createDistFixture(): Promise<string> {
-  const dir = await mkdtemp(join(tmpdir(), 'codex-web-http-'))
+  const dir = await mkdtemp(join(tmpdir(), 'cody-web-ui-http-'))
   tempDirs.push(dir)
-  await writeFile(join(dir, 'index.html'), '<!doctype html><title>Codex Web Local</title><main>app shell</main>', 'utf8')
+  await writeFile(join(dir, 'index.html'), '<!doctype html><title>CodyWebUI</title><main>app shell</main>', 'utf8')
   await writeFile(join(dir, 'asset.txt'), 'static asset', 'utf8')
   return dir
 }

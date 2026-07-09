@@ -7,8 +7,8 @@ bridges to the local Codex `app-server`, and gives you a browser-based
 workspace for starting threads, supervising tool calls, reviewing diffs,
 approving risky operations, and tracking local agent activity.
 
-The project name is CodyWebUI. The current npm package and CLI command are
-still published as `codex-web-local` for compatibility.
+The project name is CodyWebUI. The npm package and CLI command are
+`cody-web-ui`.
 
 The project is early but already aims at a larger shape: a practical,
 auditable, browser-accessible engineering console for coding agents.
@@ -55,14 +55,14 @@ may need a working native build toolchain.
 Run directly:
 
 ```bash
-npx codex-web-local
+npx cody-web-ui
 ```
 
 Or install globally:
 
 ```bash
-npm install -g codex-web-local
-codex-web-local
+npm install -g cody-web-ui
+cody-web-ui
 ```
 
 By default the server listens on `127.0.0.1:3000` and prints a generated
@@ -71,7 +71,7 @@ password. Open the printed URL in a browser and sign in with that password.
 ## CLI Usage
 
 ```text
-Usage: codex-web-local [options]
+Usage: cody-web-ui [options]
 
 Web interface for Codex app-server
 
@@ -86,10 +86,10 @@ Options:
 Examples:
 
 ```bash
-codex-web-local
-codex-web-local --port 8080
-codex-web-local --host 0.0.0.0 --password my-secret
-codex-web-local --no-password
+cody-web-ui
+cody-web-ui --port 8080
+cody-web-ui --host 0.0.0.0 --password my-secret
+cody-web-ui --no-password
 ```
 
 Use `--host 0.0.0.0` only on trusted networks or behind your own HTTPS,
@@ -145,13 +145,13 @@ CodyWebUI has three main layers:
 Local settings are stored in:
 
 ```text
-~/.codex-web-local/settings.sqlite3
+~/.cody-web-ui/settings.sqlite3
 ```
 
 You can override that path with:
 
 ```bash
-CODEX_WEB_LOCAL_SETTINGS_DB=/path/to/settings.sqlite3 codex-web-local
+CODY_WEB_UI_SETTINGS_DB=/path/to/settings.sqlite3 cody-web-ui
 ```
 
 ## Documentation

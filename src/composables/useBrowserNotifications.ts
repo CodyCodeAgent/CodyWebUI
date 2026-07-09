@@ -31,7 +31,7 @@ export type BrowserNotificationEvent = {
   sourceId: string
 }
 
-const PREFERENCE_STORAGE_KEY = 'codex-web-local.browser-notifications.v1'
+const PREFERENCE_STORAGE_KEY = 'cody-web-ui.browser-notifications.v1'
 const MAX_EVENTS = 30
 
 function readString(value: unknown): string {

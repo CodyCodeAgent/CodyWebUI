@@ -598,7 +598,7 @@ function onRespondEmptyResult(requestId: number): void {
 function onRejectUnknownRequest(requestId: number): void {
   emit('respondServerRequest', buildRejectedServerRequestReply(
     requestId,
-    'Rejected from codex-web-local UI.',
+    'Rejected from cody-web-ui UI.',
   ))
 }
 

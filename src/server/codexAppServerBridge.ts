@@ -1172,7 +1172,7 @@ class AppServerProcess {
 
     await this.call('initialize', {
       clientInfo: {
-        name: 'codex-web-local',
+        name: 'cody-web-ui',
         version: '0.1.0',
       },
       capabilities: {
@@ -1418,7 +1418,7 @@ class MethodCatalog {
       return this.methodCache
     }
 
-    const outDir = await mkdtemp(join(tmpdir(), 'codex-web-local-schema-'))
+    const outDir = await mkdtemp(join(tmpdir(), 'cody-web-ui-schema-'))
     await this.runGenerateSchemaCommand(outDir)
 
     const clientRequestPath = join(outDir, 'ClientRequest.json')
@@ -1435,7 +1435,7 @@ class MethodCatalog {
       return this.notificationCache
     }
 
-    const outDir = await mkdtemp(join(tmpdir(), 'codex-web-local-schema-'))
+    const outDir = await mkdtemp(join(tmpdir(), 'cody-web-ui-schema-'))
     await this.runGenerateSchemaCommand(outDir)
 
     const serverNotificationPath = join(outDir, 'ServerNotification.json')

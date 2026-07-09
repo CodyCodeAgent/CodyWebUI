@@ -7,7 +7,7 @@ import { randomUUID } from 'node:crypto'
 
 const MAX_JSON_BODY_BYTES = 30 * 1024 * 1024
 const MAX_IMAGE_BYTES = 20 * 1024 * 1024
-const IMAGE_UPLOAD_DIR = join(tmpdir(), 'codex-web-local-images')
+const IMAGE_UPLOAD_DIR = join(tmpdir(), 'cody-web-ui-images')
 const IMAGE_MIME_TO_EXT: Record<string, string> = {
   'image/png': '.png',
   'image/jpeg': '.jpg',

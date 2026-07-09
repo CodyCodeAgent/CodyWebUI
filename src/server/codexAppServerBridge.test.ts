@@ -32,11 +32,11 @@ async function git(cwd: string, args: string[]): Promise<string> {
 }
 
 async function createRepo(): Promise<string> {
-  const dir = await mkdtemp(join(tmpdir(), 'codex-web-bridge-'))
+  const dir = await mkdtemp(join(tmpdir(), 'cody-web-ui-bridge-'))
   tempDirs.push(dir)
   await git(dir, ['init'])
-  await git(dir, ['config', 'user.email', 'codex-web-local@example.test'])
-  await git(dir, ['config', 'user.name', 'Codex Web Local'])
+  await git(dir, ['config', 'user.email', 'cody-web-ui@example.test'])
+  await git(dir, ['config', 'user.name', 'CodyWebUI'])
   await writeFile(join(dir, 'example.txt'), 'one\n', 'utf8')
   await git(dir, ['add', 'example.txt'])
   await git(dir, ['commit', '-m', 'initial'])

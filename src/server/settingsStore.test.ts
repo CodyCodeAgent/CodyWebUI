@@ -8,16 +8,16 @@ let previousDbPath: string | undefined
 let tempDir = ''
 
 beforeEach(async () => {
-  previousDbPath = process.env.CODEX_WEB_LOCAL_SETTINGS_DB
-  tempDir = await mkdtemp(join(tmpdir(), 'codex-web-settings-'))
-  process.env.CODEX_WEB_LOCAL_SETTINGS_DB = join(tempDir, 'settings.sqlite3')
+  previousDbPath = process.env.CODY_WEB_UI_SETTINGS_DB
+  tempDir = await mkdtemp(join(tmpdir(), 'cody-web-ui-settings-'))
+  process.env.CODY_WEB_UI_SETTINGS_DB = join(tempDir, 'settings.sqlite3')
 })
 
 afterEach(async () => {
   if (previousDbPath === undefined) {
-    delete process.env.CODEX_WEB_LOCAL_SETTINGS_DB
+    delete process.env.CODY_WEB_UI_SETTINGS_DB
   } else {
-    process.env.CODEX_WEB_LOCAL_SETTINGS_DB = previousDbPath
+    process.env.CODY_WEB_UI_SETTINGS_DB = previousDbPath
   }
   await rm(tempDir, { recursive: true, force: true })
 })
@@ -58,7 +58,7 @@ describe('settings store', () => {
   })
 
   it('fails loudly when the sqlite database cannot be opened', async () => {
-    process.env.CODEX_WEB_LOCAL_SETTINGS_DB = tempDir
+    process.env.CODY_WEB_UI_SETTINGS_DB = tempDir
 
     await expect(writeUserSetting('token-flame.widget.v1', {
       enabled: true,

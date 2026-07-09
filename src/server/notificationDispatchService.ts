@@ -68,7 +68,7 @@ export type NotificationDeliveryReport = {
 }
 
 type NotificationPayload = {
-  source: 'codex-web-local'
+  source: 'cody-web-ui'
   version: 1
   event: NotificationDispatchEvent
 }
@@ -375,7 +375,7 @@ export class NotificationDispatcher {
       results,
       warnings: config.enabled
         ? config.warnings
-        : ['Notifications are disabled in .codex-web.yml.'],
+        : ['Notifications are disabled in .cody-web-ui.yml.'],
     }
   }
 
@@ -385,7 +385,7 @@ export class NotificationDispatcher {
       id: `notification-test:${generatedAt.toISOString()}`,
       kind: 'ready_for_review',
       title: 'Notification channel test',
-      summary: 'Codex Web Local sent a test notification from the workspace dashboard.',
+      summary: 'CodyWebUI sent a test notification from the workspace dashboard.',
       severity: 'info',
       createdAtIso: generatedAt.toISOString(),
       threadId: '',
@@ -413,7 +413,7 @@ export class NotificationDispatcher {
     }
 
     const payload: NotificationPayload = {
-      source: 'codex-web-local',
+      source: 'cody-web-ui',
       version: 1,
       event,
     }
@@ -425,7 +425,7 @@ export class NotificationDispatcher {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'User-Agent': 'codex-web-local-notifier',
+          'User-Agent': 'cody-web-ui-notifier',
         },
         body: JSON.stringify(bodyForChannel(channel.type, payload)),
         signal: controller.signal,

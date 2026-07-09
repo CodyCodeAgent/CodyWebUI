@@ -10,9 +10,9 @@ import {
 const tempDirs: string[] = []
 
 async function createWorkspace(config: string): Promise<string> {
-  const dir = await mkdtemp(join(tmpdir(), 'codex-web-notifications-'))
+  const dir = await mkdtemp(join(tmpdir(), 'cody-web-ui-notifications-'))
   tempDirs.push(dir)
-  await writeFile(join(dir, '.codex-web.yml'), config, 'utf8')
+  await writeFile(join(dir, '.cody-web-ui.yml'), config, 'utf8')
   return dir
 }
 
@@ -105,7 +105,7 @@ notifications:
     expect(calls).toHaveLength(1)
     expect(calls[0].url).toBe('http://127.0.0.1:9999/hook')
     expect(calls[0].body).toMatchObject({
-      source: 'codex-web-local',
+      source: 'cody-web-ui',
       version: 1,
       event: {
         kind: 'approval_required',
@@ -202,7 +202,7 @@ notifications:
       ],
     })
     expect(bodies[0]).toMatchObject({
-      source: 'codex-web-local',
+      source: 'cody-web-ui',
       event: {
         kind: 'ready_for_review',
         method: 'tooling/notifications/test',
@@ -261,7 +261,7 @@ notifications:
     expect(calls[0]).toMatchObject({
       url: 'http://127.0.0.1:9999/workflow',
       body: {
-        source: 'codex-web-local',
+        source: 'cody-web-ui',
         version: 1,
         event: {
           kind: 'ready_for_review',
@@ -294,7 +294,7 @@ notifications:
       enabled: false,
       attemptedCount: 0,
       sentCount: 0,
-      warnings: ['Notifications are disabled in .codex-web.yml.'],
+      warnings: ['Notifications are disabled in .cody-web-ui.yml.'],
     })
   })
 })

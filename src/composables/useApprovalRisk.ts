@@ -203,7 +203,7 @@ function buildCommandApprovalSummary(request: UiServerRequest): UiApprovalRiskSu
     } else if (request.commandPolicy.status === 'not_configured') {
       level = maxRisk(level, 'medium')
       riskLabels.push('No command policy')
-      impacts.push('No .codex-web.yml command allowlist or denylist is configured for this command.')
+      impacts.push('No .cody-web-ui.yml command allowlist or denylist is configured for this command.')
     } else if (request.commandPolicy.status === 'not_git_workspace') {
       level = maxRisk(level, 'medium')
       riskLabels.push('Policy unavailable')

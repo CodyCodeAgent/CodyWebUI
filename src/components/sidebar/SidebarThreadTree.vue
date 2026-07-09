@@ -379,7 +379,7 @@ const projectGroupResizeObserver =
         }
       })
     : null
-const COLLAPSED_STORAGE_KEY = 'codex-web-local.collapsed-projects.v1'
+const COLLAPSED_STORAGE_KEY = 'cody-web-ui.collapsed-projects.v1'
 
 function loadCollapsedState(): Record<string, boolean> {
   if (typeof window === 'undefined') return {}

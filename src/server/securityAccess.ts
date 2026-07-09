@@ -126,7 +126,7 @@ export function buildSecurityAccessSnapshot(
       id: 'external-listener',
       level: 'warning',
       title: 'Server is listening on a non-loopback address',
-      summary: 'Use password protection, HTTPS, and firewall rules before exposing Codex Web Local remotely.',
+      summary: 'Use password protection, HTTPS, and firewall rules before exposing CodyWebUI remotely.',
     })
   }
 

@@ -28,7 +28,7 @@ const props = withDefaults(
   },
 )
 
-const SIDEBAR_WIDTH_KEY = 'codex-web-local.sidebar-width.v1'
+const SIDEBAR_WIDTH_KEY = 'cody-web-ui.sidebar-width.v1'
 const MIN_SIDEBAR_WIDTH = 260
 const MAX_SIDEBAR_WIDTH = 620
 const DEFAULT_SIDEBAR_WIDTH = 320

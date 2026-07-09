@@ -1,15 +1,15 @@
 export const DESKTOP_STORAGE_KEYS = {
-  autoRefreshEnabled: 'codex-web-local.auto-refresh-enabled.v1',
-  defaultNewThreadCwd: 'codex-web-local.default-new-thread-cwd.v1',
-  projectDisplayName: 'codex-web-local.project-display-name.v1',
-  projectOrder: 'codex-web-local.project-order.v1',
-  readState: 'codex-web-local.thread-read-state.v1',
-  scrollState: 'codex-web-local.thread-scroll-state.v1',
-  selectedThread: 'codex-web-local.selected-thread-id.v1',
-  sidebarCollapsed: 'codex-web-local.sidebar-collapsed.v1',
-  theme: 'codex-web-local.theme.v1',
-  themeImportedSkins: 'codex-web-local.theme.imported-skins.v1',
-  turnPreferences: 'codex-web-local.turn-preferences.v1',
+  autoRefreshEnabled: 'cody-web-ui.auto-refresh-enabled.v1',
+  defaultNewThreadCwd: 'cody-web-ui.default-new-thread-cwd.v1',
+  projectDisplayName: 'cody-web-ui.project-display-name.v1',
+  projectOrder: 'cody-web-ui.project-order.v1',
+  readState: 'cody-web-ui.thread-read-state.v1',
+  scrollState: 'cody-web-ui.thread-scroll-state.v1',
+  selectedThread: 'cody-web-ui.selected-thread-id.v1',
+  sidebarCollapsed: 'cody-web-ui.sidebar-collapsed.v1',
+  theme: 'cody-web-ui.theme.v1',
+  themeImportedSkins: 'cody-web-ui.theme.imported-skins.v1',
+  turnPreferences: 'cody-web-ui.turn-preferences.v1',
 } as const
 
 export const DESKTOP_SETTING_KEYS = {

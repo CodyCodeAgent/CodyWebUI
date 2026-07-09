@@ -77,7 +77,7 @@ describe('authMiddleware', () => {
 
     const protectedBeforeLogin = await fetch(`${server.baseUrl}/protected`)
     expect(protectedBeforeLogin.status).toBe(200)
-    expect(await protectedBeforeLogin.text()).toContain('Codex Web Local')
+    expect(await protectedBeforeLogin.text()).toContain('CodyWebUI')
 
     const login = await fetch(`${server.baseUrl}/auth/login`, {
       method: 'POST',
@@ -124,7 +124,7 @@ describe('authMiddleware', () => {
     const protectedAfterLogout = await fetch(`${server.baseUrl}/protected`, {
       headers: { cookie },
     })
-    expect(await protectedAfterLogout.text()).toContain('Codex Web Local')
+    expect(await protectedAfterLogout.text()).toContain('CodyWebUI')
 
     const secondLogin = await fetch(`${server.baseUrl}/auth/login`, {
       method: 'POST',
