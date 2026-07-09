@@ -21,7 +21,7 @@ import type {
 
 export type TurnCollaborationMode = {
   mode: UiCollaborationModeOption['mode']
-  settings: {
+  settings?: {
     model: string
     reasoning_effort: ReasoningEffort | null
     developer_instructions: string | null
@@ -167,7 +167,7 @@ export async function startThreadTurn(
     if (typeof effort === 'string' && effort.length > 0) {
       params.effort = effort
     }
-    if (collaborationMode && collaborationMode.mode === 'plan') {
+    if (collaborationMode) {
       params.collaborationMode = collaborationMode
     }
     const payload = await callRpc<TurnStartResponse>('turn/start', params)

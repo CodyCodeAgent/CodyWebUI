@@ -71,8 +71,10 @@ describe('desktopTurnPreferences', () => {
     ])
   })
 
-  it('builds plan collaboration payloads and skips default mode', () => {
-    expect(buildTurnCollaborationMode(DEFAULT_COLLABORATION_MODE, 'gpt-5', 'medium')).toBeNull()
+  it('builds explicit collaboration payloads for default and plan mode', () => {
+    expect(buildTurnCollaborationMode(DEFAULT_COLLABORATION_MODE, 'gpt-5', 'medium')).toEqual({
+      mode: 'default',
+    })
     expect(buildTurnCollaborationMode(
       planMode({
         model: '',

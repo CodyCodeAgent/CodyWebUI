@@ -80,4 +80,28 @@ describe('codex thread client', () => {
       },
     })
   })
+
+  it('starts turns with explicit default collaboration mode when selected', async () => {
+    rpcMock.rpcCall.mockResolvedValue({ turn: { id: ' turn-1 ' } })
+
+    await expect(startThreadTurn(
+      'thread-1',
+      'hello',
+      [],
+      [],
+      'gpt-5',
+      'medium',
+      { mode: 'default' },
+    )).resolves.toBe('turn-1')
+
+    expect(rpcMock.rpcCall).toHaveBeenCalledWith('turn/start', {
+      threadId: 'thread-1',
+      input: [{ type: 'text', text: 'hello', text_elements: [] }],
+      model: 'gpt-5',
+      effort: 'medium',
+      collaborationMode: {
+        mode: 'default',
+      },
+    })
+  })
 })

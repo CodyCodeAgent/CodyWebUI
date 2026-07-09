@@ -27,7 +27,7 @@ export type CurrentModelPreference = {
 
 export type TurnCollaborationModePayload = {
   mode: UiCollaborationModeOption['mode']
-  settings: {
+  settings?: {
     model: string
     reasoning_effort: ReasoningEffort | null
     developer_instructions: string | null
@@ -104,6 +104,9 @@ export function buildTurnCollaborationMode(
   fallbackModel: string,
   fallbackEffort: ReasoningEffort | '',
 ): TurnCollaborationModePayload | null {
+  if (option.mode === 'default') {
+    return { mode: 'default' }
+  }
   if (option.mode !== 'plan') return null
 
   return {

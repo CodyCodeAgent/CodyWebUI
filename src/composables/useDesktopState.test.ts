@@ -602,6 +602,34 @@ describe('useDesktopState realtime messages', () => {
     ])
   })
 
+  it('sends explicit default collaboration mode after switching back from plan', async () => {
+    installBrowserGlobals('thread-a')
+    codexApiMock.startThreadTurn.mockResolvedValue('turn-1')
+
+    const state = useDesktopState()
+    state.setSelectedCollaborationModeName('plan')
+    expect(state.selectedCollaborationModeName.value).toBe('plan')
+
+    state.setSelectedCollaborationModeName('default')
+    expect(state.selectedCollaborationModeName.value).toBe('default')
+
+    await state.sendMessageToSelectedThread({
+      text: '现在应该是 default 模式',
+      images: [],
+      skills: [],
+    })
+
+    expect(codexApiMock.startThreadTurn).toHaveBeenCalledWith(
+      'thread-a',
+      '现在应该是 default 模式',
+      [],
+      [],
+      undefined,
+      'medium',
+      { mode: 'default' },
+    )
+  })
+
   it('returns new thread ids before the first turn finishes starting', async () => {
     installBrowserGlobals()
     const turnStart = deferred<string>()
@@ -626,7 +654,7 @@ describe('useDesktopState realtime messages', () => {
       [],
       undefined,
       'medium',
-      null,
+      { mode: 'default' },
     )
   })
 
