@@ -140,18 +140,21 @@ git diff --check
 ```
 
 `npm run verify` builds the app and runs the default non-token validation
-suite: typecheck, unit tests, whitespace checks, packaged CLI smoke, approval
-center browser smoke, composer input smoke, Settings theme persistence and
-visual-health smoke, empty thread lifecycle smoke, and Work log browser smoke
-with panel/fullscreen visual-health checks. It also runs `smoke:turn` in its
-default skip mode and `smoke:turn-approval` in its default skip mode to confirm
-the opt-in live-turn smokes are installed. It does **not** start a real Codex
-turn, so it does not intentionally spend model tokens.
+suite: typecheck, unit tests, whitespace checks, packaged CLI smoke, npm package
+dry-run smoke, approval center browser smoke, composer input smoke, Settings
+theme persistence and visual-health smoke, empty thread lifecycle smoke, and
+Work log browser smoke with panel/fullscreen visual-health checks. It also runs
+`smoke:turn` in its default skip mode and `smoke:turn-approval` in its default
+skip mode to confirm the opt-in live-turn smokes are installed. It does **not**
+start a real Codex turn, so it does not intentionally spend model tokens.
 
 Manual smoke checks before publishing or sharing a build:
 
 - Run `npm run build && npm run smoke:cli` to verify the packaged CLI can
   start, serve the app shell, and answer the local meta API.
+- Run `npm run smoke:package` after a build to verify `npm pack --dry-run`
+  contains the expected `cody-web-ui` package name, CLI bin, built frontend,
+  built CLI, README, license, smoke scripts, and no legacy package branding.
 - Run `npm run smoke:approval` to browser-test the Approval Center: it enables
   smoke-only bridge hooks, injects a pending command approval, verifies the
   badge/card/actions render, clicks the Session action, and confirms the

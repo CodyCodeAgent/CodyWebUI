@@ -39,6 +39,7 @@
     "smoke:cli": "node scripts/smoke-cli.mjs",
     "smoke:approval": "node scripts/smoke-approval.mjs",
     "smoke:composer": "node scripts/smoke-composer.mjs",
+    "smoke:package": "node scripts/smoke-package.mjs",
     "smoke:theme": "node scripts/smoke-theme.mjs",
     "smoke:thread": "node scripts/smoke-thread.mjs",
     "smoke:turn": "node scripts/smoke-turn.mjs",
@@ -47,9 +48,9 @@
     "build:frontend": "vue-tsc --noEmit && vite build",
     "build:cli": "tsup",
     "build": "npm run build:frontend && npm run build:cli",
-    "verify": "npm run typecheck && npm test && git diff --check && npm run build && npm run smoke:cli && npm run smoke:approval && npm run smoke:composer && npm run smoke:theme && npm run smoke:thread && npm run smoke:worklog && npm run smoke:turn && npm run smoke:turn-approval",
+    "verify": "npm run typecheck && npm test && git diff --check && npm run build && npm run smoke:cli && npm run smoke:package && npm run smoke:approval && npm run smoke:composer && npm run smoke:theme && npm run smoke:thread && npm run smoke:worklog && npm run smoke:turn && npm run smoke:turn-approval",
     "preview": "vite preview",
-    "prepublishOnly": "npm run build"
+    "prepublishOnly": "npm run verify"
   },
   "dependencies": {
     "better-sqlite3": "^11.9.1",
