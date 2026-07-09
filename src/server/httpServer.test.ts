@@ -1,0 +1,109 @@
+import { createServer as createHttpServer, type Server } from 'node:http'
+import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+
+const bridgeMock = vi.hoisted(() => ({
+  bridgeDispose: vi.fn(),
+  websocketDispose: vi.fn(),
+  attachCodexBridgeWebSocketServer: vi.fn(() => bridgeMock.websocketDispose),
+  createCodexBridgeMiddleware: vi.fn(() => {
+    const middleware = (_req: unknown, _res: unknown, next: () => void) => next()
+    return Object.assign(middleware, {
+      dispose: bridgeMock.bridgeDispose,
+    })
+  }),
+}))
+
+vi.mock('./codexAppServerBridge.js', () => ({
+  attachCodexBridgeWebSocketServer: bridgeMock.attachCodexBridgeWebSocketServer,
+  createCodexBridgeMiddleware: bridgeMock.createCodexBridgeMiddleware,
+}))
+
+const tempDirs: string[] = []
+
+async function createDistFixture(): Promise<string> {
+  const dir = await mkdtemp(join(tmpdir(), 'codex-web-http-'))
+  tempDirs.push(dir)
+  await writeFile(join(dir, 'index.html'), '<!doctype html><title>Codex Web Local</title><main>app shell</main>', 'utf8')
+  await writeFile(join(dir, 'asset.txt'), 'static asset', 'utf8')
+  return dir
+}
+
+function listen(server: Server): Promise<number> {
+  return new Promise((resolve, reject) => {
+    server.once('error', reject)
+    server.listen(0, '127.0.0.1', () => {
+      server.off('error', reject)
+      const address = server.address()
+      if (!address || typeof address === 'string') {
+        reject(new Error('test server did not bind a TCP port'))
+        return
+      }
+      resolve(address.port)
+    })
+  })
+}
+
+function closeServer(server: Server): Promise<void> {
+  return new Promise((resolve, reject) => {
+    server.close((error) => {
+      if (error) {
+        reject(error)
+        return
+      }
+      resolve()
+    })
+  })
+}
+
+afterEach(async () => {
+  vi.clearAllMocks()
+  await Promise.all(tempDirs.splice(0).map((dir) => rm(dir, {
+    recursive: true,
+    force: true,
+    maxRetries: 3,
+    retryDelay: 100,
+  })))
+})
+
+describe('httpServer', () => {
+  it('serves meta API, static assets, and SPA fallback without starting the real bridge', async () => {
+    const { createServer } = await import('./httpServer.js')
+    const distDir = await createDistFixture()
+    const instance = createServer({
+      distDir,
+      host: '127.0.0.1',
+      port: null,
+    })
+    const server = createHttpServer(instance.app)
+
+    try {
+      const port = await listen(server)
+      const baseUrl = `http://127.0.0.1:${String(port)}`
+
+      await expect(fetch(`${baseUrl}/codex-api/meta/access-security`).then((response) => response.json())).resolves.toMatchObject({
+        result: {
+          auth: {
+            enabled: false,
+          },
+          network: {
+            listenHost: '127.0.0.1',
+            listenPort: null,
+            listenExposure: 'loopback',
+          },
+        },
+      })
+
+      await expect(fetch(`${baseUrl}/asset.txt`).then((response) => response.text())).resolves.toBe('static asset')
+      await expect(fetch(`${baseUrl}/thread/example`).then((response) => response.text())).resolves.toContain('app shell')
+    } finally {
+      instance.dispose()
+      await closeServer(server)
+    }
+
+    expect(bridgeMock.createCodexBridgeMiddleware).toHaveBeenCalledTimes(1)
+    expect(bridgeMock.bridgeDispose).toHaveBeenCalledTimes(1)
+  })
+})

@@ -13,6 +13,7 @@ export type ServerOptions = {
   password?: string
   host?: string
   port?: number | null
+  distDir?: string
 }
 
 export type ServerInstance = {
@@ -23,6 +24,7 @@ export type ServerInstance = {
 
 export function createServer(options: ServerOptions = {}): ServerInstance {
   const app = express()
+  const staticDistDir = options.distDir ?? distDir
   const bridge = createCodexBridgeMiddleware()
   const authEnabled = Boolean(options.password)
   let authMiddleware: AuthMiddleware | null = null
@@ -48,11 +50,11 @@ export function createServer(options: ServerOptions = {}): ServerInstance {
   app.use(bridge)
 
   // 4. Static files from Vue build
-  app.use(express.static(distDir))
+  app.use(express.static(staticDistDir))
 
   // 5. SPA fallback
   app.use((_req, res) => {
-    res.sendFile(join(distDir, 'index.html'))
+    res.sendFile(join(staticDistDir, 'index.html'))
   })
 
   return {
