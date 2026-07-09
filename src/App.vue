@@ -310,8 +310,14 @@ import {
   newThreadProjectLabel as buildNewThreadProjectLabel,
   threadComposerBusyLabel as buildThreadComposerBusyLabel,
 } from './composables/appShellRules'
+import {
+  loadDefaultNewThreadCwd,
+  normalizeDefaultNewThreadCwd,
+  saveDefaultNewThreadCwd,
+} from './composables/desktopStateStorage'
 import { useBrowserNotifications } from './composables/useBrowserNotifications'
 import { useDesktopState } from './composables/useDesktopState'
+import { fetchUserSetting, writeUserSetting } from './api/codexSettingsClient'
 import { useTheme } from './theme/useTheme'
 import type {
   ReasoningEffort,
@@ -322,6 +328,7 @@ import type {
 } from './types/codex'
 
 const SIDEBAR_COLLAPSED_STORAGE_KEY = 'codex-web-local.sidebar-collapsed.v1'
+const DEFAULT_NEW_THREAD_CWD_SETTING_KEY = 'desktop.default-new-thread-cwd.v1'
 const MOBILE_SIDEBAR_BREAKPOINT = 700
 
 const {
@@ -390,7 +397,7 @@ const route = useRoute()
 const router = useRouter()
 const isRouteSyncInProgress = ref(false)
 const hasInitialized = ref(false)
-const newThreadCwd = ref('')
+const newThreadCwd = ref(loadDefaultNewThreadCwd())
 const pendingNewThreadName = ref('')
 const newThreadDialogInitialCwd = ref('')
 const isNewThreadDialogOpen = ref(false)
@@ -457,6 +464,7 @@ const newThreadProjectLabel = computed(() => buildNewThreadProjectLabel({
   projectDisplayNameById: projectDisplayNameById.value,
 }))
 const tokenFlameCwd = computed(() => selectedThread.value?.cwd?.trim() || newThreadCwd.value)
+let hasHydratedDefaultNewThreadCwd = false
 
 onMounted(() => {
   applyCurrentTheme()
@@ -531,6 +539,7 @@ function onCreateNewThreadFromDialog(payload: { cwd: string; projectName: string
   }
 
   newThreadCwd.value = cwd
+  persistDefaultNewThreadCwd(cwd)
   pendingNewThreadName.value = payload.threadName.trim()
   isNewThreadDialogOpen.value = false
 
@@ -644,7 +653,7 @@ function onSubmitThreadMessage(payload: UiComposerSubmitPayload): void {
 }
 
 function onSelectNewThreadFolder(cwd: string): void {
-  newThreadCwd.value = cwd.trim()
+  setNewThreadCwd(cwd)
 }
 
 function onSelectModel(modelId: string): void {
@@ -703,8 +712,50 @@ function saveSidebarCollapsed(value: boolean): void {
   window.localStorage.setItem(SIDEBAR_COLLAPSED_STORAGE_KEY, value ? '1' : '0')
 }
 
+function setNewThreadCwd(cwd: string): void {
+  const normalizedCwd = normalizeDefaultNewThreadCwd(cwd)
+  if (!normalizedCwd || newThreadCwd.value === normalizedCwd) return
+  newThreadCwd.value = normalizedCwd
+  persistDefaultNewThreadCwd(normalizedCwd)
+}
+
+function persistDefaultNewThreadCwd(cwd: string): void {
+  const normalizedCwd = normalizeDefaultNewThreadCwd(cwd)
+  saveDefaultNewThreadCwd(normalizedCwd)
+  if (!hasHydratedDefaultNewThreadCwd) return
+  void writeUserSetting(DEFAULT_NEW_THREAD_CWD_SETTING_KEY, normalizedCwd).catch(() => {
+    // localStorage keeps the immediate default if the settings bridge is unavailable.
+  })
+}
+
+async function hydrateDefaultNewThreadCwdFromSettingsStore(): Promise<void> {
+  if (hasHydratedDefaultNewThreadCwd) return
+  hasHydratedDefaultNewThreadCwd = true
+
+  try {
+    const setting = await fetchUserSetting<unknown>(DEFAULT_NEW_THREAD_CWD_SETTING_KEY)
+    const remoteCwd = normalizeDefaultNewThreadCwd(setting?.value)
+    if (remoteCwd) {
+      newThreadCwd.value = remoteCwd
+      saveDefaultNewThreadCwd(remoteCwd)
+      return
+    }
+  } catch {
+    // Keep localStorage/default workspace fallback when settings cannot be read.
+  }
+
+  const localCwd = normalizeDefaultNewThreadCwd(newThreadCwd.value)
+  if (localCwd) {
+    saveDefaultNewThreadCwd(localCwd)
+    void writeUserSetting(DEFAULT_NEW_THREAD_CWD_SETTING_KEY, localCwd).catch(() => {
+      // optional remote persistence
+    })
+  }
+}
+
 async function initialize(): Promise<void> {
   startRealtimeSync()
+  await hydrateDefaultNewThreadCwdFromSettingsStore()
   await refreshAll()
   await ensureNewThreadWorkspace()
   hasInitialized.value = true
@@ -716,13 +767,13 @@ async function ensureNewThreadWorkspace(): Promise<void> {
 
   const firstKnownWorkspace = newThreadFolderOptions.value[0]?.value?.trim() ?? ''
   if (firstKnownWorkspace) {
-    newThreadCwd.value = firstKnownWorkspace
+    setNewThreadCwd(firstKnownWorkspace)
     return
   }
 
   try {
     const workspace = await fetchDefaultWorkspace()
-    newThreadCwd.value = workspace.cwd.trim()
+    setNewThreadCwd(workspace.cwd)
   } catch {
     // Keep the home route usable even if the dev server cannot expose its cwd.
   }
@@ -803,7 +854,7 @@ watch(
     }
     const hasSelected = options.some((option) => option.value === newThreadCwd.value)
     if (!hasSelected) {
-      newThreadCwd.value = options[0].value
+      setNewThreadCwd(options[0].value)
     }
   },
   { immediate: true },

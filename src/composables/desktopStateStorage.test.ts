@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   loadAutoRefreshEnabled,
+  loadDefaultNewThreadCwd,
   loadDesktopTurnPreferences,
   loadProjectDisplayNames,
   loadProjectOrder,
@@ -8,8 +9,10 @@ import {
   loadSelectedThreadId,
   loadThreadScrollStateMap,
   normalizeDesktopTurnPreferences,
+  normalizeDefaultNewThreadCwd,
   normalizeThreadScrollState,
   saveAutoRefreshEnabled,
+  saveDefaultNewThreadCwd,
   saveDesktopTurnPreferences,
   saveProjectDisplayNames,
   saveProjectOrder,
@@ -74,6 +77,7 @@ describe('desktopStateStorage', () => {
     expect(loadProjectOrder()).toEqual([])
     expect(loadProjectDisplayNames()).toEqual({})
     expect(loadAutoRefreshEnabled()).toBe(false)
+    expect(loadDefaultNewThreadCwd()).toBe('')
     expect(loadDesktopTurnPreferences()).toEqual({
       modelId: '',
       reasoningEffort: 'medium',
@@ -138,6 +142,19 @@ describe('desktopStateStorage', () => {
       reasoningEffort: 'medium',
       collaborationModeName: 'default',
     })
+  })
+
+  it('normalizes and stores the default new thread cwd', () => {
+    installStorage()
+
+    expect(normalizeDefaultNewThreadCwd(' /repo/app ')).toBe('/repo/app')
+    expect(normalizeDefaultNewThreadCwd(42)).toBe('')
+
+    saveDefaultNewThreadCwd(' /repo/app ')
+    expect(loadDefaultNewThreadCwd()).toBe('/repo/app')
+
+    saveDefaultNewThreadCwd('')
+    expect(loadDefaultNewThreadCwd()).toBe('')
   })
 
   it('normalizes project order and ignores corrupt records', () => {

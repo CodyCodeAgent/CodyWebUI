@@ -8,6 +8,7 @@ const PROJECT_ORDER_STORAGE_KEY = 'codex-web-local.project-order.v1'
 const PROJECT_DISPLAY_NAME_STORAGE_KEY = 'codex-web-local.project-display-name.v1'
 const AUTO_REFRESH_ENABLED_STORAGE_KEY = 'codex-web-local.auto-refresh-enabled.v1'
 const TURN_PREFERENCES_STORAGE_KEY = 'codex-web-local.turn-preferences.v1'
+const DEFAULT_NEW_THREAD_CWD_STORAGE_KEY = 'codex-web-local.default-new-thread-cwd.v1'
 
 export type DesktopTurnPreferences = {
   modelId: string
@@ -81,6 +82,10 @@ export function normalizeDesktopTurnPreferences(value: unknown): DesktopTurnPref
   }
 }
 
+export function normalizeDefaultNewThreadCwd(value: unknown): string {
+  return typeof value === 'string' ? value.trim() : ''
+}
+
 export function normalizeThreadScrollState(value: unknown): ThreadScrollState | null {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null
 
@@ -125,6 +130,22 @@ export function loadDesktopTurnPreferences(): DesktopTurnPreferences {
 
 export function saveDesktopTurnPreferences(preferences: DesktopTurnPreferences): void {
   writeJsonStorage(TURN_PREFERENCES_STORAGE_KEY, normalizeDesktopTurnPreferences(preferences))
+}
+
+export function loadDefaultNewThreadCwd(): string {
+  const storage = getLocalStorage()
+  return normalizeDefaultNewThreadCwd(storage?.getItem(DEFAULT_NEW_THREAD_CWD_STORAGE_KEY) ?? '')
+}
+
+export function saveDefaultNewThreadCwd(cwd: string): void {
+  const storage = getLocalStorage()
+  if (!storage) return
+  const normalizedCwd = normalizeDefaultNewThreadCwd(cwd)
+  if (!normalizedCwd) {
+    storage.removeItem(DEFAULT_NEW_THREAD_CWD_STORAGE_KEY)
+    return
+  }
+  storage.setItem(DEFAULT_NEW_THREAD_CWD_STORAGE_KEY, normalizedCwd)
 }
 
 export function loadThreadScrollStateMap(): Record<string, ThreadScrollState> {
