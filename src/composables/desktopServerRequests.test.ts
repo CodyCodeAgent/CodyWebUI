@@ -44,8 +44,35 @@ describe('desktopServerRequests', () => {
     expect(normalizeServerRequest({ id: 1, method: '' })).toBeNull()
   })
 
+  it('normalizes snake_case protocol server request fields', () => {
+    expect(normalizeServerRequest({
+      id: 6,
+      method: 'item/tool/requestUserInput',
+      received_at_iso: '2026-07-07T02:00:00.000Z',
+      params: {
+        thread_id: 'thread-snake',
+        turn_id: 'turn-snake',
+        item_id: 'item-snake',
+      },
+    })).toEqual({
+      id: 6,
+      method: 'item/tool/requestUserInput',
+      threadId: 'thread-snake',
+      turnId: 'turn-snake',
+      itemId: 'item-snake',
+      receivedAtIso: '2026-07-07T02:00:00.000Z',
+      params: {
+        thread_id: 'thread-snake',
+        turn_id: 'turn-snake',
+        item_id: 'item-snake',
+      },
+    })
+  })
+
   it('reads resolved request ids only when they are integer numbers', () => {
     expect(readResolvedServerRequestId({ id: 42 })).toBe(42)
+    expect(readResolvedServerRequestId({ requestId: 43 })).toBe(43)
+    expect(readResolvedServerRequestId({ request_id: 44 })).toBe(44)
     expect(readResolvedServerRequestId({ id: 1.5 })).toBeNull()
     expect(readResolvedServerRequestId({ id: '42' })).toBeNull()
   })

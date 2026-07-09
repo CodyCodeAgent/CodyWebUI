@@ -3,6 +3,10 @@ import { asRecord, readString } from '../api/protocolValueReaders'
 
 export const GLOBAL_SERVER_REQUEST_SCOPE = '__global__'
 
+function readProtocolString(record: Record<string, unknown> | null | undefined, camelKey: string, snakeKey: string): string {
+  return readString(record?.[camelKey]) || readString(record?.[snakeKey])
+}
+
 function areServerRequestsEqual(first: UiServerRequest, second: UiServerRequest): boolean {
   return (
     first.id === second.id &&
@@ -30,10 +34,10 @@ export function normalizeServerRequest(
   }
 
   const requestParamRecord = asRecord(requestParams)
-  const threadId = readString(requestParamRecord?.threadId) || GLOBAL_SERVER_REQUEST_SCOPE
-  const turnId = readString(requestParamRecord?.turnId)
-  const itemId = readString(requestParamRecord?.itemId)
-  const receivedAtIso = readString(row.receivedAtIso) || options.receivedAtIso || new Date().toISOString()
+  const threadId = readProtocolString(requestParamRecord, 'threadId', 'thread_id') || GLOBAL_SERVER_REQUEST_SCOPE
+  const turnId = readProtocolString(requestParamRecord, 'turnId', 'turn_id')
+  const itemId = readProtocolString(requestParamRecord, 'itemId', 'item_id')
+  const receivedAtIso = readProtocolString(row, 'receivedAtIso', 'received_at_iso') || options.receivedAtIso || new Date().toISOString()
 
   return {
     id,
@@ -48,7 +52,7 @@ export function normalizeServerRequest(
 
 export function readResolvedServerRequestId(params: unknown): number | null {
   const row = asRecord(params)
-  const id = row?.id
+  const id = row?.id ?? row?.requestId ?? row?.request_id
   return typeof id === 'number' && Number.isInteger(id) ? id : null
 }
 
