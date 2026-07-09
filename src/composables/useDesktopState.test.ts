@@ -582,6 +582,40 @@ describe('useDesktopState realtime messages', () => {
     )
   })
 
+  it('keeps newly created threads visible while server thread lists lag behind', async () => {
+    installBrowserGlobals()
+    const threadListRefresh = deferred<never[]>()
+    const turnStart = deferred<string>()
+    codexApiMock.startThread.mockResolvedValue('thread-new')
+    codexApiMock.getThreadGroups.mockImplementation(async () => threadListRefresh.promise)
+    codexApiMock.startThreadTurn.mockImplementation(async () => turnStart.promise)
+
+    const state = useDesktopState()
+    const createdThreadId = await state.sendMessageToNewThread({
+      text: 'create and stream',
+      images: [],
+      skills: [],
+    }, '/repo')
+
+    expect(createdThreadId).toBe('thread-new')
+    expect(state.selectedThreadId.value).toBe('thread-new')
+    expect(state.selectedThread.value).toMatchObject({
+      id: 'thread-new',
+      title: 'Untitled thread',
+      cwd: '/repo',
+      preview: 'create and stream',
+      inProgress: true,
+    })
+    expect(state.projectGroups.value.flatMap((group) => group.threads).map((thread) => thread.id)).toContain('thread-new')
+
+    threadListRefresh.resolve([])
+    await flushPromises()
+
+    expect(state.selectedThreadId.value).toBe('thread-new')
+    expect(state.selectedThread.value?.id).toBe('thread-new')
+    expect(state.projectGroups.value.flatMap((group) => group.threads).map((thread) => thread.id)).toEqual(['thread-new'])
+  })
+
   it('surfaces and clears new thread creation failures', async () => {
     installBrowserGlobals()
     codexApiMock.startThread.mockRejectedValue(new Error('start failed'))
