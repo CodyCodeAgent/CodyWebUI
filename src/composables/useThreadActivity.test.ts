@@ -6,9 +6,11 @@ import {
   buildPendingApprovalCards,
   buildPendingApprovalSubtitle,
   buildWorkLogDisplayPath,
+  buildWorkLogDisplayPathParts,
   buildWorkLogFileStatLabel,
   buildWorkLogFloatSummary,
   buildWorkLogMetrics,
+  filterWorkLogFiles,
   buildWorkLogStatusText,
   formatWorkLogLineNumber,
   isPendingApprovalRequest,
@@ -178,6 +180,14 @@ describe('thread activity helpers', () => {
       '/data00/home/gouchao/code/life-csr/worktrees/money',
     )).toBe('src/app.ts')
     expect(buildWorkLogDisplayPath('/data00/home/gouchao/code/life-csr/worktrees/money/src/app.ts')).toBe('.../money/src/app.ts')
+    expect(buildWorkLogDisplayPathParts(
+      '/data00/home/gouchao/code/life-csr/worktrees/money/src/app.ts',
+      '/data00/home/gouchao/code/life-csr/worktrees/money',
+    )).toEqual({
+      label: 'app.ts',
+      directory: 'src',
+      title: '/data00/home/gouchao/code/life-csr/worktrees/money/src/app.ts',
+    })
 
     expect(formatWorkLogLineNumber(null)).toBe('')
     expect(formatWorkLogLineNumber(12)).toBe('12')
@@ -217,5 +227,28 @@ describe('thread activity helpers', () => {
     expect(shouldCloseWorkLogFullscreenFile(diffReview, '')).toBe(false)
     expect(shouldCloseWorkLogFullscreenFile(diffReview, 'src/app.ts')).toBe(false)
     expect(shouldCloseWorkLogFullscreenFile(diffReview, 'missing.ts')).toBe(true)
+  })
+
+  it('filters work log files by full path, display path, and old path', () => {
+    const files: UiDiffReview['files'] = [
+      diffReview.files[0],
+      {
+        ...diffReview.files[0],
+        filePath: '/repo/src/routes/settings.ts',
+        oldPath: '/repo/src/routes/preferences.ts',
+      },
+    ]
+
+    expect(filterWorkLogFiles(files, '', '/repo').map((file) => file.filePath)).toEqual([
+      'src/app.ts',
+      '/repo/src/routes/settings.ts',
+    ])
+    expect(filterWorkLogFiles(files, 'settings', '/repo').map((file) => file.filePath)).toEqual([
+      '/repo/src/routes/settings.ts',
+    ])
+    expect(filterWorkLogFiles(files, 'preferences', '/repo').map((file) => file.filePath)).toEqual([
+      '/repo/src/routes/settings.ts',
+    ])
+    expect(filterWorkLogFiles(files, 'missing', '/repo')).toEqual([])
   })
 })

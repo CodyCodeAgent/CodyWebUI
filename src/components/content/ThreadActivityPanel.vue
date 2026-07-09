@@ -63,23 +63,44 @@
       </section>
 
       <section class="thread-activity-section thread-activity-section-scroll">
-        <h3 class="thread-activity-section-title">Changed files</h3>
+        <div class="thread-activity-section-heading">
+          <h3 class="thread-activity-section-title">Changed files</h3>
+          <span v-if="diffReview.files.length > 0" class="thread-activity-section-count">
+            {{ filteredDiffFiles.length }} / {{ diffReview.files.length }}
+          </span>
+        </div>
+        <label v-if="diffReview.files.length > 0" class="work-log-file-filter">
+          <span>Search files</span>
+          <input
+            v-model="workLogFileQuery"
+            type="search"
+            autocomplete="off"
+            spellcheck="false"
+            placeholder="Path or filename"
+          />
+        </label>
         <p v-if="diffReview.files.length === 0" class="thread-activity-empty">No file changes recorded yet.</p>
+        <p v-else-if="filteredDiffFiles.length === 0" class="thread-activity-empty">No changed files match this filter.</p>
 
         <div
-          v-for="file in diffReview.files"
+          v-for="file in filteredDiffFiles"
           :key="file.filePath"
           class="work-log-card work-log-file-card"
         >
-          <details class="work-log-file-details">
+          <details class="work-log-file-details" @toggle="onFileDetailsToggle(file.filePath, $event)">
             <summary class="work-log-summary">
-              <span class="work-log-primary" :title="file.filePath">{{ displayFilePath(file.filePath) }}</span>
+              <span class="work-log-primary-stack" :title="file.filePath">
+                <span class="work-log-primary">{{ displayFilePath(file.filePath).label }}</span>
+                <span v-if="displayFilePath(file.filePath).directory" class="work-log-directory">
+                  {{ displayFilePath(file.filePath).directory }}
+                </span>
+              </span>
               <span class="work-log-status">{{ file.status }}</span>
               <span class="work-log-stat">{{ fileStatLabel(file) }}</span>
               <span class="work-log-summary-spacer" />
             </summary>
-            <p v-if="file.oldPath" class="work-log-meta">from {{ file.oldPath }}</p>
-            <div v-if="file.hunks.length > 0" class="work-log-diff" aria-label="File diff">
+            <p v-if="shouldRenderFileDetails(file.filePath) && file.oldPath" class="work-log-meta">from {{ file.oldPath }}</p>
+            <div v-if="shouldRenderFileDetails(file.filePath) && file.hunks.length > 0" class="work-log-diff" aria-label="File diff">
               <section v-for="hunk in file.hunks" :key="`${file.filePath}:${hunk.header}`" class="work-log-hunk">
                 <div class="work-log-diff-row work-log-diff-row-hunk">
                   <span class="work-log-line-number" />
@@ -114,7 +135,7 @@
                 </template>
               </section>
             </div>
-            <pre v-else-if="file.patch" class="work-log-output"><code>{{ file.patch }}</code></pre>
+            <pre v-else-if="shouldRenderFileDetails(file.filePath) && file.patch" class="work-log-output"><code>{{ file.patch }}</code></pre>
           </details>
           <button
             class="work-log-fullscreen-button"
@@ -135,6 +156,7 @@
           :key="entry.messageId"
           class="work-log-card"
           :data-tone="toolStatusTone(entry.status)"
+          @toggle="onCommandDetailsToggle(entry.messageId, $event)"
         >
           <summary class="work-log-summary">
             <span class="work-log-primary">{{ entry.summary }}</span>
@@ -143,7 +165,7 @@
             <span v-if="entry.exitCode !== null" class="work-log-stat">exit {{ entry.exitCode }}</span>
             <span v-else class="work-log-summary-spacer" />
           </summary>
-          <dl class="work-log-details">
+          <dl v-if="shouldRenderCommandDetails(entry.messageId)" class="work-log-details">
             <div v-if="entry.cwd">
               <dt>cwd</dt>
               <dd>{{ entry.cwd }}</dd>
@@ -153,8 +175,10 @@
               <dd>{{ entry.duration }}</dd>
             </div>
           </dl>
-          <pre v-if="entry.output" class="work-log-output"><code>{{ entry.output }}</code></pre>
-          <p v-else class="work-log-meta">No output captured for this command.</p>
+          <template v-if="shouldRenderCommandDetails(entry.messageId)">
+            <pre v-if="entry.output" class="work-log-output"><code>{{ entry.output }}</code></pre>
+            <p v-else class="work-log-meta">No output captured for this command.</p>
+          </template>
         </details>
       </section>
     </aside>
@@ -246,7 +270,7 @@
         <section class="work-log-fullscreen-panel">
           <header class="work-log-fullscreen-header">
             <div class="work-log-fullscreen-copy">
-              <h3 :title="fullscreenFile.filePath">{{ displayFilePath(fullscreenFile.filePath) }}</h3>
+              <h3 :title="fullscreenFile.filePath">{{ displayFilePath(fullscreenFile.filePath).label }}</h3>
               <p>
                 {{ fullscreenFile.status }} · {{ fileStatLabel(fullscreenFile) }}
               </p>
@@ -336,11 +360,12 @@ import {
   buildThreadActivitySummary,
   buildPendingApprovalSubtitle,
   buildPendingApprovalCards,
-  buildWorkLogDisplayPath,
+  buildWorkLogDisplayPathParts,
   buildWorkLogStatusText,
   buildWorkLogFileStatLabel,
   buildWorkLogFloatSummary,
   buildWorkLogMetrics,
+  filterWorkLogFiles,
   formatWorkLogLineNumber,
   shouldCloseWorkLogFullscreenFile,
   workLogBadgeCount as workLogBadgeCountForReview,
@@ -385,8 +410,12 @@ const diffReview = computed(() => buildDiffReview(props.messages))
 const fullscreenFilePath = ref('')
 const isWorkLogOpen = ref(false)
 const diffViewMode = ref<'unified' | 'split'>('unified')
+const workLogFileQuery = ref('')
+const openFileDetailsByPath = ref<Record<string, boolean>>({})
+const openCommandDetailsById = ref<Record<string, boolean>>({})
 const workLogPosition = ref({ left: 24, top: 76 })
 const fullscreenFile = computed(() => workLogFullscreenFile(diffReview.value, fullscreenFilePath.value))
+const filteredDiffFiles = computed(() => filterWorkLogFiles(diffReview.value.files, workLogFileQuery.value, props.cwd))
 const workLogBadgeCount = computed(() => workLogBadgeCountForReview(diffReview.value, commandEntries.value.length))
 const workLogFloatSummary = computed(() => buildWorkLogFloatSummary({
   fileCount: diffReview.value.summary.fileCount,
@@ -515,8 +544,34 @@ function fileStatLabel(file: Pick<UiDiffReviewFile, 'addedLines' | 'removedLines
   return buildWorkLogFileStatLabel(file)
 }
 
-function displayFilePath(filePath: string): string {
-  return buildWorkLogDisplayPath(filePath, props.cwd)
+function displayFilePath(filePath: string) {
+  return buildWorkLogDisplayPathParts(filePath, props.cwd)
+}
+
+function shouldRenderFileDetails(filePath: string): boolean {
+  return openFileDetailsByPath.value[filePath] === true
+}
+
+function shouldRenderCommandDetails(messageId: string): boolean {
+  return openCommandDetailsById.value[messageId] === true
+}
+
+function onFileDetailsToggle(filePath: string, event: Event): void {
+  const target = event.target
+  if (!(target instanceof HTMLDetailsElement)) return
+  openFileDetailsByPath.value = {
+    ...openFileDetailsByPath.value,
+    [filePath]: target.open,
+  }
+}
+
+function onCommandDetailsToggle(messageId: string, event: Event): void {
+  const target = event.target
+  if (!(target instanceof HTMLDetailsElement)) return
+  openCommandDetailsById.value = {
+    ...openCommandDetailsById.value,
+    [messageId]: target.open,
+  }
 }
 
 function openFullscreenDiff(filePath: string): void {
@@ -543,6 +598,13 @@ watch(diffReview, (review) => {
   if (shouldCloseWorkLogFullscreenFile(review, fullscreenFilePath.value)) {
     fullscreenFilePath.value = ''
   }
+})
+
+watch(() => props.threadId, () => {
+  workLogFileQuery.value = ''
+  openFileDetailsByPath.value = {}
+  openCommandDetailsById.value = {}
+  fullscreenFilePath.value = ''
 })
 
 onBeforeUnmount(() => {
@@ -645,12 +707,32 @@ onBeforeUnmount(() => {
   @apply m-0 text-xs font-semibold uppercase tracking-normal text-slate-500;
 }
 
+.thread-activity-section-heading {
+  @apply flex items-center justify-between gap-2;
+}
+
+.thread-activity-section-count {
+  @apply shrink-0 text-[0.68rem] font-medium leading-4 text-slate-500;
+}
+
 .thread-activity-section-title-spaced {
   @apply mt-3;
 }
 
 .thread-activity-empty {
   @apply m-0 rounded-md border border-dashed border-slate-200 px-3 py-2 text-xs text-slate-500;
+}
+
+.work-log-file-filter {
+  @apply grid gap-1 rounded-md border border-slate-200 bg-white px-2 py-1.5;
+}
+
+.work-log-file-filter span {
+  @apply text-[0.68rem] font-semibold uppercase leading-4 text-slate-500;
+}
+
+.work-log-file-filter input {
+  @apply min-w-0 border-0 bg-transparent p-0 text-xs text-slate-900 outline-none placeholder:text-slate-400;
 }
 
 .thread-action-required-float {
@@ -715,6 +797,14 @@ onBeforeUnmount(() => {
 
 .work-log-primary {
   @apply min-w-0 truncate font-mono font-semibold text-slate-900;
+}
+
+.work-log-primary-stack {
+  @apply grid min-w-0 gap-0.5;
+}
+
+.work-log-directory {
+  @apply min-w-0 truncate font-mono text-[0.68rem] leading-4 text-slate-500;
 }
 
 .work-log-status,
@@ -989,6 +1079,25 @@ onBeforeUnmount(() => {
 :global(.app-dark) .thread-activity-view-button[data-active='true'] {
   background: #252b36;
   color: #93c5fd;
+}
+
+:global(.app-dark) .thread-activity-section-count,
+:global(.app-dark) .work-log-directory,
+:global(.app-dark) .work-log-file-filter span {
+  color: #9ca3af;
+}
+
+:global(.app-dark) .work-log-file-filter {
+  border-color: #303643;
+  background: #181b22;
+}
+
+:global(.app-dark) .work-log-file-filter input {
+  color: #e5e7eb;
+}
+
+:global(.app-dark) .work-log-file-filter input::placeholder {
+  color: #6b7280;
 }
 
 :global(.app-dark) .work-log-fullscreen-panel {

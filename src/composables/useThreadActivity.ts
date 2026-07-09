@@ -33,6 +33,12 @@ export type WorkLogMetric = {
   value: string
 }
 
+export type WorkLogDisplayPath = {
+  label: string
+  directory: string
+  title: string
+}
+
 export type PendingApprovalCard = UiServerRequestCard
 
 export function buildThreadActivityEntries(messages: UiMessage[]): UiThreadActivityEntry[] {
@@ -152,6 +158,42 @@ export function buildWorkLogDisplayPath(filePath: string, cwd = ''): string {
   const parts = normalizedPath.split('/').filter(Boolean)
   if (parts.length <= 3) return normalizedPath
   return `.../${parts.slice(-3).join('/')}`
+}
+
+export function buildWorkLogDisplayPathParts(filePath: string, cwd = ''): WorkLogDisplayPath {
+  const displayPath = buildWorkLogDisplayPath(filePath, cwd)
+  const normalizedPath = filePath.trim()
+  if (!displayPath) {
+    return { label: '', directory: '', title: normalizedPath }
+  }
+
+  const parts = displayPath.split('/').filter(Boolean)
+  const label = parts.at(-1) ?? displayPath
+  const directory = parts.length > 1 ? parts.slice(0, -1).join('/') : ''
+  return {
+    label,
+    directory,
+    title: normalizedPath || displayPath,
+  }
+}
+
+export function filterWorkLogFiles(
+  files: UiDiffReviewFile[],
+  query: string,
+  cwd = '',
+): UiDiffReviewFile[] {
+  const normalizedQuery = query.trim().toLowerCase()
+  if (!normalizedQuery) return files
+
+  return files.filter((file) => {
+    const displayPath = buildWorkLogDisplayPathParts(file.filePath, cwd)
+    return [
+      file.filePath,
+      file.oldPath ?? '',
+      displayPath.label,
+      displayPath.directory,
+    ].some((value) => value.toLowerCase().includes(normalizedQuery))
+  })
 }
 
 export function workLogBadgeCount(review: UiDiffReview, commandCount: number): number {
