@@ -81,11 +81,7 @@ export function areMessageArraysEqual(first: UiMessage[], second: UiMessage[]): 
 
 function isDuplicateAdjacentUserMessage(previous: UiMessage | undefined, next: UiMessage): boolean {
   if (!previous) return false
-  if (previous.role !== 'user' || next.role !== 'user') return false
-  if (previous.text !== next.text) return false
-  if (!areStringArraysEqual(previous.images, next.images)) return false
-  if (!areMessageSkillsEqual(previous.skills, next.skills)) return false
-  return true
+  return isMatchingUserMessage(previous, next)
 }
 
 function isOptimisticUserMessage(message: UiMessage): boolean {
@@ -98,7 +94,7 @@ function isPersistedUserMessage(message: UiMessage): boolean {
 
 function isMatchingUserMessage(first: UiMessage, second: UiMessage): boolean {
   if (first.role !== 'user' || second.role !== 'user') return false
-  if (first.text !== second.text) return false
+  if (normalizeMessageText(first.text) !== normalizeMessageText(second.text)) return false
   if (!areStringArraysEqual(first.images, second.images)) return false
   if (!areMessageSkillsEqual(first.skills, second.skills)) return false
   return true

@@ -60,6 +60,28 @@ describe('ThreadConversation', () => {
     expect(wrapper.find('[data-message-id="message-120"] [data-testid="conversation-copy-button"]').exists()).toBe(true)
   })
 
+  it('keeps the newest message visible when a long thread receives another update', async () => {
+    const messages = Array.from({ length: 120 }, (_, index) => message(index + 1))
+    const wrapper = mountConversation({ messages })
+
+    expect(wrapper.find('[data-message-id="message-120"]').exists()).toBe(true)
+    expect(wrapper.find('[data-message-id="message-40"]').exists()).toBe(false)
+
+    await wrapper.setProps({
+      messages: [
+        ...messages,
+        message(121, { text: 'Latest persisted response' }),
+      ],
+    })
+    await nextTick()
+
+    const renderedMessages = wrapper.findAll('[data-testid="conversation-message"]')
+    expect(renderedMessages).toHaveLength(80)
+    expect(renderedMessages[0].attributes('data-message-id')).toBe('message-42')
+    expect(renderedMessages.at(-1)?.attributes('data-message-id')).toBe('message-121')
+    expect(wrapper.get('[data-testid="conversation-history-button"]').text()).toContain('41 hidden')
+  })
+
   it('auto-loads earlier messages when scrolling near the top of a long thread', async () => {
     const messages = Array.from({ length: 200 }, (_, index) => message(index + 1))
     const wrapper = mountConversation({ messages })

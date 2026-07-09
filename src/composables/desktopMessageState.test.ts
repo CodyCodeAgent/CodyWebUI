@@ -131,6 +131,24 @@ describe('desktopMessageState', () => {
     expect(buildDisplayedMessages([firstUser, secondUser], [], null)).toEqual([firstUser])
   })
 
+  it('compacts duplicate user messages when persisted text only differs by whitespace', () => {
+    const optimistic = message({
+      id: 'optimistic-user:thread-1:1',
+      role: 'user',
+      text: '第一行\n\n第二行',
+      messageType: 'userMessage.optimistic',
+    })
+    const persisted = message({
+      id: 'server-user',
+      role: 'user',
+      text: ' 第一行 第二行 ',
+      messageType: 'userMessage',
+    })
+
+    expect(removeDuplicateAdjacentUserMessages([optimistic, persisted])).toEqual([persisted])
+    expect(mergeMessages([optimistic], [persisted], { preserveMissing: true })).toEqual([persisted])
+  })
+
   it('replaces optimistic user messages with persisted matches', () => {
     const optimistic = message({
       id: 'optimistic-user:thread-1:1',
@@ -222,6 +240,32 @@ describe('desktopMessageState', () => {
     expect(buildDisplayedMessages([optimistic, assistant, persisted], [], null)).toEqual([
       persisted,
       assistant,
+    ])
+  })
+
+  it('removes superseded optimistic user messages when normalized text matches a persisted row', () => {
+    const persisted = message({
+      id: 'server-user-1',
+      role: 'user',
+      text: '这些人的菜单 都应该改成 turbine.campaigndashboard.overview',
+      messageType: 'userMessage',
+    })
+    const followUp = message({
+      id: 'server-user-2',
+      role: 'user',
+      text: '人的菜单都在了是么？',
+      messageType: 'userMessage',
+    })
+    const optimistic = message({
+      id: 'optimistic-user:thread-1:1',
+      role: 'user',
+      text: '这些人的菜单\n\n都应该改成 turbine.campaigndashboard.overview',
+      messageType: 'userMessage.optimistic',
+    })
+
+    expect(buildDisplayedMessages([persisted, followUp, optimistic], [], null)).toEqual([
+      persisted,
+      followUp,
     ])
   })
 
