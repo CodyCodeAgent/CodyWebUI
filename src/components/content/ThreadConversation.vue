@@ -186,8 +186,18 @@
                     </li>
                   </ul>
                   <section v-if="message.tool.output" class="tool-timeline-output">
-                    <p class="tool-timeline-output-label">{{ message.tool.outputLabel || 'Output' }}</p>
-                    <pre class="tool-timeline-output-block"><code>{{ message.tool.output }}</code></pre>
+                    <div class="tool-timeline-output-header">
+                      <p class="tool-timeline-output-label">{{ message.tool.outputLabel || 'Output' }}</p>
+                      <button
+                        v-if="isToolOutputPreviewable(message)"
+                        class="tool-timeline-output-toggle"
+                        type="button"
+                        @click="toggleToolOutput(message.id)"
+                      >
+                        {{ toolOutputButtonLabel(message.id) }}
+                      </button>
+                    </div>
+                    <pre class="tool-timeline-output-block"><code>{{ renderedToolOutput(message) }}</code></pre>
                   </section>
                 </div>
               </details>
@@ -330,7 +340,10 @@ import {
 } from '../../composables/threadConversationRules'
 import {
   formatToolStatus,
+  buildToolOutputPreview,
+  isToolOutputTruncated,
   isToolTimelineExpandedByDefault,
+  toolOutputToggleLabel,
   toolStatusTone,
 } from '../../composables/threadToolTimelineRules'
 import {
@@ -368,6 +381,7 @@ const copiedMessageId = ref('')
 const isLiveOverlayExpanded = ref(false)
 const visibleMessageCount = ref(DEFAULT_VISIBLE_MESSAGE_COUNT)
 const openToolMessageIds = ref<Record<string, boolean>>({})
+const expandedToolOutputIds = ref<Record<string, boolean>>({})
 const toolQuestionAnswers = ref<Record<string, string>>({})
 const toolQuestionOtherAnswers = ref<Record<string, string>>({})
 const BOTTOM_THRESHOLD_PX = 16
@@ -437,6 +451,31 @@ function isToolTimelineOpen(message: UiMessage): boolean {
 
 function shouldMountToolTimelineBody(message: UiMessage): boolean {
   return isToolTimelineOpen(message)
+}
+
+function isToolOutputPreviewable(message: UiMessage): boolean {
+  return message.tool?.output ? isToolOutputTruncated(message.tool.output) : false
+}
+
+function isToolOutputExpanded(messageId: string): boolean {
+  return expandedToolOutputIds.value[messageId] === true
+}
+
+function renderedToolOutput(message: UiMessage): string {
+  const output = message.tool?.output ?? ''
+  if (!output || isToolOutputExpanded(message.id) || !isToolOutputTruncated(output)) return output
+  return buildToolOutputPreview(output)
+}
+
+function toolOutputButtonLabel(messageId: string): string {
+  return toolOutputToggleLabel(isToolOutputExpanded(messageId))
+}
+
+function toggleToolOutput(messageId: string): void {
+  expandedToolOutputIds.value = {
+    ...expandedToolOutputIds.value,
+    [messageId]: !isToolOutputExpanded(messageId),
+  }
 }
 
 function onToolTimelineToggle(messageId: string, event: Event): void {
@@ -733,6 +772,7 @@ watch(
     isLiveOverlayExpanded.value = false
     visibleMessageCount.value = DEFAULT_VISIBLE_MESSAGE_COUNT
     openToolMessageIds.value = {}
+    expandedToolOutputIds.value = {}
   },
   { flush: 'post' },
 )
@@ -1113,8 +1153,16 @@ onBeforeUnmount(() => {
   @apply mt-2 border-t border-slate-200 pt-2;
 }
 
+.tool-timeline-output-header {
+  @apply mb-1 flex items-center justify-between gap-3;
+}
+
 .tool-timeline-output-label {
-  @apply mt-0 mb-1 text-xs font-medium text-slate-500;
+  @apply m-0 text-xs font-medium text-slate-500;
+}
+
+.tool-timeline-output-toggle {
+  @apply shrink-0 rounded-md border border-slate-200 bg-white px-2 py-1 text-xs font-medium text-slate-600 transition hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-300;
 }
 
 .tool-timeline-output-block {
