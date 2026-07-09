@@ -167,7 +167,12 @@
         :open="fileIndex === 0"
       >
         <summary class="thread-diff-file-summary">
-          <span class="thread-diff-file-path">{{ file.filePath }}</span>
+          <span class="thread-diff-file-path" :title="file.filePath">
+            <span class="thread-diff-file-name">{{ displayFilePath(file.filePath).label }}</span>
+            <span v-if="displayFilePath(file.filePath).directory" class="thread-diff-file-directory">
+              {{ displayFilePath(file.filePath).directory }}
+            </span>
+          </span>
           <span v-if="file.oldPath" class="thread-diff-file-old-path">{{ file.oldPath }}</span>
           <span class="thread-diff-file-status">{{ fileStatusLabel(file.status, file.filePath) }}</span>
           <span class="thread-diff-file-lines">
@@ -351,6 +356,7 @@ import type {
   ReviewPatchCopyState,
   ReviewRollbackState,
 } from '../../composables/threadDiffReviewPanelRules'
+import { buildWorkLogDisplayPathParts } from '../../composables/useThreadActivity'
 import { buildDiffReview } from '../../composables/useDiffReview'
 import type { UiDiffLineKind, UiDiffReviewLine } from '../../composables/useDiffReview'
 import type {
@@ -431,6 +437,10 @@ function fileStatusLabel(status: string, filePath: string): string {
     status,
     rollbackState: rollbackState(filePath),
   })
+}
+
+function displayFilePath(filePath: string) {
+  return buildWorkLogDisplayPathParts(filePath, props.cwd)
 }
 
 function hunkRollbackState(filePath: string, hunkIndex: number): ReviewRollbackState {
@@ -1078,7 +1088,15 @@ watch(
 }
 
 .thread-diff-file-path {
-  @apply min-w-0 break-words font-mono font-semibold leading-5 text-slate-900;
+  @apply flex min-w-0 flex-col gap-0.5 font-mono leading-5;
+}
+
+.thread-diff-file-name {
+  @apply min-w-0 truncate font-semibold text-slate-900;
+}
+
+.thread-diff-file-directory {
+  @apply min-w-0 truncate text-[0.68rem] leading-4 text-slate-500;
 }
 
 .thread-diff-file-old-path {
