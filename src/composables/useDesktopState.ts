@@ -9,6 +9,10 @@ import {
   normalizeRateLimitSnapshot,
 } from '../api/codexRateLimitClient'
 import {
+  fetchUserSetting,
+  writeUserSetting,
+} from '../api/codexSettingsClient'
+import {
   archiveThread,
   compactThread,
   forkThread,
@@ -125,13 +129,16 @@ import {
 } from './desktopTurnState'
 import {
   loadAutoRefreshEnabled,
+  loadDesktopTurnPreferences,
   loadProjectDisplayNames,
   loadProjectOrder,
   loadReadStateMap,
   loadSelectedThreadId,
   loadThreadScrollStateMap,
+  normalizeDesktopTurnPreferences,
   normalizeThreadScrollState,
   saveAutoRefreshEnabled,
+  saveDesktopTurnPreferences,
   saveProjectDisplayNames,
   saveProjectOrder,
   saveReadStateMap,
@@ -176,6 +183,7 @@ export { buildRollbackAuditMessage } from './desktopMessageState'
 
 const EVENT_SYNC_DEBOUNCE_MS = 220
 const AUTO_REFRESH_INTERVAL_MS = 4000
+const TURN_PREFERENCES_SETTING_KEY = 'desktop.turn-preferences.v1'
 
 export function useDesktopState() {
   const projectGroups = ref<UiProjectGroup[]>([])
@@ -188,14 +196,15 @@ export function useDesktopState() {
   const liveReasoningTextByThreadId = ref<Record<string, string>>({})
   const inProgressById = ref<Record<string, boolean>>({})
   const eventUnreadByThreadId = ref<Record<string, boolean>>({})
+  const initialTurnPreferences = loadDesktopTurnPreferences()
   const availableModelIds = ref<string[]>([])
-  const selectedModelId = ref('')
-  const selectedReasoningEffort = ref<ReasoningEffort | ''>('medium')
+  const selectedModelId = ref(initialTurnPreferences.modelId)
+  const selectedReasoningEffort = ref<ReasoningEffort | ''>(initialTurnPreferences.reasoningEffort)
   const collaborationModeOptions = ref<UiCollaborationModeOption[]>([
     DEFAULT_COLLABORATION_MODE,
     FALLBACK_PLAN_COLLABORATION_MODE,
   ])
-  const selectedCollaborationModeName = ref(DEFAULT_COLLABORATION_MODE.name)
+  const selectedCollaborationModeName = ref(initialTurnPreferences.collaborationModeName)
   const readStateByThreadId = ref<Record<string, string>>(loadReadStateMap())
   const scrollStateByThreadId = ref<Record<string, ThreadScrollState>>(loadThreadScrollStateMap())
   const projectOrder = ref<string[]>(loadProjectOrder())
@@ -232,6 +241,7 @@ export function useDesktopState() {
   const latestMessageLoadRequestIdByThreadId = new Map<string, number>()
   let nextMessageLoadRequestId = 0
   let nextOptimisticUserMessageId = 0
+  let hasHydratedTurnPreferences = false
 
   const allThreads = computed(() => flattenThreads(projectGroups.value))
   const selectedThread = computed(() =>
@@ -297,20 +307,65 @@ export function useDesktopState() {
     error.value = ''
   }
 
+  function currentTurnPreferences() {
+    return normalizeDesktopTurnPreferences({
+      modelId: selectedModelId.value,
+      reasoningEffort: selectedReasoningEffort.value,
+      collaborationModeName: selectedCollaborationModeName.value,
+    })
+  }
+
+  function persistTurnPreferences(): void {
+    const preferences = currentTurnPreferences()
+    saveDesktopTurnPreferences(preferences)
+    if (!hasHydratedTurnPreferences) return
+    void writeUserSetting(TURN_PREFERENCES_SETTING_KEY, preferences).catch(() => {
+      // localStorage remains the immediate fallback when the optional settings store is unavailable.
+    })
+  }
+
+  async function hydrateTurnPreferencesFromSettingsStore(): Promise<void> {
+    if (hasHydratedTurnPreferences) return
+    hasHydratedTurnPreferences = true
+
+    try {
+      const setting = await fetchUserSetting<unknown>(TURN_PREFERENCES_SETTING_KEY)
+      if (setting) {
+        const preferences = normalizeDesktopTurnPreferences(setting.value)
+        selectedModelId.value = preferences.modelId
+        selectedReasoningEffort.value = preferences.reasoningEffort
+        selectedCollaborationModeName.value = preferences.collaborationModeName
+        saveDesktopTurnPreferences(preferences)
+        return
+      }
+    } catch {
+      // Keep localStorage preferences if the optional settings store cannot be read.
+    }
+
+    const localPreferences = currentTurnPreferences()
+    saveDesktopTurnPreferences(localPreferences)
+    void writeUserSetting(TURN_PREFERENCES_SETTING_KEY, localPreferences).catch(() => {
+      // optional remote persistence
+    })
+  }
+
   function setSelectedModelId(modelId: string): void {
     selectedModelId.value = modelId.trim()
+    persistTurnPreferences()
   }
 
   function setSelectedReasoningEffort(effort: ReasoningEffort | ''): void {
     const normalizedEffort = normalizeSelectedReasoningEffort(effort)
     if (normalizedEffort === null) return
     selectedReasoningEffort.value = normalizedEffort
+    persistTurnPreferences()
   }
 
   function setSelectedCollaborationModeName(name: string): void {
     const nextName = selectCollaborationModeName(name, collaborationModeOptions.value)
     if (!nextName) return
     selectedCollaborationModeName.value = nextName
+    persistTurnPreferences()
   }
 
   async function refreshCollaborationModes(): Promise<void> {
@@ -327,6 +382,7 @@ export function useDesktopState() {
       selectedCollaborationModeName.value,
       nextOptions,
     )
+    persistTurnPreferences()
   }
 
   async function refreshModelPreferences(): Promise<void> {
@@ -356,6 +412,7 @@ export function useDesktopState() {
       selectedReasoningEffort.value,
       currentConfig,
     )
+    persistTurnPreferences()
   }
 
   async function refreshRateLimits(): Promise<void> {
@@ -1012,6 +1069,7 @@ export function useDesktopState() {
     error.value = ''
 
     try {
+      await hydrateTurnPreferencesFromSettingsStore()
       await Promise.all([
         loadThreads(),
         refreshModelPreferences(),
@@ -1504,6 +1562,7 @@ export function useDesktopState() {
     if (typeof window === 'undefined') return
 
     if (stopNotificationStream) return
+    void hydrateTurnPreferencesFromSettingsStore()
     if (isAutoRefreshEnabled.value) {
       startAutoRefreshTimer()
     }

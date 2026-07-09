@@ -1,13 +1,16 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   loadAutoRefreshEnabled,
+  loadDesktopTurnPreferences,
   loadProjectDisplayNames,
   loadProjectOrder,
   loadReadStateMap,
   loadSelectedThreadId,
   loadThreadScrollStateMap,
+  normalizeDesktopTurnPreferences,
   normalizeThreadScrollState,
   saveAutoRefreshEnabled,
+  saveDesktopTurnPreferences,
   saveProjectDisplayNames,
   saveProjectOrder,
   saveReadStateMap,
@@ -19,6 +22,7 @@ const READ_STATE_STORAGE_KEY = 'codex-web-local.thread-read-state.v1'
 const SCROLL_STATE_STORAGE_KEY = 'codex-web-local.thread-scroll-state.v1'
 const PROJECT_ORDER_STORAGE_KEY = 'codex-web-local.project-order.v1'
 const PROJECT_DISPLAY_NAME_STORAGE_KEY = 'codex-web-local.project-display-name.v1'
+const TURN_PREFERENCES_STORAGE_KEY = 'codex-web-local.turn-preferences.v1'
 
 class MemoryStorage implements Storage {
   private readonly values = new Map<string, string>()
@@ -70,6 +74,11 @@ describe('desktopStateStorage', () => {
     expect(loadProjectOrder()).toEqual([])
     expect(loadProjectDisplayNames()).toEqual({})
     expect(loadAutoRefreshEnabled()).toBe(false)
+    expect(loadDesktopTurnPreferences()).toEqual({
+      modelId: '',
+      reasoningEffort: 'medium',
+      collaborationModeName: 'default',
+    })
   })
 
   it('round-trips read state, selected thread, project names, and auto-refresh preference', () => {
@@ -87,6 +96,48 @@ describe('desktopStateStorage', () => {
 
     saveSelectedThreadId('')
     expect(loadSelectedThreadId()).toBe('')
+  })
+
+  it('normalizes and stores turn preferences', () => {
+    const storage = installStorage()
+
+    expect(normalizeDesktopTurnPreferences({
+      modelId: ' gpt-5.5 ',
+      reasoningEffort: 'high',
+      collaborationModeName: ' plan ',
+    })).toEqual({
+      modelId: 'gpt-5.5',
+      reasoningEffort: 'high',
+      collaborationModeName: 'plan',
+    })
+
+    expect(normalizeDesktopTurnPreferences({
+      modelId: 42,
+      reasoningEffort: 'invalid',
+      collaborationModeName: '',
+    })).toEqual({
+      modelId: '',
+      reasoningEffort: 'medium',
+      collaborationModeName: 'default',
+    })
+
+    saveDesktopTurnPreferences({
+      modelId: 'gpt-5.5',
+      reasoningEffort: 'xhigh',
+      collaborationModeName: 'plan',
+    })
+    expect(loadDesktopTurnPreferences()).toEqual({
+      modelId: 'gpt-5.5',
+      reasoningEffort: 'xhigh',
+      collaborationModeName: 'plan',
+    })
+
+    storage.setItem(TURN_PREFERENCES_STORAGE_KEY, '{bad json')
+    expect(loadDesktopTurnPreferences()).toEqual({
+      modelId: '',
+      reasoningEffort: 'medium',
+      collaborationModeName: 'default',
+    })
   })
 
   it('normalizes project order and ignores corrupt records', () => {

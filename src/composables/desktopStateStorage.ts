@@ -1,4 +1,5 @@
-import type { ThreadScrollState } from '../types/codex'
+import { isReasoningEffort } from './desktopTurnPreferences'
+import type { ReasoningEffort, ThreadScrollState } from '../types/codex'
 
 const READ_STATE_STORAGE_KEY = 'codex-web-local.thread-read-state.v1'
 const SCROLL_STATE_STORAGE_KEY = 'codex-web-local.thread-scroll-state.v1'
@@ -6,6 +7,19 @@ const SELECTED_THREAD_STORAGE_KEY = 'codex-web-local.selected-thread-id.v1'
 const PROJECT_ORDER_STORAGE_KEY = 'codex-web-local.project-order.v1'
 const PROJECT_DISPLAY_NAME_STORAGE_KEY = 'codex-web-local.project-display-name.v1'
 const AUTO_REFRESH_ENABLED_STORAGE_KEY = 'codex-web-local.auto-refresh-enabled.v1'
+const TURN_PREFERENCES_STORAGE_KEY = 'codex-web-local.turn-preferences.v1'
+
+export type DesktopTurnPreferences = {
+  modelId: string
+  reasoningEffort: ReasoningEffort | ''
+  collaborationModeName: string
+}
+
+export const DEFAULT_DESKTOP_TURN_PREFERENCES: DesktopTurnPreferences = {
+  modelId: '',
+  reasoningEffort: 'medium',
+  collaborationModeName: 'default',
+}
 
 function getLocalStorage(): Storage | null {
   return typeof window === 'undefined' ? null : window.localStorage
@@ -45,6 +59,28 @@ function normalizeStringRecord(value: unknown): Record<string, string> {
   return normalized
 }
 
+export function normalizeDesktopTurnPreferences(value: unknown): DesktopTurnPreferences {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return DEFAULT_DESKTOP_TURN_PREFERENCES
+  }
+
+  const row = value as Record<string, unknown>
+  const modelId = typeof row.modelId === 'string' ? row.modelId.trim() : ''
+  const rawReasoningEffort = typeof row.reasoningEffort === 'string' ? row.reasoningEffort.trim() : ''
+  const reasoningEffort = rawReasoningEffort && isReasoningEffort(rawReasoningEffort)
+    ? rawReasoningEffort
+    : DEFAULT_DESKTOP_TURN_PREFERENCES.reasoningEffort
+  const collaborationModeName = typeof row.collaborationModeName === 'string' && row.collaborationModeName.trim()
+    ? row.collaborationModeName.trim()
+    : DEFAULT_DESKTOP_TURN_PREFERENCES.collaborationModeName
+
+  return {
+    modelId,
+    reasoningEffort,
+    collaborationModeName,
+  }
+}
+
 export function normalizeThreadScrollState(value: unknown): ThreadScrollState | null {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null
 
@@ -81,6 +117,14 @@ export function saveAutoRefreshEnabled(value: boolean): void {
   const storage = getLocalStorage()
   if (!storage) return
   storage.setItem(AUTO_REFRESH_ENABLED_STORAGE_KEY, value ? '1' : '0')
+}
+
+export function loadDesktopTurnPreferences(): DesktopTurnPreferences {
+  return normalizeDesktopTurnPreferences(readJsonStorage(TURN_PREFERENCES_STORAGE_KEY))
+}
+
+export function saveDesktopTurnPreferences(preferences: DesktopTurnPreferences): void {
+  writeJsonStorage(TURN_PREFERENCES_STORAGE_KEY, normalizeDesktopTurnPreferences(preferences))
 }
 
 export function loadThreadScrollStateMap(): Record<string, ThreadScrollState> {

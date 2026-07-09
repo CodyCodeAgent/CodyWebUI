@@ -15,9 +15,15 @@ const codexApiMock = vi.hoisted(() => {
     compactThread: vi.fn(),
     forkThread: vi.fn(),
     getAccountRateLimits: vi.fn(async () => null),
-    getAvailableModelIds: vi.fn(async () => []),
+    getAvailableModelIds: vi.fn(async (): Promise<string[]> => []),
     getCollaborationModes: vi.fn(async () => []),
     getCurrentModelConfig: vi.fn(async () => ({ model: '', reasoningEffort: '' })),
+    fetchUserSetting: vi.fn(async (): Promise<unknown> => null),
+    writeUserSetting: vi.fn(async (key: string, value: unknown) => ({
+      key,
+      value,
+      updatedAtIso: '2026-07-07T00:00:00.000Z',
+    })),
     fetchPendingServerRequests: vi.fn(async () => []),
     getThreadGroups: vi.fn(async () => []),
     getThreadMessages: vi.fn(async (_threadId?: string): Promise<UiMessage[]> => []),
@@ -51,6 +57,10 @@ vi.mock('../api/codexModelClient', () => ({
 vi.mock('../api/codexRateLimitClient', () => ({
   getAccountRateLimits: codexApiMock.getAccountRateLimits,
   normalizeRateLimitSnapshot: codexApiMock.normalizeRateLimitSnapshot,
+}))
+vi.mock('../api/codexSettingsClient', () => ({
+  fetchUserSetting: codexApiMock.fetchUserSetting,
+  writeUserSetting: codexApiMock.writeUserSetting,
 }))
 vi.mock('../api/codexRealtimeClient', () => ({
   subscribeRpcNotifications: codexApiMock.subscribeRpcNotifications,
@@ -158,6 +168,39 @@ afterEach(() => {
 })
 
 describe('useDesktopState realtime messages', () => {
+  it('hydrates and persists turn preferences through the settings store', async () => {
+    installBrowserGlobals()
+    codexApiMock.fetchUserSetting.mockResolvedValueOnce({
+      key: 'desktop.turn-preferences.v1',
+      value: {
+        modelId: 'gpt-5.5',
+        reasoningEffort: 'high',
+        collaborationModeName: 'plan',
+      },
+      updatedAtIso: '2026-07-07T00:00:00.000Z',
+    })
+    codexApiMock.getAvailableModelIds.mockResolvedValueOnce(['gpt-5.5', 'gpt-5'])
+
+    const state = useDesktopState()
+
+    await state.refreshAll()
+
+    expect(state.selectedModelId.value).toBe('gpt-5.5')
+    expect(state.selectedReasoningEffort.value).toBe('high')
+    expect(state.selectedCollaborationModeName.value).toBe('plan')
+
+    state.setSelectedReasoningEffort('xhigh')
+
+    expect(codexApiMock.writeUserSetting).toHaveBeenLastCalledWith(
+      'desktop.turn-preferences.v1',
+      {
+        modelId: 'gpt-5.5',
+        reasoningEffort: 'xhigh',
+        collaborationModeName: 'plan',
+      },
+    )
+  })
+
   it('renders live assistant deltas before the turn completes', () => {
     installBrowserGlobals('thread-live')
     const state = useDesktopState()
