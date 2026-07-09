@@ -320,7 +320,7 @@ export function useDesktopState() {
     saveDesktopTurnPreferences(preferences)
     if (!hasHydratedTurnPreferences) return
     void writeUserSetting(DESKTOP_SETTING_KEYS.turnPreferences, preferences).catch(() => {
-      // localStorage remains the immediate fallback when the optional settings store is unavailable.
+      // Keep the browser-local preference if remote settings persistence fails.
     })
   }
 
@@ -339,13 +339,13 @@ export function useDesktopState() {
         return
       }
     } catch {
-      // Keep localStorage preferences if the optional settings store cannot be read.
+      // Keep browser-local preferences if remote settings cannot be read.
     }
 
     const localPreferences = currentTurnPreferences()
     saveDesktopTurnPreferences(localPreferences)
     void writeUserSetting(DESKTOP_SETTING_KEYS.turnPreferences, localPreferences).catch(() => {
-      // optional remote persistence
+      // Keep the browser-local preference if the initial remote write fails.
     })
   }
 

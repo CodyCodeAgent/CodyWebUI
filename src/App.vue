@@ -723,7 +723,7 @@ function persistDefaultNewThreadCwd(cwd: string): void {
   saveDefaultNewThreadCwd(normalizedCwd)
   if (!hasHydratedDefaultNewThreadCwd) return
   void writeUserSetting(DESKTOP_SETTING_KEYS.defaultNewThreadCwd, normalizedCwd).catch(() => {
-    // localStorage keeps the immediate default if the settings bridge is unavailable.
+    // Keep the browser-local default if remote settings persistence fails.
   })
 }
 
@@ -740,14 +740,14 @@ async function hydrateDefaultNewThreadCwdFromSettingsStore(): Promise<void> {
       return
     }
   } catch {
-    // Keep localStorage/default workspace fallback when settings cannot be read.
+    // Keep the browser-local/default workspace value when settings cannot be read.
   }
 
   const localCwd = normalizeDefaultNewThreadCwd(newThreadCwd.value)
   if (localCwd) {
     saveDefaultNewThreadCwd(localCwd)
     void writeUserSetting(DESKTOP_SETTING_KEYS.defaultNewThreadCwd, localCwd).catch(() => {
-      // optional remote persistence
+      // Keep the browser-local default if the initial remote write fails.
     })
   }
 }

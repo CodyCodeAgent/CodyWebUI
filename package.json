@@ -1,7 +1,7 @@
 {
   "name": "codex-web-local",
   "version": "0.1.0",
-  "description": "A lightweight web interface for Codex that runs on top of the Codex app-server, allowing remote access from any browser",
+  "description": "CodyWebUI is a local-first web control surface for Codex and future AI coding agents",
   "type": "module",
   "license": "MIT",
   "author": "Pavel Voronin",
@@ -40,6 +40,7 @@
     "prepublishOnly": "npm run build"
   },
   "dependencies": {
+    "better-sqlite3": "^11.9.1",
     "commander": "^13.1.0",
     "express": "^5.1.0",
     "monaco-editor": "^0.55.1",
@@ -48,6 +49,7 @@
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.1.18",
+    "@types/better-sqlite3": "^7.6.13",
     "@types/express": "^5.0.0",
     "@types/node": "^22.13.2",
     "@types/ws": "^8.18.1",

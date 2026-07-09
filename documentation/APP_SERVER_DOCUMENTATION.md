@@ -1,10 +1,12 @@
-# APP SERVER DOCUMENTATION
+# Codex App-Server Protocol Reference
 
-Документ основан на исходниках [openai/codex](https://github.com/openai/codex) (app-server protocol).
+This reference tracks the local Codex app-server protocol materialized for
+CodyWebUI. The schemas are generated from upstream Codex protocol definitions
+and should be treated as read-only inputs to CodyWebUI adapters.
 
-## Локальная материализация схем
+## Local Schema Materialization
 
-Все схемы выгружены из upstream codegen (включая experimental) в:
+Generated schemas are stored in:
 
 - `app-server-schemas/json`
 - `app-server-schemas/typescript`
@@ -13,7 +15,7 @@
 - Root index: [ClientRequest.json](app-server-schemas/json/ClientRequest.json), [ServerRequest.json](app-server-schemas/json/ServerRequest.json), [ServerNotification.json](app-server-schemas/json/ServerNotification.json)
 - Usage guide: [APP_SERVER_SCHEMA_USAGE.md](APP_SERVER_SCHEMA_USAGE.md)
 
-## Client -> Server Methods (полный список)
+## Client -> Server Methods
 
 | Method                             | Params Schema                                                                                                | Response Schema                                                                                                  | Experimental                       | UI-зона                                     |
 | ---------------------------------- | ------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------- | ---------------------------------- | ------------------------------------------- |

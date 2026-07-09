@@ -81,7 +81,7 @@ async function saveRemoteSetting(key: string, value: unknown): Promise<void> {
   try {
     await writeUserSetting(key, value)
   } catch {
-    // Local storage remains the fallback when the optional SQLite settings store is unavailable.
+    // Keep the browser-local theme if remote settings persistence fails.
   }
 }
 
