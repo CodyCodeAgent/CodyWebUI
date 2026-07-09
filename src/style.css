@@ -240,13 +240,17 @@
 .app-dark .project-menu-item:hover,
 .app-dark .thread-row:hover,
 .app-dark .project-header-row:hover,
-.app-dark .thread-show-more-button:hover {
+.app-dark .thread-show-more-row:hover {
   background: #242936;
   border-color: #3b4250;
   color: #f3f4f6;
 }
 
-.app-dark .sidebar-search-toggle[aria-pressed='true'],
+.app-dark .thread-show-more-row {
+  color: #a7b0bf;
+}
+
+.app-dark .sidebar-search-toggle[aria-pressed='true']:not([data-theme-toggle='true']),
 .app-dark .sidebar-thread-controls-button[aria-pressed='true'],
 .app-dark .composer-dropdown-option[data-selected='true'],
 .app-dark .composer-dropdown-option.is-selected,

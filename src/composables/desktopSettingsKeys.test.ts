@@ -15,6 +15,7 @@ describe('desktopSettingsKeys', () => {
 
     expect(new Set(values).size).toBe(values.length)
     expect(values.every((key) => /^[a-z][a-z0-9-]*(\.[a-z][a-z0-9-]*)*\.v\d+$/.test(key))).toBe(true)
+    expect(DESKTOP_SETTING_KEYS.locale).toBe('desktop.locale.v1')
     expect(DESKTOP_SETTING_KEYS.turnPreferences).toBe('desktop.turn-preferences.v1')
     expect(DESKTOP_SETTING_KEYS.tokenFlameWidget).toBe('token-flame.widget.v1')
   })

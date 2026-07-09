@@ -5,14 +5,14 @@
       type="button"
       :aria-expanded="isWorkLogOpen"
       aria-controls="thread-work-log-panel"
-      :aria-label="isWorkLogOpen ? 'Close work log' : 'Open work log'"
+      :aria-label="workLogToggleLabel"
       aria-keyshortcuts="ArrowUp ArrowDown ArrowLeft ArrowRight"
-      :title="isWorkLogOpen ? 'Close work log' : 'Open work log'"
+      :title="workLogToggleLabel"
       @click="onWorkLogFloatClick"
       @keydown="onWorkLogKeyboardMove"
       @pointerdown="onWorkLogDragPointerDown"
     >
-      <span class="thread-work-log-float-title">Work log</span>
+      <span class="thread-work-log-float-title">{{ t('workLog.title') }}</span>
       <span class="thread-work-log-float-summary">
         {{ workLogFloatSummary }}
       </span>
@@ -21,19 +21,19 @@
       </span>
     </button>
 
-    <aside v-if="isWorkLogOpen" id="thread-work-log-panel" class="thread-activity-panel" aria-label="Thread work log">
+    <aside v-if="isWorkLogOpen" id="thread-work-log-panel" class="thread-activity-panel" :aria-label="t('workLog.panelAria')">
       <header class="thread-activity-header" @pointerdown="onWorkLogDragPointerDown">
         <div class="thread-activity-header-copy">
-          <h2 class="thread-activity-title">Work log</h2>
+          <h2 class="thread-activity-title">{{ t('workLog.title') }}</h2>
           <p class="thread-activity-subtitle">{{ statusText }}</p>
-          <div class="thread-activity-view-toggle" aria-label="Diff view mode" @pointerdown.stop>
+          <div class="thread-activity-view-toggle" :aria-label="t('workLog.diffViewMode')" @pointerdown.stop>
             <button
               class="thread-activity-view-button"
               type="button"
               :data-active="diffViewMode === 'unified'"
               @click="setDiffViewMode('unified')"
             >
-              Unified
+              {{ t('workLog.unified') }}
             </button>
             <button
               class="thread-activity-view-button"
@@ -41,15 +41,15 @@
               :data-active="diffViewMode === 'split'"
               @click="setDiffViewMode('split')"
             >
-              Split
+              {{ t('workLog.split') }}
             </button>
           </div>
         </div>
         <button
           class="thread-activity-close"
           type="button"
-          aria-label="Close work log"
-          title="Close work log"
+          :aria-label="t('workLog.close')"
+          :title="t('workLog.close')"
           @click="closeWorkLog"
           @pointerdown.stop
         >
@@ -57,7 +57,7 @@
         </button>
       </header>
 
-      <section class="thread-activity-metrics" aria-label="Work log summary">
+      <section class="thread-activity-metrics" :aria-label="t('workLog.summaryAria')">
         <div v-for="metric in workLogMetrics" :key="metric.label" class="thread-activity-metric">
           <span class="thread-activity-metric-value">{{ metric.value }}</span>
           <span class="thread-activity-metric-label">{{ metric.label }}</span>
@@ -66,23 +66,23 @@
 
       <section class="thread-activity-section thread-activity-section-scroll">
         <div class="thread-activity-section-heading">
-          <h3 class="thread-activity-section-title">Changed files</h3>
+          <h3 class="thread-activity-section-title">{{ t('workLog.changedFiles') }}</h3>
           <span v-if="diffReview.files.length > 0" class="thread-activity-section-count">
             {{ filteredDiffFiles.length }} / {{ diffReview.files.length }}
           </span>
         </div>
         <label v-if="diffReview.files.length > 0" class="work-log-file-filter">
-          <span>Search files</span>
+          <span>{{ t('workLog.searchFiles') }}</span>
           <input
             v-model="workLogFileQuery"
             type="search"
             autocomplete="off"
             spellcheck="false"
-            placeholder="Path or filename"
+            :placeholder="t('workLog.searchPlaceholder')"
           />
         </label>
-        <p v-if="diffReview.files.length === 0" class="thread-activity-empty">No file changes recorded yet.</p>
-        <p v-else-if="filteredDiffFiles.length === 0" class="thread-activity-empty">No changed files match this filter.</p>
+        <p v-if="diffReview.files.length === 0" class="thread-activity-empty">{{ t('workLog.noFileChanges') }}</p>
+        <p v-else-if="filteredDiffFiles.length === 0" class="thread-activity-empty">{{ t('workLog.noFileMatches') }}</p>
 
         <div
           v-for="file in filteredDiffFiles"
@@ -97,12 +97,12 @@
                   {{ displayFilePath(file.filePath).directory }}
                 </span>
               </span>
-              <span class="work-log-status">{{ file.status }}</span>
+              <span class="work-log-status">{{ formatFileStatus(file.status) }}</span>
               <span class="work-log-stat">{{ fileStatLabel(file) }}</span>
               <span class="work-log-summary-spacer" />
             </summary>
-            <p v-if="shouldRenderFileDetails(file.filePath) && file.oldPath" class="work-log-meta">from {{ file.oldPath }}</p>
-            <div v-if="shouldRenderFileDetails(file.filePath) && file.hunks.length > 0" class="work-log-diff" aria-label="File diff">
+            <p v-if="shouldRenderFileDetails(file.filePath) && file.oldPath" class="work-log-meta">{{ t('workLog.fromPath', { path: file.oldPath }) }}</p>
+            <div v-if="shouldRenderFileDetails(file.filePath) && file.hunks.length > 0" class="work-log-diff" :aria-label="t('workLog.fileDiffAria')">
               <section v-for="hunk in file.hunks" :key="`${file.filePath}:${hunk.header}`" class="work-log-hunk">
                 <div class="work-log-diff-row work-log-diff-row-hunk">
                   <span class="work-log-line-number" />
@@ -136,8 +136,8 @@
                   </div>
                 </template>
                 <div v-if="hiddenHunkLineCount(hunk.lines) > 0" class="work-log-diff-truncation">
-                  <span>{{ hiddenHunkLineCount(hunk.lines) }} more lines hidden in this preview.</span>
-                  <button type="button" @click="openFullscreenDiff(file.filePath)">Open fullscreen</button>
+                  <span>{{ t('workLog.hiddenLines', { count: String(hiddenHunkLineCount(hunk.lines)) }) }}</span>
+                  <button type="button" @click="openFullscreenDiff(file.filePath)">{{ t('workLog.openFullscreen') }}</button>
                 </div>
               </section>
             </div>
@@ -146,16 +146,16 @@
           <button
             class="work-log-fullscreen-button"
             type="button"
-            aria-label="Open diff fullscreen"
-            title="Open diff fullscreen"
+            :aria-label="t('workLog.openDiffFullscreen')"
+            :title="t('workLog.openDiffFullscreen')"
             @click="openFullscreenDiff(file.filePath)"
           >
             ⛶
           </button>
         </div>
 
-        <h3 class="thread-activity-section-title thread-activity-section-title-spaced">Commands</h3>
-        <p v-if="commandEntries.length === 0" class="thread-activity-empty">No commands recorded yet.</p>
+        <h3 class="thread-activity-section-title thread-activity-section-title-spaced">{{ t('workLog.commands') }}</h3>
+        <p v-if="commandEntries.length === 0" class="thread-activity-empty">{{ t('workLog.noCommands') }}</p>
 
         <details
           v-for="entry in commandEntries"
@@ -167,32 +167,32 @@
           <summary class="work-log-summary">
             <span class="work-log-primary">{{ entry.summary }}</span>
             <span class="work-log-summary-spacer" />
-            <span class="work-log-status">{{ formatToolStatus(entry.status) }}</span>
-            <span v-if="entry.exitCode !== null" class="work-log-stat">exit {{ entry.exitCode }}</span>
+            <span class="work-log-status">{{ formatToolStatusLabel(entry.status) }}</span>
+            <span v-if="entry.exitCode !== null" class="work-log-stat">{{ t('workLog.exitCode', { code: String(entry.exitCode) }) }}</span>
             <span v-else class="work-log-summary-spacer" />
           </summary>
           <dl v-if="shouldRenderCommandDetails(entry.messageId)" class="work-log-details">
             <div v-if="entry.cwd">
-              <dt>cwd</dt>
+              <dt>{{ t('workLog.cwd') }}</dt>
               <dd>{{ entry.cwd }}</dd>
             </div>
             <div v-if="entry.duration">
-              <dt>duration</dt>
+              <dt>{{ t('workLog.duration') }}</dt>
               <dd>{{ entry.duration }}</dd>
             </div>
           </dl>
           <template v-if="shouldRenderCommandDetails(entry.messageId)">
             <pre v-if="entry.output" class="work-log-output"><code>{{ entry.output }}</code></pre>
-            <p v-else class="work-log-meta">No output captured for this command.</p>
+            <p v-else class="work-log-meta">{{ t('workLog.noCommandOutput') }}</p>
           </template>
         </details>
       </section>
     </aside>
 
-    <section v-if="pendingRequests.length > 0" class="thread-action-required-float" aria-label="Action required">
+    <section v-if="pendingRequests.length > 0" class="thread-action-required-float" :aria-label="t('workLog.actionRequired')">
       <header class="thread-action-required-header">
         <div>
-          <h3 class="thread-action-required-title">Action required</h3>
+          <h3 class="thread-action-required-title">{{ t('workLog.actionRequired') }}</h3>
           <p class="thread-action-required-subtitle">
             {{ pendingApprovalSubtitle }}
           </p>
@@ -201,12 +201,12 @@
 
       <div class="thread-action-required-list">
         <article v-for="card in pendingApprovalCards" :key="card.request.id" class="activity-request-card">
-          <p class="activity-request-method">{{ card.summary.title }}</p>
+          <p class="activity-request-method">{{ formatRequestCardTitle(card) }}</p>
           <p class="activity-request-meta">{{ serverRequestMetaLabel({ request: card.request }) }}</p>
           <p class="activity-request-subject">{{ card.summary.subject }}</p>
           <div class="approval-risk-line">
             <span class="approval-risk-badge" :data-level="card.summary.level">
-              {{ card.summary.level }}
+              {{ formatRiskLevel(card.summary.level) }}
             </span>
             <span
               v-for="label in card.summary.riskLabels"
@@ -222,7 +222,7 @@
               {{ impact }}
             </li>
           </ul>
-          <div class="approval-scope-line" aria-label="Approval scopes">
+          <div class="approval-scope-line" :aria-label="t('workLog.approvalScopes')">
             <span
               v-for="scope in approvalScopeOptions"
               :key="`${card.request.id}:${scope.scope}`"
@@ -248,15 +248,15 @@
                 {{ scope.label }}
               </button>
               <button class="activity-request-button" type="button" @click="onRespondApproval(card.request.id, 'decline')">
-                Decline
+                {{ t('workLog.decline') }}
               </button>
             </template>
             <template v-else>
               <button class="activity-request-button activity-request-button-primary" type="button" @click="onRespondEmptyResult(card.request.id)">
-                Empty result
+                {{ t('workLog.emptyResult') }}
               </button>
               <button class="activity-request-button" type="button" @click="onRejectRequest(card.request.id)">
-                Reject
+                {{ t('workLog.reject') }}
               </button>
             </template>
           </div>
@@ -270,7 +270,7 @@
         class="work-log-fullscreen-backdrop"
         role="dialog"
         aria-modal="true"
-        aria-label="Fullscreen diff"
+        :aria-label="t('workLog.fullscreenDiff')"
         @click.self="closeFullscreenDiff"
       >
         <section class="work-log-fullscreen-panel">
@@ -278,18 +278,18 @@
             <div class="work-log-fullscreen-copy">
               <h3 :title="fullscreenFile.filePath">{{ displayFilePath(fullscreenFile.filePath).label }}</h3>
               <p>
-                {{ fullscreenFile.status }} · {{ fileStatLabel(fullscreenFile) }}
+                {{ formatFileStatus(fullscreenFile.status) }} · {{ fileStatLabel(fullscreenFile) }}
               </p>
               <p class="work-log-fullscreen-path">{{ fullscreenFile.filePath }}</p>
             </div>
-            <div class="thread-activity-view-toggle work-log-fullscreen-view-toggle" aria-label="Diff view mode">
+            <div class="thread-activity-view-toggle work-log-fullscreen-view-toggle" :aria-label="t('workLog.diffViewMode')">
               <button
                 class="thread-activity-view-button"
                 type="button"
                 :data-active="diffViewMode === 'unified'"
                 @click="setDiffViewMode('unified')"
               >
-                Unified
+                {{ t('workLog.unified') }}
               </button>
               <button
                 class="thread-activity-view-button"
@@ -297,14 +297,14 @@
                 :data-active="diffViewMode === 'split'"
                 @click="setDiffViewMode('split')"
               >
-                Split
+                {{ t('workLog.split') }}
               </button>
             </div>
             <button
               class="work-log-fullscreen-close"
               type="button"
-              aria-label="Close fullscreen diff"
-              title="Close"
+              :aria-label="t('workLog.closeFullscreenDiff')"
+              :title="t('workLog.closeShort')"
               @click="closeFullscreenDiff"
               @pointerdown.stop
             >
@@ -313,10 +313,10 @@
           </header>
 
           <div v-if="fullscreenFile.oldPath" class="work-log-fullscreen-meta">
-            from {{ fullscreenFile.oldPath }}
+            {{ t('workLog.fromPath', { path: fullscreenFile.oldPath }) }}
           </div>
 
-          <div v-if="fullscreenFile.hunks.length > 0" class="work-log-diff work-log-diff-fullscreen" aria-label="Fullscreen file diff">
+          <div v-if="fullscreenFile.hunks.length > 0" class="work-log-diff work-log-diff-fullscreen" :aria-label="t('workLog.fullscreenFileDiff')">
             <section v-for="hunk in fullscreenFile.hunks" :key="`fullscreen:${fullscreenFile.filePath}:${hunk.header}`" class="work-log-hunk">
               <div class="work-log-diff-row work-log-diff-row-hunk">
                 <span class="work-log-line-number" />
@@ -352,7 +352,7 @@
             </section>
           </div>
           <pre v-else-if="fullscreenFile.patch" class="work-log-output work-log-output-fullscreen"><code>{{ fullscreenFile.patch }}</code></pre>
-          <p v-else class="work-log-fullscreen-empty">No diff content captured for this file.</p>
+          <p v-else class="work-log-fullscreen-empty">{{ t('workLog.noDiffContent') }}</p>
         </section>
       </div>
     </Teleport>
@@ -364,13 +364,9 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import {
   buildThreadCommandEntries,
   buildThreadActivitySummary,
-  buildPendingApprovalSubtitle,
   buildPendingApprovalCards,
   buildWorkLogDisplayPathParts,
-  buildWorkLogStatusText,
   buildWorkLogFileStatLabel,
-  buildWorkLogFloatSummary,
-  buildWorkLogMetrics,
   filterWorkLogFiles,
   formatWorkLogLineNumber,
   shouldCloseWorkLogFullscreenFile,
@@ -385,7 +381,9 @@ import {
 import {
   APPROVAL_SCOPE_OPTIONS,
   type UiApprovalDecision,
+  type UiApprovalRiskLevel,
 } from '../../composables/useApprovalRisk'
+import { useLocale, type LocaleMessageKey } from '../../composables/useLocale'
 import {
   buildApprovalDecisionReply,
   buildApprovalScopeReply,
@@ -393,6 +391,7 @@ import {
   buildRejectedServerRequestReply,
   serverRequestActionKeyPrefix,
   serverRequestMetaLabel,
+  type UiServerRequestCard,
 } from '../../composables/serverRequestRules'
 import {
   clampFloatingPosition,
@@ -414,7 +413,37 @@ const emit = defineEmits<{
   respondServerRequest: [payload: UiServerRequestReply]
   rollbackCompleted: [result: UiToolingRollbackFileResult]
 }>()
-const approvalScopeOptions = APPROVAL_SCOPE_OPTIONS
+const { t } = useLocale()
+const approvalRiskTranslator = (key: string, replacements?: Record<string, string>) =>
+  t(key as LocaleMessageKey, replacements)
+const approvalScopeOptions = computed(() => APPROVAL_SCOPE_OPTIONS.map((option) => {
+  if (option.scope === 'single') {
+    return {
+      ...option,
+      label: t('workLog.approvalScope.single'),
+      description: t('workLog.approvalScope.singleDescription'),
+    }
+  }
+  if (option.scope === 'session') {
+    return {
+      ...option,
+      label: t('workLog.approvalScope.session'),
+      description: t('workLog.approvalScope.sessionDescription'),
+    }
+  }
+  if (option.scope === 'workspace') {
+    return {
+      ...option,
+      label: t('workLog.approvalScope.workspace'),
+      description: t('workLog.approvalScope.workspaceDescription'),
+    }
+  }
+  return {
+    ...option,
+    label: t('workLog.approvalScope.permanent'),
+    description: t('workLog.approvalScope.permanentDescription'),
+  }
+}))
 const WORK_LOG_POSITION_STORAGE_KEY = 'codex-web-local.work-log-position.v1'
 const WORK_LOG_PREVIEW_HUNK_LINE_LIMIT = 120
 
@@ -430,24 +459,39 @@ const workLogPosition = ref(readStoredWorkLogPosition())
 const fullscreenFile = computed(() => workLogFullscreenFile(diffReview.value, fullscreenFilePath.value))
 const filteredDiffFiles = computed(() => filterWorkLogFiles(diffReview.value.files, workLogFileQuery.value, props.cwd))
 const workLogBadgeCount = computed(() => workLogBadgeCountForReview(diffReview.value, commandEntries.value.length))
-const workLogFloatSummary = computed(() => buildWorkLogFloatSummary({
-  fileCount: diffReview.value.summary.fileCount,
-  commandCount: commandEntries.value.length,
+const workLogToggleLabel = computed(() => isWorkLogOpen.value ? t('workLog.close') : t('workLog.open'))
+const workLogFloatSummary = computed(() => t('workLog.floatSummary', {
+  files: String(diffReview.value.summary.fileCount),
+  commands: String(commandEntries.value.length),
 }))
-const workLogMetrics = computed(() => buildWorkLogMetrics({
-  fileCount: diffReview.value.summary.fileCount,
-  commandCount: commandEntries.value.length,
-  addedLines: diffReview.value.summary.addedLines,
-  removedLines: diffReview.value.summary.removedLines,
-}))
+const workLogMetrics = computed(() => [
+  { label: t('workLog.metric.files'), value: String(diffReview.value.summary.fileCount) },
+  { label: t('workLog.metric.commands'), value: String(commandEntries.value.length) },
+  { label: t('workLog.metric.added'), value: `+${String(diffReview.value.summary.addedLines)}` },
+  { label: t('workLog.metric.removed'), value: `-${String(diffReview.value.summary.removedLines)}` },
+])
 const summary = computed(() => buildThreadActivitySummary(props.messages, props.pendingRequests))
-const pendingApprovalSubtitle = computed(() => buildPendingApprovalSubtitle(props.pendingRequests.length))
-const pendingApprovalCards = computed(() => buildPendingApprovalCards(props.pendingRequests))
-const statusText = computed(() => buildWorkLogStatusText({
-  pendingRequestCount: summary.value.pendingRequestCount,
-  fileCount: diffReview.value.summary.fileCount,
-  commandCount: commandEntries.value.length,
+const pendingApprovalSubtitle = computed(() => t('workLog.approvalWaiting', {
+  count: String(props.pendingRequests.length),
+  approvalLabel: t(props.pendingRequests.length === 1 ? 'workLog.approvalSingular' : 'workLog.approvalPlural'),
 }))
+const pendingApprovalCards = computed(() => buildPendingApprovalCards(props.pendingRequests, approvalRiskTranslator))
+const statusText = computed(() => {
+  if (summary.value.pendingRequestCount > 0) {
+    return t('workLog.status.waiting', { count: String(summary.value.pendingRequestCount) })
+  }
+  const fileCount = diffReview.value.summary.fileCount
+  const commandCount = commandEntries.value.length
+  if (fileCount > 0 || commandCount > 0) {
+    return t('workLog.status.changed', {
+      files: String(fileCount),
+      fileLabel: t(fileCount === 1 ? 'workLog.fileSingular' : 'workLog.filePlural'),
+      commands: String(commandCount),
+      commandLabel: t(commandCount === 1 ? 'workLog.commandSingular' : 'workLog.commandPlural'),
+    })
+  }
+  return t('workLog.status.empty')
+})
 const workLogHostStyle = computed(() => ({
   left: `${String(workLogPosition.value.left)}px`,
   top: `${String(workLogPosition.value.top)}px`,
@@ -584,7 +628,7 @@ function onRespondEmptyResult(requestId: number): void {
 function onRejectRequest(requestId: number): void {
   emit('respondServerRequest', buildRejectedServerRequestReply(
     requestId,
-    'Rejected from codex-web-local activity panel.',
+    t('workLog.rejectedFromActivityPanel'),
   ))
 }
 
@@ -594,6 +638,60 @@ function formatLineNumber(value: number | null): string {
 
 function diffLinePrefix(kind: UiDiffLineKind): string {
   return workLogDiffLinePrefix(kind)
+}
+
+function formatRiskLevel(level: UiApprovalRiskLevel): string {
+  if (level === 'high') return t('workLog.risk.high')
+  if (level === 'medium') return t('workLog.risk.medium')
+  return t('workLog.risk.low')
+}
+
+function formatRequestCardTitle(card: UiServerRequestCard): string {
+  if (card.kind === 'command_approval') return t('workLog.request.commandApproval')
+  if (card.kind === 'file_change_approval') return t('workLog.request.fileChangeApproval')
+  if (card.kind === 'tool_call' || card.kind === 'tool_user_input') return t('workLog.request.toolApproval')
+  return card.summary.title
+}
+
+function formatToolStatusLabel(status: string): string {
+  const normalized = status.trim().toLowerCase()
+  if (!normalized) return formatToolStatus(status)
+  if (normalized.includes('fail') || normalized.includes('error')) return t('workLog.commandStatus.failed')
+  if (
+    normalized.includes('decline') ||
+    normalized.includes('reject') ||
+    normalized.includes('cancel')
+  ) {
+    return t('workLog.commandStatus.cancelled')
+  }
+  if (normalized.includes('pending')) return t('workLog.commandStatus.pending')
+  if (
+    normalized.includes('running') ||
+    normalized.includes('progress') ||
+    normalized.includes('started')
+  ) {
+    return t('workLog.commandStatus.running')
+  }
+  if (
+    normalized.includes('success') ||
+    normalized.includes('complete') ||
+    normalized.includes('done') ||
+    normalized.includes('applied')
+  ) {
+    return t('workLog.commandStatus.completed')
+  }
+  return formatToolStatus(status)
+}
+
+function formatFileStatus(status: string): string {
+  const normalized = status.trim().toLowerCase()
+  if (normalized === 'modified') return t('workLog.fileStatus.modified')
+  if (normalized === 'added') return t('workLog.fileStatus.added')
+  if (normalized === 'deleted' || normalized === 'removed') return t('workLog.fileStatus.deleted')
+  if (normalized === 'renamed' || normalized === 'moved') return t('workLog.fileStatus.renamed')
+  if (normalized === 'copied') return t('workLog.fileStatus.copied')
+  if (normalized === 'completed') return t('workLog.fileStatus.completed')
+  return status
 }
 
 function splitRows(lines: UiDiffReviewLine[]): UiDiffSplitRow[] {

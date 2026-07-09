@@ -2,20 +2,28 @@ import { describe, expect, it } from 'vitest'
 import type { UiProjectGroup, UiThread } from '../types/codex'
 import {
   buildSidebarGroupsContainerStyle,
+  buildSidebarConversationThreads,
   buildSidebarLayoutProjectOrder,
   buildSidebarLayoutTopByProject,
   buildSidebarPinnedThreads,
   closedSidebarThreadMenuState,
+  compareSidebarThreadsByUpdatedDesc,
+  filterSidebarConversationGroups,
   filterSidebarGroupsBySearch,
+  filterSidebarProjectGroups,
+  filterSidebarProjectsBySearch,
+  flattenSidebarThreads,
   formatSidebarRelativeTime,
   hasSidebarHiddenThreads,
   hasSidebarThreads,
   isSidebarEventInsideElement,
   isSidebarPointerInProjectDropZone,
+  isSidebarProjectGroup,
   normalizeSidebarSearchQuery,
   sidebarElementFromRef,
   sidebarDropTargetIndex,
   sidebarBasenameFromPath,
+  sidebarHiddenThreadCount,
   sidebarProjectGroupStyle,
   sidebarProjectDisplayName,
   sidebarProjectExpansionButtonLabel,
@@ -24,6 +32,7 @@ import {
   sidebarProjectedDropProjectIndex,
   sidebarProjectThreads,
   sidebarProjectTitleText,
+  sidebarThreadTimeIso,
   sidebarArchiveThreadClickResult,
   sidebarArchiveThreadButtonLabel,
   sidebarArchiveViewHeaderLabel,
@@ -97,6 +106,85 @@ describe('sidebar thread tree rules', () => {
     ])
   })
 
+  it('splits project groups from standalone conversations', () => {
+    const older = thread({
+      id: 'older',
+      title: 'Older',
+      createdAtIso: '2026-07-01T00:00:00.000Z',
+      updatedAtIso: '2026-07-02T00:00:00.000Z',
+    })
+    const newest = thread({
+      id: 'newest',
+      title: 'Newest',
+      projectName: '/repo/api',
+      cwd: '/repo/api',
+      createdAtIso: '2026-07-03T00:00:00.000Z',
+      updatedAtIso: '2026-07-05T00:00:00.000Z',
+      preview: 'ship api',
+    })
+    const codexOwned = thread({
+      id: 'codex-owned',
+      title: 'Codex owned',
+      projectName: '/Users/me/Library/Application Support/Codex',
+      cwd: '/Users/me/Library/Application Support/Codex',
+      preview: 'internal codex path',
+    })
+    const dotCodexOwned = thread({
+      id: 'dot-codex-owned',
+      title: 'Dot Codex owned',
+      projectName: '/Users/me/.codex',
+      cwd: '/Users/me/.codex',
+      preview: 'dot codex path',
+    })
+    const codexNamedProject = thread({
+      id: 'codex-cli',
+      title: 'Codex CLI',
+      projectName: '/repo/codex_cli',
+      cwd: '/repo/codex_cli',
+      preview: 'real project name',
+    })
+    const groups = [
+      group({ projectName: '/repo/api', threads: [newest] }),
+      group({
+        projectName: '/Users/me/Library/Application Support/Codex',
+        cwd: '/Users/me/Library/Application Support/Codex',
+        threads: [codexOwned],
+      }),
+      group({ projectName: '/Users/me/.codex', cwd: '/Users/me/.codex', threads: [dotCodexOwned] }),
+      group({ projectName: '/repo/codex_cli', cwd: '/repo/codex_cli', threads: [codexNamedProject] }),
+      group({ projectName: 'unknown-project', cwd: '', threads: [older] }),
+    ]
+
+    expect(isSidebarProjectGroup(groups[0])).toBe(true)
+    expect(isSidebarProjectGroup(groups[1])).toBe(false)
+    expect(isSidebarProjectGroup(groups[2])).toBe(false)
+    expect(isSidebarProjectGroup(groups[3])).toBe(true)
+    expect(isSidebarProjectGroup(groups[4])).toBe(false)
+    expect(filterSidebarProjectGroups(groups)).toEqual([groups[0], groups[3]])
+    expect(filterSidebarConversationGroups(groups)).toEqual([groups[1], groups[2], groups[4]])
+    expect(flattenSidebarThreads(groups).map((row) => row.id)).toEqual([
+      'newest',
+      'codex-owned',
+      'dot-codex-owned',
+      'codex-cli',
+      'older',
+    ])
+    expect([older, newest].sort(compareSidebarThreadsByUpdatedDesc).map((row) => row.id)).toEqual([
+      'newest',
+      'older',
+    ])
+    expect(buildSidebarConversationThreads(filterSidebarConversationGroups(groups), ['older'], '').map((row) => row.id)).toEqual([
+      'codex-owned',
+      'dot-codex-owned',
+    ])
+    expect(buildSidebarConversationThreads(filterSidebarConversationGroups(groups), [], 'older').map((row) => row.id)).toEqual(['older'])
+    expect(buildSidebarConversationThreads(filterSidebarConversationGroups(groups), [], 'codex').map((row) => row.id)).toEqual([
+      'codex-owned',
+      'dot-codex-owned',
+    ])
+    expect(sidebarThreadTimeIso(older)).toBe('2026-07-02T00:00:00.000Z')
+  })
+
   it('formats relative times from a stable clock', () => {
     const now = Date.parse('2026-07-07T12:00:00.000Z')
     expect(formatSidebarRelativeTime('not a date', now)).toBe('n/a')
@@ -118,6 +206,10 @@ describe('sidebar thread tree rules', () => {
     expect(sidebarProjectDisplayName('/repo/app', { '/repo/app': 'Friendly' })).toBe('Friendly')
     expect(sidebarProjectPath(project)).toBe('/repo/app/worktree')
     expect(sidebarProjectTitleText(project, { '/repo/app': 'Friendly' })).toBe('Friendly (/repo/app/worktree)')
+    expect(filterSidebarProjectsBySearch([project], 'friendly', { '/repo/app': 'Friendly' })).toEqual([project])
+    expect(filterSidebarProjectsBySearch([project], 'worktree', {})).toEqual([project])
+    expect(filterSidebarProjectsBySearch([project], 'initial', {})).toEqual([project])
+    expect(filterSidebarProjectsBySearch([project], 'missing', {})).toEqual([])
   })
 
   it('hides pinned threads from project rows and handles collapsed/expanded visibility', () => {
@@ -148,6 +240,7 @@ describe('sidebar thread tree rules', () => {
       isCollapsed: false,
       limit: 3,
     })).toBe(true)
+    expect(sidebarHiddenThreadCount(project, pinnedThreadIds, 3)).toBe(7)
     expect(hasSidebarHiddenThreads(project, {
       pinnedThreadIds,
       isSearchActive: true,
@@ -284,6 +377,7 @@ describe('sidebar thread tree rules', () => {
 
   it('toggles project expansion and collapse state', () => {
     expect(sidebarProjectExpansionButtonLabel(false)).toBe('Show more')
+    expect(sidebarProjectExpansionButtonLabel(false, 7)).toBe('Show 7 more')
     expect(sidebarProjectExpansionButtonLabel(true)).toBe('Show less')
     expect(toggleSidebarProjectExpansionState({}, 'app')).toEqual({ app: true })
     expect(toggleSidebarProjectExpansionState({ app: true }, 'app')).toEqual({ app: false })
@@ -295,15 +389,23 @@ describe('sidebar thread tree rules', () => {
       projectName: 'app',
       suppressProjectName: '',
     })).toEqual({
+      collapsedProjects: { app: false },
+      suppressProjectName: '',
+    })
+    expect(toggleSidebarProjectCollapseState({
+      collapsedProjects: { app: false },
+      projectName: 'app',
+      suppressProjectName: '',
+    })).toEqual({
       collapsedProjects: { app: true },
       suppressProjectName: '',
     })
     expect(toggleSidebarProjectCollapseState({
-      collapsedProjects: { app: true },
+      collapsedProjects: { app: false },
       projectName: 'app',
       suppressProjectName: 'app',
     })).toEqual({
-      collapsedProjects: { app: true },
+      collapsedProjects: { app: false },
       suppressProjectName: '',
     })
   })

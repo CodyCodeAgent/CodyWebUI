@@ -37,12 +37,25 @@ async function callRpc<T>(method: string, params?: unknown): Promise<T> {
 }
 
 async function getThreadGroupsV2(archived = false): Promise<UiProjectGroup[]> {
-  const payload = await callRpc<ThreadListResponse>('thread/list', {
-    archived,
-    limit: 100,
-    sortKey: 'updated_at',
-  })
-  return normalizeThreadGroupsV2(payload)
+  const data: ThreadListResponse['data'] = []
+  let cursor: string | null | undefined = null
+
+  do {
+    const params: Record<string, unknown> = {
+      archived,
+      limit: 100,
+      sortKey: 'updated_at',
+    }
+    if (cursor) {
+      params.cursor = cursor
+    }
+
+    const payload = await callRpc<ThreadListResponse>('thread/list', params)
+    data.push(...payload.data)
+    cursor = payload.nextCursor
+  } while (cursor)
+
+  return normalizeThreadGroupsV2({ data, nextCursor: null })
 }
 
 async function getThreadMessagesV2(threadId: string): Promise<UiMessage[]> {

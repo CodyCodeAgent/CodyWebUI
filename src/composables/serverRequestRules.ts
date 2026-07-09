@@ -2,6 +2,7 @@ import {
   approvalDecisionForScope,
   approvalScopeForDecision,
   buildApprovalRiskSummary,
+  type ApprovalRiskTranslator,
   type UiApprovalDecision,
   type UiApprovalRiskSummary,
 } from './useApprovalRisk'
@@ -87,10 +88,13 @@ export function serverRequestMetaLabel(input: {
   return parts.join(' · ')
 }
 
-export function buildServerRequestCards(requests: UiServerRequest[]): UiServerRequestCard[] {
+export function buildServerRequestCards(
+  requests: UiServerRequest[],
+  approvalRiskTranslator?: ApprovalRiskTranslator,
+): UiServerRequestCard[] {
   return requests.map((request) => ({
     request,
-    summary: buildApprovalRiskSummary(request),
+    summary: buildApprovalRiskSummary(request, approvalRiskTranslator),
     kind: serverRequestKind(request.method),
     isApprovalRequest: isServerApprovalRequest(request),
   }))

@@ -20,6 +20,7 @@
           <button
             class="sidebar-search-toggle"
             type="button"
+            data-theme-toggle="true"
             :aria-pressed="isDarkMode"
             :aria-label="isDarkMode ? 'Switch to light mode' : 'Switch to dark mode'"
             :title="isDarkMode ? 'Light mode' : 'Dark mode'"
@@ -51,8 +52,8 @@
             class="sidebar-search-toggle"
             type="button"
             :aria-pressed="isSettingsRoute"
-            aria-label="Settings"
-            title="Settings"
+            :aria-label="t('nav.settings')"
+            :title="t('nav.settings')"
             @click="openSettings"
           >
             <IconTablerSettings class="sidebar-search-toggle-icon" />
@@ -83,11 +84,12 @@
         <SidebarThreadTree :groups="projectGroups" :project-display-name-by-id="projectDisplayNameById"
           v-if="!isEffectiveSidebarCollapsed"
           :selected-thread-id="selectedThreadId" :is-loading="isLoadingThreads"
+          :selected-project-name="selectedSidebarProjectName"
           :search-query="sidebarSearchQuery" :is-archive-view="isArchiveView"
           @select="onSelectThread"
           @archive="onArchiveThread" @unarchive="onUnarchiveThread" @fork="onForkThread"
           @compact="onCompactThread" @toggle-archive-view="onToggleArchiveView"
-          @rename-thread="onRenameThread" @start-new-thread="onStartNewThread" @rename-project="onRenameProject"
+          @rename-thread="onRenameThread" @select-project="onSelectProject" @start-new-thread="onStartNewThread" @rename-project="onRenameProject"
           @remove-project="onRemoveProject" @reorder-project="onReorderProject" />
       </section>
     </template>
@@ -110,6 +112,7 @@
               <button
                 class="sidebar-search-toggle"
                 type="button"
+                data-theme-toggle="true"
                 :aria-pressed="isDarkMode"
                 :aria-label="isDarkMode ? 'Switch to light mode' : 'Switch to dark mode'"
                 :title="isDarkMode ? 'Light mode' : 'Dark mode'"
@@ -131,8 +134,8 @@
                 class="sidebar-search-toggle"
                 type="button"
                 :aria-pressed="isSettingsRoute"
-                aria-label="Settings"
-                title="Settings"
+                :aria-label="t('nav.settings')"
+                :title="t('nav.settings')"
                 @click="openSettings"
               >
                 <IconTablerSettings class="sidebar-search-toggle-icon" />
@@ -298,7 +301,6 @@ import IconTablerSun from './components/icons/IconTablerSun.vue'
 import IconTablerX from './components/icons/IconTablerX.vue'
 import { fetchDefaultWorkspace } from './api/codexWorkspaceResourcesClient'
 import {
-  appContentTitle,
   autoRefreshLabel,
   buildNewThreadFolderOptions,
   composerThreadContextId as buildComposerThreadContextId,
@@ -318,6 +320,7 @@ import {
 import { DESKTOP_SETTING_KEYS, DESKTOP_STORAGE_KEYS } from './composables/desktopSettingsKeys'
 import { useBrowserNotifications } from './composables/useBrowserNotifications'
 import { useDesktopState } from './composables/useDesktopState'
+import { useLocale } from './composables/useLocale'
 import { fetchUserSetting, writeUserSetting } from './api/codexSettingsClient'
 import { useTheme } from './theme/useTheme'
 import type {
@@ -391,6 +394,7 @@ const {
   applyCurrentTheme,
   toggleLightDark,
 } = useTheme()
+const { t } = useLocale()
 
 const route = useRoute()
 const router = useRouter()
@@ -417,11 +421,11 @@ const knownThreadIdSet = computed(() => knownThreadIds(projectGroups.value))
 const isHomeRoute = computed(() => route.name === 'home')
 const isSettingsRoute = computed(() => route.name === 'settings')
 const isEffectiveSidebarCollapsed = computed(() => isSidebarCollapsed.value || isMobileViewport.value)
-const contentTitle = computed(() => appContentTitle({
-  isHomeRoute: isHomeRoute.value,
-  isSettingsRoute: isSettingsRoute.value,
-  selectedThread: selectedThread.value,
-}))
+const contentTitle = computed(() => {
+  if (isSettingsRoute.value) return t('app.title.settings')
+  if (isHomeRoute.value) return t('app.title.newThread')
+  return selectedThread.value?.title ?? t('app.title.chooseThread')
+})
 const autoRefreshButtonLabel = computed(() => autoRefreshLabel({
   isEnabled: isAutoRefreshEnabled.value,
   secondsLeft: autoRefreshSecondsLeft.value,
@@ -457,6 +461,9 @@ const newThreadWorkspaceGroup = computed(() =>
   findNewThreadWorkspaceGroup(projectGroups.value, newThreadCwd.value)
 )
 const newThreadWorkspaceThreads = computed(() => newThreadWorkspaceGroup.value?.threads ?? [])
+const selectedSidebarProjectName = computed(() =>
+  selectedThread.value?.projectName || newThreadWorkspaceGroup.value?.projectName || newThreadCwd.value,
+)
 const newThreadProjectLabel = computed(() => buildNewThreadProjectLabel({
   group: newThreadWorkspaceGroup.value,
   newThreadCwd: newThreadCwd.value,
@@ -590,6 +597,17 @@ function onStartNewThread(projectName: string): void {
   const projectGroup = projectGroups.value.find((group) => group.projectName === projectName)
   const projectCwd = projectGroup?.cwd?.trim() || projectGroup?.threads[0]?.cwd?.trim() || ''
   openNewThreadDialog(projectCwd)
+}
+
+function onSelectProject(projectName: string): void {
+  const projectGroup = projectGroups.value.find((group) => group.projectName === projectName)
+  const projectCwd = projectGroup?.cwd?.trim() || projectGroup?.threads[0]?.cwd?.trim() || ''
+  if (projectCwd) {
+    setNewThreadCwd(projectCwd)
+  }
+  if (route.name !== 'home') {
+    void router.push({ name: 'home' })
+  }
 }
 
 function onStartNewThreadFromToolbar(): void {
@@ -901,7 +919,7 @@ async function submitFirstMessageForNewThread(payload: UiComposerSubmitPayload):
   @apply h-6.75 w-6.75 rounded-md border border-transparent bg-transparent text-zinc-600 flex items-center justify-center transition hover:border-zinc-200 hover:bg-zinc-50;
 }
 
-.sidebar-search-toggle[aria-pressed='true'] {
+.sidebar-search-toggle[aria-pressed='true']:not([data-theme-toggle='true']) {
   @apply border-zinc-300 bg-zinc-100 text-zinc-700;
 }
 

@@ -3,6 +3,7 @@ export const DESKTOP_STORAGE_KEYS = {
   defaultNewThreadCwd: 'codex-web-local.default-new-thread-cwd.v1',
   projectDisplayName: 'codex-web-local.project-display-name.v1',
   projectOrder: 'codex-web-local.project-order.v1',
+  locale: 'codex-web-local.locale.v1',
   readState: 'codex-web-local.thread-read-state.v1',
   scrollState: 'codex-web-local.thread-scroll-state.v1',
   selectedThread: 'codex-web-local.selected-thread-id.v1',
@@ -14,6 +15,7 @@ export const DESKTOP_STORAGE_KEYS = {
 
 export const DESKTOP_SETTING_KEYS = {
   defaultNewThreadCwd: 'desktop.default-new-thread-cwd.v1',
+  locale: 'desktop.locale.v1',
   theme: 'theme.preferences.v1',
   themeImportedSkins: 'theme.imported-skins.v1',
   tokenFlameWidget: 'token-flame.widget.v1',

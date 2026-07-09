@@ -94,6 +94,7 @@ const initialImportedSkins = loadImportedSkins()
 const importedSkins = ref<SkinPack[]>(initialImportedSkins)
 const preferences = ref<ThemePreferences>(loadPreferences(initialImportedSkins))
 const workspacePreferences = ref<WorkspaceThemePreferences | null>(null)
+let preferenceChangeVersion = 0
 
 function allSkins(): SkinPack[] {
   const importedById = new Map(importedSkins.value.map((skin) => [skin.id, skin]))
@@ -150,7 +151,22 @@ function applyCurrentTheme(): void {
   root.style.colorScheme = resolvedSkin.value.isDark ? 'dark' : 'light'
 }
 
+function normalizeKnownPreferences(nextPreferences: ThemePreferences): ThemePreferences {
+  return normalizeThemePreferences(nextPreferences, {
+    skinIds: allSkins().map((skin) => skin.id),
+  })
+}
+
+function commitPreferences(nextPreferences: ThemePreferences): void {
+  preferenceChangeVersion += 1
+  preferences.value = normalizeKnownPreferences(nextPreferences)
+}
+
 function updatePreferences(nextPreferences: ThemePreferences): void {
+  commitPreferences(nextPreferences)
+}
+
+function hydratePreferences(nextPreferences: unknown): void {
   preferences.value = normalizeThemePreferences(nextPreferences, {
     skinIds: allSkins().map((skin) => skin.id),
   })
@@ -158,39 +174,39 @@ function updatePreferences(nextPreferences: ThemePreferences): void {
 
 function setSkin(skinId: string): void {
   const skin = findSkin(skinId)
-  preferences.value = {
+  commitPreferences({
     ...preferences.value,
     skinId: skin.id,
     followSystem: false,
-  }
+  })
 }
 
 function setAccentColor(value: string): void {
-  preferences.value = {
+  commitPreferences({
     ...preferences.value,
     accentColor: normalizeAccentColor(value),
-  }
+  })
 }
 
 function setDensity(value: ThemeDensity): void {
-  preferences.value = {
+  commitPreferences({
     ...preferences.value,
     density: normalizeThemeDensity(value),
-  }
+  })
 }
 
 function setLayoutPreset(value: LayoutPresetId): void {
-  preferences.value = {
+  commitPreferences({
     ...preferences.value,
     layoutPresetId: getLayoutPreset(value).id,
-  }
+  })
 }
 
 function setFollowSystem(value: boolean): void {
-  preferences.value = {
+  commitPreferences({
     ...preferences.value,
     followSystem: value,
-  }
+  })
 }
 
 function setWorkspaceThemePreferences(value: unknown): void {
@@ -213,7 +229,7 @@ function toggleLightDark(): void {
 }
 
 function resetTheme(): void {
-  preferences.value = DEFAULT_THEME_PREFERENCES
+  commitPreferences(DEFAULT_THEME_PREFERENCES)
 }
 
 function exportActiveSkin(): string {
@@ -233,6 +249,7 @@ function importSkin(value: string): SkinPack {
 }
 
 async function hydrateThemeFromSettingsStore(): Promise<void> {
+  const hydrationStartVersion = preferenceChangeVersion
   const remoteImportedSkins = await readRemoteSetting<unknown[]>(DESKTOP_SETTING_KEYS.themeImportedSkins)
   if (Array.isArray(remoteImportedSkins)) {
     importedSkins.value = remoteImportedSkins
@@ -252,9 +269,11 @@ async function hydrateThemeFromSettingsStore(): Promise<void> {
 
   const remotePreferences = await readRemoteSetting<unknown>(DESKTOP_SETTING_KEYS.theme)
   if (remotePreferences) {
-    preferences.value = normalizeThemePreferences(remotePreferences, {
-      skinIds: allSkins().map((skin) => skin.id),
-    })
+    if (preferenceChangeVersion !== hydrationStartVersion) {
+      void saveRemoteSetting(DESKTOP_SETTING_KEYS.theme, preferences.value)
+      return
+    }
+    hydratePreferences(remotePreferences)
     savePreferences(preferences.value)
   } else {
     void saveRemoteSetting(DESKTOP_SETTING_KEYS.theme, preferences.value)
