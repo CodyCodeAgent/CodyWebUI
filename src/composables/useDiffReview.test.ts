@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildDiffReview, buildSplitDiffRows } from './useDiffReview'
+import { buildDiffReview, buildSplitDiffRows, sliceDiffHunkLines } from './useDiffReview'
 import type { UiMessage } from '../types/codex'
 
 function fileChangeMessage(id: string, output: string, details: string[] = []): UiMessage {
@@ -118,5 +118,37 @@ describe('useDiffReview', () => {
       ['remove', 'const oldTwo = 2', 'empty', ''],
       ['context', 'export { keep }', 'context', 'export { keep }'],
     ])
+  })
+
+  it('slices large hunk line lists for lightweight previews', () => {
+    const lines = buildDiffReview([
+      fileChangeMessage(
+        'change-6',
+        [
+          'diff --git a/src/large.ts b/src/large.ts',
+          '--- a/src/large.ts',
+          '+++ b/src/large.ts',
+          '@@ -1,5 +1,5 @@',
+          ' one',
+          ' two',
+          ' three',
+          ' four',
+          ' five',
+        ].join('\n'),
+      ),
+    ]).files[0]?.hunks[0]?.lines ?? []
+
+    expect(sliceDiffHunkLines(lines, 3)).toEqual({
+      lines: lines.slice(0, 3),
+      hiddenCount: 2,
+    })
+    expect(sliceDiffHunkLines(lines, 10)).toEqual({
+      lines,
+      hiddenCount: 0,
+    })
+    expect(sliceDiffHunkLines(lines, 0)).toEqual({
+      lines,
+      hiddenCount: 0,
+    })
   })
 })

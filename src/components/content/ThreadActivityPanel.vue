@@ -112,7 +112,7 @@
                 </div>
                 <template v-if="diffViewMode === 'split'">
                   <div
-                    v-for="(row, index) in splitRows(hunk.lines)"
+                    v-for="(row, index) in splitRows(previewHunkLines(hunk.lines))"
                     :key="`${file.filePath}:${hunk.header}:split:${index}`"
                     class="work-log-split-row"
                   >
@@ -124,7 +124,7 @@
                 </template>
                 <template v-else>
                   <div
-                    v-for="(line, index) in hunk.lines"
+                    v-for="(line, index) in previewHunkLines(hunk.lines)"
                     :key="`${file.filePath}:${hunk.header}:${index}`"
                     class="work-log-diff-row"
                     :data-kind="line.kind"
@@ -135,6 +135,10 @@
                     <code class="work-log-line-code">{{ line.content }}</code>
                   </div>
                 </template>
+                <div v-if="hiddenHunkLineCount(hunk.lines) > 0" class="work-log-diff-truncation">
+                  <span>{{ hiddenHunkLineCount(hunk.lines) }} more lines hidden in this preview.</span>
+                  <button type="button" @click="openFullscreenDiff(file.filePath)">Open fullscreen</button>
+                </div>
               </section>
             </div>
             <pre v-else-if="shouldRenderFileDetails(file.filePath) && file.patch" class="work-log-output"><code>{{ file.patch }}</code></pre>
@@ -395,7 +399,7 @@ import {
   floatingKeyboardDelta,
   moveFloatingPosition,
 } from '../../composables/floatingPositionRules'
-import { buildDiffReview, buildSplitDiffRows } from '../../composables/useDiffReview'
+import { buildDiffReview, buildSplitDiffRows, sliceDiffHunkLines } from '../../composables/useDiffReview'
 import type { UiDiffLineKind, UiDiffReviewFile, UiDiffReviewLine, UiDiffSplitRow } from '../../composables/useDiffReview'
 import type { UiApprovalDecisionScope, UiMessage, UiServerRequest, UiServerRequestReply, UiToolingRollbackFileResult } from '../../types/codex'
 
@@ -412,6 +416,7 @@ const emit = defineEmits<{
 }>()
 const approvalScopeOptions = APPROVAL_SCOPE_OPTIONS
 const WORK_LOG_POSITION_STORAGE_KEY = 'codex-web-local.work-log-position.v1'
+const WORK_LOG_PREVIEW_HUNK_LINE_LIMIT = 120
 
 const commandEntries = computed(() => buildThreadCommandEntries(props.messages))
 const diffReview = computed(() => buildDiffReview(props.messages))
@@ -593,6 +598,14 @@ function diffLinePrefix(kind: UiDiffLineKind): string {
 
 function splitRows(lines: UiDiffReviewLine[]): UiDiffSplitRow[] {
   return buildSplitDiffRows(lines)
+}
+
+function previewHunkLines(lines: UiDiffReviewLine[]): UiDiffReviewLine[] {
+  return sliceDiffHunkLines(lines, WORK_LOG_PREVIEW_HUNK_LINE_LIMIT).lines
+}
+
+function hiddenHunkLineCount(lines: UiDiffReviewLine[]): number {
+  return sliceDiffHunkLines(lines, WORK_LOG_PREVIEW_HUNK_LINE_LIMIT).hiddenCount
 }
 
 function setDiffViewMode(mode: 'unified' | 'split'): void {
@@ -1031,6 +1044,14 @@ onBeforeUnmount(() => {
 .work-log-split-line-number[data-kind='empty'],
 .work-log-split-code[data-kind='empty'] {
   background: #f8fafc;
+}
+
+.work-log-diff-truncation {
+  @apply flex min-w-max items-center justify-between gap-3 border-t border-slate-200 bg-slate-50 px-3 py-2 text-xs leading-4 text-slate-500;
+}
+
+.work-log-diff-truncation button {
+  @apply shrink-0 rounded-md border border-slate-200 bg-white px-2 py-1 text-xs font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-slate-300;
 }
 
 .work-log-fullscreen-backdrop {

@@ -57,6 +57,11 @@ export type UiDiffReview = {
   summary: UiDiffReviewSummary
 }
 
+export type UiDiffHunkLineSlice = {
+  lines: UiDiffReviewLine[]
+  hiddenCount: number
+}
+
 type MutableDiffFile = UiDiffReviewFile & {
   patchLines: string[]
 }
@@ -239,6 +244,21 @@ export function buildSplitDiffRows(lines: UiDiffReviewLine[]): UiDiffSplitRow[] 
   }
 
   return rows
+}
+
+export function sliceDiffHunkLines(lines: UiDiffReviewLine[], limit: number): UiDiffHunkLineSlice {
+  const normalizedLimit = Math.max(Math.trunc(limit), 0)
+  if (normalizedLimit <= 0 || lines.length <= normalizedLimit) {
+    return {
+      lines,
+      hiddenCount: 0,
+    }
+  }
+
+  return {
+    lines: lines.slice(0, normalizedLimit),
+    hiddenCount: lines.length - normalizedLimit,
+  }
 }
 
 function finalizeFile(file: MutableDiffFile | null, files: MutableDiffFile[]): void {
