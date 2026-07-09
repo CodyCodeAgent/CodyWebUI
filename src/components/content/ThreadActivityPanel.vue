@@ -6,8 +6,10 @@
       :aria-expanded="isWorkLogOpen"
       aria-controls="thread-work-log-panel"
       :aria-label="isWorkLogOpen ? 'Close work log' : 'Open work log'"
+      aria-keyshortcuts="ArrowUp ArrowDown ArrowLeft ArrowRight"
       :title="isWorkLogOpen ? 'Close work log' : 'Open work log'"
       @click="onWorkLogFloatClick"
+      @keydown="onWorkLogKeyboardMove"
       @pointerdown="onWorkLogDragPointerDown"
     >
       <span class="thread-work-log-float-title">Work log</span>
@@ -354,7 +356,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import {
   buildThreadCommandEntries,
   buildThreadActivitySummary,
@@ -388,6 +390,11 @@ import {
   serverRequestActionKeyPrefix,
   serverRequestMetaLabel,
 } from '../../composables/serverRequestRules'
+import {
+  clampFloatingPosition,
+  floatingKeyboardDelta,
+  moveFloatingPosition,
+} from '../../composables/floatingPositionRules'
 import { buildDiffReview, buildSplitDiffRows } from '../../composables/useDiffReview'
 import type { UiDiffLineKind, UiDiffReviewFile, UiDiffReviewLine, UiDiffSplitRow } from '../../composables/useDiffReview'
 import type { UiApprovalDecisionScope, UiMessage, UiServerRequest, UiServerRequestReply, UiToolingRollbackFileResult } from '../../types/codex'
@@ -404,6 +411,7 @@ const emit = defineEmits<{
   rollbackCompleted: [result: UiToolingRollbackFileResult]
 }>()
 const approvalScopeOptions = APPROVAL_SCOPE_OPTIONS
+const WORK_LOG_POSITION_STORAGE_KEY = 'codex-web-local.work-log-position.v1'
 
 const commandEntries = computed(() => buildThreadCommandEntries(props.messages))
 const diffReview = computed(() => buildDiffReview(props.messages))
@@ -413,7 +421,7 @@ const diffViewMode = ref<'unified' | 'split'>('unified')
 const workLogFileQuery = ref('')
 const openFileDetailsByPath = ref<Record<string, boolean>>({})
 const openCommandDetailsById = ref<Record<string, boolean>>({})
-const workLogPosition = ref({ left: 24, top: 76 })
+const workLogPosition = ref(readStoredWorkLogPosition())
 const fullscreenFile = computed(() => workLogFullscreenFile(diffReview.value, fullscreenFilePath.value))
 const filteredDiffFiles = computed(() => filterWorkLogFiles(diffReview.value.files, workLogFileQuery.value, props.cwd))
 const workLogBadgeCount = computed(() => workLogBadgeCountForReview(diffReview.value, commandEntries.value.length))
@@ -458,15 +466,38 @@ function workLogPanelWidth(): number {
   return isWorkLogOpen.value ? Math.min(544, availableWidth) : Math.min(288, window.innerWidth - 32)
 }
 
+function readStoredWorkLogPosition(): { left: number; top: number } {
+  if (typeof window === 'undefined') return { left: 24, top: 76 }
+  try {
+    const raw = window.localStorage.getItem(WORK_LOG_POSITION_STORAGE_KEY)
+    if (!raw) return { left: 24, top: 76 }
+    const parsed = JSON.parse(raw) as Partial<{ left: number; top: number }>
+    if (typeof parsed.left !== 'number' || typeof parsed.top !== 'number') return { left: 24, top: 76 }
+    return { left: parsed.left, top: parsed.top }
+  } catch {
+    return { left: 24, top: 76 }
+  }
+}
+
+function saveWorkLogPosition(): void {
+  if (typeof window === 'undefined') return
+  try {
+    window.localStorage.setItem(WORK_LOG_POSITION_STORAGE_KEY, JSON.stringify(workLogPosition.value))
+  } catch {
+    // Position persistence is best-effort; the floating control should keep working in-session.
+  }
+}
+
 function clampWorkLogPosition(left: number, top: number): { left: number; top: number } {
   if (typeof window === 'undefined') return { left, top }
   const panelWidth = workLogPanelWidth()
   const maxLeft = Math.max(window.innerWidth - panelWidth - 8, 8)
   const maxTop = Math.max(window.innerHeight - 80, 8)
-  return {
-    left: Math.min(Math.max(left, 8), maxLeft),
-    top: Math.min(Math.max(top, 8), maxTop),
-  }
+  const next = clampFloatingPosition(
+    { x: left, y: top },
+    { minX: 8, maxX: maxLeft, minY: 8, maxY: maxTop },
+  )
+  return { left: next.x, top: next.y }
 }
 
 function onWorkLogDragPointerDown(event: PointerEvent): void {
@@ -500,9 +531,37 @@ function onWorkLogDragPointerMove(event: PointerEvent): void {
 
 function onWorkLogDragPointerUp(event: PointerEvent): void {
   if (dragStart && event.pointerId === dragStart.pointerId) {
+    if (dragStart.moved) saveWorkLogPosition()
     dragStart = null
   }
   window.removeEventListener('pointermove', onWorkLogDragPointerMove)
+}
+
+function onWorkLogKeyboardMove(event: KeyboardEvent): void {
+  const delta = floatingKeyboardDelta(event.key, {
+    shiftKey: event.shiftKey,
+    altKey: event.altKey,
+  })
+  if (!delta) return
+
+  event.preventDefault()
+  event.stopPropagation()
+
+  const panelWidth = workLogPanelWidth()
+  const maxLeft = typeof window === 'undefined' ? workLogPosition.value.left : Math.max(window.innerWidth - panelWidth - 8, 8)
+  const maxTop = typeof window === 'undefined' ? workLogPosition.value.top : Math.max(window.innerHeight - 80, 8)
+  const next = moveFloatingPosition(
+    { x: workLogPosition.value.left, y: workLogPosition.value.top },
+    delta,
+    { minX: 8, maxX: maxLeft, minY: 8, maxY: maxTop },
+  )
+  workLogPosition.value = { left: next.x, top: next.y }
+  saveWorkLogPosition()
+}
+
+function onWorkLogWindowResize(): void {
+  workLogPosition.value = clampWorkLogPosition(workLogPosition.value.left, workLogPosition.value.top)
+  saveWorkLogPosition()
 }
 
 function onRespondApproval(requestId: number, decision: UiApprovalDecision): void {
@@ -607,7 +666,13 @@ watch(() => props.threadId, () => {
   fullscreenFilePath.value = ''
 })
 
+onMounted(() => {
+  onWorkLogWindowResize()
+  window.addEventListener('resize', onWorkLogWindowResize)
+})
+
 onBeforeUnmount(() => {
+  window.removeEventListener('resize', onWorkLogWindowResize)
   window.removeEventListener('pointermove', onWorkLogDragPointerMove)
 })
 </script>

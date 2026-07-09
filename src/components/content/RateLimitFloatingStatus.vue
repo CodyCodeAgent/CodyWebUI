@@ -6,7 +6,10 @@
     :class="{ 'is-dragging': dragState !== null }"
     :style="cardPositionStyle"
     :title="detailsTitle"
+    aria-keyshortcuts="ArrowUp ArrowDown ArrowLeft ArrowRight"
     aria-label="Codex rate limit status"
+    tabindex="0"
+    @keydown="onKeyboardMove"
   >
     <div
       class="rate-limit-heading"
@@ -68,6 +71,11 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import IconTablerRefresh from '../icons/IconTablerRefresh.vue'
+import {
+  clampFloatingPosition,
+  floatingKeyboardDelta,
+  moveFloatingPosition,
+} from '../../composables/floatingPositionRules'
 import type { UiRateLimitSnapshot, UiRateLimitWindow } from '../../types/codex'
 
 const props = defineProps<{
@@ -219,10 +227,12 @@ function clampPosition(candidate: CardPosition): CardPosition {
   const maxX = Math.max(CARD_MARGIN, window.innerWidth - width - CARD_MARGIN)
   const maxY = Math.max(CARD_MARGIN, window.innerHeight - height - CARD_MARGIN)
 
-  return {
-    x: clamp(candidate.x, CARD_MARGIN, maxX),
-    y: clamp(candidate.y, CARD_MARGIN, maxY),
-  }
+  return clampFloatingPosition(candidate, {
+    minX: CARD_MARGIN,
+    maxX,
+    minY: CARD_MARGIN,
+    maxY,
+  })
 }
 
 function ensurePosition(): void {
@@ -268,6 +278,31 @@ function stopDrag(event: PointerEvent): void {
   window.removeEventListener('pointermove', onPointerMove)
   window.removeEventListener('pointerup', stopDrag)
   window.removeEventListener('pointercancel', stopDrag)
+}
+
+function onKeyboardMove(event: KeyboardEvent): void {
+  if (!position.value) return
+  if (event.target !== event.currentTarget) return
+
+  const delta = floatingKeyboardDelta(event.key, {
+    shiftKey: event.shiftKey,
+    altKey: event.altKey,
+  })
+  if (!delta) return
+
+  event.preventDefault()
+  event.stopPropagation()
+
+  const rect = cardRef.value?.getBoundingClientRect()
+  const width = rect?.width || DEFAULT_CARD_WIDTH
+  const height = rect?.height || 120
+  position.value = moveFloatingPosition(position.value, delta, {
+    minX: CARD_MARGIN,
+    maxX: Math.max(CARD_MARGIN, window.innerWidth - width - CARD_MARGIN),
+    minY: CARD_MARGIN,
+    maxY: Math.max(CARD_MARGIN, window.innerHeight - height - CARD_MARGIN),
+  })
+  writeStoredPosition(position.value)
 }
 
 function onWindowResize(): void {

@@ -12,8 +12,10 @@
     <button
       class="token-flame-button"
       type="button"
+      aria-keyshortcuts="ArrowUp ArrowDown ArrowLeft ArrowRight"
       :title="summaryTitle"
       @click="toggleOpen"
+      @keydown="onKeyboardMove"
       @pointerdown="startDrag"
     >
       <span class="token-flame-graphic" aria-hidden="true">
@@ -62,6 +64,11 @@
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { fetchUserSetting, writeUserSetting } from '../../api/codexSettingsClient'
 import { fetchDailyTokenUsage } from '../../api/codexTokenUsageClient'
+import {
+  clampFloatingPosition,
+  floatingKeyboardDelta,
+  moveFloatingPosition,
+} from '../../composables/floatingPositionRules'
 import type { UiDailyTokenUsage, UiRateLimitSnapshot } from '../../types/codex'
 
 type FlameCorner = 'bottom-right' | 'bottom-left' | 'top-right' | 'top-left'
@@ -197,10 +204,12 @@ function clampPosition(position: NonNullable<FlameSettings['position']>): NonNul
   const height = rect?.height || WIDGET_SIZE
   const maxX = Math.max(WIDGET_MARGIN, window.innerWidth - width - WIDGET_MARGIN)
   const maxY = Math.max(WIDGET_MARGIN, window.innerHeight - height - WIDGET_MARGIN)
-  return {
-    x: Math.min(Math.max(position.x, WIDGET_MARGIN), maxX),
-    y: Math.min(Math.max(position.y, WIDGET_MARGIN), maxY),
-  }
+  return clampFloatingPosition(position, {
+    minX: WIDGET_MARGIN,
+    maxX,
+    minY: WIDGET_MARGIN,
+    maxY,
+  })
 }
 
 function saveSettings(nextSettings = settings.value): void {
@@ -268,6 +277,33 @@ function toggleOpen(): void {
     return
   }
   isOpen.value = !isOpen.value
+}
+
+function onKeyboardMove(event: KeyboardEvent): void {
+  const delta = floatingKeyboardDelta(event.key, {
+    shiftKey: event.shiftKey,
+    altKey: event.altKey,
+  })
+  if (!delta) return
+
+  event.preventDefault()
+  event.stopPropagation()
+
+  const currentPosition = settings.value.position ?? defaultPosition(settings.value.defaultCorner)
+  const rect = widgetRef.value?.getBoundingClientRect()
+  const width = rect?.width || WIDGET_SIZE
+  const height = rect?.height || WIDGET_SIZE
+  const nextPosition = moveFloatingPosition(currentPosition, delta, {
+    minX: WIDGET_MARGIN,
+    maxX: Math.max(WIDGET_MARGIN, window.innerWidth - width - WIDGET_MARGIN),
+    minY: WIDGET_MARGIN,
+    maxY: Math.max(WIDGET_MARGIN, window.innerHeight - height - WIDGET_MARGIN),
+  })
+  settings.value = {
+    ...settings.value,
+    position: nextPosition,
+  }
+  saveSettings()
 }
 
 async function loadUsage(): Promise<void> {
