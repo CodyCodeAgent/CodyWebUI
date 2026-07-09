@@ -18,6 +18,7 @@ import {
   conversationRequestKind,
   DEFAULT_VISIBLE_MESSAGE_COUNT,
   hasLiveOverlayDetails,
+  historyPageButtonLabel,
   hiddenMessageCount,
   isConversationApprovalRequestKind,
   isCopyableMessage,
@@ -38,6 +39,7 @@ import {
   shouldShowToolQuestionText,
   toolQuestionKey,
   toolQuestionTitle,
+  visibleMessageWindowSummary,
   visibleMessageStartIndex,
 } from './threadConversationRules'
 
@@ -409,5 +411,13 @@ describe('thread conversation rules', () => {
     expect(hiddenMessageCount(200, 80)).toBe(120)
     expect(nextVisibleMessageCount(200, 80)).toBe(160)
     expect(nextVisibleMessageCount(120, 80)).toBe(120)
+    expect(visibleMessageWindowSummary(0, 80)).toBe('No messages')
+    expect(visibleMessageWindowSummary(40, 80)).toBe('Showing messages 1-40 of 40')
+    expect(visibleMessageWindowSummary(200, 80)).toBe('Showing messages 121-200 of 200')
+    expect(visibleMessageWindowSummary(200, 160)).toBe('Showing messages 41-200 of 200')
+    expect(historyPageButtonLabel(0)).toBe('No earlier messages')
+    expect(historyPageButtonLabel(120)).toBe('Show 80 earlier messages')
+    expect(historyPageButtonLabel(1)).toBe('Show 1 earlier message')
+    expect(historyPageButtonLabel(20, 80)).toBe('Show 20 earlier messages')
   })
 })

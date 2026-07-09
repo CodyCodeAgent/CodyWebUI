@@ -123,9 +123,10 @@
           type="button"
           @click="onLoadEarlierMessages"
         >
-          Show {{ nextHistoryPageSize }} earlier messages
+          {{ historyButtonLabel }}
           <span>{{ hiddenMessagesCount }} hidden</span>
         </button>
+        <p class="conversation-history-window">{{ visibleMessageWindowLabel }}</p>
       </li>
 
       <li
@@ -303,6 +304,7 @@ import {
   conversationRequestActionKeyPrefix,
   DEFAULT_VISIBLE_MESSAGE_COUNT,
   hasLiveOverlayDetails as hasThreadLiveOverlayDetails,
+  historyPageButtonLabel,
   hiddenMessageCount as hiddenThreadMessageCount,
   isConversationApprovalRequestKind,
   liveOverlayDetailsToggleLabel,
@@ -323,6 +325,7 @@ import {
   shouldShowToolQuestionText,
   toolQuestionKey,
   toolQuestionTitle,
+  visibleMessageWindowSummary,
   visibleMessageStartIndex,
 } from '../../composables/threadConversationRules'
 import {
@@ -394,7 +397,11 @@ const hiddenMessagesCount = computed(() => hiddenThreadMessageCount(
   normalizedVisibleMessagesCount.value,
 ))
 const visibleMessages = computed(() => props.messages.slice(visibleMessagesStartIndex.value))
-const nextHistoryPageSize = computed(() => Math.min(MESSAGE_HISTORY_PAGE_SIZE, hiddenMessagesCount.value))
+const historyButtonLabel = computed(() => historyPageButtonLabel(hiddenMessagesCount.value, MESSAGE_HISTORY_PAGE_SIZE))
+const visibleMessageWindowLabel = computed(() => visibleMessageWindowSummary(
+  props.messages.length,
+  normalizedVisibleMessagesCount.value,
+))
 
 const showScrollToBottomButton = computed(() => {
   return shouldShowThreadScrollToBottomButton({
@@ -792,7 +799,7 @@ onBeforeUnmount(() => {
 }
 
 .conversation-item-history {
-  @apply justify-center;
+  @apply flex-col items-center justify-center gap-1;
 }
 
 .conversation-history-button {
@@ -801,6 +808,10 @@ onBeforeUnmount(() => {
 
 .conversation-history-button span {
   @apply text-slate-400;
+}
+
+.conversation-history-window {
+  @apply m-0 text-[0.68rem] leading-4 text-slate-400;
 }
 
 .message-row {

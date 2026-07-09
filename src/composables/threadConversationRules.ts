@@ -64,6 +64,22 @@ export function nextVisibleMessageCount(messageCount: number, visibleCount: numb
   return normalizedVisibleMessageCount(messageCount, nextCount)
 }
 
+export function visibleMessageWindowSummary(messageCount: number, visibleCount: number): string {
+  const normalizedMessageCount = Math.max(Math.trunc(messageCount), 0)
+  if (normalizedMessageCount <= 0) return 'No messages'
+
+  const normalizedVisibleCount = normalizedVisibleMessageCount(normalizedMessageCount, visibleCount)
+  const start = visibleMessageStartIndex(normalizedMessageCount, normalizedVisibleCount) + 1
+  return `Showing messages ${start}-${normalizedMessageCount} of ${normalizedMessageCount}`
+}
+
+export function historyPageButtonLabel(hiddenCount: number, pageSize = MESSAGE_HISTORY_PAGE_SIZE): string {
+  const normalizedHiddenCount = Math.max(Math.trunc(hiddenCount), 0)
+  if (normalizedHiddenCount <= 0) return 'No earlier messages'
+  const count = Math.min(Math.max(Math.trunc(pageSize), 1), normalizedHiddenCount)
+  return `Show ${count} earlier message${count === 1 ? '' : 's'}`
+}
+
 export function buildToolCopyText(tool: UiToolTimelineEntry): string {
   const parts = [`${tool.title}: ${tool.summary}`]
   if (tool.status.trim().length > 0) {
