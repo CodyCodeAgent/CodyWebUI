@@ -78,7 +78,6 @@ import {
   updateMessagesForThread,
   upsertLiveAssistantDeltaForThread,
   upsertMessage,
-  upsertMessages,
   updateTurnActivityState,
   updateTurnErrorState,
   updateTurnSummaryState,
@@ -798,9 +797,10 @@ export function useDesktopState() {
 
     const completedUserMessages = readUserMessageCompleted(notification)
     if (completedUserMessages.length > 0) {
+      const previousMessages = persistedMessagesByThreadId.value[notificationThreadId] ?? []
       setPersistedMessagesForThread(
         notificationThreadId,
-        upsertMessages(persistedMessagesByThreadId.value[notificationThreadId] ?? [], completedUserMessages),
+        mergeMessages(previousMessages, completedUserMessages, { preserveMissing: true }),
       )
     }
 

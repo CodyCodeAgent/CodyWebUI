@@ -165,7 +165,8 @@
                 class="tool-timeline-card"
                 :data-kind="message.tool.kind"
                 :data-tone="toolStatusTone(message.tool.status)"
-                :open="isToolTimelineExpandedByDefault(message.tool)"
+                :open="isToolTimelineOpen(message)"
+                @toggle="onToolTimelineToggle(message.id, $event)"
               >
                 <summary class="tool-timeline-summary-row">
                   <span class="tool-timeline-chevron" aria-hidden="true">›</span>
@@ -177,7 +178,7 @@
                     <span class="tool-timeline-summary">{{ message.tool.summary }}</span>
                   </span>
                 </summary>
-                <div class="tool-timeline-body">
+                <div v-if="shouldMountToolTimelineBody(message)" class="tool-timeline-body">
                   <ul v-if="message.tool.details.length > 0" class="tool-timeline-detail-list">
                     <li v-for="detail in message.tool.details" :key="detail" class="tool-timeline-detail">
                       {{ detail }}
@@ -363,6 +364,7 @@ const modalImageUrl = ref('')
 const copiedMessageId = ref('')
 const isLiveOverlayExpanded = ref(false)
 const visibleMessageCount = ref(DEFAULT_VISIBLE_MESSAGE_COUNT)
+const openToolMessageIds = ref<Record<string, boolean>>({})
 const toolQuestionAnswers = ref<Record<string, string>>({})
 const toolQuestionOtherAnswers = ref<Record<string, string>>({})
 const BOTTOM_THRESHOLD_PX = 16
@@ -415,6 +417,28 @@ function shouldShowCopyButton(message: UiMessage, renderedMessageIndex: number):
 
 function buildCopyTextAt(message: UiMessage, renderedMessageIndex: number): string {
   return buildThreadCopyTextAt(props.messages, message, toAbsoluteMessageIndex(renderedMessageIndex))
+}
+
+function defaultToolTimelineOpen(message: UiMessage): boolean {
+  return message.tool ? isToolTimelineExpandedByDefault(message.tool) : false
+}
+
+function isToolTimelineOpen(message: UiMessage): boolean {
+  const saved = openToolMessageIds.value[message.id]
+  return typeof saved === 'boolean' ? saved : defaultToolTimelineOpen(message)
+}
+
+function shouldMountToolTimelineBody(message: UiMessage): boolean {
+  return isToolTimelineOpen(message)
+}
+
+function onToolTimelineToggle(messageId: string, event: Event): void {
+  const target = event.target
+  if (!(target instanceof HTMLDetailsElement)) return
+  openToolMessageIds.value = {
+    ...openToolMessageIds.value,
+    [messageId]: target.open,
+  }
 }
 
 function isMessageCopied(messageId: string): boolean {
@@ -701,6 +725,7 @@ watch(
     modalImageUrl.value = ''
     isLiveOverlayExpanded.value = false
     visibleMessageCount.value = DEFAULT_VISIBLE_MESSAGE_COUNT
+    openToolMessageIds.value = {}
   },
   { flush: 'post' },
 )
