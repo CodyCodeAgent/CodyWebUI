@@ -181,10 +181,15 @@ onMounted(() => {
 
 .app-settings-page {
   @apply mx-auto flex h-full min-h-0 w-full max-w-5xl flex-col gap-4 overflow-y-auto px-6 pb-8 pt-4;
+  background: var(--color-background);
+  color: var(--color-text);
 }
 
 .app-settings-section {
   @apply rounded-lg border border-zinc-200 bg-zinc-50 p-4;
+  background: var(--color-panel);
+  border-color: var(--color-border);
+  box-shadow: var(--shadow-panel);
 }
 
 .app-settings-section-header {
@@ -193,22 +198,30 @@ onMounted(() => {
 
 .app-settings-title {
   @apply m-0 text-base font-semibold text-zinc-950;
+  color: var(--color-text);
 }
 
 .app-settings-subtitle {
   @apply m-0 mt-1 text-sm text-zinc-500;
+  color: var(--color-text-muted);
 }
 
 .app-settings-switch {
   @apply inline-flex shrink-0 items-center gap-2 rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm font-medium text-zinc-700;
+  background: var(--color-surface);
+  border-color: var(--color-border);
+  color: var(--color-text);
 }
 
 .app-settings-switch input {
   @apply h-4 w-4;
+  accent-color: var(--color-accent);
 }
 
 .flame-settings-card {
   @apply grid grid-cols-[7rem_minmax(0,1fr)] gap-4 rounded-lg border border-zinc-200 bg-white p-4;
+  background: var(--color-surface);
+  border-color: var(--color-border);
 }
 
 .flame-preview {
@@ -246,10 +259,12 @@ onMounted(() => {
 
 .flame-settings-copy h3 {
   @apply m-0 text-sm font-semibold text-zinc-900;
+  color: var(--color-text);
 }
 
 .flame-settings-copy p {
   @apply m-0 mt-1 text-sm leading-5 text-zinc-600;
+  color: var(--color-text-muted);
 }
 
 .flame-settings-controls {
@@ -262,22 +277,32 @@ onMounted(() => {
 
 .flame-settings-controls label > span {
   @apply text-xs font-semibold uppercase tracking-normal text-zinc-500;
+  color: var(--color-text-muted);
 }
 
 .flame-settings-controls select {
   @apply h-9 rounded-md border border-zinc-200 bg-white px-2 text-sm text-zinc-900 outline-none transition focus:border-blue-300;
+  background: var(--color-surface);
+  border-color: var(--color-border);
+  color: var(--color-text);
 }
 
 .flame-settings-checkbox {
   @apply flex h-9 grid-flow-col items-center gap-2 rounded-md border border-zinc-200 px-2;
+  border-color: var(--color-border);
+  color: var(--color-text-muted);
 }
 
 .flame-settings-checkbox input {
   @apply h-4 w-4;
+  accent-color: var(--color-accent);
 }
 
 .flame-settings-reset-position {
   @apply h-9 rounded-md border border-zinc-200 bg-white px-3 text-sm font-medium text-zinc-700 transition hover:bg-zinc-50;
+  background: var(--color-surface);
+  border-color: var(--color-border);
+  color: var(--color-text);
 }
 
 .flame-settings-message {
@@ -298,6 +323,8 @@ onMounted(() => {
 
 .flame-level-list li {
   @apply grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm;
+  background: var(--color-surface);
+  border-color: var(--color-border);
 }
 
 .flame-level-dot {
@@ -324,43 +351,11 @@ onMounted(() => {
 
 .flame-level-name {
   @apply min-w-0 font-medium text-zinc-900;
+  color: var(--color-text);
 }
 
 .flame-level-range {
   @apply shrink-0 text-xs text-zinc-500;
-}
-
-:global(.app-dark) .app-settings-page {
-  background: #11141a;
-}
-
-:global(.app-dark) .app-settings-section,
-:global(.app-dark) .flame-settings-card,
-:global(.app-dark) .flame-level-list li,
-:global(.app-dark) .app-settings-switch,
-:global(.app-dark) .flame-settings-controls select,
-:global(.app-dark) .flame-settings-checkbox,
-:global(.app-dark) .flame-settings-reset-position {
-  border-color: #303643;
-  background: #181b22;
-}
-
-:global(.app-dark) .app-settings-title,
-:global(.app-dark) .flame-settings-copy h3,
-:global(.app-dark) .flame-level-name {
-  color: #f3f4f6;
-}
-
-:global(.app-dark) .app-settings-subtitle,
-:global(.app-dark) .flame-settings-copy p,
-:global(.app-dark) .flame-level-range,
-:global(.app-dark) .app-settings-switch,
-:global(.app-dark) .flame-settings-controls label > span,
-:global(.app-dark) .flame-settings-controls select {
-  color: #c7ccd6;
-}
-
-:global(.app-dark) .flame-settings-reset-position {
-  color: #e5e7eb;
+  color: var(--color-text-muted);
 }
 </style>

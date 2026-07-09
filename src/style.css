@@ -1290,6 +1290,11 @@ button {
   color: var(--color-text);
 }
 
+input[type='checkbox'],
+input[type='radio'] {
+  accent-color: var(--color-accent);
+}
+
 .thread-composer-submit,
 .thread-composer-stop,
 .directory-picker-confirm,
@@ -1314,20 +1319,66 @@ button {
 .workspace-theme-panel-grid select:focus,
 .workspace-theme-panel-grid input:focus,
 .workspace-workflow-form select:focus,
-.workspace-workflow-form textarea:focus {
+.workspace-workflow-form textarea:focus,
+.flame-settings-controls select:focus,
+.flame-settings-reset-position:focus-visible,
+.workspace-theme-panel-reset:focus-visible,
+.workspace-theme-panel-json-actions button:focus-visible {
   box-shadow: var(--shadow-focus);
+}
+
+[data-layout-preset='chat-focus'] .content-body {
+  max-width: 72rem;
+  margin-inline: auto;
+  padding-inline: 1rem;
+}
+
+[data-layout-preset='review-focus'] .content-body {
+  max-width: 96rem;
+  margin-inline: auto;
+  padding-inline: 0.75rem;
+}
+
+[data-layout-preset='ide-mode'] .content-body {
+  max-width: none;
+  margin-inline: 0;
+  padding-inline: 0;
 }
 
 [data-theme-density='compact'] .workspace-dashboard,
 [data-theme-density='compact'] .workspace-task-board,
 [data-theme-density='compact'] .workspace-theme-panel,
-[data-theme-density='compact'] .workspace-workflow-panel {
+[data-theme-density='compact'] .workspace-workflow-panel,
+[data-theme-density='compact'] .app-settings-page {
   font-size: calc(1rem * 0.94);
+}
+
+[data-theme-density='compact'] .app-settings-page {
+  gap: 0.75rem;
+  padding-top: 0.75rem;
+}
+
+[data-theme-density='compact'] .app-settings-section,
+[data-theme-density='compact'] .workspace-theme-panel,
+[data-theme-density='compact'] .flame-settings-card {
+  padding: 0.75rem;
 }
 
 [data-theme-density='spacious'] .workspace-dashboard,
 [data-theme-density='spacious'] .workspace-task-board,
 [data-theme-density='spacious'] .workspace-theme-panel,
-[data-theme-density='spacious'] .workspace-workflow-panel {
+[data-theme-density='spacious'] .workspace-workflow-panel,
+[data-theme-density='spacious'] .app-settings-page {
   font-size: calc(1rem * 1.05);
+}
+
+[data-theme-density='spacious'] .app-settings-page {
+  gap: 1.5rem;
+  padding-top: 1.5rem;
+}
+
+[data-theme-density='spacious'] .app-settings-section,
+[data-theme-density='spacious'] .workspace-theme-panel,
+[data-theme-density='spacious'] .flame-settings-card {
+  padding: 1.25rem;
 }

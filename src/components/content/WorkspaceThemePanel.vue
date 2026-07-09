@@ -195,6 +195,10 @@ watch(() => props.workspaceTheme, (theme) => {
 
 .workspace-theme-panel {
   @apply rounded-lg border border-zinc-200 bg-white p-3;
+  background: var(--color-surface);
+  border-color: var(--color-border);
+  box-shadow: var(--shadow-panel);
+  color: var(--color-text);
 }
 
 .workspace-theme-panel-header {
@@ -203,19 +207,27 @@ watch(() => props.workspaceTheme, (theme) => {
 
 .workspace-theme-panel-title {
   @apply m-0 text-xs font-semibold uppercase tracking-normal text-zinc-500;
+  color: var(--color-text-muted);
 }
 
 .workspace-theme-panel-subtitle {
   @apply m-0 mt-1 text-xs text-zinc-600;
+  color: var(--color-text);
 }
 
 .workspace-theme-panel-workspace-binding {
   @apply m-0 mt-3 rounded-md border border-sky-200 bg-sky-50 px-2 py-1 text-xs font-medium text-sky-700;
+  background: color-mix(in srgb, var(--color-accent) 12%, transparent);
+  border-color: color-mix(in srgb, var(--color-accent) 32%, var(--color-border));
+  color: var(--color-accent);
 }
 
 .workspace-theme-panel-reset,
 .workspace-theme-panel-json-actions button {
   @apply inline-flex h-7 shrink-0 items-center rounded-md border border-zinc-200 bg-white px-2 text-xs font-medium text-zinc-700 transition hover:bg-zinc-50;
+  background: var(--color-surface);
+  border-color: var(--color-border);
+  color: var(--color-text);
 }
 
 .workspace-theme-panel-grid {
@@ -229,15 +241,20 @@ watch(() => props.workspaceTheme, (theme) => {
 .workspace-theme-panel-grid span,
 .workspace-theme-panel-follow span {
   @apply text-[0.68rem] font-semibold uppercase leading-4 text-zinc-500;
+  color: var(--color-text-muted);
 }
 
 .workspace-theme-panel-grid select,
 .workspace-theme-panel-grid input {
   @apply h-8 min-w-0 rounded-md border border-zinc-200 bg-white px-2 text-xs text-zinc-900 outline-none transition focus:border-blue-300;
+  background: var(--color-surface);
+  border-color: var(--color-border);
+  color: var(--color-text);
 }
 
 .workspace-theme-panel-grid input[type='color'] {
   @apply p-1;
+  background: var(--color-elevated);
 }
 
 .workspace-theme-panel-follow {
@@ -246,14 +263,17 @@ watch(() => props.workspaceTheme, (theme) => {
 
 .workspace-theme-panel-follow input {
   @apply h-4 w-4;
+  accent-color: var(--color-accent);
 }
 
 .workspace-theme-panel-advanced {
   @apply mt-3 border-t border-zinc-200 pt-2;
+  border-color: var(--color-border);
 }
 
 .workspace-theme-panel-advanced summary {
   @apply cursor-pointer text-xs font-medium text-zinc-700;
+  color: var(--color-text);
 }
 
 .workspace-theme-panel-json-actions {
@@ -262,6 +282,8 @@ watch(() => props.workspaceTheme, (theme) => {
 
 .workspace-theme-panel-advanced textarea {
   @apply mt-2 h-36 w-full resize-y rounded-md border border-zinc-200 bg-zinc-950 p-2 font-mono text-[0.68rem] leading-4 text-zinc-100 outline-none;
+  background: var(--color-code-background);
+  border-color: var(--color-border);
 }
 
 .workspace-theme-panel-message {
