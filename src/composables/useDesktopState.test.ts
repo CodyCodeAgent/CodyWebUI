@@ -626,7 +626,14 @@ describe('useDesktopState realtime messages', () => {
       [],
       undefined,
       'medium',
-      { mode: 'default' },
+      {
+        mode: 'default',
+        settings: {
+          model: '',
+          reasoning_effort: 'medium',
+          developer_instructions: null,
+        },
+      },
     )
   })
 
@@ -654,7 +661,14 @@ describe('useDesktopState realtime messages', () => {
       [],
       undefined,
       'medium',
-      { mode: 'default' },
+      {
+        mode: 'default',
+        settings: {
+          model: '',
+          reasoning_effort: 'medium',
+          developer_instructions: null,
+        },
+      },
     )
   })
 

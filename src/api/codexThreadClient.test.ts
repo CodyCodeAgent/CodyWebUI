@@ -91,7 +91,14 @@ describe('codex thread client', () => {
       [],
       'gpt-5',
       'medium',
-      { mode: 'default' },
+      {
+        mode: 'default',
+        settings: {
+          model: 'gpt-5',
+          reasoning_effort: 'medium',
+          developer_instructions: null,
+        },
+      },
     )).resolves.toBe('turn-1')
 
     expect(rpcMock.rpcCall).toHaveBeenCalledWith('turn/start', {
@@ -101,6 +108,11 @@ describe('codex thread client', () => {
       effort: 'medium',
       collaborationMode: {
         mode: 'default',
+        settings: {
+          model: 'gpt-5',
+          reasoning_effort: 'medium',
+          developer_instructions: null,
+        },
       },
     })
   })

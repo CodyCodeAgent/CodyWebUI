@@ -21,7 +21,7 @@ import type {
 
 export type TurnCollaborationMode = {
   mode: UiCollaborationModeOption['mode']
-  settings?: {
+  settings: {
     model: string
     reasoning_effort: ReasoningEffort | null
     developer_instructions: string | null
