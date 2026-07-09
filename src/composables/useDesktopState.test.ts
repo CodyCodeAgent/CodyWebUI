@@ -1,10 +1,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { DESKTOP_SETTING_KEYS, DESKTOP_STORAGE_KEYS } from './desktopSettingsKeys'
 import { buildRollbackAuditMessage, useDesktopState } from './useDesktopState'
 import { buildThreadActivityEntries } from './useThreadActivity'
 import type { UiMessage, UiToolingRollbackFileResult } from '../types/codex'
 import type { RpcNotification } from '../api/codexRealtimeClient'
-
-const SELECTED_THREAD_STORAGE_KEY = 'codex-web-local.selected-thread-id.v1'
 
 const codexApiMock = vi.hoisted(() => {
   let notificationListener: ((value: RpcNotification) => void) | null = null
@@ -111,7 +110,7 @@ class MemoryStorage implements Storage {
 function installBrowserGlobals(selectedThreadId = ''): void {
   const storage = new MemoryStorage()
   if (selectedThreadId) {
-    storage.setItem(SELECTED_THREAD_STORAGE_KEY, selectedThreadId)
+    storage.setItem(DESKTOP_STORAGE_KEYS.selectedThread, selectedThreadId)
   }
 
   vi.stubGlobal('window', {
@@ -171,7 +170,7 @@ describe('useDesktopState realtime messages', () => {
   it('hydrates and persists turn preferences through the settings store', async () => {
     installBrowserGlobals()
     codexApiMock.fetchUserSetting.mockResolvedValueOnce({
-      key: 'desktop.turn-preferences.v1',
+      key: DESKTOP_SETTING_KEYS.turnPreferences,
       value: {
         modelId: 'gpt-5.5',
         reasoningEffort: 'high',
@@ -192,7 +191,7 @@ describe('useDesktopState realtime messages', () => {
     state.setSelectedReasoningEffort('xhigh')
 
     expect(codexApiMock.writeUserSetting).toHaveBeenLastCalledWith(
-      'desktop.turn-preferences.v1',
+      DESKTOP_SETTING_KEYS.turnPreferences,
       {
         modelId: 'gpt-5.5',
         reasoningEffort: 'xhigh',

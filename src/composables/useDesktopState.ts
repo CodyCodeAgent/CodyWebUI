@@ -145,6 +145,7 @@ import {
   saveSelectedThreadId,
   saveThreadScrollStateMap,
 } from './desktopStateStorage'
+import { DESKTOP_SETTING_KEYS } from './desktopSettingsKeys'
 import {
   areStringArraysEqual,
   buildThreadGroupsWithFlags,
@@ -183,7 +184,6 @@ export { buildRollbackAuditMessage } from './desktopMessageState'
 
 const EVENT_SYNC_DEBOUNCE_MS = 220
 const AUTO_REFRESH_INTERVAL_MS = 4000
-const TURN_PREFERENCES_SETTING_KEY = 'desktop.turn-preferences.v1'
 
 export function useDesktopState() {
   const projectGroups = ref<UiProjectGroup[]>([])
@@ -319,7 +319,7 @@ export function useDesktopState() {
     const preferences = currentTurnPreferences()
     saveDesktopTurnPreferences(preferences)
     if (!hasHydratedTurnPreferences) return
-    void writeUserSetting(TURN_PREFERENCES_SETTING_KEY, preferences).catch(() => {
+    void writeUserSetting(DESKTOP_SETTING_KEYS.turnPreferences, preferences).catch(() => {
       // localStorage remains the immediate fallback when the optional settings store is unavailable.
     })
   }
@@ -329,7 +329,7 @@ export function useDesktopState() {
     hasHydratedTurnPreferences = true
 
     try {
-      const setting = await fetchUserSetting<unknown>(TURN_PREFERENCES_SETTING_KEY)
+      const setting = await fetchUserSetting<unknown>(DESKTOP_SETTING_KEYS.turnPreferences)
       if (setting) {
         const preferences = normalizeDesktopTurnPreferences(setting.value)
         selectedModelId.value = preferences.modelId
@@ -344,7 +344,7 @@ export function useDesktopState() {
 
     const localPreferences = currentTurnPreferences()
     saveDesktopTurnPreferences(localPreferences)
-    void writeUserSetting(TURN_PREFERENCES_SETTING_KEY, localPreferences).catch(() => {
+    void writeUserSetting(DESKTOP_SETTING_KEYS.turnPreferences, localPreferences).catch(() => {
       // optional remote persistence
     })
   }

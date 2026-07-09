@@ -70,6 +70,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 import { fetchUserSetting, writeUserSetting } from '../../api/codexSettingsClient'
+import { DESKTOP_SETTING_KEYS } from '../../composables/desktopSettingsKeys'
 import WorkspaceThemePanel from './WorkspaceThemePanel.vue'
 
 type FlameCorner = 'bottom-right' | 'bottom-left' | 'top-right' | 'top-left'
@@ -84,7 +85,6 @@ type FlameSettings = {
   } | null
 }
 
-const FLAME_SETTING_KEY = 'token-flame.widget.v1'
 const DEFAULT_FLAME_SETTINGS: FlameSettings = {
   enabled: true,
   defaultCorner: 'bottom-right',
@@ -149,7 +149,7 @@ function resetFlamePosition(): void {
 
 async function loadFlameSettings(): Promise<void> {
   try {
-    const setting = await fetchUserSetting<unknown>(FLAME_SETTING_KEY)
+    const setting = await fetchUserSetting<unknown>(DESKTOP_SETTING_KEYS.tokenFlameWidget)
     flameSettings.value = normalizeFlameSettings(setting?.value ?? DEFAULT_FLAME_SETTINGS)
   } catch {
     flameSettings.value = { ...DEFAULT_FLAME_SETTINGS }
@@ -160,7 +160,7 @@ async function loadFlameSettings(): Promise<void> {
 
 watch(flameSettings, (nextSettings) => {
   if (!hasHydrated.value) return
-  void writeUserSetting(FLAME_SETTING_KEY, nextSettings)
+  void writeUserSetting(DESKTOP_SETTING_KEYS.tokenFlameWidget, nextSettings)
     .then(() => {
       saveTone.value = 'success'
       saveMessage.value = 'Saved to local settings.'

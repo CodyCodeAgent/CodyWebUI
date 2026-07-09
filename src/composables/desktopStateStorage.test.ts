@@ -20,12 +20,7 @@ import {
   saveSelectedThreadId,
   saveThreadScrollStateMap,
 } from './desktopStateStorage'
-
-const READ_STATE_STORAGE_KEY = 'codex-web-local.thread-read-state.v1'
-const SCROLL_STATE_STORAGE_KEY = 'codex-web-local.thread-scroll-state.v1'
-const PROJECT_ORDER_STORAGE_KEY = 'codex-web-local.project-order.v1'
-const PROJECT_DISPLAY_NAME_STORAGE_KEY = 'codex-web-local.project-display-name.v1'
-const TURN_PREFERENCES_STORAGE_KEY = 'codex-web-local.turn-preferences.v1'
+import { DESKTOP_STORAGE_KEYS } from './desktopSettingsKeys'
 
 class MemoryStorage implements Storage {
   private readonly values = new Map<string, string>()
@@ -136,7 +131,7 @@ describe('desktopStateStorage', () => {
       collaborationModeName: 'plan',
     })
 
-    storage.setItem(TURN_PREFERENCES_STORAGE_KEY, '{bad json')
+    storage.setItem(DESKTOP_STORAGE_KEYS.turnPreferences, '{bad json')
     expect(loadDesktopTurnPreferences()).toEqual({
       modelId: '',
       reasoningEffort: 'medium',
@@ -160,14 +155,14 @@ describe('desktopStateStorage', () => {
   it('normalizes project order and ignores corrupt records', () => {
     const storage = installStorage()
 
-    storage.setItem(PROJECT_ORDER_STORAGE_KEY, JSON.stringify(['repo', '', 'repo', 42, 'docs']))
-    storage.setItem(PROJECT_DISPLAY_NAME_STORAGE_KEY, JSON.stringify({ repo: 'Repo', empty: '', bad: 42 }))
+    storage.setItem(DESKTOP_STORAGE_KEYS.projectOrder, JSON.stringify(['repo', '', 'repo', 42, 'docs']))
+    storage.setItem(DESKTOP_STORAGE_KEYS.projectDisplayName, JSON.stringify({ repo: 'Repo', empty: '', bad: 42 }))
 
     expect(loadProjectOrder()).toEqual(['repo', 'docs'])
     expect(loadProjectDisplayNames()).toEqual({ repo: 'Repo', empty: '' })
 
-    storage.setItem(PROJECT_ORDER_STORAGE_KEY, '{bad json')
-    storage.setItem(PROJECT_DISPLAY_NAME_STORAGE_KEY, '{bad json')
+    storage.setItem(DESKTOP_STORAGE_KEYS.projectOrder, '{bad json')
+    storage.setItem(DESKTOP_STORAGE_KEYS.projectDisplayName, '{bad json')
     expect(loadProjectOrder()).toEqual([])
     expect(loadProjectDisplayNames()).toEqual({})
   })
@@ -176,7 +171,7 @@ describe('desktopStateStorage', () => {
     const storage = installStorage()
 
     storage.setItem(
-      SCROLL_STATE_STORAGE_KEY,
+      DESKTOP_STORAGE_KEYS.scrollState,
       JSON.stringify({
         good: { scrollTop: -50, isAtBottom: false, scrollRatio: 2 },
         missingBottom: { scrollTop: 10 },
@@ -203,7 +198,7 @@ describe('desktopStateStorage', () => {
     saveProjectOrder(['a', 'b'])
     expect(loadProjectOrder()).toEqual(['a', 'b'])
 
-    storage.setItem(READ_STATE_STORAGE_KEY, '{bad json')
+    storage.setItem(DESKTOP_STORAGE_KEYS.readState, '{bad json')
     expect(loadReadStateMap()).toEqual({})
   })
 })

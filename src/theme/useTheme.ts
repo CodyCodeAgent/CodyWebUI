@@ -1,5 +1,6 @@
 import { computed, ref, watch } from 'vue'
 import { fetchUserSetting, writeUserSetting } from '../api/codexSettingsClient'
+import { DESKTOP_SETTING_KEYS, DESKTOP_STORAGE_KEYS } from '../composables/desktopSettingsKeys'
 import { BUILT_IN_SKINS } from './skins'
 import {
   getBuiltInSkin,
@@ -16,11 +17,6 @@ import {
 import type { LayoutPresetId, SkinPack, ThemeDensity, ThemePreferences, WorkspaceThemePreferences } from './tokens'
 import { DEFAULT_THEME_PREFERENCES } from './tokens'
 
-const THEME_STORAGE_KEY = 'codex-web-local.theme.v1'
-const THEME_IMPORTED_SKINS_STORAGE_KEY = 'codex-web-local.theme.imported-skins.v1'
-const THEME_SETTING_KEY = 'theme.preferences.v1'
-const THEME_IMPORTED_SKINS_SETTING_KEY = 'theme.imported-skins.v1'
-
 function hasWindow(): boolean {
   return typeof window !== 'undefined'
 }
@@ -32,7 +28,7 @@ function hasDocument(): boolean {
 function loadImportedSkins(): SkinPack[] {
   if (!hasWindow()) return []
   try {
-    const parsed = JSON.parse(window.localStorage.getItem(THEME_IMPORTED_SKINS_STORAGE_KEY) ?? '[]') as unknown
+    const parsed = JSON.parse(window.localStorage.getItem(DESKTOP_STORAGE_KEYS.themeImportedSkins) ?? '[]') as unknown
     if (!Array.isArray(parsed)) return []
     return parsed
       .map((item) => {
@@ -52,7 +48,7 @@ function loadImportedSkins(): SkinPack[] {
 function loadPreferences(skins: SkinPack[]): ThemePreferences {
   if (!hasWindow()) return DEFAULT_THEME_PREFERENCES
   try {
-    return normalizeThemePreferences(JSON.parse(window.localStorage.getItem(THEME_STORAGE_KEY) ?? 'null'), {
+    return normalizeThemePreferences(JSON.parse(window.localStorage.getItem(DESKTOP_STORAGE_KEYS.theme) ?? 'null'), {
       skinIds: skins.map((skin) => skin.id),
     })
   } catch {
@@ -62,12 +58,12 @@ function loadPreferences(skins: SkinPack[]): ThemePreferences {
 
 function savePreferences(nextPreferences: ThemePreferences): void {
   if (!hasWindow()) return
-  window.localStorage.setItem(THEME_STORAGE_KEY, JSON.stringify(nextPreferences))
+  window.localStorage.setItem(DESKTOP_STORAGE_KEYS.theme, JSON.stringify(nextPreferences))
 }
 
 function saveImportedSkins(nextSkins: SkinPack[]): void {
   if (!hasWindow()) return
-  window.localStorage.setItem(THEME_IMPORTED_SKINS_STORAGE_KEY, JSON.stringify(nextSkins.slice(0, 20)))
+  window.localStorage.setItem(DESKTOP_STORAGE_KEYS.themeImportedSkins, JSON.stringify(nextSkins.slice(0, 20)))
 }
 
 async function readRemoteSetting<T>(key: string): Promise<T | null> {
@@ -231,13 +227,13 @@ function importSkin(value: string): SkinPack {
     skin,
   ]
   saveImportedSkins(importedSkins.value)
-  void saveRemoteSetting(THEME_IMPORTED_SKINS_SETTING_KEY, importedSkins.value.slice(0, 20))
+  void saveRemoteSetting(DESKTOP_SETTING_KEYS.themeImportedSkins, importedSkins.value.slice(0, 20))
   setSkin(skin.id)
   return skin
 }
 
 async function hydrateThemeFromSettingsStore(): Promise<void> {
-  const remoteImportedSkins = await readRemoteSetting<unknown[]>(THEME_IMPORTED_SKINS_SETTING_KEY)
+  const remoteImportedSkins = await readRemoteSetting<unknown[]>(DESKTOP_SETTING_KEYS.themeImportedSkins)
   if (Array.isArray(remoteImportedSkins)) {
     importedSkins.value = remoteImportedSkins
       .map((item) => {
@@ -251,23 +247,23 @@ async function hydrateThemeFromSettingsStore(): Promise<void> {
       .slice(0, 20)
     saveImportedSkins(importedSkins.value)
   } else if (importedSkins.value.length > 0) {
-    void saveRemoteSetting(THEME_IMPORTED_SKINS_SETTING_KEY, importedSkins.value.slice(0, 20))
+    void saveRemoteSetting(DESKTOP_SETTING_KEYS.themeImportedSkins, importedSkins.value.slice(0, 20))
   }
 
-  const remotePreferences = await readRemoteSetting<unknown>(THEME_SETTING_KEY)
+  const remotePreferences = await readRemoteSetting<unknown>(DESKTOP_SETTING_KEYS.theme)
   if (remotePreferences) {
     preferences.value = normalizeThemePreferences(remotePreferences, {
       skinIds: allSkins().map((skin) => skin.id),
     })
     savePreferences(preferences.value)
   } else {
-    void saveRemoteSetting(THEME_SETTING_KEY, preferences.value)
+    void saveRemoteSetting(DESKTOP_SETTING_KEYS.theme, preferences.value)
   }
 }
 
 watch(preferences, (nextPreferences) => {
   savePreferences(nextPreferences)
-  void saveRemoteSetting(THEME_SETTING_KEY, nextPreferences)
+  void saveRemoteSetting(DESKTOP_SETTING_KEYS.theme, nextPreferences)
   applyCurrentTheme()
 }, { deep: true })
 

@@ -1,14 +1,6 @@
 import { isReasoningEffort } from './desktopTurnPreferences'
+import { DESKTOP_STORAGE_KEYS } from './desktopSettingsKeys'
 import type { ReasoningEffort, ThreadScrollState } from '../types/codex'
-
-const READ_STATE_STORAGE_KEY = 'codex-web-local.thread-read-state.v1'
-const SCROLL_STATE_STORAGE_KEY = 'codex-web-local.thread-scroll-state.v1'
-const SELECTED_THREAD_STORAGE_KEY = 'codex-web-local.selected-thread-id.v1'
-const PROJECT_ORDER_STORAGE_KEY = 'codex-web-local.project-order.v1'
-const PROJECT_DISPLAY_NAME_STORAGE_KEY = 'codex-web-local.project-display-name.v1'
-const AUTO_REFRESH_ENABLED_STORAGE_KEY = 'codex-web-local.auto-refresh-enabled.v1'
-const TURN_PREFERENCES_STORAGE_KEY = 'codex-web-local.turn-preferences.v1'
-const DEFAULT_NEW_THREAD_CWD_STORAGE_KEY = 'codex-web-local.default-new-thread-cwd.v1'
 
 export type DesktopTurnPreferences = {
   modelId: string
@@ -106,35 +98,35 @@ export function normalizeThreadScrollState(value: unknown): ThreadScrollState | 
 }
 
 export function loadReadStateMap(): Record<string, string> {
-  return normalizeStringRecord(readJsonStorage(READ_STATE_STORAGE_KEY))
+  return normalizeStringRecord(readJsonStorage(DESKTOP_STORAGE_KEYS.readState))
 }
 
 export function saveReadStateMap(state: Record<string, string>): void {
-  writeJsonStorage(READ_STATE_STORAGE_KEY, state)
+  writeJsonStorage(DESKTOP_STORAGE_KEYS.readState, state)
 }
 
 export function loadAutoRefreshEnabled(): boolean {
   const storage = getLocalStorage()
-  return storage?.getItem(AUTO_REFRESH_ENABLED_STORAGE_KEY) === '1'
+  return storage?.getItem(DESKTOP_STORAGE_KEYS.autoRefreshEnabled) === '1'
 }
 
 export function saveAutoRefreshEnabled(value: boolean): void {
   const storage = getLocalStorage()
   if (!storage) return
-  storage.setItem(AUTO_REFRESH_ENABLED_STORAGE_KEY, value ? '1' : '0')
+  storage.setItem(DESKTOP_STORAGE_KEYS.autoRefreshEnabled, value ? '1' : '0')
 }
 
 export function loadDesktopTurnPreferences(): DesktopTurnPreferences {
-  return normalizeDesktopTurnPreferences(readJsonStorage(TURN_PREFERENCES_STORAGE_KEY))
+  return normalizeDesktopTurnPreferences(readJsonStorage(DESKTOP_STORAGE_KEYS.turnPreferences))
 }
 
 export function saveDesktopTurnPreferences(preferences: DesktopTurnPreferences): void {
-  writeJsonStorage(TURN_PREFERENCES_STORAGE_KEY, normalizeDesktopTurnPreferences(preferences))
+  writeJsonStorage(DESKTOP_STORAGE_KEYS.turnPreferences, normalizeDesktopTurnPreferences(preferences))
 }
 
 export function loadDefaultNewThreadCwd(): string {
   const storage = getLocalStorage()
-  return normalizeDefaultNewThreadCwd(storage?.getItem(DEFAULT_NEW_THREAD_CWD_STORAGE_KEY) ?? '')
+  return normalizeDefaultNewThreadCwd(storage?.getItem(DESKTOP_STORAGE_KEYS.defaultNewThreadCwd) ?? '')
 }
 
 export function saveDefaultNewThreadCwd(cwd: string): void {
@@ -142,14 +134,14 @@ export function saveDefaultNewThreadCwd(cwd: string): void {
   if (!storage) return
   const normalizedCwd = normalizeDefaultNewThreadCwd(cwd)
   if (!normalizedCwd) {
-    storage.removeItem(DEFAULT_NEW_THREAD_CWD_STORAGE_KEY)
+    storage.removeItem(DESKTOP_STORAGE_KEYS.defaultNewThreadCwd)
     return
   }
-  storage.setItem(DEFAULT_NEW_THREAD_CWD_STORAGE_KEY, normalizedCwd)
+  storage.setItem(DESKTOP_STORAGE_KEYS.defaultNewThreadCwd, normalizedCwd)
 }
 
 export function loadThreadScrollStateMap(): Record<string, ThreadScrollState> {
-  const parsed = readJsonStorage(SCROLL_STATE_STORAGE_KEY)
+  const parsed = readJsonStorage(DESKTOP_STORAGE_KEYS.scrollState)
   if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {}
 
   const normalizedMap: Record<string, ThreadScrollState> = {}
@@ -164,26 +156,26 @@ export function loadThreadScrollStateMap(): Record<string, ThreadScrollState> {
 }
 
 export function saveThreadScrollStateMap(state: Record<string, ThreadScrollState>): void {
-  writeJsonStorage(SCROLL_STATE_STORAGE_KEY, state)
+  writeJsonStorage(DESKTOP_STORAGE_KEYS.scrollState, state)
 }
 
 export function loadSelectedThreadId(): string {
   const storage = getLocalStorage()
-  return storage?.getItem(SELECTED_THREAD_STORAGE_KEY) ?? ''
+  return storage?.getItem(DESKTOP_STORAGE_KEYS.selectedThread) ?? ''
 }
 
 export function saveSelectedThreadId(threadId: string): void {
   const storage = getLocalStorage()
   if (!storage) return
   if (!threadId) {
-    storage.removeItem(SELECTED_THREAD_STORAGE_KEY)
+    storage.removeItem(DESKTOP_STORAGE_KEYS.selectedThread)
     return
   }
-  storage.setItem(SELECTED_THREAD_STORAGE_KEY, threadId)
+  storage.setItem(DESKTOP_STORAGE_KEYS.selectedThread, threadId)
 }
 
 export function loadProjectOrder(): string[] {
-  const parsed = readJsonStorage(PROJECT_ORDER_STORAGE_KEY)
+  const parsed = readJsonStorage(DESKTOP_STORAGE_KEYS.projectOrder)
   if (!Array.isArray(parsed)) return []
 
   const order: string[] = []
@@ -196,13 +188,13 @@ export function loadProjectOrder(): string[] {
 }
 
 export function saveProjectOrder(order: string[]): void {
-  writeJsonStorage(PROJECT_ORDER_STORAGE_KEY, order)
+  writeJsonStorage(DESKTOP_STORAGE_KEYS.projectOrder, order)
 }
 
 export function loadProjectDisplayNames(): Record<string, string> {
-  return normalizeStringRecord(readJsonStorage(PROJECT_DISPLAY_NAME_STORAGE_KEY))
+  return normalizeStringRecord(readJsonStorage(DESKTOP_STORAGE_KEYS.projectDisplayName))
 }
 
 export function saveProjectDisplayNames(displayNames: Record<string, string>): void {
-  writeJsonStorage(PROJECT_DISPLAY_NAME_STORAGE_KEY, displayNames)
+  writeJsonStorage(DESKTOP_STORAGE_KEYS.projectDisplayName, displayNames)
 }

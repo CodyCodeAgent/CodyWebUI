@@ -64,6 +64,7 @@
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { fetchUserSetting, writeUserSetting } from '../../api/codexSettingsClient'
 import { fetchDailyTokenUsage } from '../../api/codexTokenUsageClient'
+import { DESKTOP_SETTING_KEYS } from '../../composables/desktopSettingsKeys'
 import {
   clampFloatingPosition,
   floatingKeyboardDelta,
@@ -98,7 +99,6 @@ const props = defineProps<{
   rateLimitSnapshot: UiRateLimitSnapshot | null
 }>()
 
-const FLAME_SETTING_KEY = 'token-flame.widget.v1'
 const DEFAULT_SETTINGS: FlameSettings = {
   enabled: true,
   defaultCorner: 'bottom-right',
@@ -178,7 +178,7 @@ function estimatedTokensFromRateLimit(snapshot: UiRateLimitSnapshot | null): num
 
 async function loadSettings(): Promise<void> {
   try {
-    const setting = await fetchUserSetting<unknown>(FLAME_SETTING_KEY)
+    const setting = await fetchUserSetting<unknown>(DESKTOP_SETTING_KEYS.tokenFlameWidget)
     const nextSettings = normalizeFlameSettings(setting?.value ?? DEFAULT_SETTINGS)
     settings.value = {
       ...nextSettings,
@@ -213,7 +213,7 @@ function clampPosition(position: NonNullable<FlameSettings['position']>): NonNul
 }
 
 function saveSettings(nextSettings = settings.value): void {
-  void writeUserSetting(FLAME_SETTING_KEY, nextSettings).catch(() => {
+  void writeUserSetting(DESKTOP_SETTING_KEYS.tokenFlameWidget, nextSettings).catch(() => {
     // The flame remains draggable in-session even if the optional settings store is unavailable.
   })
 }

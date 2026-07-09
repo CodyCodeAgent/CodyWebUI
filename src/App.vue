@@ -315,6 +315,7 @@ import {
   normalizeDefaultNewThreadCwd,
   saveDefaultNewThreadCwd,
 } from './composables/desktopStateStorage'
+import { DESKTOP_SETTING_KEYS, DESKTOP_STORAGE_KEYS } from './composables/desktopSettingsKeys'
 import { useBrowserNotifications } from './composables/useBrowserNotifications'
 import { useDesktopState } from './composables/useDesktopState'
 import { fetchUserSetting, writeUserSetting } from './api/codexSettingsClient'
@@ -327,8 +328,6 @@ import type {
   UiToolingRollbackFileResult,
 } from './types/codex'
 
-const SIDEBAR_COLLAPSED_STORAGE_KEY = 'codex-web-local.sidebar-collapsed.v1'
-const DEFAULT_NEW_THREAD_CWD_SETTING_KEY = 'desktop.default-new-thread-cwd.v1'
 const MOBILE_SIDEBAR_BREAKPOINT = 700
 
 const {
@@ -704,12 +703,12 @@ function onMobileArchive(threadId: string): void {
 
 function loadSidebarCollapsed(): boolean {
   if (typeof window === 'undefined') return false
-  return window.localStorage.getItem(SIDEBAR_COLLAPSED_STORAGE_KEY) === '1'
+  return window.localStorage.getItem(DESKTOP_STORAGE_KEYS.sidebarCollapsed) === '1'
 }
 
 function saveSidebarCollapsed(value: boolean): void {
   if (typeof window === 'undefined') return
-  window.localStorage.setItem(SIDEBAR_COLLAPSED_STORAGE_KEY, value ? '1' : '0')
+  window.localStorage.setItem(DESKTOP_STORAGE_KEYS.sidebarCollapsed, value ? '1' : '0')
 }
 
 function setNewThreadCwd(cwd: string): void {
@@ -723,7 +722,7 @@ function persistDefaultNewThreadCwd(cwd: string): void {
   const normalizedCwd = normalizeDefaultNewThreadCwd(cwd)
   saveDefaultNewThreadCwd(normalizedCwd)
   if (!hasHydratedDefaultNewThreadCwd) return
-  void writeUserSetting(DEFAULT_NEW_THREAD_CWD_SETTING_KEY, normalizedCwd).catch(() => {
+  void writeUserSetting(DESKTOP_SETTING_KEYS.defaultNewThreadCwd, normalizedCwd).catch(() => {
     // localStorage keeps the immediate default if the settings bridge is unavailable.
   })
 }
@@ -733,7 +732,7 @@ async function hydrateDefaultNewThreadCwdFromSettingsStore(): Promise<void> {
   hasHydratedDefaultNewThreadCwd = true
 
   try {
-    const setting = await fetchUserSetting<unknown>(DEFAULT_NEW_THREAD_CWD_SETTING_KEY)
+    const setting = await fetchUserSetting<unknown>(DESKTOP_SETTING_KEYS.defaultNewThreadCwd)
     const remoteCwd = normalizeDefaultNewThreadCwd(setting?.value)
     if (remoteCwd) {
       newThreadCwd.value = remoteCwd
@@ -747,7 +746,7 @@ async function hydrateDefaultNewThreadCwdFromSettingsStore(): Promise<void> {
   const localCwd = normalizeDefaultNewThreadCwd(newThreadCwd.value)
   if (localCwd) {
     saveDefaultNewThreadCwd(localCwd)
-    void writeUserSetting(DEFAULT_NEW_THREAD_CWD_SETTING_KEY, localCwd).catch(() => {
+    void writeUserSetting(DESKTOP_SETTING_KEYS.defaultNewThreadCwd, localCwd).catch(() => {
       // optional remote persistence
     })
   }
