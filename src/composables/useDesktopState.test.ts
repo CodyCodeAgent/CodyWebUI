@@ -268,6 +268,55 @@ describe('useDesktopState realtime messages', () => {
     state.stopRealtimeSync()
   })
 
+  it('streams selected thread deltas without waiting for a message refresh', () => {
+    installBrowserGlobals('thread-live')
+    const state = useDesktopState()
+
+    state.startRealtimeSync()
+    const listener = codexApiMock.getNotificationListener()
+    expect(listener).not.toBeNull()
+    codexApiMock.getThreadMessages.mockClear()
+
+    listener?.({
+      method: 'item/agentMessage/delta',
+      params: {
+        threadId: 'thread-live',
+        turnId: 'turn-live',
+        itemId: 'msg-live',
+        delta: 'Hello',
+      },
+      atIso: '2026-07-07T00:00:02.000Z',
+    })
+    listener?.({
+      method: 'item/plan/delta',
+      params: {
+        thread_id: 'thread-live',
+        turn_id: 'turn-live',
+        item_id: 'plan-live',
+        delta: '1. [todo] Verify realtime output',
+      },
+      atIso: '2026-07-07T00:00:03.000Z',
+    })
+
+    expect(state.messages.value).toEqual([
+      {
+        id: 'msg-live',
+        role: 'assistant',
+        text: 'Hello',
+        messageType: 'agentMessage.live',
+      },
+      {
+        id: 'plan-live',
+        role: 'assistant',
+        text: '1. [todo] Verify realtime output',
+        messageType: 'plan.live',
+      },
+    ])
+    expect(codexApiMock.getThreadMessages).not.toHaveBeenCalled()
+
+    state.stopRealtimeSync()
+  })
+
   it('keeps live content for threads selected after the stream starts', async () => {
     installBrowserGlobals('thread-a')
     const state = useDesktopState()
