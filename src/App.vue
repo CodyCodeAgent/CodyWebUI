@@ -200,22 +200,6 @@
                 @update:selected-model="onSelectModel" @update:selected-reasoning-effort="onSelectReasoningEffort"
                 @update:selected-collaboration-mode="onSelectCollaborationMode" />
 
-              <div class="new-thread-dashboard-scroll">
-                <WorkspaceDashboard
-                  :cwd="newThreadCwd"
-                  :project-label="newThreadProjectLabel"
-                  :threads="newThreadWorkspaceThreads"
-                  :pending-requests="allPendingServerRequests"
-                  :rate-limit-snapshot="rateLimitSnapshot"
-                  :is-mobile-action-busy="isSendingMessage || isInterruptingTurn"
-                  @select-thread="onSelectThread"
-                  @respond-server-request="onRespondServerRequest"
-                  @mobile-follow-up="onMobileFollowUp"
-                  @mobile-pause="onMobilePause"
-                  @mobile-interrupt="onMobileInterrupt"
-                  @mobile-archive="onMobileArchive"
-                />
-              </div>
             </div>
           </template>
           <template v-else>
@@ -288,7 +272,6 @@ import ComposerDropdown from './components/content/ComposerDropdown.vue'
 import DirectoryPickerModal from './components/content/DirectoryPickerModal.vue'
 import NewThreadSetupModal, { type NewThreadProjectOption } from './components/content/NewThreadSetupModal.vue'
 import RateLimitFloatingStatus from './components/content/RateLimitFloatingStatus.vue'
-import WorkspaceDashboard from './components/content/WorkspaceDashboard.vue'
 import AppSettingsPage from './components/content/AppSettingsPage.vue'
 import TokenFlameWidget from './components/content/TokenFlameWidget.vue'
 import BrowserNotificationsPanel from './components/content/BrowserNotificationsPanel.vue'
@@ -339,7 +322,6 @@ const {
   selectedThread,
   selectedThreadScrollState,
   selectedThreadServerRequests,
-  allPendingServerRequests,
   selectedLiveOverlay,
   selectedThreadId,
   isArchiveView,
@@ -370,10 +352,8 @@ const {
   setArchiveView,
   renameThreadById,
   sendMessageToSelectedThread,
-  sendTextToThreadById,
   sendMessageToNewThread,
   interruptSelectedThreadTurn,
-  interruptThreadTurnById,
   setSelectedModelId,
   setSelectedReasoningEffort,
   setSelectedCollaborationModeName,
@@ -460,7 +440,6 @@ const newThreadFolderOptions = computed(() => buildNewThreadFolderOptions({
 const newThreadWorkspaceGroup = computed(() =>
   findNewThreadWorkspaceGroup(projectGroups.value, newThreadCwd.value)
 )
-const newThreadWorkspaceThreads = computed(() => newThreadWorkspaceGroup.value?.threads ?? [])
 const selectedSidebarProjectName = computed(() =>
   selectedThread.value?.projectName || newThreadWorkspaceGroup.value?.projectName || newThreadCwd.value,
 )
@@ -687,36 +666,6 @@ function onSelectCollaborationMode(name: string): void {
 
 function onInterruptTurn(): void {
   void interruptSelectedThreadTurn()
-}
-
-function onMobileFollowUp(payload: { threadId: string; text: string }): void {
-  const threadId = payload.threadId.trim()
-  const text = payload.text.trim()
-  if (!threadId || !text) return
-  void sendTextToThreadById(threadId, text).then(() => {
-    onSelectThread(threadId)
-  })
-}
-
-function onMobilePause(threadId: string): void {
-  const normalizedThreadId = threadId.trim()
-  if (!normalizedThreadId) return
-  void sendTextToThreadById(
-    normalizedThreadId,
-    'Pause at the next safe checkpoint, summarize the current state, and wait for my next instruction.',
-  ).then(() => {
-    onSelectThread(normalizedThreadId)
-  })
-}
-
-function onMobileInterrupt(threadId: string): void {
-  const normalizedThreadId = threadId.trim()
-  if (!normalizedThreadId) return
-  void interruptThreadTurnById(normalizedThreadId)
-}
-
-function onMobileArchive(threadId: string): void {
-  onArchiveThread(threadId)
 }
 
 function loadSidebarCollapsed(): boolean {
@@ -980,7 +929,7 @@ async function submitFirstMessageForNewThread(payload: UiComposerSubmitPayload):
 }
 
 .new-thread-grid {
-  @apply overflow-hidden;
+  @apply items-center justify-center gap-6 overflow-hidden;
 }
 
 .content-workbench {
@@ -1021,10 +970,6 @@ async function submitFirstMessageForNewThread(payload: UiComposerSubmitPayload):
 
 .new-thread-folder-dropdown :deep(.composer-dropdown-chevron) {
   @apply h-5 w-5 mt-0;
-}
-
-.new-thread-dashboard-scroll {
-  @apply flex-1 min-h-0 overflow-y-auto pr-1;
 }
 
 </style>
