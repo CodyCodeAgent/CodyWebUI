@@ -161,6 +161,16 @@
           @update:model-value="onReasoningEffortSelect"
         />
 
+        <ComposerDropdown
+          class="thread-composer-control thread-composer-permission-control"
+          :model-value="selectedPermissionMode"
+          :options="permissionModeOptions"
+          placeholder="Current"
+          open-direction="up"
+          :disabled="disabled || !activeThreadId || isTurnInProgress"
+          @update:model-value="onPermissionModeSelect"
+        />
+
         <span v-if="isUploadingImage" class="thread-composer-uploading">Uploading...</span>
         <span v-else-if="uploadError" class="thread-composer-upload-error">{{ uploadError }}</span>
         <span v-else-if="busyLabel" class="thread-composer-busy">
@@ -205,9 +215,11 @@ import {
 } from '../../composables/useComposerContext'
 import { hasImageFile, useComposerImages } from '../../composables/useComposerImages'
 import { useComposerSkills } from '../../composables/useComposerSkills'
+import { COMPOSER_PERMISSION_MODE_OPTIONS } from '../../composables/desktopTurnPermissions'
 import type {
   ReasoningEffort,
   UiCollaborationModeOption,
+  UiComposerPermissionMode,
   UiComposerSkill,
   UiComposerSubmitPayload,
 } from '../../types/codex'
@@ -224,6 +236,7 @@ const props = defineProps<{
   selectedReasoningEffort: ReasoningEffort | ''
   collaborationModes: UiCollaborationModeOption[]
   selectedCollaborationMode: string
+  selectedPermissionMode: UiComposerPermissionMode
   cwd: string
   isTurnInProgress?: boolean
   isInterruptingTurn?: boolean
@@ -237,6 +250,7 @@ const emit = defineEmits<{
   'update:selected-model': [modelId: string]
   'update:selected-reasoning-effort': [effort: ReasoningEffort | '']
   'update:selected-collaboration-mode': [name: string]
+  'update:selected-permission-mode': [mode: UiComposerPermissionMode]
 }>()
 
 const draft = ref('')
@@ -289,6 +303,7 @@ const modelOptions = computed(() =>
 const collaborationModeOptions = computed(() =>
   props.collaborationModes.map((mode) => ({ value: mode.name, label: mode.label })),
 )
+const permissionModeOptions = COMPOSER_PERMISSION_MODE_OPTIONS
 
 const canSubmit = computed(() => {
   if (props.disabled) return false
@@ -402,6 +417,10 @@ function onReasoningEffortSelect(value: string): void {
 
 function onCollaborationModeSelect(value: string): void {
   emit('update:selected-collaboration-mode', value)
+}
+
+function onPermissionModeSelect(value: string): void {
+  emit('update:selected-permission-mode', value === 'yolo' ? 'yolo' : 'current')
 }
 
 function openFilePicker(): void {
@@ -634,6 +653,10 @@ watch(
 
 .thread-composer-control {
   @apply shrink-0;
+}
+
+.thread-composer-permission-control {
+  @apply text-amber-700;
 }
 
 .thread-composer-uploading {

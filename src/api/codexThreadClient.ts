@@ -17,6 +17,7 @@ import type {
   UiMessage,
   UiProjectGroup,
 } from '../types/codex'
+import type { TurnPermissionOverride } from '../composables/desktopTurnPermissions'
 
 export type TurnCollaborationMode = {
   mode: UiCollaborationModeOption['mode']
@@ -157,6 +158,7 @@ export async function startThreadTurn(
   model?: string,
   effort?: ReasoningEffort,
   collaborationMode?: TurnCollaborationMode | null,
+  permissionOverride?: TurnPermissionOverride | null,
 ): Promise<string> {
   try {
     const params: Record<string, unknown> = {
@@ -171,6 +173,12 @@ export async function startThreadTurn(
     }
     if (collaborationMode) {
       params.collaborationMode = collaborationMode
+    }
+    if (permissionOverride?.approvalPolicy) {
+      params.approvalPolicy = permissionOverride.approvalPolicy
+    }
+    if (permissionOverride?.sandboxPolicy) {
+      params.sandboxPolicy = permissionOverride.sandboxPolicy
     }
     const payload = await callRpc<TurnStartResponse>('turn/start', params)
     const turnId = payload.turn.id.trim()

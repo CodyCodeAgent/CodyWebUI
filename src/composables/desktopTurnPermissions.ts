@@ -1,0 +1,30 @@
+import type { UiComposerPermissionMode } from '../types/codex'
+
+export type ComposerPermissionModeOption = {
+  value: UiComposerPermissionMode
+  label: string
+}
+
+export type TurnPermissionOverride = {
+  approvalPolicy?: 'untrusted' | 'on-failure' | 'on-request' | 'never'
+  sandboxPolicy?: { type: 'danger-full-access' }
+}
+
+export const DEFAULT_COMPOSER_PERMISSION_MODE: UiComposerPermissionMode = 'current'
+
+export const COMPOSER_PERMISSION_MODE_OPTIONS: ComposerPermissionModeOption[] = [
+  { value: 'current', label: 'Current' },
+  { value: 'yolo', label: 'YOLO' },
+]
+
+export function normalizeComposerPermissionMode(value: unknown): UiComposerPermissionMode {
+  return value === 'yolo' ? 'yolo' : DEFAULT_COMPOSER_PERMISSION_MODE
+}
+
+export function buildTurnPermissionOverride(mode: UiComposerPermissionMode): TurnPermissionOverride | null {
+  if (mode !== 'yolo') return null
+  return {
+    approvalPolicy: 'never',
+    sandboxPolicy: { type: 'danger-full-access' },
+  }
+}

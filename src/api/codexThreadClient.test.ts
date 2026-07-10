@@ -176,4 +176,29 @@ describe('codex thread client', () => {
       },
     })
   })
+
+  it('starts turns with explicit permission overrides', async () => {
+    rpcMock.rpcCall.mockResolvedValue({ turn: { id: ' turn-1 ' } })
+
+    await expect(startThreadTurn(
+      'thread-1',
+      'hello',
+      [],
+      [],
+      undefined,
+      undefined,
+      null,
+      {
+        approvalPolicy: 'never',
+        sandboxPolicy: { type: 'danger-full-access' },
+      },
+    )).resolves.toBe('turn-1')
+
+    expect(rpcMock.rpcCall).toHaveBeenCalledWith('turn/start', {
+      threadId: 'thread-1',
+      input: [{ type: 'text', text: 'hello', text_elements: [] }],
+      approvalPolicy: 'never',
+      sandboxPolicy: { type: 'danger-full-access' },
+    })
+  })
 })

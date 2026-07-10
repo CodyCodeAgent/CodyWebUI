@@ -21,6 +21,7 @@ function mountComposer(overrides = {}) {
         },
       ],
       selectedCollaborationMode: 'default',
+      selectedPermissionMode: 'current',
       cwd: '/repo',
       ...overrides,
     },
@@ -69,5 +70,14 @@ describe('ThreadComposer', () => {
 
     expect((wrapper.get('[data-testid="thread-composer-input"]').element as HTMLTextAreaElement).disabled).toBe(true)
     expect((wrapper.get('[data-testid="thread-composer-submit"]').element as HTMLButtonElement).disabled).toBe(true)
+  })
+
+  it('emits permission mode changes from the composer controls', async () => {
+    const wrapper = mountComposer()
+    const dropdowns = wrapper.findAllComponents({ name: 'ComposerDropdown' })
+
+    await dropdowns[3]?.vm.$emit('update:modelValue', 'yolo')
+
+    expect(wrapper.emitted('update:selected-permission-mode')).toEqual([['yolo']])
   })
 })

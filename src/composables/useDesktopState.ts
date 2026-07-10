@@ -122,6 +122,10 @@ import {
   type CurrentModelPreference,
 } from './desktopTurnPreferences'
 import {
+  buildTurnPermissionOverride,
+  normalizeComposerPermissionMode,
+} from './desktopTurnPermissions'
+import {
   buildCompletedTurnSummary,
   buildPendingTurnActivity,
   buildSteeringTurnActivity,
@@ -171,6 +175,7 @@ import {
 import type {
   ReasoningEffort,
   UiCollaborationModeOption,
+  UiComposerPermissionMode,
   UiComposerSubmitPayload,
   ThreadScrollState,
   UiMessage,
@@ -202,6 +207,7 @@ export function useDesktopState() {
   const availableModelIds = ref<string[]>([])
   const selectedModelId = ref(initialTurnPreferences.modelId)
   const selectedReasoningEffort = ref<ReasoningEffort | ''>(initialTurnPreferences.reasoningEffort)
+  const selectedPermissionMode = ref<UiComposerPermissionMode>(initialTurnPreferences.permissionMode)
   const collaborationModeOptions = ref<UiCollaborationModeOption[]>([
     DEFAULT_COLLABORATION_MODE,
     FALLBACK_PLAN_COLLABORATION_MODE,
@@ -328,6 +334,7 @@ export function useDesktopState() {
       modelId: selectedModelId.value,
       reasoningEffort: selectedReasoningEffort.value,
       collaborationModeName: selectedCollaborationModeName.value,
+      permissionMode: selectedPermissionMode.value,
     })
   }
 
@@ -351,6 +358,7 @@ export function useDesktopState() {
         selectedModelId.value = preferences.modelId
         selectedReasoningEffort.value = preferences.reasoningEffort
         selectedCollaborationModeName.value = preferences.collaborationModeName
+        selectedPermissionMode.value = preferences.permissionMode
         saveDesktopTurnPreferences(preferences)
         return
       }
@@ -381,6 +389,11 @@ export function useDesktopState() {
     const nextName = selectCollaborationModeName(name, collaborationModeOptions.value)
     if (!nextName) return
     selectedCollaborationModeName.value = nextName
+    persistTurnPreferences()
+  }
+
+  function setSelectedPermissionMode(mode: UiComposerPermissionMode): void {
+    selectedPermissionMode.value = normalizeComposerPermissionMode(mode)
     persistTurnPreferences()
   }
 
@@ -1411,21 +1424,33 @@ export function useDesktopState() {
       modelId,
       reasoningEffort,
     )
+    const permissionOverride = buildTurnPermissionOverride(selectedPermissionMode.value)
 
     try {
       if (resumedThreadById.value[threadId] !== true) {
         await resumeThread(threadId)
       }
 
-      const turnId = await startThreadTurn(
-        threadId,
-        nextText,
-        nextImages,
-        nextSkills,
-        modelId || undefined,
-        reasoningEffort || undefined,
-        collaborationMode,
-      )
+      const turnId = permissionOverride
+        ? await startThreadTurn(
+          threadId,
+          nextText,
+          nextImages,
+          nextSkills,
+          modelId || undefined,
+          reasoningEffort || undefined,
+          collaborationMode,
+          permissionOverride,
+        )
+        : await startThreadTurn(
+          threadId,
+          nextText,
+          nextImages,
+          nextSkills,
+          modelId || undefined,
+          reasoningEffort || undefined,
+          collaborationMode,
+        )
       activeTurnIdByThreadId.value = setActiveTurnForThread(
         activeTurnIdByThreadId.value,
         threadId,
@@ -1739,6 +1764,7 @@ export function useDesktopState() {
     availableModelIds,
     selectedModelId,
     selectedReasoningEffort,
+    selectedPermissionMode,
     collaborationModeOptions,
     selectedCollaborationModeName,
     messages,
@@ -1770,6 +1796,7 @@ export function useDesktopState() {
     setSelectedModelId,
     setSelectedReasoningEffort,
     setSelectedCollaborationModeName,
+    setSelectedPermissionMode,
     respondToPendingServerRequest,
     recordRollbackAudit,
     renameProject,

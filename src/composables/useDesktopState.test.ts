@@ -189,6 +189,7 @@ describe('useDesktopState realtime messages', () => {
         modelId: 'gpt-5.5',
         reasoningEffort: 'high',
         collaborationModeName: 'plan',
+        permissionMode: 'yolo',
       },
       updatedAtIso: '2026-07-07T00:00:00.000Z',
     })
@@ -201,6 +202,7 @@ describe('useDesktopState realtime messages', () => {
     expect(state.selectedModelId.value).toBe('gpt-5.5')
     expect(state.selectedReasoningEffort.value).toBe('high')
     expect(state.selectedCollaborationModeName.value).toBe('plan')
+    expect(state.selectedPermissionMode.value).toBe('yolo')
 
     state.setSelectedReasoningEffort('xhigh')
 
@@ -210,6 +212,7 @@ describe('useDesktopState realtime messages', () => {
         modelId: 'gpt-5.5',
         reasoningEffort: 'xhigh',
         collaborationModeName: 'plan',
+        permissionMode: 'yolo',
       },
     )
   })
@@ -834,6 +837,41 @@ describe('useDesktopState realtime messages', () => {
           reasoning_effort: 'medium',
           developer_instructions: null,
         },
+      },
+    )
+  })
+
+  it('passes YOLO permission overrides when selected for the composer', async () => {
+    installBrowserGlobals('thread-a')
+    codexApiMock.startThreadTurn.mockResolvedValue('turn-1')
+
+    const state = useDesktopState()
+    state.setSelectedPermissionMode('yolo')
+
+    await state.sendMessageToSelectedThread({
+      text: '这次用 yolo',
+      images: [],
+      skills: [],
+    })
+
+    expect(codexApiMock.startThreadTurn).toHaveBeenCalledWith(
+      'thread-a',
+      '这次用 yolo',
+      [],
+      [],
+      undefined,
+      'medium',
+      {
+        mode: 'default',
+        settings: {
+          model: '',
+          reasoning_effort: 'medium',
+          developer_instructions: null,
+        },
+      },
+      {
+        approvalPolicy: 'never',
+        sandboxPolicy: { type: 'danger-full-access' },
       },
     )
   })

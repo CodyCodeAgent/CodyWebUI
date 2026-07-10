@@ -148,6 +148,8 @@ export type UiCollaborationModeOption = {
   developerInstructions: string | null
 }
 
+export type UiComposerPermissionMode = 'current' | 'yolo'
+
 export type UiComposerSubmitPayload = {
   text: string
   images: UiComposerImage[]

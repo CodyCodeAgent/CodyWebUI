@@ -203,11 +203,13 @@
                 :selected-reasoning-effort="selectedReasoningEffort"
                 :collaboration-modes="collaborationModeOptions"
                 :selected-collaboration-mode="selectedCollaborationModeName"
+                :selected-permission-mode="selectedPermissionMode"
                 :busy-label="homeComposerBusyLabel"
                 :is-turn-in-progress="false"
                 :is-interrupting-turn="false" :cwd="newThreadCwd" @submit="onSubmitThreadMessage"
                 @update:selected-model="onSelectModel" @update:selected-reasoning-effort="onSelectReasoningEffort"
-                @update:selected-collaboration-mode="onSelectCollaborationMode" />
+                @update:selected-collaboration-mode="onSelectCollaborationMode"
+                @update:selected-permission-mode="onSelectPermissionMode" />
 
             </div>
           </template>
@@ -231,12 +233,14 @@
                 :selected-model="selectedModelId" :selected-reasoning-effort="selectedReasoningEffort"
                 :collaboration-modes="collaborationModeOptions"
                 :selected-collaboration-mode="selectedCollaborationModeName"
+                :selected-permission-mode="selectedPermissionMode"
                 :busy-label="threadComposerBusyLabel"
                 :cwd="selectedThread?.cwd ?? ''"
                 :is-turn-in-progress="isSelectedThreadInProgress" :is-interrupting-turn="isInterruptingTurn"
                 @submit="onSubmitThreadMessage" @update:selected-model="onSelectModel"
                 @update:selected-reasoning-effort="onSelectReasoningEffort"
-                @update:selected-collaboration-mode="onSelectCollaborationMode" @interrupt="onInterruptTurn" />
+                @update:selected-collaboration-mode="onSelectCollaborationMode"
+                @update:selected-permission-mode="onSelectPermissionMode" @interrupt="onInterruptTurn" />
             </div>
           </template>
         </section>
@@ -311,6 +315,7 @@ import { useTheme } from './theme/useTheme'
 import type {
   ReasoningEffort,
   ThreadScrollState,
+  UiComposerPermissionMode,
   UiComposerSubmitPayload,
   UiServerRequestReply,
   UiToolingRollbackFileResult,
@@ -333,6 +338,7 @@ const {
   availableModelIds,
   selectedModelId,
   selectedReasoningEffort,
+  selectedPermissionMode,
   collaborationModeOptions,
   selectedCollaborationModeName,
   messages,
@@ -362,6 +368,7 @@ const {
   setSelectedModelId,
   setSelectedReasoningEffort,
   setSelectedCollaborationModeName,
+  setSelectedPermissionMode,
   respondToPendingServerRequest,
   renameProject,
   hideProject,
@@ -683,6 +690,10 @@ function onSelectReasoningEffort(effort: ReasoningEffort | ''): void {
 
 function onSelectCollaborationMode(name: string): void {
   setSelectedCollaborationModeName(name)
+}
+
+function onSelectPermissionMode(mode: UiComposerPermissionMode): void {
+  setSelectedPermissionMode(mode)
 }
 
 function onInterruptTurn(): void {
