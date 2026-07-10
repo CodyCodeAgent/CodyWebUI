@@ -111,6 +111,7 @@ type DragState = {
 const POSITION_STORAGE_KEY = 'cody-web-ui.rate-limit-position.v1'
 const DEFAULT_CARD_WIDTH = 224
 const CARD_MARGIN = 12
+const CARD_SAFE_TOP = 72
 
 const nowSeconds = ref(Math.floor(Date.now() / 1000))
 const cardRef = ref<HTMLElement | null>(null)
@@ -216,7 +217,7 @@ function writeStoredPosition(nextPosition: CardPosition): void {
 function defaultPosition(): CardPosition {
   return {
     x: Math.max(CARD_MARGIN, window.innerWidth - DEFAULT_CARD_WIDTH - 16),
-    y: 12,
+    y: CARD_SAFE_TOP,
   }
 }
 
@@ -225,12 +226,12 @@ function clampPosition(candidate: CardPosition): CardPosition {
   const width = rect?.width || DEFAULT_CARD_WIDTH
   const height = rect?.height || 120
   const maxX = Math.max(CARD_MARGIN, window.innerWidth - width - CARD_MARGIN)
-  const maxY = Math.max(CARD_MARGIN, window.innerHeight - height - CARD_MARGIN)
+  const maxY = Math.max(CARD_SAFE_TOP, window.innerHeight - height - CARD_MARGIN)
 
   return clampFloatingPosition(candidate, {
     minX: CARD_MARGIN,
     maxX,
-    minY: CARD_MARGIN,
+    minY: CARD_SAFE_TOP,
     maxY,
   })
 }
@@ -299,8 +300,8 @@ function onKeyboardMove(event: KeyboardEvent): void {
   position.value = moveFloatingPosition(position.value, delta, {
     minX: CARD_MARGIN,
     maxX: Math.max(CARD_MARGIN, window.innerWidth - width - CARD_MARGIN),
-    minY: CARD_MARGIN,
-    maxY: Math.max(CARD_MARGIN, window.innerHeight - height - CARD_MARGIN),
+    minY: CARD_SAFE_TOP,
+    maxY: Math.max(CARD_SAFE_TOP, window.innerHeight - height - CARD_MARGIN),
   })
   writeStoredPosition(position.value)
 }

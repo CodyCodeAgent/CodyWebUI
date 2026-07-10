@@ -964,6 +964,9 @@ watch(
 
 .workspace-dashboard-warning-list li {
   @apply rounded-md border border-amber-200 bg-amber-50 px-2 py-1.5 text-xs leading-4 text-amber-800;
+  background: color-mix(in srgb, var(--color-warning) 12%, var(--color-surface));
+  border-color: color-mix(in srgb, var(--color-warning) 34%, var(--color-border));
+  color: color-mix(in srgb, var(--color-warning) 42%, var(--color-text));
 }
 
 .workspace-dashboard-resource-header {
@@ -972,22 +975,37 @@ watch(
 
 .workspace-dashboard-resource-header span {
   @apply rounded-full border border-zinc-200 bg-zinc-50 px-2 py-0.5 text-[0.68rem] font-semibold text-zinc-600;
+  background: var(--color-elevated);
+  border-color: var(--color-border);
+  color: var(--color-text-muted);
 }
 
 .workspace-dashboard-resource-header span[data-tone='success'] {
   @apply border-emerald-200 bg-emerald-50 text-emerald-700;
+  background: color-mix(in srgb, var(--color-success) 14%, var(--color-surface));
+  border-color: color-mix(in srgb, var(--color-success) 36%, var(--color-border));
+  color: color-mix(in srgb, var(--color-success) 48%, var(--color-text));
 }
 
 .workspace-dashboard-resource-header span[data-tone='warning'] {
   @apply border-amber-200 bg-amber-50 text-amber-700;
+  background: color-mix(in srgb, var(--color-warning) 14%, var(--color-surface));
+  border-color: color-mix(in srgb, var(--color-warning) 36%, var(--color-border));
+  color: color-mix(in srgb, var(--color-warning) 48%, var(--color-text));
 }
 
 .workspace-dashboard-resource-header span[data-tone='danger'] {
   @apply border-rose-200 bg-rose-50 text-rose-700;
+  background: color-mix(in srgb, var(--color-danger) 14%, var(--color-surface));
+  border-color: color-mix(in srgb, var(--color-danger) 36%, var(--color-border));
+  color: color-mix(in srgb, var(--color-danger) 48%, var(--color-text));
 }
 
 .workspace-dashboard-resource-header span[data-tone='info'] {
   @apply border-blue-200 bg-blue-50 text-blue-700;
+  background: color-mix(in srgb, var(--color-info) 14%, var(--color-surface));
+  border-color: color-mix(in srgb, var(--color-info) 36%, var(--color-border));
+  color: color-mix(in srgb, var(--color-info) 48%, var(--color-text));
 }
 
 .workspace-dashboard-resource-grid {
@@ -996,34 +1014,47 @@ watch(
 
 .workspace-dashboard-resource-metric {
   @apply min-w-0 rounded-md border border-zinc-200 bg-zinc-50 px-2 py-1.5;
+  background: var(--color-elevated);
+  border-color: var(--color-border);
 }
 
 .workspace-dashboard-resource-metric[data-tone='success'] {
   @apply border-emerald-200 bg-emerald-50;
+  background: color-mix(in srgb, var(--color-success) 10%, var(--color-surface));
+  border-color: color-mix(in srgb, var(--color-success) 30%, var(--color-border));
 }
 
 .workspace-dashboard-resource-metric[data-tone='warning'] {
   @apply border-amber-200 bg-amber-50;
+  background: color-mix(in srgb, var(--color-warning) 10%, var(--color-surface));
+  border-color: color-mix(in srgb, var(--color-warning) 30%, var(--color-border));
 }
 
 .workspace-dashboard-resource-metric[data-tone='danger'] {
   @apply border-rose-200 bg-rose-50;
+  background: color-mix(in srgb, var(--color-danger) 10%, var(--color-surface));
+  border-color: color-mix(in srgb, var(--color-danger) 30%, var(--color-border));
 }
 
 .workspace-dashboard-resource-metric[data-tone='info'] {
   @apply border-blue-200 bg-blue-50;
+  background: color-mix(in srgb, var(--color-info) 10%, var(--color-surface));
+  border-color: color-mix(in srgb, var(--color-info) 30%, var(--color-border));
 }
 
 .workspace-dashboard-resource-metric span {
   @apply block truncate text-[0.65rem] font-semibold uppercase tracking-normal text-zinc-500;
+  color: var(--color-text-muted);
 }
 
 .workspace-dashboard-resource-metric strong {
   @apply mt-0.5 block truncate text-sm font-semibold text-zinc-950;
+  color: var(--color-text);
 }
 
 .workspace-dashboard-resource-metric small {
   @apply mt-0.5 block truncate text-[0.68rem] leading-4 text-zinc-500;
+  color: var(--color-text-muted);
 }
 
 .workspace-dashboard-resource-notes {
@@ -1032,6 +1063,9 @@ watch(
 
 .workspace-dashboard-resource-notes li {
   @apply rounded-md border border-zinc-200 bg-white px-2 py-1 text-[0.68rem] leading-4 text-zinc-600;
+  background: var(--color-surface);
+  border-color: var(--color-border);
+  color: var(--color-text-muted);
 }
 
 .workspace-dashboard-empty {

@@ -1,10 +1,7 @@
 import Database from 'better-sqlite3'
-import { mkdir } from 'node:fs/promises'
 import type { IncomingMessage, ServerResponse } from 'node:http'
-import { homedir } from 'node:os'
-import { dirname, join } from 'node:path'
+import { withLocalDatabase } from './localDatabase.js'
 
-const DEFAULT_SETTINGS_DB_PATH = join(homedir(), '.cody-web-ui', 'settings.sqlite3')
 const MAX_SETTING_KEY_LENGTH = 160
 const MAX_SETTING_VALUE_BYTES = 256 * 1024
 
@@ -12,10 +9,6 @@ export type UserSetting = {
   key: string
   value: unknown
   updatedAtIso: string
-}
-
-function settingsDbPath(): string {
-  return process.env.CODY_WEB_UI_SETTINGS_DB?.trim() || DEFAULT_SETTINGS_DB_PATH
 }
 
 function setJson(res: ServerResponse, statusCode: number, payload: unknown): void {
@@ -55,19 +48,6 @@ function asRecord(value: unknown): Record<string, unknown> | null {
     : null
 }
 
-async function openSettingsDb(): Promise<Database.Database> {
-  const dbPath = settingsDbPath()
-  await mkdir(dirname(dbPath), { recursive: true })
-  try {
-    const db = new Database(dbPath)
-    db.pragma('journal_mode = WAL')
-    return db
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error)
-    throw new Error(`Failed to open settings database at ${dbPath}: ${message}`)
-  }
-}
-
 function ensureSettingsTable(db: Database.Database): void {
   db.exec([
     'CREATE TABLE IF NOT EXISTS settings (',
@@ -79,13 +59,10 @@ function ensureSettingsTable(db: Database.Database): void {
 }
 
 async function withSettingsDb<T>(operation: (db: Database.Database) => T): Promise<T> {
-  const db = await openSettingsDb()
-  try {
+  return withLocalDatabase((db) => {
     ensureSettingsTable(db)
     return operation(db)
-  } finally {
-    db.close()
-  }
+  })
 }
 
 async function readUserSettingFromSqlite(key: string): Promise<UserSetting | null> {

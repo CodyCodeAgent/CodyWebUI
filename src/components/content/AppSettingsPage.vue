@@ -20,6 +20,32 @@
     <section class="app-settings-section">
       <header class="app-settings-section-header">
         <div>
+          <h2 class="app-settings-title">{{ t('settings.catalog.title') }}</h2>
+          <p class="app-settings-subtitle">{{ t('settings.catalog.subtitle') }}</p>
+        </div>
+        <button class="catalog-sync-button" type="button" :disabled="isCatalogSyncing" @click="runCatalogSync">
+          {{ t('settings.catalog.syncNow') }}
+        </button>
+      </header>
+      <dl class="catalog-sync-status" :data-tone="catalogStatusTone">
+        <div>
+          <dt>{{ catalogStatusLabel }}</dt>
+          <dd>{{ catalogStatus?.lastError || catalogStatusError }}</dd>
+        </div>
+        <div>
+          <dt>{{ t('settings.catalog.lastSuccess') }}</dt>
+          <dd>{{ formatCatalogTime(catalogStatus?.lastSuccessAtIso) }}</dd>
+        </div>
+        <div>
+          <dt>{{ t('settings.catalog.nextRun') }}</dt>
+          <dd>{{ formatCatalogTime(catalogStatus?.nextRunAtIso) }}</dd>
+        </div>
+      </dl>
+    </section>
+
+    <section class="app-settings-section">
+      <header class="app-settings-section-header">
+        <div>
           <h2 class="app-settings-title">{{ t('settings.appearance.title') }}</h2>
           <p class="app-settings-subtitle">{{ t('settings.appearance.subtitle') }}</p>
         </div>
@@ -85,6 +111,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 import { fetchUserSetting, writeUserSetting } from '../../api/codexSettingsClient'
+import { fetchCatalogStatus, syncCatalogNow, type CatalogSyncStatus } from '../../api/codexCatalogClient'
 import { DESKTOP_SETTING_KEYS } from '../../composables/desktopSettingsKeys'
 import { useLocale, type AppLocale } from '../../composables/useLocale'
 import WorkspaceThemePanel from './WorkspaceThemePanel.vue'
@@ -111,6 +138,9 @@ const DEFAULT_FLAME_SETTINGS: FlameSettings = {
 const { locale, localeOptions, setLocale, t } = useLocale()
 
 const flameSettings = ref<FlameSettings>({ ...DEFAULT_FLAME_SETTINGS })
+const catalogStatus = ref<CatalogSyncStatus | null>(null)
+const catalogStatusError = ref('')
+const isCatalogSyncing = ref(false)
 const saveMessage = ref('')
 const saveTone = ref<'success' | 'danger'>('success')
 const hasHydrated = ref(false)
@@ -123,6 +153,48 @@ const flameLevels = computed(() => [
   { level: 'blaze', name: t('settings.tokenFlame.level.blaze'), range: t('settings.tokenFlame.range.500k1m') },
   { level: 'inferno', name: t('settings.tokenFlame.level.inferno'), range: t('settings.tokenFlame.range.1mPlus') },
 ] as const)
+const catalogStatusTone = computed(() => {
+  if (catalogStatusError.value || catalogStatus.value?.lastError) return 'danger'
+  if (isCatalogSyncing.value || catalogStatus.value?.running) return 'working'
+  return 'success'
+})
+const catalogStatusLabel = computed(() => {
+  if (catalogStatusTone.value === 'danger') return t('settings.catalog.status.error')
+  if (catalogStatusTone.value === 'working') return t('settings.catalog.status.running')
+  return t('settings.catalog.status.ready')
+})
+
+function formatCatalogTime(value: string | null | undefined): string {
+  if (!value) return t('settings.catalog.never')
+  const timestamp = Date.parse(value)
+  if (!Number.isFinite(timestamp)) return value
+  return new Intl.DateTimeFormat(locale.value, {
+    dateStyle: 'medium',
+    timeStyle: 'medium',
+  }).format(new Date(timestamp))
+}
+
+async function loadCatalogStatus(): Promise<void> {
+  try {
+    catalogStatus.value = await fetchCatalogStatus()
+    catalogStatusError.value = ''
+  } catch (error) {
+    catalogStatusError.value = error instanceof Error ? error.message : t('settings.catalog.failed')
+  }
+}
+
+async function runCatalogSync(): Promise<void> {
+  if (isCatalogSyncing.value) return
+  isCatalogSyncing.value = true
+  catalogStatusError.value = ''
+  try {
+    catalogStatus.value = await syncCatalogNow()
+  } catch (error) {
+    catalogStatusError.value = error instanceof Error ? error.message : t('settings.catalog.failed')
+  } finally {
+    isCatalogSyncing.value = false
+  }
+}
 
 function onLocaleSelect(event: Event): void {
   setLocale((event.target as HTMLSelectElement).value as AppLocale)
@@ -194,6 +266,7 @@ watch(flameSettings, (nextSettings) => {
 
 onMounted(() => {
   void loadFlameSettings()
+  void loadCatalogStatus()
 })
 </script>
 
@@ -215,6 +288,37 @@ onMounted(() => {
 
 .app-settings-section-header {
   @apply mb-3 flex items-start justify-between gap-4;
+}
+
+.catalog-sync-button {
+  @apply inline-flex h-9 shrink-0 items-center justify-center rounded-md border border-zinc-200 bg-white px-3 text-sm font-medium text-zinc-700 transition hover:bg-zinc-100 disabled:cursor-wait disabled:opacity-60;
+  background: var(--color-surface);
+  border-color: var(--color-border);
+  color: var(--color-text);
+}
+
+.catalog-sync-status {
+  @apply m-0 grid grid-cols-3 gap-3 border-t border-zinc-200 pt-3;
+  border-color: var(--color-border);
+}
+
+.catalog-sync-status div {
+  @apply min-w-0;
+}
+
+.catalog-sync-status dt {
+  @apply text-xs font-semibold text-zinc-500;
+  color: var(--color-text-muted);
+}
+
+.catalog-sync-status dd {
+  @apply m-0 mt-1 truncate text-sm text-zinc-900;
+  color: var(--color-text);
+}
+
+.catalog-sync-status[data-tone='danger'] div:first-child dd,
+.catalog-sync-status[data-tone='danger'] div:first-child dt {
+  color: var(--color-danger);
 }
 
 .app-settings-title {
@@ -348,10 +452,16 @@ onMounted(() => {
 
 .flame-settings-message[data-tone='success'] {
   @apply border-emerald-200 bg-emerald-50 text-emerald-700;
+  background: color-mix(in srgb, var(--color-success) 12%, var(--color-surface));
+  border-color: color-mix(in srgb, var(--color-success) 34%, var(--color-border));
+  color: color-mix(in srgb, var(--color-success) 48%, var(--color-text));
 }
 
 .flame-settings-message[data-tone='danger'] {
   @apply border-rose-200 bg-rose-50 text-rose-700;
+  background: color-mix(in srgb, var(--color-danger) 12%, var(--color-surface));
+  border-color: color-mix(in srgb, var(--color-danger) 34%, var(--color-border));
+  color: color-mix(in srgb, var(--color-danger) 48%, var(--color-text));
 }
 
 .flame-level-list {
@@ -394,5 +504,11 @@ onMounted(() => {
 .flame-level-range {
   @apply shrink-0 text-xs text-zinc-500;
   color: var(--color-text-muted);
+}
+
+@media (max-width: 640px) {
+  .catalog-sync-status {
+    @apply grid-cols-1;
+  }
 }
 </style>

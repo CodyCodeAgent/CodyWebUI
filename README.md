@@ -28,14 +28,20 @@ protocol.
 ## Features
 
 - Browse Codex threads grouped by workspace.
-- Create, resume, archive, and inspect Codex threads.
+- Create, resume, hide, restore, and inspect Codex threads without deleting or
+  archiving the underlying Codex data.
 - Stream assistant output, tool activity, approvals, and thread updates.
 - Send text and local image inputs.
 - Switch model, reasoning effort, and Codex collaboration mode.
 - Review command and file-change approval requests.
 - Inspect changed files and diff previews.
 - Open a header work log for commands and file changes.
-- Persist app preferences in local SQLite.
+- Persist app preferences and the project/thread presentation catalog in local
+  SQLite.
+- Reconcile the local catalog on startup, from Codex events, and every 30
+  seconds in the background.
+- Apply persistent light/dark skins, accent colors, global density, and five
+  workspace layout presets across Settings, conversations, and dashboards.
 - View account rate limits and token usage.
 - Use a configurable token flame widget for daily usage intensity.
 - Protect remote browser access with a password by default.
@@ -144,9 +150,10 @@ suite: typecheck, unit tests, whitespace checks, packaged CLI smoke, npm package
 dry-run smoke, approval center browser smoke, composer input smoke, Settings
 theme persistence and visual-health smoke, empty thread lifecycle smoke, and
 Work log browser smoke with panel/fullscreen visual-health checks. It also runs
-`smoke:turn` in its default skip mode and `smoke:turn-approval` in its default
-skip mode to confirm the opt-in live-turn smokes are installed. It does **not**
-start a real Codex turn, so it does not intentionally spend model tokens.
+the large-thread history, live-turn, and natural-approval smokes in their
+default skip modes to confirm those opt-in checks are installed. It does
+**not** start a real Codex turn, so it does not intentionally spend model
+tokens.
 
 Manual smoke checks before publishing or sharing a build:
 
@@ -161,12 +168,35 @@ Manual smoke checks before publishing or sharing a build:
   pending request is resolved.
 - Run `npm run smoke:composer` to browser-test that the real composer input is
   enabled and the send button activates after typing, without sending to a
-  model.
+  model. To exercise the complete browser path against a real app-server turn,
+  explicitly opt in with
+  `CODY_WEB_UI_SMOKE_ALLOW_COMPOSER_TURN=1 npm run smoke:composer -- --require-live-render`.
+  That mode creates a thread from the home composer, clicks Send, measures when
+  the optimistic user bubble appears, verifies live deltas reach the DOM before
+  `turn/completed`, waits for persistence, and reloads the page to assert the
+  user message is still rendered exactly once.
+- Run `npm run smoke:history` to confirm the opt-in large-thread browser smoke
+  is installed. Give it a real thread with more than 80 rendered messages to
+  verify the initial 80-message window, automatic top-scroll expansion, scroll
+  anchor preservation, duplicate-free IDs, latest-message retention, and the
+  reset window after a full reload:
+
+  ```bash
+  CODY_WEB_UI_SMOKE_HISTORY_THREAD_ID=<thread-id> npm run smoke:history
+  ```
+
+  This check reads an existing app-server thread and does not start a model
+  turn or spend model tokens.
+- Run `npm run smoke:catalog` to start CodyWebUI with a temporary SQLite
+  database, perform the first Codex catalog import, and verify project/thread
+  hide and restore behavior without changing Codex archive state.
 - Run `npm run smoke:theme` to browser-test Settings theme controls against a
   temporary SQLite settings database, clear browser storage, reload, verify the
-  theme persisted through the server settings API, and assert the Settings page
-  still renders without horizontal overflow, with visible theme/flame cards,
-  accessible text contrast, and a populated desktop screenshot.
+  theme persisted through the server settings API, exercise all five layout
+  presets and all three density modes, and verify both dark and light surfaces.
+  The check also opens the centered new-thread page to confirm global spacing,
+  composer alignment, theme colors, and overflow behavior rather than
+  validating only the Settings controls.
 - Run `npm run smoke:thread` to verify the real app-server thread lifecycle:
   create an empty thread and read it back. Empty app-server threads can be
   readable before they appear in `thread/list` or accept archive cleanup because
@@ -201,6 +231,17 @@ Manual smoke checks before publishing or sharing a build:
   You can pass `-- --cwd <path> --message <prompt> --model <model>
   --effort <effort> --timeout-ms <ms> --require-live-delta` to customize that
   opt-in smoke and make live assistant/plan/reasoning delta frames mandatory.
+- To verify the same live response through the actual browser composer and
+  rendered conversation, run:
+
+  ```bash
+  CODY_WEB_UI_SMOKE_ALLOW_COMPOSER_TURN=1 npm run smoke:composer -- --require-live-render
+  ```
+
+  This browser variant covers home-page thread creation, the optimistic user
+  message, route transition, live assistant rendering, completed persistence,
+  and duplicate-free rendering before and after a full page reload. Pass
+  `-- --message <prompt> --timeout-ms <ms>` to customize the turn.
 - Natural command approval is also intentionally opt-in because it starts a
   real Codex turn and depends on the model choosing to execute the requested
   command. To diagnose whether a genuine app-server
@@ -235,11 +276,12 @@ CodyWebUI has three main layers:
   and `src/composables`.
 - **Local web server**: Node.js and Express. The server lives under
   `src/server` and handles static assets, authentication, WebSocket updates,
-  file/image helpers, local settings, and the Codex bridge.
+  file/image helpers, local settings, the project/thread catalog, background
+  reconciliation, and the Codex bridge.
 - **Codex bridge**: a Node-side bridge that starts `codex app-server`, proxies
   JSON-RPC requests, and normalizes app-server notifications for the UI.
 
-Local settings are stored in:
+Local settings and catalog presentation state are stored in:
 
 ```text
 ~/.cody-web-ui/settings.sqlite3
@@ -256,6 +298,7 @@ CODY_WEB_UI_SETTINGS_DB=/path/to/settings.sqlite3 cody-web-ui
 - [Final product vision](docs/FINAL_PRODUCT_VISION.md)
 - [Codex app-server protocol notes](documentation/APP_SERVER_DOCUMENTATION.md)
 - [App-server schema usage guide](documentation/APP_SERVER_SCHEMA_USAGE.md)
+- [Local project and thread catalog](documentation/LOCAL_CATALOG.md)
 
 The generated app-server schemas live under:
 

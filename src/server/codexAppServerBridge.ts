@@ -6,6 +6,15 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { cwd as getProcessCwd } from 'node:process'
 import { WebSocket, WebSocketServer } from 'ws'
+import {
+  listCatalog,
+  setCatalogProjectDisplayName,
+  setCatalogProjectHidden,
+  setCatalogProjectOrder,
+  setCatalogThreadHidden,
+  type CatalogVisibility,
+} from './catalogStore.js'
+import { CatalogSyncService } from './catalogSyncService.js'
 import { handleDirectoryList } from './directoryBrowser.js'
 import {
   isApprovalRequestMethod,
@@ -1612,6 +1621,7 @@ type CodexBridgeMiddleware = ((req: IncomingMessage, res: ServerResponse, next: 
 
 type SharedBridgeState = {
   appServer: AppServerProcess
+  catalogSync: CatalogSyncService
   methodCatalog: MethodCatalog
   stopNotificationDispatch: () => void
   productEventHub: ProductEventHub
@@ -1702,11 +1712,13 @@ function getSharedBridgeState(): SharedBridgeState {
   if (existing) return existing
 
   const appServer = new AppServerProcess()
+  const catalogSync = new CatalogSyncService((method, params) => appServer.rpc(method, params))
   const productEventHub = new ProductEventHub()
   const notificationDispatcher = new NotificationDispatcher({
     workspaceCwd: getProcessCwd(),
   })
   const stopNotificationDispatch = appServer.onNotification((notification) => {
+    catalogSync.onNotification(notification.method)
     const workspaceCwd = getProcessCwd()
     const payload = {
       ...notification,
@@ -1733,11 +1745,13 @@ function getSharedBridgeState(): SharedBridgeState {
 
   const created: SharedBridgeState = {
     appServer,
+    catalogSync,
     methodCatalog: new MethodCatalog(),
     stopNotificationDispatch,
     productEventHub,
   }
   globalScope[SHARED_BRIDGE_KEY] = created
+  if (process.env.NODE_ENV !== 'test') catalogSync.start()
   return created
 }
 
@@ -1771,7 +1785,7 @@ async function buildGatewayDiagnostics(
 }
 
 export function createCodexBridgeMiddleware(): CodexBridgeMiddleware {
-  const { appServer, methodCatalog, stopNotificationDispatch, productEventHub } = getSharedBridgeState()
+  const { appServer, catalogSync, methodCatalog, stopNotificationDispatch, productEventHub } = getSharedBridgeState()
 
   const middleware = async (req: IncomingMessage, res: ServerResponse, next: () => void) => {
     try {
@@ -1793,6 +1807,84 @@ export function createCodexBridgeMiddleware(): CodexBridgeMiddleware {
 
         const result = await appServer.rpc(body.method, body.params ?? null)
         setJson(res, 200, { result })
+        return
+      }
+
+      if (req.method === 'GET' && url.pathname === '/codex-api/catalog') {
+        const visibility: CatalogVisibility = url.searchParams.get('visibility') === 'hidden' ? 'hidden' : 'visible'
+        await catalogSync.refreshForRead()
+        setJson(res, 200, {
+          result: {
+            catalog: await listCatalog(visibility),
+            sync: catalogSync.getStatus(),
+          },
+        })
+        return
+      }
+
+      if (req.method === 'GET' && url.pathname === '/codex-api/catalog/status') {
+        setJson(res, 200, { result: { sync: catalogSync.getStatus() } })
+        return
+      }
+
+      if (req.method === 'POST' && url.pathname === '/codex-api/catalog/sync') {
+        await catalogSync.syncNow()
+        setJson(res, 200, {
+          result: {
+            catalog: await listCatalog('visible'),
+            sync: catalogSync.getStatus(),
+          },
+        })
+        return
+      }
+
+      if (req.method === 'POST' && url.pathname === '/codex-api/catalog/projects/visibility') {
+        const body = asRecord(await readJsonBody(req))
+        const projectKey = readString(body?.projectKey)
+        if (!projectKey || typeof body?.hidden !== 'boolean') {
+          setJson(res, 400, { error: 'Invalid body: expected { projectKey, hidden }' })
+          return
+        }
+        await setCatalogProjectHidden(projectKey, body.hidden)
+        setJson(res, 200, { result: { ok: true } })
+        return
+      }
+
+      if (req.method === 'POST' && url.pathname === '/codex-api/catalog/threads/visibility') {
+        const body = asRecord(await readJsonBody(req))
+        const threadId = readString(body?.threadId)
+        if (!threadId || typeof body?.hidden !== 'boolean') {
+          setJson(res, 400, { error: 'Invalid body: expected { threadId, hidden }' })
+          return
+        }
+        await setCatalogThreadHidden(threadId, body.hidden)
+        setJson(res, 200, { result: { ok: true } })
+        return
+      }
+
+      if (req.method === 'POST' && url.pathname === '/codex-api/catalog/projects/presentation') {
+        const body = asRecord(await readJsonBody(req))
+        const projectKey = readString(body?.projectKey)
+        if (!projectKey || typeof body?.displayName !== 'string') {
+          setJson(res, 400, { error: 'Invalid body: expected { projectKey, displayName }' })
+          return
+        }
+        await setCatalogProjectDisplayName(projectKey, body.displayName)
+        setJson(res, 200, { result: { ok: true } })
+        return
+      }
+
+      if (req.method === 'POST' && url.pathname === '/codex-api/catalog/projects/order') {
+        const body = asRecord(await readJsonBody(req))
+        const projectKeys = Array.isArray(body?.projectKeys)
+          ? body.projectKeys.filter((value): value is string => typeof value === 'string')
+          : []
+        if (projectKeys.length === 0) {
+          setJson(res, 400, { error: 'Invalid body: expected { projectKeys: string[] }' })
+          return
+        }
+        await setCatalogProjectOrder(projectKeys)
+        setJson(res, 200, { result: { ok: true } })
         return
       }
 
@@ -2174,6 +2266,7 @@ export function createCodexBridgeMiddleware(): CodexBridgeMiddleware {
   }
 
   middleware.dispose = () => {
+    catalogSync.stop()
     stopNotificationDispatch()
     productEventHub.clear()
     appServer.dispose()

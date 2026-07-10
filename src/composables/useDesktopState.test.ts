@@ -7,10 +7,10 @@ import type { RpcNotification } from '../api/codexRealtimeClient'
 
 const codexApiMock = vi.hoisted(() => {
   let notificationListener: ((value: RpcNotification) => void) | null = null
+  const getThreadGroups = vi.fn(async (): Promise<UiProjectGroup[]> => [])
 
   return {
     getNotificationListener: () => notificationListener,
-    archiveThread: vi.fn(),
     compactThread: vi.fn(),
     forkThread: vi.fn(),
     getAccountRateLimits: vi.fn(async () => null),
@@ -24,7 +24,18 @@ const codexApiMock = vi.hoisted(() => {
       updatedAtIso: '2026-07-07T00:00:00.000Z',
     })),
     fetchPendingServerRequests: vi.fn(async () => []),
-    getThreadGroups: vi.fn(async (): Promise<UiProjectGroup[]> => []),
+    getThreadGroups,
+    fetchCatalog: vi.fn(async () => ({
+      groups: await getThreadGroups(),
+      projectDisplayNameById: {},
+      projectOrder: [],
+      hasStoredProjectOrder: false,
+      sync: null,
+    })),
+    saveCatalogProjectDisplayName: vi.fn(),
+    saveCatalogProjectOrder: vi.fn(),
+    setProjectHidden: vi.fn(),
+    setThreadHidden: vi.fn(),
     getThreadMessages: vi.fn(async (_threadId?: string): Promise<UiMessage[]> => []),
     interruptThreadTurn: vi.fn(),
     normalizeRateLimitSnapshot: vi.fn(() => null),
@@ -40,7 +51,6 @@ const codexApiMock = vi.hoisted(() => {
         notificationListener = null
       })
     }),
-    unarchiveThread: vi.fn(),
   }
 })
 
@@ -64,11 +74,16 @@ vi.mock('../api/codexSettingsClient', () => ({
 vi.mock('../api/codexRealtimeClient', () => ({
   subscribeRpcNotifications: codexApiMock.subscribeRpcNotifications,
 }))
+vi.mock('../api/codexCatalogClient', () => ({
+  fetchCatalog: codexApiMock.fetchCatalog,
+  saveCatalogProjectDisplayName: codexApiMock.saveCatalogProjectDisplayName,
+  saveCatalogProjectOrder: codexApiMock.saveCatalogProjectOrder,
+  setProjectHidden: codexApiMock.setProjectHidden,
+  setThreadHidden: codexApiMock.setThreadHidden,
+}))
 vi.mock('../api/codexThreadClient', () => ({
-  archiveThread: codexApiMock.archiveThread,
   compactThread: codexApiMock.compactThread,
   forkThread: codexApiMock.forkThread,
-  getThreadGroups: codexApiMock.getThreadGroups,
   getThreadMessages: codexApiMock.getThreadMessages,
   interruptThreadTurn: codexApiMock.interruptThreadTurn,
   renameThread: codexApiMock.renameThread,
@@ -76,7 +91,6 @@ vi.mock('../api/codexThreadClient', () => ({
   startThread: codexApiMock.startThread,
   startThreadTurn: codexApiMock.startThreadTurn,
   steerThreadTurn: codexApiMock.steerThreadTurn,
-  unarchiveThread: codexApiMock.unarchiveThread,
 }))
 
 class MemoryStorage implements Storage {

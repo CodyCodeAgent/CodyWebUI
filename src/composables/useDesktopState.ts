@@ -13,10 +13,8 @@ import {
   writeUserSetting,
 } from '../api/codexSettingsClient'
 import {
-  archiveThread,
   compactThread,
   forkThread,
-  getThreadGroups,
   getThreadMessages,
   interruptThreadTurn,
   renameThread,
@@ -24,8 +22,14 @@ import {
   startThread,
   startThreadTurn,
   steerThreadTurn,
-  unarchiveThread,
 } from '../api/codexThreadClient'
+import {
+  fetchCatalog,
+  saveCatalogProjectDisplayName,
+  saveCatalogProjectOrder,
+  setProjectHidden,
+  setThreadHidden,
+} from '../api/codexCatalogClient'
 import {
   fetchPendingServerRequests,
   respondServerRequest,
@@ -158,9 +162,6 @@ import {
   omitKey,
   orderGroupsByProjectOrder,
   reconcileOptimisticThreads,
-  removeProjectDisplayName,
-  removeProjectFromGroups,
-  removeProjectFromOrder,
   renameProjectDisplayName,
   renameThreadInGroups,
   updateThreadBooleanState,
@@ -190,7 +191,7 @@ export function useDesktopState() {
   const sourceGroups = ref<UiProjectGroup[]>([])
   const optimisticThreadById = ref<Record<string, UiThread>>({})
   const selectedThreadId = ref(loadSelectedThreadId())
-  const isArchiveView = ref(false)
+  const isHiddenView = ref(false)
   const persistedMessagesByThreadId = ref<Record<string, UiMessage[]>>({})
   const liveAgentMessagesByThreadId = ref<Record<string, UiMessage[]>>({})
   const liveReasoningTextByThreadId = ref<Record<string, string>>({})
@@ -997,21 +998,40 @@ export function useDesktopState() {
     }
 
     try {
-      const groups = await getThreadGroups(isArchiveView.value)
+      const catalog = await fetchCatalog(isHiddenView.value ? 'hidden' : 'visible')
+      const groups = catalog.groups
 
-      const nextProjectOrder = mergeProjectOrder(projectOrder.value, groups)
+      const localDisplayNames = projectDisplayNameById.value
+      projectDisplayNameById.value = {
+        ...localDisplayNames,
+        ...catalog.projectDisplayNameById,
+      }
+      saveProjectDisplayNames(projectDisplayNameById.value)
+      for (const [projectKey, displayName] of Object.entries(localDisplayNames)) {
+        if (!catalog.projectDisplayNameById[projectKey] && groups.some((group) => group.projectName === projectKey)) {
+          void saveCatalogProjectDisplayName(projectKey, displayName)
+        }
+      }
+
+      const nextProjectOrder = catalog.hasStoredProjectOrder
+        ? catalog.projectOrder
+        : mergeProjectOrder(projectOrder.value, groups)
       if (!areStringArraysEqual(projectOrder.value, nextProjectOrder)) {
         projectOrder.value = nextProjectOrder
         saveProjectOrder(projectOrder.value)
       }
+      if (!catalog.hasStoredProjectOrder && nextProjectOrder.length > 0) {
+        void saveCatalogProjectOrder(nextProjectOrder)
+      }
 
       const orderedGroups = orderGroupsByProjectOrder(groups, projectOrder.value)
-      const optimisticResult = reconcileOptimisticThreads(orderedGroups, optimisticThreadById.value)
+      const optimisticResult = isHiddenView.value
+        ? { groups: orderedGroups, optimisticThreadById: optimisticThreadById.value }
+        : reconcileOptimisticThreads(orderedGroups, optimisticThreadById.value)
       if (optimisticResult.optimisticThreadById !== optimisticThreadById.value) {
         optimisticThreadById.value = optimisticResult.optimisticThreadById
       }
-      const groupsWithOptimisticThreads = optimisticResult.groups
-      sourceGroups.value = mergeThreadGroups(sourceGroups.value, groupsWithOptimisticThreads)
+      sourceGroups.value = optimisticResult.groups
       applyThreadFlags()
       hasLoadedThreads.value = true
 
@@ -1121,27 +1141,20 @@ export function useDesktopState() {
     }
   }
 
-  async function archiveThreadById(threadId: string) {
+  async function hideThreadById(threadId: string) {
     try {
-      await archiveThread(threadId)
+      await setThreadHidden(threadId, true)
       await loadThreads()
-
-      if (selectedThreadId.value === threadId) {
-        await loadMessages(selectedThreadId.value)
-      }
+      if (selectedThreadId.value === threadId) setSelectedThreadId(flattenThreads(projectGroups.value)[0]?.id ?? '')
     } catch (unknownError) {
-      error.value = unknownError instanceof Error ? unknownError.message : 'Unknown application error'
+      error.value = unknownError instanceof Error ? unknownError.message : 'Failed to hide thread'
     }
   }
 
-  async function unarchiveThreadById(threadId: string): Promise<void> {
+  async function restoreThreadById(threadId: string): Promise<void> {
     try {
-      await unarchiveThread(threadId)
+      await setThreadHidden(threadId, false)
       await loadThreads()
-
-      if (selectedThreadId.value === threadId) {
-        await loadMessages(selectedThreadId.value)
-      }
     } catch (unknownError) {
       error.value = unknownError instanceof Error ? unknownError.message : 'Failed to restore thread'
     }
@@ -1180,9 +1193,9 @@ export function useDesktopState() {
     }
   }
 
-  async function setArchiveView(nextValue: boolean): Promise<void> {
-    if (isArchiveView.value === nextValue) return
-    isArchiveView.value = nextValue
+  async function setHiddenView(nextValue: boolean): Promise<void> {
+    if (isHiddenView.value === nextValue) return
+    isHiddenView.value = nextValue
     sourceGroups.value = []
     projectGroups.value = []
     loadedMessagesByThreadId.value = {}
@@ -1466,33 +1479,32 @@ export function useDesktopState() {
     if (nextDisplayNames === projectDisplayNameById.value) return
     projectDisplayNameById.value = nextDisplayNames
     saveProjectDisplayNames(nextDisplayNames)
+    void saveCatalogProjectDisplayName(projectName, displayName)
   }
 
-  function removeProject(projectName: string): void {
+  async function hideProject(projectName: string): Promise<void> {
     if (projectName.length === 0) return
-
-    const nextProjectOrder = removeProjectFromOrder(projectOrder.value, projectName)
-    if (!areStringArraysEqual(projectOrder.value, nextProjectOrder)) {
-      projectOrder.value = nextProjectOrder
-      saveProjectOrder(projectOrder.value)
+    try {
+      await setProjectHidden(projectName, true)
+      await loadThreads()
+    } catch (unknownError) {
+      error.value = unknownError instanceof Error ? unknownError.message : 'Failed to hide project'
     }
+  }
 
-    sourceGroups.value = removeProjectFromGroups(sourceGroups.value, projectName)
-
-    const nextDisplayNames = removeProjectDisplayName(projectDisplayNameById.value, projectName)
-    if (nextDisplayNames !== projectDisplayNameById.value) {
-      projectDisplayNameById.value = nextDisplayNames
-      saveProjectDisplayNames(nextDisplayNames)
-    }
-
-    applyThreadFlags()
-
-    const flatThreads = flattenThreads(projectGroups.value)
-    pruneThreadScopedState(flatThreads)
-
-    const currentExists = flatThreads.some((thread) => thread.id === selectedThreadId.value)
-    if (!currentExists) {
-      setSelectedThreadId(flatThreads[0]?.id ?? '')
+  async function restoreProject(projectName: string): Promise<void> {
+    if (!projectName) return
+    try {
+      const hiddenThreadIds = projectGroups.value
+        .find((group) => group.projectName === projectName)
+        ?.threads.map((thread) => thread.id) ?? []
+      await Promise.all([
+        setProjectHidden(projectName, false),
+        ...hiddenThreadIds.map((threadId) => setThreadHidden(threadId, false)),
+      ])
+      await loadThreads()
+    } catch (unknownError) {
+      error.value = unknownError instanceof Error ? unknownError.message : 'Failed to restore project'
     }
   }
 
@@ -1506,6 +1518,7 @@ export function useDesktopState() {
     const orderedGroups = orderGroupsByProjectOrder(sourceGroups.value, projectOrder.value)
     sourceGroups.value = mergeThreadGroups(sourceGroups.value, orderedGroups)
     applyThreadFlags()
+    void saveCatalogProjectOrder(nextProjectOrder)
   }
 
   async function syncThreadStatus(): Promise<void> {
@@ -1712,7 +1725,7 @@ export function useDesktopState() {
     selectedLiveOverlay,
     selectedMessageLoadError,
     selectedThreadId,
-    isArchiveView,
+    isHiddenView,
     rateLimitSnapshot,
     availableModelIds,
     selectedModelId,
@@ -1734,11 +1747,11 @@ export function useDesktopState() {
     selectThread,
     loadMessages,
     setThreadScrollState,
-    archiveThreadById,
-    unarchiveThreadById,
+    hideThreadById,
+    restoreThreadById,
     forkThreadById,
     compactThreadById,
-    setArchiveView,
+    setHiddenView,
     renameThreadById,
     sendMessageToSelectedThread,
     sendTextToThreadById,
@@ -1751,7 +1764,8 @@ export function useDesktopState() {
     respondToPendingServerRequest,
     recordRollbackAudit,
     renameProject,
-    removeProject,
+    hideProject,
+    restoreProject,
     reorderProject,
     toggleAutoRefreshTimer,
     startRealtimeSync,

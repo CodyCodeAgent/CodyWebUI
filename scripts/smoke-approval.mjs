@@ -102,6 +102,12 @@ async function postJson(url, body) {
   return payload
 }
 
+async function rpc(baseUrl, method, params) {
+  const payload = await postJson(`${baseUrl}/codex-api/rpc`, { method, params })
+  assert(!payload.error, `${method} returned error: ${JSON.stringify(payload.error)}`)
+  return payload.result
+}
+
 async function findChromeExecutable() {
   const candidates = [
     '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
@@ -297,13 +303,25 @@ let browser = null
 try {
   await waitForOutput(server, /CodyWebUI is running!/u, STARTUP_TIMEOUT_MS)
   const baseUrl = `http://${HOST}:${String(serverPort)}`
+  const started = await rpc(baseUrl, 'thread/start', { cwd: process.cwd() })
+  const threadId = typeof started?.thread?.id === 'string' ? started.thread.id.trim() : ''
+  assert(threadId, `thread/start did not return a thread id: ${JSON.stringify(started)}`)
+
+  browser = await openChromePage(`${baseUrl}/thread/${encodeURIComponent(threadId)}`)
+  await waitForPageValue(
+    browser.page,
+    `Boolean(document.querySelector('[data-testid="thread-work-log-trigger"]'))`,
+    (value) => value === true,
+    BROWSER_TIMEOUT_MS,
+  )
+
   const injected = await postJson(`${baseUrl}/codex-api/smoke/server-requests`, {
     method: 'item/commandExecution/requestApproval',
     params: {
       command: 'bytedcli log trace-tree --log-id smoke-approval --output-file /tmp/cody_web_ui_smoke_trace.json',
       cwd: process.cwd(),
       reason: 'Approval browser smoke test',
-      threadId: 'smoke-thread',
+      threadId: '',
       turnId: 'smoke-turn',
       itemId: 'smoke-command',
     },
@@ -322,26 +340,24 @@ try {
   const requestId = injected?.result?.id
   assert(Number.isInteger(requestId), `smoke injection did not return an integer id: ${JSON.stringify(injected)}`)
 
-  browser = await openChromePage(baseUrl)
   const cardState = await waitForPageValue(
     browser.page,
     `(() => {
-      const center = document.querySelector('[data-testid="workspace-approval-center"]');
-      const badge = document.querySelector('[data-testid="workspace-approval-center-badge"]');
-      const card = document.querySelector('[data-testid="workspace-approval-card"]');
-      const session = Array.from(document.querySelectorAll('[data-testid="workspace-approval-scope"]'))
+      const center = document.querySelector('.thread-action-required-float');
+      const card = document.querySelector('.activity-request-card');
+      const risk = card?.querySelector('.approval-risk-badge');
+      const session = Array.from(document.querySelectorAll('[data-testid="thread-approval-scope"]'))
         .find((button) => button.getAttribute('data-scope') === 'session');
       return center && card ? {
         href: window.location.href,
-        badge: badge?.textContent?.trim() || '',
-        risk: card.getAttribute('data-risk') || '',
+        risk: risk?.getAttribute('data-level') || '',
         hasSessionAction: Boolean(session),
         text: center.textContent.replace(/\\s+/g, ' ').trim().slice(0, 1200),
         scrollWidth: document.documentElement.scrollWidth,
         viewportWidth: window.innerWidth
       } : null;
     })()`,
-    (value) => value?.badge === '1' && value.hasSessionAction === true,
+    (value) => value?.hasSessionAction === true,
     BROWSER_TIMEOUT_MS,
   )
   assert(cardState.risk === 'high', `approval card should render as high risk: ${JSON.stringify(cardState)}`)
@@ -350,7 +366,7 @@ try {
   assert(cardState.scrollWidth <= cardState.viewportWidth + 1, `approval page has horizontal overflow: ${JSON.stringify(cardState)}`)
 
   await browser.page.evaluate(`(() => {
-    const session = Array.from(document.querySelectorAll('[data-testid="workspace-approval-scope"]'))
+    const session = Array.from(document.querySelectorAll('[data-testid="thread-approval-scope"]'))
       .find((button) => button.getAttribute('data-scope') === 'session');
     session.click();
   })()`)
@@ -358,8 +374,7 @@ try {
   await waitForPageValue(
     browser.page,
     `(() => ({
-      badge: document.querySelector('[data-testid="workspace-approval-center-badge"]')?.textContent?.trim() || '',
-      cardCount: document.querySelectorAll('[data-testid="workspace-approval-card"]').length,
+      cardCount: document.querySelectorAll('.thread-action-required-float .activity-request-card').length,
       body: document.body.textContent.replace(/\\s+/g, ' ').trim().slice(0, 800)
     }))()`,
     (value) => value?.cardCount === 0,

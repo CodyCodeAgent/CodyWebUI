@@ -5,7 +5,6 @@ import type {
   ThreadListResponse,
   ThreadReadResponse,
   ThreadSetNameResponse,
-  ThreadUnarchiveResponse,
   TurnStartResponse,
 } from './appServerDtos'
 import { normalizeCodexApiError } from './codexErrors'
@@ -84,16 +83,6 @@ export async function getThreadMessages(threadId: string): Promise<UiMessage[]> 
 
 export async function resumeThread(threadId: string): Promise<void> {
   await callRpc('thread/resume', { threadId })
-}
-
-export async function archiveThread(threadId: string): Promise<void> {
-  await callRpc('thread/archive', { threadId })
-}
-
-export async function unarchiveThread(threadId: string): Promise<void> {
-  const normalizedThreadId = threadId.trim()
-  if (!normalizedThreadId) return
-  await callRpc<ThreadUnarchiveResponse>('thread/unarchive', { threadId: normalizedThreadId })
 }
 
 export async function renameThread(threadId: string, name: string): Promise<void> {

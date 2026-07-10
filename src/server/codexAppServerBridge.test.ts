@@ -217,6 +217,14 @@ describe('bridge server request endpoints', () => {
     const globalScope = globalThis as typeof globalThis & Record<string, unknown>
     globalScope[sharedBridgeKey] = {
       appServer: fakeAppServer,
+      catalogSync: {
+        start: () => {},
+        stop: () => {},
+        syncNow: async () => {},
+        refreshForRead: async () => {},
+        onNotification: () => {},
+        getStatus: () => ({ successCount: 1 }),
+      },
       methodCatalog: {
         listMethods: async () => [],
         listNotificationMethods: async () => [],
@@ -319,6 +327,14 @@ describe('bridge server request endpoints', () => {
     const globalScope = globalThis as typeof globalThis & Record<string, unknown>
     globalScope[sharedBridgeKey] = {
       appServer: fakeAppServer,
+      catalogSync: {
+        start: () => {},
+        stop: () => {},
+        syncNow: async () => {},
+        refreshForRead: async () => {},
+        onNotification: () => {},
+        getStatus: () => ({ successCount: 1 }),
+      },
       methodCatalog: {
         listMethods: async () => [],
         listNotificationMethods: async () => [],

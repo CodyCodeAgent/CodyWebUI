@@ -39,7 +39,8 @@ function runNpmPackDryRun() {
 function assertPackageMetadata(packageJson) {
   assert(packageJson.name === 'cody-web-ui', `unexpected package name: ${packageJson.name}`)
   assert(packageJson.bin?.['cody-web-ui'] === 'dist-cli/index.js', 'missing cody-web-ui CLI bin')
-  assert(!packageJson.bin?.['codex-web-local'], 'legacy codex-web-local CLI bin is still present')
+  const legacyBinName = legacyBrandingTerms[0]
+  assert(!packageJson.bin?.[legacyBinName], `legacy ${legacyBinName} CLI bin is still present`)
   assert(packageJson.files?.includes('dist/'), 'package files must include dist/')
   assert(packageJson.files?.includes('dist-cli/'), 'package files must include dist-cli/')
   assert(packageJson.files?.includes('scripts/'), 'package files must include scripts/')
@@ -54,6 +55,8 @@ function assertPackedFiles(packResult) {
     'dist/index.html',
     'dist-cli/index.js',
     'scripts/smoke-cli.mjs',
+    'scripts/smoke-catalog.mjs',
+    'scripts/smoke-history.mjs',
     'scripts/smoke-package.mjs',
   ]
 
@@ -61,8 +64,9 @@ function assertPackedFiles(packResult) {
     assert(files.has(file), `packed npm tarball is missing ${file}`)
   }
 
+  const legacyPathFragment = legacyBrandingTerms[1]
   for (const file of files) {
-    assert(!file.includes('codex-web'), `packed npm tarball includes legacy path ${file}`)
+    assert(!file.includes(legacyPathFragment), `packed npm tarball includes legacy path ${file}`)
   }
 }
 

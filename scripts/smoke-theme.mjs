@@ -15,6 +15,18 @@ const EXPECTED_THEME = {
   layoutPresetId: 'ide-mode',
   accentColor: '#ff3366',
 }
+const EXPECTED_LAYOUT_VARIABLES = {
+  'chat-focus': { contentMax: '72rem', conversationMax: '46rem', composerMax: '46rem' },
+  'review-focus': { contentMax: '96rem', conversationMax: '86rem', composerMax: '72rem' },
+  'ops-dashboard': { contentMax: '100rem', conversationMax: '62rem', composerMax: '58rem' },
+  'ide-mode': { contentMax: 'none', conversationMax: 'none', composerMax: '80rem' },
+  'mobile-review': { contentMax: '52rem', conversationMax: '46rem', composerMax: '46rem' },
+}
+const EXPECTED_DENSITY_VARIABLES = {
+  compact: { panelGap: '.5rem', panelPadding: '.625rem', messageGap: '.5rem' },
+  comfortable: { panelGap: '.75rem', panelPadding: '.75rem', messageGap: '.75rem' },
+  spacious: { panelGap: '1rem', panelPadding: '1rem', messageGap: '1rem' },
+}
 
 function assert(condition, message) {
   if (!condition) throw new Error(message)
@@ -256,6 +268,167 @@ async function waitForPageValue(page, expression, predicate, timeoutMs) {
   throw new Error(`Timed out waiting for page condition. Last value: ${JSON.stringify(lastValue)} Diagnostics: ${JSON.stringify(page.diagnostics())}`)
 }
 
+async function setThemeSelect(page, testId, value, rootDatasetKey) {
+  await page.evaluate(`(() => {
+    const element = document.querySelector('[data-testid="${testId}"]');
+    element.value = ${JSON.stringify(value)};
+    element.dispatchEvent(new Event('change', { bubbles: true }));
+  })()`)
+  return waitForPageValue(
+    page,
+    `(() => {
+      const layout = document.querySelector('.desktop-layout');
+      const styles = layout ? getComputedStyle(layout) : null;
+      return {
+        selected: document.querySelector('[data-testid="${testId}"]')?.value || '',
+        rootValue: document.documentElement.dataset[${JSON.stringify(rootDatasetKey)}] || '',
+        contentMax: styles?.getPropertyValue('--ui-content-max').trim() || '',
+        conversationMax: styles?.getPropertyValue('--ui-conversation-max').trim() || '',
+        composerMax: styles?.getPropertyValue('--ui-composer-max').trim() || '',
+        panelGap: styles?.getPropertyValue('--ui-panel-gap').trim() || '',
+        panelPadding: styles?.getPropertyValue('--ui-panel-padding').trim() || '',
+        messageGap: styles?.getPropertyValue('--ui-message-gap').trim() || ''
+      };
+    })()`,
+    (state) => state?.selected === value && state.rootValue === value,
+    BROWSER_TIMEOUT_MS,
+  )
+}
+
+async function assertMainThemeHealth(page, baseUrl) {
+  await page.send('Page.navigate', { url: `${baseUrl}/` })
+  const state = await waitForPageValue(
+    page,
+    `(() => {
+      const root = document.documentElement;
+      const layout = document.querySelector('.desktop-layout');
+      const content = document.querySelector('.content-body');
+      const composer = document.querySelector('.thread-composer');
+      const composerShell = document.querySelector('.thread-composer-shell');
+      const newThreadGrid = document.querySelector('.new-thread-grid');
+      const newThreadEmpty = document.querySelector('.new-thread-empty');
+      const sidebar = document.querySelector('.desktop-sidebar');
+      const main = document.querySelector('.desktop-main');
+      function rect(element) {
+        if (!element) return null;
+        const box = element.getBoundingClientRect();
+        return { width: Math.round(box.width), height: Math.round(box.height), visible: box.width > 0 && box.height > 0 };
+      }
+      const layoutStyles = layout ? getComputedStyle(layout) : null;
+      const composerRect = composer?.getBoundingClientRect();
+      const mainRect = main?.getBoundingClientRect();
+      return {
+        ready: Boolean(layout && content && composer && composerShell && newThreadGrid && newThreadEmpty && sidebar && main),
+        rootSkin: root.dataset.themeSkin || '',
+        rootDensity: root.dataset.themeDensity || '',
+        rootLayout: root.dataset.layoutPreset || '',
+        layoutSkin: layout?.dataset.themeSkin || '',
+        layoutDensity: layout?.dataset.themeDensity || '',
+        layoutPreset: layout?.dataset.layoutPreset || '',
+        accent: getComputedStyle(root).getPropertyValue('--color-accent').trim(),
+        contentMaxVariable: layoutStyles?.getPropertyValue('--ui-content-max').trim() || '',
+        composerMaxVariable: layoutStyles?.getPropertyValue('--ui-composer-max').trim() || '',
+        panelGapVariable: layoutStyles?.getPropertyValue('--ui-panel-gap').trim() || '',
+        contentMaxWidth: content ? getComputedStyle(content).maxWidth : '',
+        contentPaddingLeft: content ? getComputedStyle(content).paddingLeft : '',
+        composer: rect(composer),
+        newThreadGrid: rect(newThreadGrid),
+        newThreadEmpty: rect(newThreadEmpty),
+        composerCenterOffset: composerRect && mainRect
+          ? Math.round(Math.abs((composerRect.left + composerRect.width / 2) - (mainRect.left + mainRect.width / 2)))
+          : -1,
+        composerBackground: composerShell ? getComputedStyle(composerShell).backgroundColor : '',
+        sidebarBackground: sidebar ? getComputedStyle(sidebar).backgroundColor : '',
+        mainBackground: main ? getComputedStyle(main).backgroundColor : '',
+        viewportWidth: window.innerWidth,
+        scrollWidth: root.scrollWidth
+      };
+    })()`,
+    (value) => value?.ready === true && value.newThreadGrid?.visible === true && value.composer?.visible === true,
+    BROWSER_TIMEOUT_MS,
+  )
+
+  assert(state.rootSkin === EXPECTED_THEME.skinId && state.layoutSkin === EXPECTED_THEME.skinId, `Main page skin attributes diverged: ${JSON.stringify(state)}`)
+  assert(state.rootDensity === EXPECTED_THEME.density && state.layoutDensity === EXPECTED_THEME.density, `Main page density attributes diverged: ${JSON.stringify(state)}`)
+  assert(state.rootLayout === EXPECTED_THEME.layoutPresetId && state.layoutPreset === EXPECTED_THEME.layoutPresetId, `Main page layout attributes diverged: ${JSON.stringify(state)}`)
+  assert(state.accent.toLowerCase() === EXPECTED_THEME.accentColor, `Main page accent did not persist: ${JSON.stringify(state)}`)
+  assert(state.contentMaxVariable === EXPECTED_LAYOUT_VARIABLES['ide-mode'].contentMax, `IDE layout variable did not apply: ${JSON.stringify(state)}`)
+  assert(state.composerMaxVariable === EXPECTED_LAYOUT_VARIABLES['ide-mode'].composerMax, `IDE composer width did not apply: ${JSON.stringify(state)}`)
+  assert(state.panelGapVariable === EXPECTED_DENSITY_VARIABLES.spacious.panelGap, `Spacious density did not reach the main page: ${JSON.stringify(state)}`)
+  assert(state.contentPaddingLeft === '32px', `Spacious content gutter did not apply: ${JSON.stringify(state)}`)
+  assert(state.composer.width >= 700, `Home composer is unexpectedly narrow: ${JSON.stringify(state)}`)
+  assert(state.newThreadEmpty.visible === true, `Centered new-thread prompt is not visible: ${JSON.stringify(state)}`)
+  assert(state.composerCenterOffset <= 2, `Home composer is not centered in the main surface: ${JSON.stringify(state)}`)
+  assert(state.composerBackground !== 'rgb(255, 255, 255)', `Dark home composer leaked a light-only background: ${JSON.stringify(state)}`)
+  assert(state.sidebarBackground !== state.mainBackground, `Theme surfaces collapsed to one color: ${JSON.stringify(state)}`)
+  assert(state.scrollWidth <= state.viewportWidth + 1, `Main page has horizontal overflow: ${JSON.stringify(state)}`)
+  return state
+}
+
+async function assertLightThemeHealth(page, baseUrl) {
+  await page.send('Page.navigate', { url: `${baseUrl}/settings` })
+  await waitForPageValue(
+    page,
+    `Boolean(document.querySelector('[data-testid="theme-skin-select"]') && document.querySelector('[data-testid="theme-accent-input"]'))`,
+    (value) => value === true,
+    BROWSER_TIMEOUT_MS,
+  )
+  await setThemeSelect(page, 'theme-skin-select', 'light-pro', 'themeSkin')
+  await page.evaluate(`(() => {
+    const accent = document.querySelector('[data-testid="theme-accent-input"]');
+    accent.value = '#1d4ed8';
+    accent.dispatchEvent(new Event('input', { bubbles: true }));
+  })()`)
+
+  const settingsState = await waitForPageValue(
+    page,
+    `(() => {
+      const root = document.documentElement;
+      const styles = getComputedStyle(root);
+      return {
+        skin: root.dataset.themeSkin || '',
+        accent: styles.getPropertyValue('--color-accent').trim(),
+        background: styles.getPropertyValue('--color-background').trim(),
+        panel: styles.getPropertyValue('--color-panel').trim(),
+        text: styles.getPropertyValue('--color-text').trim(),
+        colorScheme: styles.colorScheme || '',
+        overflow: root.scrollWidth > window.innerWidth
+      };
+    })()`,
+    (value) => value?.skin === 'light-pro' && value.accent.toLowerCase() === '#1d4ed8',
+    BROWSER_TIMEOUT_MS,
+  )
+  assert(settingsState.background === '#f8fafc', `Light theme background token is wrong: ${JSON.stringify(settingsState)}`)
+  assert(settingsState.panel === '#ffffff', `Light theme panel token is wrong: ${JSON.stringify(settingsState)}`)
+  assert(settingsState.text === '#0f172a', `Light theme text token is wrong: ${JSON.stringify(settingsState)}`)
+  assert(settingsState.colorScheme.includes('light'), `Light theme color-scheme did not apply: ${JSON.stringify(settingsState)}`)
+  assert(settingsState.overflow === false, `Light Settings page has horizontal overflow: ${JSON.stringify(settingsState)}`)
+
+  await page.send('Page.navigate', { url: `${baseUrl}/` })
+  const mainState = await waitForPageValue(
+    page,
+    `(() => {
+      const root = document.documentElement;
+      const composer = document.querySelector('.thread-composer');
+      const composerShell = document.querySelector('.thread-composer-shell');
+      const hero = document.querySelector('.new-thread-hero');
+      return {
+        ready: Boolean(composer && composerShell && hero),
+        skin: root.dataset.themeSkin || '',
+        composerBackground: composerShell ? getComputedStyle(composerShell).backgroundColor : '',
+        heroColor: hero ? getComputedStyle(hero).color : '',
+        overflow: root.scrollWidth > window.innerWidth
+      };
+    })()`,
+    (value) => value?.ready === true && value.skin === 'light-pro',
+    BROWSER_TIMEOUT_MS,
+  )
+  assert(mainState.composerBackground !== 'rgb(32, 36, 44)', `Light home composer retained the dark panel surface: ${JSON.stringify(mainState)}`)
+  assert(mainState.heroColor === 'rgb(15, 23, 42)', `Light home heading text token did not apply: ${JSON.stringify(mainState)}`)
+  assert(mainState.overflow === false, `Light main page has horizontal overflow: ${JSON.stringify(mainState)}`)
+  return { settingsState, mainState }
+}
+
 function readPngSize(base64Data) {
   const bytes = Buffer.from(base64Data, 'base64')
   if (bytes.length < 24) return { width: 0, height: 0, bytes: bytes.length }
@@ -318,6 +491,7 @@ async function assertThemeVisualHealth(page) {
     const panel = styles.getPropertyValue('--color-panel').trim();
     const text = styles.getPropertyValue('--color-text').trim();
     const accent = styles.getPropertyValue('--color-accent').trim();
+    const flameMessage = document.querySelector('.flame-settings-message');
     return {
       viewportWidth: window.innerWidth,
       scrollWidth: root.scrollWidth,
@@ -328,6 +502,7 @@ async function assertThemeVisualHealth(page) {
       panel,
       text,
       accent,
+      flameMessageBackground: flameMessage ? getComputedStyle(flameMessage).backgroundColor : '',
       textOnBackground: contrast(text, background),
       textOnPanel: contrast(text, panel),
     };
@@ -339,6 +514,7 @@ async function assertThemeVisualHealth(page) {
   assert(visual.flameCard?.visible === true && visual.flameCard.width >= 600, `Token flame card is not visibly laid out: ${JSON.stringify(visual)}`)
   assert(visual.background !== visual.panel, `Theme background and panel colors collapsed together: ${JSON.stringify(visual)}`)
   assert(visual.accent.toLowerCase() === EXPECTED_THEME.accentColor, `Theme accent did not apply visually: ${JSON.stringify(visual)}`)
+  assert(visual.flameMessageBackground !== 'rgb(236, 253, 245)', `Settings success state leaked a light-only background: ${JSON.stringify(visual)}`)
   assert(visual.textOnBackground >= 4.5, `Theme text/background contrast is too low: ${JSON.stringify(visual)}`)
   assert(visual.textOnPanel >= 4.5, `Theme text/panel contrast is too low: ${JSON.stringify(visual)}`)
 
@@ -492,9 +668,66 @@ try {
       value?.persistenceError === '',
     BROWSER_TIMEOUT_MS,
   )
+  await browser.page.evaluate(`document.querySelector('.flame-settings-reset-position')?.click()`)
+  await waitForPageValue(
+    browser.page,
+    `document.querySelector('.flame-settings-message')?.textContent?.trim() || ''`,
+    (value) => value === 'Saved to local settings.',
+    BROWSER_TIMEOUT_MS,
+  )
   const visualHealth = await assertThemeVisualHealth(browser.page)
 
-  console.log(`Theme browser smoke passed: ${restored.skin}, ${restored.density}, ${restored.layout}, ${restored.accent}; screenshot ${visualHealth.screenshot.width}x${visualHealth.screenshot.height}`)
+  for (const [layoutPresetId, expectedVariables] of Object.entries(EXPECTED_LAYOUT_VARIABLES)) {
+    const layoutState = await setThemeSelect(
+      browser.page,
+      'theme-layout-select',
+      layoutPresetId,
+      'layoutPreset',
+    )
+    assert(
+      layoutState.contentMax === expectedVariables.contentMax &&
+      layoutState.conversationMax === expectedVariables.conversationMax &&
+      layoutState.composerMax === expectedVariables.composerMax,
+      `Layout preset ${layoutPresetId} did not change global layout variables: ${JSON.stringify(layoutState)}`,
+    )
+  }
+
+  for (const [density, expectedVariables] of Object.entries(EXPECTED_DENSITY_VARIABLES)) {
+    const densityState = await setThemeSelect(
+      browser.page,
+      'theme-density-select',
+      density,
+      'themeDensity',
+    )
+    assert(
+      densityState.panelGap === expectedVariables.panelGap &&
+      densityState.panelPadding === expectedVariables.panelPadding &&
+      densityState.messageGap === expectedVariables.messageGap,
+      `Density ${density} did not change global spacing variables: ${JSON.stringify(densityState)}`,
+    )
+  }
+
+  await setThemeSelect(
+    browser.page,
+    'theme-layout-select',
+    EXPECTED_THEME.layoutPresetId,
+    'layoutPreset',
+  )
+  await setThemeSelect(
+    browser.page,
+    'theme-density-select',
+    EXPECTED_THEME.density,
+    'themeDensity',
+  )
+  const mainHealth = await assertMainThemeHealth(browser.page, baseUrl)
+  const lightHealth = await assertLightThemeHealth(browser.page, baseUrl)
+
+  console.log(
+    `Theme browser smoke passed: ${restored.skin}, ${restored.density}, ${restored.layout}, ${restored.accent}; ` +
+    `${String(Object.keys(EXPECTED_LAYOUT_VARIABLES).length)} layouts, ${String(Object.keys(EXPECTED_DENSITY_VARIABLES).length)} densities, ` +
+    `dark and ${lightHealth.settingsState.skin} surfaces, settings screenshot ${visualHealth.screenshot.width}x${visualHealth.screenshot.height}, ` +
+    `centered home composer ${String(mainHealth.composer.width)}px.`,
+  )
 } finally {
   if (browser) await browser.close()
   await stopChild(server)

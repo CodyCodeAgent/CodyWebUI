@@ -3,8 +3,8 @@
     <SidebarMenuRow as="header" class="thread-tree-header-row">
       <span class="thread-tree-header">{{ projectHeaderLabel }}</span>
       <template #right>
-        <button class="thread-archive-view-toggle" type="button" @click="$emit('toggle-archive-view', !isArchiveView)">
-          {{ archiveViewToggleLabel }}
+        <button class="thread-hidden-view-toggle" type="button" @click="$emit('toggle-hidden-view', !isHiddenView)">
+          {{ hiddenViewToggleLabel }}
         </button>
       </template>
     </SidebarMenuRow>
@@ -79,12 +79,11 @@
                       <button class="project-menu-item" type="button" @click="openRenameProjectMenu(group.projectName)">
                         Edit name
                       </button>
-                      <button
-                        class="project-menu-item project-menu-item-danger"
-                        type="button"
-                        @click="onRemoveProject(group.projectName)"
-                      >
-                        Remove
+                      <button v-if="isHiddenView" class="project-menu-item" type="button" @click="onRestoreProject(group.projectName)">
+                        Restore project
+                      </button>
+                      <button v-else class="project-menu-item project-menu-item-danger" type="button" @click="onHideProject(group.projectName)">
+                        Hide project
                       </button>
                     </template>
                     <template v-else>
@@ -159,11 +158,11 @@
 
                     <div v-if="isThreadMenuOpen(thread.id)" class="thread-menu-panel" @click.stop>
                       <button class="thread-menu-item" type="button" @click="startThreadRenameFromMenu(thread)">Rename</button>
-                      <button v-if="!isArchiveView" class="thread-menu-item" type="button" @click="onForkClick(thread.id)">Fork</button>
-                      <button v-if="!isArchiveView" class="thread-menu-item" type="button" @click="onCompactClick(thread.id)">Compact</button>
-                      <button v-if="isArchiveView" class="thread-menu-item" type="button" @click="onUnarchiveClick(thread.id)">Restore</button>
-                      <button v-else class="thread-menu-item thread-menu-item-danger" type="button" @click="onArchiveClick(thread.id)">
-                        {{ archiveThreadButtonLabel(thread.id) }}
+                      <button v-if="!isHiddenView" class="thread-menu-item" type="button" @click="onForkClick(thread.id)">Fork</button>
+                      <button v-if="!isHiddenView" class="thread-menu-item" type="button" @click="onCompactClick(thread.id)">Compact</button>
+                      <button v-if="isHiddenView" class="thread-menu-item" type="button" @click="onRestoreClick(thread.id)">Restore</button>
+                      <button v-else class="thread-menu-item thread-menu-item-danger" type="button" @click="onHideClick(thread.id)">
+                        {{ hideThreadButtonLabel(thread.id) }}
                       </button>
                     </div>
                   </div>
@@ -242,11 +241,11 @@
 
                 <div v-if="isThreadMenuOpen(thread.id)" class="thread-menu-panel" @click.stop>
                   <button class="thread-menu-item" type="button" @click="startThreadRenameFromMenu(thread)">Rename</button>
-                  <button v-if="!isArchiveView" class="thread-menu-item" type="button" @click="onForkClick(thread.id)">Fork</button>
-                  <button v-if="!isArchiveView" class="thread-menu-item" type="button" @click="onCompactClick(thread.id)">Compact</button>
-                  <button v-if="isArchiveView" class="thread-menu-item" type="button" @click="onUnarchiveClick(thread.id)">Restore</button>
-                  <button v-else class="thread-menu-item thread-menu-item-danger" type="button" @click="onArchiveClick(thread.id)">
-                    {{ archiveThreadButtonLabel(thread.id) }}
+                  <button v-if="!isHiddenView" class="thread-menu-item" type="button" @click="onForkClick(thread.id)">Fork</button>
+                  <button v-if="!isHiddenView" class="thread-menu-item" type="button" @click="onCompactClick(thread.id)">Compact</button>
+                  <button v-if="isHiddenView" class="thread-menu-item" type="button" @click="onRestoreClick(thread.id)">Restore</button>
+                  <button v-else class="thread-menu-item thread-menu-item-danger" type="button" @click="onHideClick(thread.id)">
+                    {{ hideThreadButtonLabel(thread.id) }}
                   </button>
                 </div>
               </div>
@@ -279,8 +278,8 @@ import {
   isSidebarEventInsideElement,
   isSidebarPointerInProjectDropZone,
   normalizeSidebarSearchQuery,
-  sidebarArchiveThreadButtonLabel,
-  sidebarArchiveViewToggleLabel,
+  sidebarHideThreadButtonLabel,
+  sidebarHiddenViewToggleLabel,
   sidebarElementFromRef,
   sidebarDropTargetIndex,
   sidebarProjectGroupStyle,
@@ -290,7 +289,7 @@ import {
   sidebarProjectPath,
   sidebarProjectedDropProjectIndex,
   sidebarProjectTitleText,
-  sidebarArchiveThreadClickResult,
+  sidebarHideThreadClickResult,
   sidebarHiddenThreadCount,
   sidebarThreadTimeIso,
   sidebarThreadState,
@@ -319,21 +318,22 @@ const props = defineProps<{
   selectedProjectName?: string
   isLoading: boolean
   searchQuery: string
-  isArchiveView: boolean
+  isHiddenView: boolean
 }>()
 
 const emit = defineEmits<{
   select: [threadId: string]
-  archive: [threadId: string]
-  unarchive: [threadId: string]
+  hide: [threadId: string]
+  restore: [threadId: string]
   fork: [threadId: string]
   compact: [threadId: string]
   'select-project': [projectName: string]
-  'toggle-archive-view': [value: boolean]
+  'toggle-hidden-view': [value: boolean]
   'rename-thread': [payload: { threadId: string; title: string }]
   'start-new-thread': [projectName: string]
   'rename-project': [payload: { projectName: string; displayName: string }]
-  'remove-project': [projectName: string]
+  'hide-project': [projectName: string]
+  'restore-project': [projectName: string]
   'reorder-project': [payload: { projectName: string; toIndex: number }]
 }>()
 
@@ -364,7 +364,7 @@ const PROJECT_GROUP_GAP_PX = 6
 const collapsedProjects = ref<Record<string, boolean>>({})
 const expandedProjects = ref<Record<string, boolean>>({})
 const pinnedThreadIds = ref<string[]>([])
-const archiveConfirmThreadId = ref('')
+const hideConfirmThreadId = ref('')
 const renamingThreadId = ref('')
 const threadRenameDraft = ref('')
 const openThreadMenuId = ref('')
@@ -433,9 +433,9 @@ const filteredProjects = computed<UiProjectGroup[]>(() => {
     props.projectDisplayNameById,
   )
 })
-const projectHeaderLabel = computed(() => props.isArchiveView ? 'Archived projects' : 'Projects')
-const conversationHeaderLabel = computed(() => props.isArchiveView ? 'Archived conversations' : 'Conversations')
-const archiveViewToggleLabel = computed(() => sidebarArchiveViewToggleLabel(props.isArchiveView))
+const projectHeaderLabel = computed(() => props.isHiddenView ? 'Hidden projects' : 'Projects')
+const conversationHeaderLabel = computed(() => props.isHiddenView ? 'Hidden conversations' : 'Conversations')
+const hiddenViewToggleLabel = computed(() => sidebarHiddenViewToggleLabel(props.isHiddenView))
 
 const pinnedThreads = computed(() =>
   buildSidebarPinnedThreads(conversationGroups.value, pinnedThreadIds.value, normalizedSearchQuery.value),
@@ -501,31 +501,31 @@ function onSelect(threadId: string): void {
   emit('select', threadId)
 }
 
-function onArchiveClick(threadId: string): void {
-  const result = sidebarArchiveThreadClickResult(
+function onHideClick(threadId: string): void {
+  const result = sidebarHideThreadClickResult(
     {
       openThreadMenuId: openThreadMenuId.value,
-      archiveConfirmThreadId: archiveConfirmThreadId.value,
+      hideConfirmThreadId: hideConfirmThreadId.value,
     },
     pinnedThreadIds.value,
     threadId,
   )
   openThreadMenuId.value = result.menuState.openThreadMenuId
-  archiveConfirmThreadId.value = result.menuState.archiveConfirmThreadId
+  hideConfirmThreadId.value = result.menuState.hideConfirmThreadId
   pinnedThreadIds.value = result.pinnedThreadIds
-  if (result.shouldArchive) emit('archive', threadId)
+  if (result.shouldHide) emit('hide', threadId)
 }
 
-function archiveThreadButtonLabel(threadId: string): string {
-  return sidebarArchiveThreadButtonLabel({
-    archiveConfirmThreadId: archiveConfirmThreadId.value,
+function hideThreadButtonLabel(threadId: string): string {
+  return sidebarHideThreadButtonLabel({
+    hideConfirmThreadId: hideConfirmThreadId.value,
     threadId,
   })
 }
 
-function onUnarchiveClick(threadId: string): void {
+function onRestoreClick(threadId: string): void {
   closeThreadMenu()
-  emit('unarchive', threadId)
+  emit('restore', threadId)
 }
 
 function onForkClick(threadId: string): void {
@@ -545,18 +545,18 @@ function isThreadMenuOpen(threadId: string): boolean {
 function closeThreadMenu(): void {
   const state = closedSidebarThreadMenuState()
   openThreadMenuId.value = state.openThreadMenuId
-  archiveConfirmThreadId.value = state.archiveConfirmThreadId
+  hideConfirmThreadId.value = state.hideConfirmThreadId
 }
 
 function toggleThreadMenu(threadId: string): void {
   const wasOpening = openThreadMenuId.value !== threadId
   const state = toggleSidebarThreadMenuState({
     openThreadMenuId: openThreadMenuId.value,
-    archiveConfirmThreadId: archiveConfirmThreadId.value,
+    hideConfirmThreadId: hideConfirmThreadId.value,
   }, threadId)
   if (wasOpening) closeProjectMenu()
   openThreadMenuId.value = state.openThreadMenuId
-  archiveConfirmThreadId.value = state.archiveConfirmThreadId
+  hideConfirmThreadId.value = state.hideConfirmThreadId
 }
 
 function setThreadMenuWrapRef(threadId: string, element: Element | ComponentPublicInstance | null): void {
@@ -586,7 +586,7 @@ function setThreadRenameInputRef(threadId: string, element: Element | ComponentP
 }
 
 function startThreadRename(thread: UiThread): void {
-  archiveConfirmThreadId.value = ''
+  hideConfirmThreadId.value = ''
   openThreadMenuId.value = ''
   renamingThreadId.value = thread.id
   threadRenameDraft.value = thread.title
@@ -638,8 +638,8 @@ function onProjectSelect(projectName: string): void {
 }
 
 function onThreadRowLeave(threadId: string): void {
-  if (archiveConfirmThreadId.value === threadId) {
-    archiveConfirmThreadId.value = ''
+  if (hideConfirmThreadId.value === threadId) {
+    hideConfirmThreadId.value = ''
   }
 }
 
@@ -739,8 +739,13 @@ function unbindThreadMenuDismissListeners(): void {
   window.removeEventListener('blur', onWindowBlurForThreadMenu)
 }
 
-function onRemoveProject(projectName: string): void {
-  emit('remove-project', projectName)
+function onHideProject(projectName: string): void {
+  emit('hide-project', projectName)
+  closeProjectMenu()
+}
+
+function onRestoreProject(projectName: string): void {
+  emit('restore-project', projectName)
   closeProjectMenu()
 }
 
@@ -1151,7 +1156,7 @@ onBeforeUnmount(() => {
   @apply text-sm font-normal text-zinc-500 select-none;
 }
 
-.thread-archive-view-toggle {
+.thread-hidden-view-toggle {
   @apply rounded px-1.5 py-0.5 text-xs text-zinc-500 transition hover:bg-zinc-200 hover:text-zinc-800;
 }
 
@@ -1292,10 +1297,6 @@ onBeforeUnmount(() => {
   @apply block text-sm font-normal text-zinc-500;
 }
 
-.thread-archive-button {
-  @apply h-4 w-4 rounded p-0 text-xs text-zinc-600 flex items-center justify-center;
-}
-
 .thread-action-button {
   @apply h-4 w-4 rounded p-0 text-xs text-zinc-600 flex items-center justify-center hover:text-zinc-900;
 }
@@ -1318,10 +1319,6 @@ onBeforeUnmount(() => {
 
 .thread-menu-item-danger {
   @apply text-rose-700 hover:bg-rose-50;
-}
-
-.thread-archive-button[data-confirm='true'] {
-  @apply h-5 w-auto px-1.5;
 }
 
 .thread-icon {

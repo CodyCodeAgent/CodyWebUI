@@ -167,6 +167,17 @@ const MESSAGES = {
     'settings.language.saved': 'Language preference saved.',
     'settings.language.saveFailed': 'Could not save language preference; this browser session will keep the current value.',
 
+    'settings.catalog.title': 'Catalog sync',
+    'settings.catalog.subtitle': 'Projects and conversations',
+    'settings.catalog.status.running': 'Syncing',
+    'settings.catalog.status.ready': 'Ready',
+    'settings.catalog.status.error': 'Needs attention',
+    'settings.catalog.lastSuccess': 'Last success',
+    'settings.catalog.nextRun': 'Next run',
+    'settings.catalog.never': 'Not yet',
+    'settings.catalog.syncNow': 'Sync now',
+    'settings.catalog.failed': 'Catalog sync failed.',
+
     'settings.appearance.title': 'Appearance',
     'settings.appearance.subtitle': 'Theme, density, accent, and imported skins.',
 
@@ -381,6 +392,17 @@ const MESSAGES = {
     'settings.language.saved': '语言偏好已保存。',
     'settings.language.saveFailed': '语言偏好保存失败；当前浏览器会话会保留这个值。',
 
+    'settings.catalog.title': '目录同步',
+    'settings.catalog.subtitle': '项目与对话',
+    'settings.catalog.status.running': '同步中',
+    'settings.catalog.status.ready': '正常',
+    'settings.catalog.status.error': '需要处理',
+    'settings.catalog.lastSuccess': '上次成功',
+    'settings.catalog.nextRun': '下次运行',
+    'settings.catalog.never': '尚未运行',
+    'settings.catalog.syncNow': '立即同步',
+    'settings.catalog.failed': '目录同步失败。',
+
     'settings.appearance.title': '外观',
     'settings.appearance.subtitle': '主题、密度、强调色和导入的皮肤。',
 
@@ -528,7 +550,7 @@ watch(locale, (nextLocale) => {
   void saveRemoteLocale(nextLocale)
 })
 
-if (hasWindow()) {
+if (hasWindow() && import.meta.env.MODE !== 'test') {
   void hydrateLocaleFromSettingsStore()
 }
 

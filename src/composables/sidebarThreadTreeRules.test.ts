@@ -33,10 +33,10 @@ import {
   sidebarProjectThreads,
   sidebarProjectTitleText,
   sidebarThreadTimeIso,
-  sidebarArchiveThreadClickResult,
-  sidebarArchiveThreadButtonLabel,
-  sidebarArchiveViewHeaderLabel,
-  sidebarArchiveViewToggleLabel,
+  sidebarHideThreadClickResult,
+  sidebarHideThreadButtonLabel,
+  sidebarHiddenViewHeaderLabel,
+  sidebarHiddenViewToggleLabel,
   sidebarThreadState,
   sidebarThreadRenameResult,
   threadMatchesSidebarSearch,
@@ -314,55 +314,55 @@ describe('sidebar thread tree rules', () => {
 
     expect(closedSidebarThreadMenuState()).toEqual({
       openThreadMenuId: '',
-      archiveConfirmThreadId: '',
+      hideConfirmThreadId: '',
     })
     expect(toggleSidebarThreadMenuState({
       openThreadMenuId: '',
-      archiveConfirmThreadId: 'old',
+      hideConfirmThreadId: 'old',
     }, 'thread-1')).toEqual({
       openThreadMenuId: 'thread-1',
-      archiveConfirmThreadId: '',
+      hideConfirmThreadId: '',
     })
     expect(toggleSidebarThreadMenuState({
       openThreadMenuId: 'thread-1',
-      archiveConfirmThreadId: 'thread-1',
+      hideConfirmThreadId: 'thread-1',
     }, 'thread-1')).toEqual(closedSidebarThreadMenuState())
   })
 
-  it('handles archive confirmation and thread rename drafts', () => {
-    expect(sidebarArchiveViewHeaderLabel(false)).toBe('Threads')
-    expect(sidebarArchiveViewHeaderLabel(true)).toBe('Archived')
-    expect(sidebarArchiveViewToggleLabel(false)).toBe('Archived')
-    expect(sidebarArchiveViewToggleLabel(true)).toBe('Active')
-    expect(sidebarArchiveThreadButtonLabel({
-      archiveConfirmThreadId: '',
+  it('handles hide confirmation and thread rename drafts', () => {
+    expect(sidebarHiddenViewHeaderLabel(false)).toBe('Threads')
+    expect(sidebarHiddenViewHeaderLabel(true)).toBe('Hidden')
+    expect(sidebarHiddenViewToggleLabel(false)).toBe('Hidden')
+    expect(sidebarHiddenViewToggleLabel(true)).toBe('Active')
+    expect(sidebarHideThreadButtonLabel({
+      hideConfirmThreadId: '',
       threadId: 'thread-1',
-    })).toBe('Archive')
-    expect(sidebarArchiveThreadButtonLabel({
-      archiveConfirmThreadId: 'thread-1',
+    })).toBe('Hide')
+    expect(sidebarHideThreadButtonLabel({
+      hideConfirmThreadId: 'thread-1',
       threadId: 'thread-1',
-    })).toBe('Confirm archive')
+    })).toBe('Confirm hide')
 
-    const firstArchiveClick = sidebarArchiveThreadClickResult(
-      { openThreadMenuId: 'thread-1', archiveConfirmThreadId: '' },
+    const firstHideClick = sidebarHideThreadClickResult(
+      { openThreadMenuId: 'thread-1', hideConfirmThreadId: '' },
       ['thread-1'],
       'thread-1',
     )
-    expect(firstArchiveClick).toEqual({
-      menuState: { openThreadMenuId: 'thread-1', archiveConfirmThreadId: 'thread-1' },
+    expect(firstHideClick).toEqual({
+      menuState: { openThreadMenuId: 'thread-1', hideConfirmThreadId: 'thread-1' },
       pinnedThreadIds: ['thread-1'],
-      shouldArchive: false,
+      shouldHide: false,
     })
 
-    const secondArchiveClick = sidebarArchiveThreadClickResult(
-      firstArchiveClick.menuState,
-      firstArchiveClick.pinnedThreadIds,
+    const secondHideClick = sidebarHideThreadClickResult(
+      firstHideClick.menuState,
+      firstHideClick.pinnedThreadIds,
       'thread-1',
     )
-    expect(secondArchiveClick).toEqual({
+    expect(secondHideClick).toEqual({
       menuState: closedSidebarThreadMenuState(),
       pinnedThreadIds: [],
-      shouldArchive: true,
+      shouldHide: true,
     })
 
     const row = thread({ id: 'thread-1', title: 'Old title' })

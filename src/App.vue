@@ -85,12 +85,12 @@
           v-if="!isEffectiveSidebarCollapsed"
           :selected-thread-id="selectedThreadId" :is-loading="isLoadingThreads"
           :selected-project-name="selectedSidebarProjectName"
-          :search-query="sidebarSearchQuery" :is-archive-view="isArchiveView"
+          :search-query="sidebarSearchQuery" :is-hidden-view="isHiddenView"
           @select="onSelectThread"
-          @archive="onArchiveThread" @unarchive="onUnarchiveThread" @fork="onForkThread"
-          @compact="onCompactThread" @toggle-archive-view="onToggleArchiveView"
+          @hide="onHideThread" @restore="onRestoreThread" @fork="onForkThread"
+          @compact="onCompactThread" @toggle-hidden-view="onToggleHiddenView"
           @rename-thread="onRenameThread" @select-project="onSelectProject" @start-new-thread="onStartNewThread" @rename-project="onRenameProject"
-          @remove-project="onRemoveProject" @reorder-project="onReorderProject" />
+          @hide-project="onHideProject" @restore-project="onRestoreProject" @reorder-project="onReorderProject" />
       </section>
     </template>
 
@@ -144,9 +144,9 @@
           </template>
           <template #actions>
             <ThreadActivityPanel
-              v-if="shouldShowWorkLogAction"
+              v-if="shouldShowWorkLogAction || allPendingServerRequests.length > 0"
               :messages="filteredMessages"
-              :pending-requests="selectedThreadServerRequests"
+              :pending-requests="allPendingServerRequests"
               :cwd="selectedThread?.cwd ?? ''"
               :thread-id="selectedThreadId"
               @respond-server-request="onRespondServerRequest"
@@ -324,10 +324,11 @@ const {
   selectedThread,
   selectedThreadScrollState,
   selectedThreadServerRequests,
+  allPendingServerRequests,
   selectedLiveOverlay,
   selectedMessageLoadError,
   selectedThreadId,
-  isArchiveView,
+  isHiddenView,
   rateLimitSnapshot,
   availableModelIds,
   selectedModelId,
@@ -349,11 +350,11 @@ const {
   selectThread,
   loadMessages,
   setThreadScrollState,
-  archiveThreadById,
-  unarchiveThreadById,
+  hideThreadById,
+  restoreThreadById,
   forkThreadById,
   compactThreadById,
-  setArchiveView,
+  setHiddenView,
   renameThreadById,
   sendMessageToSelectedThread,
   sendMessageToNewThread,
@@ -363,7 +364,8 @@ const {
   setSelectedCollaborationModeName,
   respondToPendingServerRequest,
   renameProject,
-  removeProject,
+  hideProject,
+  restoreProject,
   reorderProject,
   toggleAutoRefreshTimer,
   startRealtimeSync,
@@ -553,12 +555,12 @@ function onRetryLoadMessages(): void {
   void loadMessages(threadId)
 }
 
-function onArchiveThread(threadId: string): void {
-  void archiveThreadById(threadId)
+function onHideThread(threadId: string): void {
+  void hideThreadById(threadId)
 }
 
-function onUnarchiveThread(threadId: string): void {
-  void unarchiveThreadById(threadId)
+function onRestoreThread(threadId: string): void {
+  void restoreThreadById(threadId)
 }
 
 function onForkThread(threadId: string): void {
@@ -573,8 +575,8 @@ function onCompactThread(threadId: string): void {
   void compactThreadById(threadId)
 }
 
-function onToggleArchiveView(nextValue: boolean): void {
-  void setArchiveView(nextValue).then(() => {
+function onToggleHiddenView(nextValue: boolean): void {
+  void setHiddenView(nextValue).then(() => {
     if (selectedThreadId.value) {
       void router.replace({ name: 'thread', params: { threadId: selectedThreadId.value } })
       return
@@ -612,8 +614,12 @@ function onRenameProject(payload: { projectName: string; displayName: string }):
   renameProject(payload.projectName, payload.displayName)
 }
 
-function onRemoveProject(projectName: string): void {
-  removeProject(projectName)
+function onHideProject(projectName: string): void {
+  void hideProject(projectName)
+}
+
+function onRestoreProject(projectName: string): void {
+  void restoreProject(projectName)
 }
 
 function onReorderProject(payload: { projectName: string; toIndex: number }): void {
@@ -965,10 +971,12 @@ async function submitFirstMessageForNewThread(payload: UiComposerSubmitPayload):
 
 .new-thread-hero {
   @apply m-0 text-[2.5rem] font-normal leading-[1.05] text-zinc-900;
+  color: var(--color-text);
 }
 
 .new-thread-folder-dropdown {
   @apply text-[2.5rem] text-zinc-500;
+  color: var(--color-text-muted);
 }
 
 .new-thread-folder-dropdown :deep(.composer-dropdown-trigger) {

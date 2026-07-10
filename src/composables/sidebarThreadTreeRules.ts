@@ -4,13 +4,13 @@ export type SidebarThreadState = 'working' | 'unread' | 'idle'
 
 export type SidebarThreadMenuState = {
   openThreadMenuId: string
-  archiveConfirmThreadId: string
+  hideConfirmThreadId: string
 }
 
-export type SidebarThreadArchiveClickResult = {
+export type SidebarThreadHideClickResult = {
   menuState: SidebarThreadMenuState
   pinnedThreadIds: string[]
-  shouldArchive: boolean
+  shouldHide: boolean
 }
 
 export type SidebarThreadRenameResult = {
@@ -295,7 +295,7 @@ export function toggleSidebarPinnedThreadIds(pinnedThreadIds: string[], threadId
 export function closedSidebarThreadMenuState(): SidebarThreadMenuState {
   return {
     openThreadMenuId: '',
-    archiveConfirmThreadId: '',
+    hideConfirmThreadId: '',
   }
 }
 
@@ -306,23 +306,23 @@ export function toggleSidebarThreadMenuState(
   if (!threadId || state.openThreadMenuId === threadId) return closedSidebarThreadMenuState()
   return {
     openThreadMenuId: threadId,
-    archiveConfirmThreadId: '',
+    hideConfirmThreadId: '',
   }
 }
 
-export function sidebarArchiveViewHeaderLabel(isArchiveView: boolean): string {
-  return isArchiveView ? 'Archived' : 'Threads'
+export function sidebarHiddenViewHeaderLabel(isHiddenView: boolean): string {
+  return isHiddenView ? 'Hidden' : 'Threads'
 }
 
-export function sidebarArchiveViewToggleLabel(isArchiveView: boolean): string {
-  return isArchiveView ? 'Active' : 'Archived'
+export function sidebarHiddenViewToggleLabel(isHiddenView: boolean): string {
+  return isHiddenView ? 'Active' : 'Hidden'
 }
 
-export function sidebarArchiveThreadButtonLabel(params: {
-  archiveConfirmThreadId: string
+export function sidebarHideThreadButtonLabel(params: {
+  hideConfirmThreadId: string
   threadId: string
 }): string {
-  return params.archiveConfirmThreadId === params.threadId ? 'Confirm archive' : 'Archive'
+  return params.hideConfirmThreadId === params.threadId ? 'Confirm hide' : 'Hide'
 }
 
 export function sidebarProjectExpansionButtonLabel(isExpanded: boolean, hiddenCount = 0): string {
@@ -330,26 +330,26 @@ export function sidebarProjectExpansionButtonLabel(isExpanded: boolean, hiddenCo
   return hiddenCount > 0 ? `Show ${String(hiddenCount)} more` : 'Show more'
 }
 
-export function sidebarArchiveThreadClickResult(
+export function sidebarHideThreadClickResult(
   state: SidebarThreadMenuState,
   pinnedThreadIds: string[],
   threadId: string,
-): SidebarThreadArchiveClickResult {
-  if (state.archiveConfirmThreadId !== threadId) {
+): SidebarThreadHideClickResult {
+  if (state.hideConfirmThreadId !== threadId) {
     return {
       menuState: {
         ...state,
-        archiveConfirmThreadId: threadId,
+        hideConfirmThreadId: threadId,
       },
       pinnedThreadIds,
-      shouldArchive: false,
+      shouldHide: false,
     }
   }
 
   return {
     menuState: closedSidebarThreadMenuState(),
     pinnedThreadIds: pinnedThreadIds.filter((id) => id !== threadId),
-    shouldArchive: true,
+    shouldHide: true,
   }
 }
 
