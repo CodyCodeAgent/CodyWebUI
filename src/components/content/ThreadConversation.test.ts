@@ -18,6 +18,11 @@ function mountConversation(input: {
   messages?: UiMessage[]
   liveOverlay?: UiLiveOverlay | null
   isLoading?: boolean
+  scrollState?: {
+    scrollTop: number
+    isAtBottom: boolean
+    scrollRatio?: number
+  } | null
 } = {}) {
   return mount(ThreadConversation, {
     props: {
@@ -27,8 +32,14 @@ function mountConversation(input: {
       isLoading: input.isLoading ?? false,
       loadError: '',
       activeThreadId: 'thread-1',
-      scrollState: null,
+      scrollState: input.scrollState ?? null,
     },
+  })
+}
+
+function waitForAnimationFrame(): Promise<void> {
+  return new Promise((resolve) => {
+    requestAnimationFrame(() => resolve())
   })
 }
 
@@ -80,6 +91,40 @@ describe('ThreadConversation', () => {
     expect(renderedMessages[0].attributes('data-message-id')).toBe('message-42')
     expect(renderedMessages.at(-1)?.attributes('data-message-id')).toBe('message-121')
     expect(wrapper.get('[data-testid="conversation-history-button"]').text()).toContain('41 hidden')
+  })
+
+  it('preserves the current viewport when new output arrives while reading history', async () => {
+    const messages = Array.from({ length: 20 }, (_, index) => message(index + 1))
+    const wrapper = mountConversation({
+      messages,
+      scrollState: { scrollTop: 320, scrollRatio: 0.4, isAtBottom: false },
+    })
+    const list = wrapper.get('[data-testid="conversation-list"]').element as HTMLElement
+
+    Object.defineProperty(list, 'scrollHeight', {
+      configurable: true,
+      value: 1200,
+    })
+    Object.defineProperty(list, 'clientHeight', {
+      configurable: true,
+      value: 400,
+    })
+    list.scrollTop = 320
+
+    await wrapper.setProps({
+      messages: [
+        ...messages,
+        message(21, { text: 'Streaming below the viewport' }),
+      ],
+    })
+    Object.defineProperty(list, 'scrollHeight', {
+      configurable: true,
+      value: 1400,
+    })
+    await nextTick()
+    await waitForAnimationFrame()
+
+    expect(list.scrollTop).toBe(320)
   })
 
   it('auto-loads earlier messages when scrolling near the top of a long thread', async () => {

@@ -28,12 +28,14 @@ import {
   nextVisibleMessageCount,
   normalizedConversationBottomLockFrames,
   normalizedVisibleMessageCount,
+  preservedConversationScrollTop,
   readToolQuestionAnswer,
   readToolQuestionOtherAnswer,
   readToolQuestions,
   restoredConversationScrollTop,
   shouldShowBlockingConversationLoadError,
   shouldLockConversationToBottom,
+  shouldPreserveConversationViewport,
   shouldRestoreConversationToBottom,
   shouldShowBlockingConversationLoading,
   shouldShowConversationRefreshStatus,
@@ -380,6 +382,15 @@ describe('thread conversation rules', () => {
       scrollTop: 500,
       isAtBottom: false,
     }, 200)).toBe(200)
+    expect(preservedConversationScrollTop({
+      scrollTop: 80,
+      scrollRatio: 0.4,
+      isAtBottom: false,
+    }, 400)).toBe(80)
+    expect(preservedConversationScrollTop({
+      scrollTop: 500,
+      isAtBottom: false,
+    }, 200)).toBe(200)
 
     expect(buildConversationScrollState({
       scrollTop: 80,
@@ -397,6 +408,9 @@ describe('thread conversation rules', () => {
     expect(shouldRestoreConversationToBottom(null)).toBe(true)
     expect(shouldRestoreConversationToBottom({ scrollTop: 0, scrollRatio: 0, isAtBottom: true })).toBe(true)
     expect(shouldRestoreConversationToBottom({ scrollTop: 0, scrollRatio: 0, isAtBottom: false })).toBe(false)
+    expect(shouldPreserveConversationViewport({ scrollTop: 0, scrollRatio: 0, isAtBottom: false })).toBe(true)
+    expect(shouldPreserveConversationViewport({ scrollTop: 0, scrollRatio: 0, isAtBottom: true })).toBe(false)
+    expect(shouldPreserveConversationViewport(null)).toBe(false)
     expect(shouldLockConversationToBottom(null)).toBe(true)
     expect(shouldLockConversationToBottom({ scrollTop: 0, scrollRatio: 0, isAtBottom: true })).toBe(true)
     expect(shouldLockConversationToBottom({ scrollTop: 0, scrollRatio: 0, isAtBottom: false })).toBe(false)

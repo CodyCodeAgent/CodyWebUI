@@ -354,12 +354,14 @@ import {
   nextVisibleMessageCount,
   normalizedVisibleMessageCount,
   normalizedConversationBottomLockFrames,
+  preservedConversationScrollTop,
   readToolQuestionAnswer,
   readToolQuestionOtherAnswer,
   readToolQuestions,
   restoredConversationScrollTop,
   shouldShowBlockingConversationLoadError,
   shouldLockConversationToBottom,
+  shouldPreserveConversationViewport,
   shouldRestoreConversationToBottom,
   shouldShowBlockingConversationLoading,
   shouldShowInlineConversationLoadError,
@@ -729,7 +731,9 @@ function applySavedScrollState(): void {
     clientHeight: container.clientHeight,
     bottomThresholdPx: BOTTOM_THRESHOLD_PX,
   })
-  container.scrollTop = restoredConversationScrollTop(savedState, metrics.maxScrollTop)
+  container.scrollTop = shouldPreserveConversationViewport(savedState)
+    ? preservedConversationScrollTop(savedState, metrics.maxScrollTop)
+    : restoredConversationScrollTop(savedState, metrics.maxScrollTop)
   emitScrollState(container)
 }
 
@@ -819,7 +823,9 @@ watch(
       isLiveOverlayExpanded.value = false
     }
     await nextTick()
-    enforceBottomState()
+    if (!shouldPreserveConversationViewport(props.scrollState)) {
+      enforceBottomState()
+    }
     scheduleBottomLock(8)
   },
   { deep: true },

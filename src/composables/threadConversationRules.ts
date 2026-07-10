@@ -292,6 +292,13 @@ export function restoredConversationScrollTop(
   return Math.min(Math.max(targetScrollTop, 0), maxScrollTop)
 }
 
+export function preservedConversationScrollTop(
+  savedState: ThreadScrollState,
+  maxScrollTop: number,
+): number {
+  return Math.min(Math.max(savedState.scrollTop, 0), maxScrollTop)
+}
+
 export function buildConversationScrollState(params: {
   scrollTop: number
   scrollHeight: number
@@ -308,6 +315,10 @@ export function buildConversationScrollState(params: {
 
 export function shouldRestoreConversationToBottom(scrollState: ThreadScrollState | null): boolean {
   return !scrollState || scrollState.isAtBottom === true
+}
+
+export function shouldPreserveConversationViewport(scrollState: ThreadScrollState | null): scrollState is ThreadScrollState {
+  return scrollState?.isAtBottom === false
 }
 
 export function normalizedConversationBottomLockFrames(frames: number): number {

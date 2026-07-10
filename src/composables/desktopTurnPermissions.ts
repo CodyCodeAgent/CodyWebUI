@@ -13,7 +13,7 @@ export type TurnPermissionOverride = {
 export const DEFAULT_COMPOSER_PERMISSION_MODE: UiComposerPermissionMode = 'current'
 
 export const COMPOSER_PERMISSION_MODE_OPTIONS: ComposerPermissionModeOption[] = [
-  { value: 'current', label: 'Current' },
+  { value: 'current', label: 'Normal' },
   { value: 'yolo', label: 'YOLO' },
 ]
 

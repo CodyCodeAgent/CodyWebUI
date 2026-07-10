@@ -165,7 +165,7 @@
           class="thread-composer-control thread-composer-permission-control"
           :model-value="selectedPermissionMode"
           :options="permissionModeOptions"
-          placeholder="Current"
+          placeholder="Normal"
           open-direction="up"
           :disabled="disabled || !activeThreadId || isTurnInProgress"
           @update:model-value="onPermissionModeSelect"
