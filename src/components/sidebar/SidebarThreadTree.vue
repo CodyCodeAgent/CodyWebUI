@@ -283,6 +283,7 @@ import {
   sidebarElementFromRef,
   sidebarDropTargetIndex,
   sidebarProjectGroupStyle,
+  sidebarProjectHasOpenMenu,
   sidebarProjectDisplayName,
   sidebarProjectOuterHeight,
   sidebarProjectExpansionButtonLabel,
@@ -1073,7 +1074,14 @@ function isDraggingProject(projectName: string): boolean {
 function projectGroupStyle(projectName: string): Record<string, string> | undefined {
   const drag = activeProjectDrag.value
   const targetTop = layoutTopByProject.value[projectName] ?? 0
-  const isMenuOpen = isProjectMenuOpen(projectName)
+  const group = filteredProjects.value.find((candidate) => candidate.projectName === projectName)
+  const isMenuOpen = group
+    ? sidebarProjectHasOpenMenu({
+        group,
+        openProjectMenuId: openProjectMenuId.value,
+        openThreadMenuId: openThreadMenuId.value,
+      })
+    : false
 
   return sidebarProjectGroupStyle({
     projectName,

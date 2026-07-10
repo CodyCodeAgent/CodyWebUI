@@ -535,3 +535,14 @@ export function sidebarProjectGroupStyle(params: {
     transition: 'transform 0ms linear',
   }
 }
+
+export function sidebarProjectHasOpenMenu(params: {
+  group: Pick<UiProjectGroup, 'projectName' | 'threads'>
+  openProjectMenuId: string
+  openThreadMenuId: string
+}): boolean {
+  const { group, openProjectMenuId, openThreadMenuId } = params
+  if (openProjectMenuId === group.projectName) return true
+  if (!openThreadMenuId) return false
+  return group.threads.some((thread) => thread.id === openThreadMenuId)
+}

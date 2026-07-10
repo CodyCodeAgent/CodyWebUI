@@ -25,6 +25,7 @@ import {
   sidebarBasenameFromPath,
   sidebarHiddenThreadCount,
   sidebarProjectGroupStyle,
+  sidebarProjectHasOpenMenu,
   sidebarProjectDisplayName,
   sidebarProjectExpansionButtonLabel,
   sidebarProjectOuterHeight,
@@ -532,5 +533,28 @@ describe('sidebar thread tree rules', () => {
       height: '80px',
       transform: 'translate3d(0, 99px, 0)',
     })
+  })
+
+  it('raises a project layer for either its project menu or a child thread menu', () => {
+    const project = group({
+      projectName: '/repo/app',
+      threads: [thread({ id: 'thread-in-project' })],
+    })
+
+    expect(sidebarProjectHasOpenMenu({
+      group: project,
+      openProjectMenuId: '/repo/app',
+      openThreadMenuId: '',
+    })).toBe(true)
+    expect(sidebarProjectHasOpenMenu({
+      group: project,
+      openProjectMenuId: '',
+      openThreadMenuId: 'thread-in-project',
+    })).toBe(true)
+    expect(sidebarProjectHasOpenMenu({
+      group: project,
+      openProjectMenuId: '',
+      openThreadMenuId: 'thread-in-another-project',
+    })).toBe(false)
   })
 })

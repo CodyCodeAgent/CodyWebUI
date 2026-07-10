@@ -235,8 +235,7 @@
 .app-dark .project-menu-trigger,
 .app-dark .thread-menu-trigger,
 .app-dark .thread-pin-button,
-.app-dark .thread-action-button,
-.app-dark .thread-archive-button {
+.app-dark .thread-action-button {
   color: var(--color-text-muted);
 }
 
@@ -1139,7 +1138,6 @@
 .app-dark .project-menu-trigger,
 .app-dark .thread-menu-trigger,
 .app-dark .thread-action-button,
-.app-dark .thread-archive-button,
 .app-dark .thread-pin-button {
   color: var(--color-text-muted);
 }
