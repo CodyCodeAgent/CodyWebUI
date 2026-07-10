@@ -1,7 +1,8 @@
 // @vitest-environment happy-dom
 import { mount, type VueWrapper } from '@vue/test-utils'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import ThreadActivityPanel from './ThreadActivityPanel.vue'
+import { useLocale } from '../../composables/useLocale'
 import type { UiMessage, UiServerRequest, UiServerRequestReply, UiToolingRollbackFileResult } from '../../types/codex'
 
 const patchOutput = [
@@ -95,6 +96,10 @@ function mountPanel(
     },
   })
 }
+
+beforeEach(() => {
+  useLocale().setLocale('en')
+})
 
 afterEach(() => {
   document.body.innerHTML = ''

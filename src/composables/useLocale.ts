@@ -1,0 +1,549 @@
+import { computed, ref, watch } from 'vue'
+import { fetchUserSetting, writeUserSetting } from '../api/codexSettingsClient'
+import { DESKTOP_SETTING_KEYS, DESKTOP_STORAGE_KEYS } from './desktopSettingsKeys'
+
+export type AppLocale = 'en' | 'zh-CN'
+
+export const DEFAULT_APP_LOCALE: AppLocale = 'en'
+
+export const APP_LOCALE_OPTIONS: Array<{
+  value: AppLocale
+  label: string
+  nativeLabel: string
+}> = [
+  { value: 'en', label: 'English', nativeLabel: 'English' },
+  { value: 'zh-CN', label: 'Chinese', nativeLabel: '简体中文' },
+]
+
+const MESSAGES = {
+  en: {
+    'app.title.settings': 'Settings',
+    'app.title.newThread': 'New thread',
+    'app.title.chooseThread': 'Choose a thread',
+    'nav.settings': 'Settings',
+
+    'workLog.title': 'Work log',
+    'workLog.open': 'Open work log',
+    'workLog.close': 'Close work log',
+    'workLog.panelAria': 'Thread work log',
+    'workLog.summaryAria': 'Work log summary',
+    'workLog.floatSummary': '{files} files · {commands} commands',
+    'workLog.status.waiting': '{count} waiting',
+    'workLog.status.changed': '{files} changed {fileLabel} · {commands} {commandLabel}',
+    'workLog.status.empty': 'No changes or commands recorded yet',
+    'workLog.metric.files': 'files',
+    'workLog.metric.commands': 'commands',
+    'workLog.metric.added': 'added',
+    'workLog.metric.removed': 'removed',
+    'workLog.fileSingular': 'file',
+    'workLog.filePlural': 'files',
+    'workLog.commandSingular': 'command',
+    'workLog.commandPlural': 'commands',
+    'workLog.changedFiles': 'Changed files',
+    'workLog.searchFiles': 'Search files',
+    'workLog.searchPlaceholder': 'Path or filename',
+    'workLog.noFileChanges': 'No file changes recorded yet.',
+    'workLog.noFileMatches': 'No changed files match this filter.',
+    'workLog.fromPath': 'from {path}',
+    'workLog.fileDiffAria': 'File diff',
+    'workLog.diffViewMode': 'Diff view mode',
+    'workLog.unified': 'Unified',
+    'workLog.split': 'Split',
+    'workLog.hiddenLines': '{count} more lines hidden in this preview.',
+    'workLog.openFullscreen': 'Open fullscreen',
+    'workLog.openDiffFullscreen': 'Open diff fullscreen',
+    'workLog.commands': 'Commands',
+    'workLog.noCommands': 'No commands recorded yet.',
+    'workLog.exitCode': 'exit {code}',
+    'workLog.cwd': 'cwd',
+    'workLog.duration': 'duration',
+    'workLog.noCommandOutput': 'No output captured for this command.',
+    'workLog.actionRequired': 'Action required',
+    'workLog.approvalWaiting': '{count} {approvalLabel} waiting',
+    'workLog.approvalSingular': 'approval',
+    'workLog.approvalPlural': 'approvals',
+    'workLog.approvalScopes': 'Approval scopes',
+    'workLog.approvalScope.single': 'Once',
+    'workLog.approvalScope.session': 'Session',
+    'workLog.approvalScope.workspace': 'Workspace',
+    'workLog.approvalScope.permanent': 'Permanent',
+    'workLog.approvalScope.singleDescription': 'Reply only to this pending request.',
+    'workLog.approvalScope.sessionDescription': 'Allow matching actions for the current Codex session when the app-server supports it.',
+    'workLog.approvalScope.workspaceDescription': 'Persist an exact-match approval grant for this workspace.',
+    'workLog.approvalScope.permanentDescription': 'Persist an exact-match approval grant across workspaces on this machine.',
+    'workLog.risk.low': 'low',
+    'workLog.risk.medium': 'medium',
+    'workLog.risk.high': 'high',
+    'workLog.request.commandApproval': 'Command approval',
+    'workLog.request.fileChangeApproval': 'File change approval',
+    'workLog.request.toolApproval': 'Tool approval',
+    'workLog.request.manualApproval': 'Manual approval',
+    'workLog.decline': 'Decline',
+    'workLog.emptyResult': 'Empty result',
+    'workLog.reject': 'Reject',
+    'workLog.fullscreenDiff': 'Fullscreen diff',
+    'workLog.closeFullscreenDiff': 'Close fullscreen diff',
+    'workLog.closeShort': 'Close',
+    'workLog.fullscreenFileDiff': 'Fullscreen file diff',
+    'workLog.noDiffContent': 'No diff content captured for this file.',
+    'workLog.commandStatus.completed': 'Completed',
+    'workLog.commandStatus.running': 'Running',
+    'workLog.commandStatus.pending': 'Pending',
+    'workLog.commandStatus.failed': 'Failed',
+    'workLog.commandStatus.cancelled': 'Cancelled',
+    'workLog.fileStatus.modified': 'modified',
+    'workLog.fileStatus.added': 'added',
+    'workLog.fileStatus.deleted': 'deleted',
+    'workLog.fileStatus.renamed': 'renamed',
+    'workLog.fileStatus.copied': 'copied',
+    'workLog.fileStatus.completed': 'completed',
+    'workLog.rejectedFromActivityPanel': 'Rejected from the CodyWebUI activity panel.',
+
+    'approvalRisk.title.commandApproval': 'Command approval',
+    'approvalRisk.title.fileChangeApproval': 'File change approval',
+    'approvalRisk.title.toolApproval': 'Tool approval',
+    'approvalRisk.title.manualApproval': 'Manual approval',
+    'approvalRisk.label.unknownCommand': 'Unknown command',
+    'approvalRisk.label.deletesFiles': 'Deletes files',
+    'approvalRisk.label.changesPermissions': 'Changes permissions',
+    'approvalRisk.label.networkAccess': 'Network access',
+    'approvalRisk.label.changesDependencies': 'Changes dependencies',
+    'approvalRisk.label.mayDiscardWork': 'May discard work',
+    'approvalRisk.label.sensitiveCredentials': 'Sensitive credentials',
+    'approvalRisk.label.modifiesLockfile': 'Modifies lockfile',
+    'approvalRisk.label.highRiskCodePath': 'High-risk code path',
+    'approvalRisk.label.commandExecution': 'Command execution',
+    'approvalRisk.label.sessionPolicyChange': 'Session policy change',
+    'approvalRisk.label.outsideWorkspace': 'Outside workspace',
+    'approvalRisk.label.allowedByPolicy': 'Allowed by policy',
+    'approvalRisk.label.noCommandPolicy': 'No command policy',
+    'approvalRisk.label.policyUnavailable': 'Policy unavailable',
+    'approvalRisk.label.deniedByPolicy': 'Denied by policy',
+    'approvalRisk.label.fileWriteAccess': 'File write access',
+    'approvalRisk.label.sessionWriteScope': 'Session write scope',
+    'approvalRisk.label.allowedByFilePolicy': 'Allowed by file policy',
+    'approvalRisk.label.deniedByFilePolicy': 'Denied by file policy',
+    'approvalRisk.label.sensitivePath': 'Sensitive path',
+    'approvalRisk.label.ignoredPath': 'Ignored path',
+    'approvalRisk.label.readOnlyWorkspace': 'Read-only workspace',
+    'approvalRisk.label.externalTool': 'External tool',
+    'approvalRisk.label.manualDecision': 'Manual decision',
+    'approvalRisk.impact.commandMissing': 'The command text is missing, so the action cannot be inspected before approval.',
+    'approvalRisk.impact.deletesFiles': 'The command may permanently delete files or directories.',
+    'approvalRisk.impact.changesPermissions': 'The command may alter system permissions or run with elevated privileges.',
+    'approvalRisk.impact.networkAccess': 'The command may contact external services or transmit repository data.',
+    'approvalRisk.impact.changesDependencies': 'The command may modify dependencies, lockfiles, or installed packages.',
+    'approvalRisk.impact.mayDiscardWork': 'The command can remove or overwrite local changes.',
+    'approvalRisk.impact.sensitiveCredentials': 'The command references authentication, secrets, credentials, or keys.',
+    'approvalRisk.impact.modifiesLockfile': 'Lockfile changes can alter installed dependency versions.',
+    'approvalRisk.impact.highRiskCodePath': 'The command references authentication, payment, billing, or permission-related paths.',
+    'approvalRisk.impact.commandExecution': 'The command will run on this machine in the selected workspace.',
+    'approvalRisk.impact.sessionPolicyChange': 'Accepting for session may allow similar commands without asking again.',
+    'approvalRisk.impact.outsideWorkspacePaths': 'The command references path(s) outside cwd: {paths}',
+    'approvalRisk.impact.noCommandPolicy': 'No .cody-web-ui.yml command allowlist or denylist is configured for this command.',
+    'approvalRisk.impact.cwd': 'cwd: {cwd}',
+    'approvalRisk.impact.fileWriteAccess': 'Codex may write files after this approval.',
+    'approvalRisk.impact.writeRoot': 'write root: {path}',
+    'approvalRisk.impact.outsideWorkspaceWriteRoot': 'The requested write root appears to be outside the current workspace.',
+    'approvalRisk.impact.externalTool': 'This may call an external or connected tool with access to task context.',
+    'approvalRisk.impact.manualDecision': 'This action may affect the running task or connected tools.',
+    'approvalRisk.description.commandApproval': 'Codex wants permission to run a local command.',
+    'approvalRisk.description.fileChangeApproval': 'Codex wants permission to modify files.',
+    'approvalRisk.description.genericDecision': 'Codex is waiting for a user decision.',
+    'approvalRisk.recommendation.highCommand': 'Review the command carefully. Prefer declining unless the exact effect is expected.',
+    'approvalRisk.recommendation.normalCommand': 'Approve only if the command matches the task and workspace you expect.',
+    'approvalRisk.recommendation.highFile': 'Approve only if writing outside the workspace is intentional.',
+    'approvalRisk.recommendation.normalFile': 'Review the requested write scope before approving for the session.',
+    'approvalRisk.recommendation.externalTool': 'Approve only if the destination tool and data being shared are expected.',
+    'approvalRisk.recommendation.manualDecision': 'Review the request details before returning a result.',
+    'approvalRisk.subject.workspaceFileChanges': 'Workspace file changes',
+
+    'settings.aria': 'Application settings',
+    'settings.language.title': 'Language',
+    'settings.language.subtitle': 'Choose the display language for settings and supported UI surfaces.',
+    'settings.language.current': 'Current language',
+    'settings.language.english': 'English',
+    'settings.language.chinese': 'Simplified Chinese',
+    'settings.language.saved': 'Language preference saved.',
+    'settings.language.saveFailed': 'Could not save language preference; this browser session will keep the current value.',
+
+    'settings.appearance.title': 'Appearance',
+    'settings.appearance.subtitle': 'Theme, density, accent, and imported skins.',
+
+    'settings.tokenFlame.title': 'Token Flame',
+    'settings.tokenFlame.subtitle': 'A tiny usage charm that grows from spark to blaze as daily token volume rises.',
+    'settings.tokenFlame.enabled': 'Enabled',
+    'settings.tokenFlame.disabled': 'Disabled',
+    'settings.tokenFlame.firepowerTitle': 'Daily token firepower',
+    'settings.tokenFlame.firepowerBody': "The widget will map today's token volume onto a logarithmic fire level, so small days still move and heavy days can roar.",
+    'settings.tokenFlame.defaultPosition': 'Default position',
+    'settings.tokenFlame.bottomRight': 'Bottom right',
+    'settings.tokenFlame.bottomLeft': 'Bottom left',
+    'settings.tokenFlame.topRight': 'Top right',
+    'settings.tokenFlame.topLeft': 'Top left',
+    'settings.tokenFlame.calmAnimation': 'Calm animation',
+    'settings.tokenFlame.resetPosition': 'Reset position',
+    'settings.tokenFlame.saved': 'Saved to local settings.',
+    'settings.tokenFlame.saveFailed': 'Could not save settings; this browser session will keep the current value.',
+    'settings.tokenFlame.levelsAria': 'Token flame levels',
+    'settings.tokenFlame.level.spark': 'Spark',
+    'settings.tokenFlame.level.campfire': 'Campfire',
+    'settings.tokenFlame.level.steady': 'Steady burn',
+    'settings.tokenFlame.level.bonfire': 'Bonfire',
+    'settings.tokenFlame.level.blaze': 'Blaze',
+    'settings.tokenFlame.level.inferno': 'Inferno',
+    'settings.tokenFlame.range.less20k': '< 20k tokens',
+    'settings.tokenFlame.range.20k80k': '20k - 80k',
+    'settings.tokenFlame.range.80k200k': '80k - 200k',
+    'settings.tokenFlame.range.200k500k': '200k - 500k',
+    'settings.tokenFlame.range.500k1m': '500k - 1M',
+    'settings.tokenFlame.range.1mPlus': '1M+ tokens',
+
+    'theme.aria': 'Theme settings',
+    'theme.title': 'Theme',
+    'theme.reset': 'Reset',
+    'theme.workspaceBindingActive': 'Workspace binding active',
+    'theme.personalDefaults': 'personal defaults',
+    'theme.workspaceDefaults': 'workspace defaults',
+    'theme.skin': 'Skin',
+    'theme.layout': 'Layout',
+    'theme.density': 'Density',
+    'theme.density.compact': 'Compact',
+    'theme.density.comfortable': 'Comfortable',
+    'theme.density.spacious': 'Spacious',
+    'theme.accent': 'Accent',
+    'theme.followSystem': 'Follow system',
+    'theme.skinJson': 'Skin JSON',
+    'theme.export': 'Export',
+    'theme.import': 'Import',
+    'theme.exported': 'Exported active skin JSON.',
+    'theme.imported': 'Imported {name}.',
+    'theme.importFailed': 'Failed to import skin JSON.',
+    'theme.summary.skin': 'skin {value}',
+    'theme.summary.layout': 'layout {value}',
+    'theme.summary.density': 'density {value}',
+    'theme.summary.accent': 'accent {value}',
+    'theme.summary.system': 'system {value}',
+    'theme.summary.on': 'on',
+    'theme.summary.off': 'off',
+    'theme.detail.workspaceOverride': 'Workspace theme overrides personal preferences.',
+    'theme.detail.activeSkin': 'Active skin now: {name}.',
+    'theme.detail.accentOverride': 'Accent override: {value}.',
+  },
+  'zh-CN': {
+    'app.title.settings': '设置',
+    'app.title.newThread': '新线程',
+    'app.title.chooseThread': '选择一个线程',
+    'nav.settings': '设置',
+
+    'workLog.title': '工作日志',
+    'workLog.open': '打开工作日志',
+    'workLog.close': '关闭工作日志',
+    'workLog.panelAria': '线程工作日志',
+    'workLog.summaryAria': '工作日志摘要',
+    'workLog.floatSummary': '{files} 个文件 · {commands} 条命令',
+    'workLog.status.waiting': '{count} 个请求等待处理',
+    'workLog.status.changed': '{files} 个变更文件 · {commands} 条命令',
+    'workLog.status.empty': '暂未记录文件变更或命令',
+    'workLog.metric.files': '文件',
+    'workLog.metric.commands': '命令',
+    'workLog.metric.added': '新增',
+    'workLog.metric.removed': '删除',
+    'workLog.fileSingular': '个文件',
+    'workLog.filePlural': '个文件',
+    'workLog.commandSingular': '条命令',
+    'workLog.commandPlural': '条命令',
+    'workLog.changedFiles': '变更文件',
+    'workLog.searchFiles': '搜索文件',
+    'workLog.searchPlaceholder': '路径或文件名',
+    'workLog.noFileChanges': '暂未记录文件变更。',
+    'workLog.noFileMatches': '没有匹配此筛选条件的变更文件。',
+    'workLog.fromPath': '来自 {path}',
+    'workLog.fileDiffAria': '文件 diff',
+    'workLog.diffViewMode': 'Diff 查看模式',
+    'workLog.unified': '统一视图',
+    'workLog.split': '分栏视图',
+    'workLog.hiddenLines': '此预览中还有 {count} 行已隐藏。',
+    'workLog.openFullscreen': '全屏打开',
+    'workLog.openDiffFullscreen': '全屏打开 diff',
+    'workLog.commands': '命令',
+    'workLog.noCommands': '暂未记录命令。',
+    'workLog.exitCode': '退出码 {code}',
+    'workLog.cwd': '工作目录',
+    'workLog.duration': '耗时',
+    'workLog.noCommandOutput': '此命令没有捕获到输出。',
+    'workLog.actionRequired': '需要处理',
+    'workLog.approvalWaiting': '{count} 个审批等待处理',
+    'workLog.approvalSingular': 'approval',
+    'workLog.approvalPlural': 'approvals',
+    'workLog.approvalScopes': '审批范围',
+    'workLog.approvalScope.single': '单次',
+    'workLog.approvalScope.session': '本会话',
+    'workLog.approvalScope.workspace': '工作区',
+    'workLog.approvalScope.permanent': '永久',
+    'workLog.approvalScope.singleDescription': '仅回复当前这一个待处理请求。',
+    'workLog.approvalScope.sessionDescription': '当 app-server 支持时，在当前 Codex 会话中允许匹配的操作。',
+    'workLog.approvalScope.workspaceDescription': '为此工作区保存精确匹配的审批授权。',
+    'workLog.approvalScope.permanentDescription': '在此机器上跨工作区保存精确匹配的审批授权。',
+    'workLog.risk.low': '低',
+    'workLog.risk.medium': '中',
+    'workLog.risk.high': '高',
+    'workLog.request.commandApproval': '命令审批',
+    'workLog.request.fileChangeApproval': '文件变更审批',
+    'workLog.request.toolApproval': '工具审批',
+    'workLog.request.manualApproval': '手动审批',
+    'workLog.decline': '拒绝',
+    'workLog.emptyResult': '空结果',
+    'workLog.reject': '驳回',
+    'workLog.fullscreenDiff': '全屏 diff',
+    'workLog.closeFullscreenDiff': '关闭全屏 diff',
+    'workLog.closeShort': '关闭',
+    'workLog.fullscreenFileDiff': '全屏文件 diff',
+    'workLog.noDiffContent': '没有捕获到此文件的 diff 内容。',
+    'workLog.commandStatus.completed': '已完成',
+    'workLog.commandStatus.running': '运行中',
+    'workLog.commandStatus.pending': '等待中',
+    'workLog.commandStatus.failed': '失败',
+    'workLog.commandStatus.cancelled': '已取消',
+    'workLog.fileStatus.modified': '已修改',
+    'workLog.fileStatus.added': '已新增',
+    'workLog.fileStatus.deleted': '已删除',
+    'workLog.fileStatus.renamed': '已重命名',
+    'workLog.fileStatus.copied': '已复制',
+    'workLog.fileStatus.completed': '已完成',
+    'workLog.rejectedFromActivityPanel': '已从 CodyWebUI 活动面板驳回。',
+
+    'approvalRisk.title.commandApproval': '命令审批',
+    'approvalRisk.title.fileChangeApproval': '文件变更审批',
+    'approvalRisk.title.toolApproval': '工具审批',
+    'approvalRisk.title.manualApproval': '手动审批',
+    'approvalRisk.label.unknownCommand': '未知命令',
+    'approvalRisk.label.deletesFiles': '删除文件',
+    'approvalRisk.label.changesPermissions': '修改权限',
+    'approvalRisk.label.networkAccess': '网络访问',
+    'approvalRisk.label.changesDependencies': '修改依赖',
+    'approvalRisk.label.mayDiscardWork': '可能丢弃改动',
+    'approvalRisk.label.sensitiveCredentials': '敏感凭据',
+    'approvalRisk.label.modifiesLockfile': '修改锁文件',
+    'approvalRisk.label.highRiskCodePath': '高风险代码路径',
+    'approvalRisk.label.commandExecution': '命令执行',
+    'approvalRisk.label.sessionPolicyChange': '会话策略变更',
+    'approvalRisk.label.outsideWorkspace': '工作区外路径',
+    'approvalRisk.label.allowedByPolicy': '策略已允许',
+    'approvalRisk.label.noCommandPolicy': '未配置命令策略',
+    'approvalRisk.label.policyUnavailable': '策略不可用',
+    'approvalRisk.label.deniedByPolicy': '策略已拒绝',
+    'approvalRisk.label.fileWriteAccess': '文件写入权限',
+    'approvalRisk.label.sessionWriteScope': '会话写入范围',
+    'approvalRisk.label.allowedByFilePolicy': '文件策略已允许',
+    'approvalRisk.label.deniedByFilePolicy': '文件策略已拒绝',
+    'approvalRisk.label.sensitivePath': '敏感路径',
+    'approvalRisk.label.ignoredPath': '忽略路径',
+    'approvalRisk.label.readOnlyWorkspace': '只读工作区',
+    'approvalRisk.label.externalTool': '外部工具',
+    'approvalRisk.label.manualDecision': '手动决策',
+    'approvalRisk.impact.commandMissing': '命令内容缺失，无法在审批前检查此操作。',
+    'approvalRisk.impact.deletesFiles': '该命令可能永久删除文件或目录。',
+    'approvalRisk.impact.changesPermissions': '该命令可能修改系统权限，或以提升权限运行。',
+    'approvalRisk.impact.networkAccess': '该命令可能访问外部服务，或传输仓库数据。',
+    'approvalRisk.impact.changesDependencies': '该命令可能修改依赖、锁文件或已安装包。',
+    'approvalRisk.impact.mayDiscardWork': '该命令可能移除或覆盖本地改动。',
+    'approvalRisk.impact.sensitiveCredentials': '该命令涉及认证、密钥、凭据或访问令牌。',
+    'approvalRisk.impact.modifiesLockfile': '锁文件变更可能改变安装的依赖版本。',
+    'approvalRisk.impact.highRiskCodePath': '该命令涉及认证、支付、计费或权限相关路径。',
+    'approvalRisk.impact.commandExecution': '该命令会在此机器的当前工作区中运行。',
+    'approvalRisk.impact.sessionPolicyChange': '按会话批准后，类似命令后续可能不再询问。',
+    'approvalRisk.impact.outsideWorkspacePaths': '该命令引用了 cwd 外的路径：{paths}',
+    'approvalRisk.impact.noCommandPolicy': '此命令未配置 .cody-web-ui.yml 允许列表或拒绝列表。',
+    'approvalRisk.impact.cwd': '工作目录：{cwd}',
+    'approvalRisk.impact.fileWriteAccess': '批准后 Codex 可能写入文件。',
+    'approvalRisk.impact.writeRoot': '写入根目录：{path}',
+    'approvalRisk.impact.outsideWorkspaceWriteRoot': '请求的写入根目录似乎位于当前工作区之外。',
+    'approvalRisk.impact.externalTool': '这可能会调用外部或已连接工具，并携带任务上下文。',
+    'approvalRisk.impact.manualDecision': '此操作可能影响当前运行任务或已连接工具。',
+    'approvalRisk.description.commandApproval': 'Codex 请求运行本地命令的权限。',
+    'approvalRisk.description.fileChangeApproval': 'Codex 请求修改文件的权限。',
+    'approvalRisk.description.genericDecision': 'Codex 正在等待用户决策。',
+    'approvalRisk.recommendation.highCommand': '请仔细检查命令。除非确切影响符合预期，否则建议拒绝。',
+    'approvalRisk.recommendation.normalCommand': '仅在命令符合当前任务和预期工作区时批准。',
+    'approvalRisk.recommendation.highFile': '仅在确实需要写入工作区外路径时批准。',
+    'approvalRisk.recommendation.normalFile': '按会话批准前请检查请求的写入范围。',
+    'approvalRisk.recommendation.externalTool': '仅在目标工具和共享数据都符合预期时批准。',
+    'approvalRisk.recommendation.manualDecision': '返回结果前请检查请求详情。',
+    'approvalRisk.subject.workspaceFileChanges': '工作区文件变更',
+
+    'settings.aria': '应用设置',
+    'settings.language.title': '语言',
+    'settings.language.subtitle': '选择设置页和已接入界面的显示语言。',
+    'settings.language.current': '当前语言',
+    'settings.language.english': '英文',
+    'settings.language.chinese': '简体中文',
+    'settings.language.saved': '语言偏好已保存。',
+    'settings.language.saveFailed': '语言偏好保存失败；当前浏览器会话会保留这个值。',
+
+    'settings.appearance.title': '外观',
+    'settings.appearance.subtitle': '主题、密度、强调色和导入的皮肤。',
+
+    'settings.tokenFlame.title': 'Token 火焰',
+    'settings.tokenFlame.subtitle': '一个会随每日 token 用量从火花增长到烈焰的小组件。',
+    'settings.tokenFlame.enabled': '已启用',
+    'settings.tokenFlame.disabled': '已停用',
+    'settings.tokenFlame.firepowerTitle': '每日 token 火力',
+    'settings.tokenFlame.firepowerBody': '小组件会把今天的 token 用量映射到对数火焰等级，轻量使用也有变化，高用量时会更醒目。',
+    'settings.tokenFlame.defaultPosition': '默认位置',
+    'settings.tokenFlame.bottomRight': '右下',
+    'settings.tokenFlame.bottomLeft': '左下',
+    'settings.tokenFlame.topRight': '右上',
+    'settings.tokenFlame.topLeft': '左上',
+    'settings.tokenFlame.calmAnimation': '降低动画强度',
+    'settings.tokenFlame.resetPosition': '重置位置',
+    'settings.tokenFlame.saved': '已保存到本地设置。',
+    'settings.tokenFlame.saveFailed': '设置保存失败；当前浏览器会话会保留这个值。',
+    'settings.tokenFlame.levelsAria': 'Token 火焰等级',
+    'settings.tokenFlame.level.spark': '火花',
+    'settings.tokenFlame.level.campfire': '营火',
+    'settings.tokenFlame.level.steady': '稳定燃烧',
+    'settings.tokenFlame.level.bonfire': '篝火',
+    'settings.tokenFlame.level.blaze': '烈焰',
+    'settings.tokenFlame.level.inferno': '炽焰',
+    'settings.tokenFlame.range.less20k': '< 2 万 token',
+    'settings.tokenFlame.range.20k80k': '2 万 - 8 万',
+    'settings.tokenFlame.range.80k200k': '8 万 - 20 万',
+    'settings.tokenFlame.range.200k500k': '20 万 - 50 万',
+    'settings.tokenFlame.range.500k1m': '50 万 - 100 万',
+    'settings.tokenFlame.range.1mPlus': '100 万+ token',
+
+    'theme.aria': '主题设置',
+    'theme.title': '主题',
+    'theme.reset': '重置',
+    'theme.workspaceBindingActive': '工作区绑定已生效',
+    'theme.personalDefaults': '个人默认值',
+    'theme.workspaceDefaults': '工作区默认值',
+    'theme.skin': '皮肤',
+    'theme.layout': '布局',
+    'theme.density': '密度',
+    'theme.density.compact': '紧凑',
+    'theme.density.comfortable': '舒适',
+    'theme.density.spacious': '宽松',
+    'theme.accent': '强调色',
+    'theme.followSystem': '跟随系统',
+    'theme.skinJson': '皮肤 JSON',
+    'theme.export': '导出',
+    'theme.import': '导入',
+    'theme.exported': '已导出当前皮肤 JSON。',
+    'theme.imported': '已导入 {name}。',
+    'theme.importFailed': '导入皮肤 JSON 失败。',
+    'theme.summary.skin': '皮肤 {value}',
+    'theme.summary.layout': '布局 {value}',
+    'theme.summary.density': '密度 {value}',
+    'theme.summary.accent': '强调色 {value}',
+    'theme.summary.system': '跟随系统 {value}',
+    'theme.summary.on': '开',
+    'theme.summary.off': '关',
+    'theme.detail.workspaceOverride': '工作区主题会覆盖个人偏好。',
+    'theme.detail.activeSkin': '当前生效皮肤：{name}。',
+    'theme.detail.accentOverride': '强调色覆盖：{value}。',
+  },
+} as const
+
+export type LocaleMessageKey = keyof typeof MESSAGES.en
+
+function hasWindow(): boolean {
+  return typeof window !== 'undefined'
+}
+
+export function normalizeAppLocale(value: unknown): AppLocale {
+  return value === 'zh-CN' || value === 'en' ? value : DEFAULT_APP_LOCALE
+}
+
+function loadLocale(): AppLocale {
+  if (!hasWindow()) return DEFAULT_APP_LOCALE
+  try {
+    return normalizeAppLocale(window.localStorage.getItem(DESKTOP_STORAGE_KEYS.locale))
+  } catch {
+    return DEFAULT_APP_LOCALE
+  }
+}
+
+function saveLocale(nextLocale: AppLocale): void {
+  if (!hasWindow()) return
+  window.localStorage.setItem(DESKTOP_STORAGE_KEYS.locale, nextLocale)
+}
+
+async function readRemoteLocale(): Promise<AppLocale | null> {
+  if (!hasWindow()) return null
+  try {
+    const setting = await fetchUserSetting<unknown>(DESKTOP_SETTING_KEYS.locale)
+    return setting ? normalizeAppLocale(setting.value) : null
+  } catch {
+    return null
+  }
+}
+
+async function saveRemoteLocale(nextLocale: AppLocale): Promise<void> {
+  if (!hasWindow()) return
+  try {
+    await writeUserSetting(DESKTOP_SETTING_KEYS.locale, nextLocale)
+  } catch {
+    // Keep the browser-local language if remote settings persistence fails.
+  }
+}
+
+const locale = ref<AppLocale>(loadLocale())
+let hasHydratedLocale = false
+
+export function translateLocaleMessage(
+  currentLocale: AppLocale,
+  key: LocaleMessageKey,
+  replacements: Record<string, string> = {},
+): string {
+  const template = MESSAGES[currentLocale][key] ?? MESSAGES[DEFAULT_APP_LOCALE][key] ?? key
+  let text: string = template
+  for (const [name, value] of Object.entries(replacements)) {
+    text = text.split(`{${name}}`).join(value)
+  }
+  return text
+}
+
+function setLocale(nextLocale: unknown): void {
+  locale.value = normalizeAppLocale(nextLocale)
+}
+
+async function hydrateLocaleFromSettingsStore(): Promise<void> {
+  if (hasHydratedLocale) return
+  hasHydratedLocale = true
+
+  const remoteLocale = await readRemoteLocale()
+  if (remoteLocale) {
+    locale.value = remoteLocale
+    saveLocale(remoteLocale)
+    return
+  }
+
+  void saveRemoteLocale(locale.value)
+}
+
+watch(locale, (nextLocale) => {
+  saveLocale(nextLocale)
+  void saveRemoteLocale(nextLocale)
+})
+
+if (hasWindow()) {
+  void hydrateLocaleFromSettingsStore()
+}
+
+export function useLocale() {
+  const currentLocaleLabel = computed(() =>
+    APP_LOCALE_OPTIONS.find((option) => option.value === locale.value)?.nativeLabel ?? 'English',
+  )
+
+  return {
+    locale,
+    localeOptions: APP_LOCALE_OPTIONS,
+    currentLocaleLabel,
+    setLocale,
+    hydrateLocaleFromSettingsStore,
+    t: (key: LocaleMessageKey, replacements?: Record<string, string>) =>
+      translateLocaleMessage(locale.value, key, replacements),
+  }
+}

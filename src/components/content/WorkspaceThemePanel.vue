@@ -1,8 +1,8 @@
 <template>
-  <section class="workspace-theme-panel" aria-label="Theme settings">
+  <section class="workspace-theme-panel" :aria-label="t('theme.aria')">
     <header class="workspace-theme-panel-header">
       <div>
-        <h3 class="workspace-theme-panel-title">Theme</h3>
+        <h3 class="workspace-theme-panel-title">{{ t('theme.title') }}</h3>
         <p class="workspace-theme-panel-subtitle" data-testid="theme-summary">{{ themeSummary }}</p>
         <p
           v-if="themeDetail"
@@ -12,7 +12,7 @@
           {{ themeDetail }}
         </p>
       </div>
-      <button class="workspace-theme-panel-reset" type="button" @click="resetTheme">Reset</button>
+      <button class="workspace-theme-panel-reset" type="button" @click="resetTheme">{{ t('theme.reset') }}</button>
     </header>
 
     <p
@@ -20,7 +20,7 @@
       class="workspace-theme-panel-workspace-binding"
       data-testid="theme-workspace-binding"
     >
-      Workspace binding active · {{ workspaceThemeSummary }}
+      {{ t('theme.workspaceBindingActive') }} · {{ workspaceThemeSummary }}
     </p>
     <p
       v-if="themePersistenceError"
@@ -33,7 +33,7 @@
 
     <div class="workspace-theme-panel-grid">
       <label>
-        <span>Skin</span>
+        <span>{{ t('theme.skin') }}</span>
         <select
           data-testid="theme-skin-select"
           :value="effectivePreferences.skinId"
@@ -45,7 +45,7 @@
       </label>
 
       <label>
-        <span>Layout</span>
+        <span>{{ t('theme.layout') }}</span>
         <select
           data-testid="theme-layout-select"
           :value="effectivePreferences.layoutPresetId"
@@ -57,21 +57,21 @@
       </label>
 
       <label>
-        <span>Density</span>
+        <span>{{ t('theme.density') }}</span>
         <select
           data-testid="theme-density-select"
           :value="effectivePreferences.density"
           :disabled="hasWorkspaceThemeBinding"
           @change="onDensitySelect"
         >
-          <option value="compact">Compact</option>
-          <option value="comfortable">Comfortable</option>
-          <option value="spacious">Spacious</option>
+          <option value="compact">{{ t('theme.density.compact') }}</option>
+          <option value="comfortable">{{ t('theme.density.comfortable') }}</option>
+          <option value="spacious">{{ t('theme.density.spacious') }}</option>
         </select>
       </label>
 
       <label>
-        <span>Accent</span>
+        <span>{{ t('theme.accent') }}</span>
         <input
           data-testid="theme-accent-input"
           :value="accentDraft"
@@ -90,14 +90,14 @@
         :disabled="hasWorkspaceThemeBinding"
         @change="onFollowSystemChange"
       />
-      <span>Follow system</span>
+      <span>{{ t('theme.followSystem') }}</span>
     </label>
 
     <details class="workspace-theme-panel-advanced">
-      <summary>Skin JSON</summary>
+      <summary>{{ t('theme.skinJson') }}</summary>
       <div class="workspace-theme-panel-json-actions">
-        <button type="button" @click="exportSkin">Export</button>
-        <button type="button" @click="importSkinDraft">Import</button>
+        <button type="button" @click="exportSkin">{{ t('theme.export') }}</button>
+        <button type="button" @click="importSkinDraft">{{ t('theme.import') }}</button>
       </div>
       <textarea v-model="skinJsonDraft" spellcheck="false" />
       <p v-if="skinJsonMessage" class="workspace-theme-panel-message" :data-tone="skinJsonMessageTone">
@@ -113,6 +113,7 @@ import { LAYOUT_PRESETS } from '../../theme/themeRegistry'
 import { useTheme } from '../../theme/useTheme'
 import type { LayoutPresetId, ThemeDensity } from '../../theme/tokens'
 import type { UiWorkspaceConfig } from '../../types/codex'
+import { useLocale } from '../../composables/useLocale'
 
 const props = defineProps<{
   workspaceTheme?: UiWorkspaceConfig['theme'] | null
@@ -136,6 +137,7 @@ const {
   exportActiveSkin,
   importSkin,
 } = useTheme()
+const { t } = useLocale()
 
 const layoutPresets = LAYOUT_PRESETS
 const skinJsonDraft = ref('')
@@ -147,26 +149,30 @@ const selectedSkinName = computed(() =>
   availableSkins.value.find((skin) => skin.id === effectivePreferences.value.skinId)?.name ?? activeSkin.value.name,
 )
 const themeSummary = computed(() => {
-  const mode = effectivePreferences.value.followSystem ? 'Following system' : selectedSkinName.value
+  const mode = effectivePreferences.value.followSystem ? t('theme.followSystem') : selectedSkinName.value
   return `${mode} · ${activeLayoutPreset.value.name}`
 })
 const themeDetail = computed(() => {
-  if (hasWorkspaceThemeBinding.value) return 'Workspace theme overrides personal preferences.'
-  if (effectivePreferences.value.followSystem) return `Active skin now: ${activeSkin.value.name}.`
-  if (effectivePreferences.value.accentColor) return `Accent override: ${effectivePreferences.value.accentColor}.`
+  if (hasWorkspaceThemeBinding.value) return t('theme.detail.workspaceOverride')
+  if (effectivePreferences.value.followSystem) return t('theme.detail.activeSkin', { name: activeSkin.value.name })
+  if (effectivePreferences.value.accentColor) {
+    return t('theme.detail.accentOverride', { value: effectivePreferences.value.accentColor })
+  }
   return ''
 })
 const workspaceThemeSummary = computed(() => {
   const theme = workspacePreferences.value
-  if (!theme) return 'personal defaults'
+  if (!theme) return t('theme.personalDefaults')
   const parts = [
-    theme.skinId ? `skin ${theme.skinId}` : '',
-    theme.layoutPresetId ? `layout ${theme.layoutPresetId}` : '',
-    theme.density ? `density ${theme.density}` : '',
-    theme.accentColor ? `accent ${theme.accentColor}` : '',
-    theme.followSystem !== null ? `system ${theme.followSystem ? 'on' : 'off'}` : '',
+    theme.skinId ? t('theme.summary.skin', { value: theme.skinId }) : '',
+    theme.layoutPresetId ? t('theme.summary.layout', { value: theme.layoutPresetId }) : '',
+    theme.density ? t('theme.summary.density', { value: theme.density }) : '',
+    theme.accentColor ? t('theme.summary.accent', { value: theme.accentColor }) : '',
+    theme.followSystem !== null
+      ? t('theme.summary.system', { value: theme.followSystem ? t('theme.summary.on') : t('theme.summary.off') })
+      : '',
   ].filter(Boolean)
-  return parts.join(' · ') || 'workspace defaults'
+  return parts.join(' · ') || t('theme.workspaceDefaults')
 })
 
 function onSkinSelect(event: Event): void {
@@ -191,17 +197,17 @@ function onFollowSystemChange(event: Event): void {
 
 function exportSkin(): void {
   skinJsonDraft.value = exportActiveSkin()
-  skinJsonMessage.value = 'Exported active skin JSON.'
+  skinJsonMessage.value = t('theme.exported')
   skinJsonMessageTone.value = 'success'
 }
 
 function importSkinDraft(): void {
   try {
     const skin = importSkin(skinJsonDraft.value)
-    skinJsonMessage.value = `Imported ${skin.name}.`
+    skinJsonMessage.value = t('theme.imported', { name: skin.name })
     skinJsonMessageTone.value = 'success'
   } catch (error) {
-    skinJsonMessage.value = error instanceof Error ? error.message : 'Failed to import skin JSON.'
+    skinJsonMessage.value = error instanceof Error ? error.message : t('theme.importFailed')
     skinJsonMessageTone.value = 'danger'
   }
 }

@@ -1,9 +1,11 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   buildTurnInput,
+  getThreadGroups,
   startThread,
   startThreadTurn,
 } from './codexThreadClient'
+import type { ThreadListResponse } from './appServerDtos'
 
 const rpcMock = vi.hoisted(() => ({
   rpcCall: vi.fn(),
@@ -16,6 +18,23 @@ afterEach(() => {
 })
 
 describe('codex thread client', () => {
+  function thread(overrides: Partial<ThreadListResponse['data'][number]> = {}): ThreadListResponse['data'][number] {
+    return {
+      id: 'thread-1',
+      preview: 'Preview',
+      modelProvider: 'openai',
+      createdAt: 1_700_000_000,
+      updatedAt: 1_700_000_100,
+      path: null,
+      cwd: '/repo',
+      cliVersion: 'test',
+      source: 'appServer',
+      gitInfo: null,
+      turns: [],
+      ...overrides,
+    }
+  }
+
   it('builds turn input from skills, text, and local images', () => {
     expect(buildTurnInput(
       '  explain this  ',
@@ -32,6 +51,47 @@ describe('codex thread client', () => {
       { type: 'text', text: 'explain this', text_elements: [] },
       { type: 'localImage', path: '/tmp/screen.png' },
     ])
+  })
+
+  it('loads all thread list pages before grouping', async () => {
+    rpcMock.rpcCall
+      .mockResolvedValueOnce({
+        data: [thread({ id: 'first', cwd: '/repo/one', updatedAt: 10 })],
+        nextCursor: 'cursor-2',
+      })
+      .mockResolvedValueOnce({
+        data: [thread({ id: 'second', cwd: '/repo/two', updatedAt: 20 })],
+        nextCursor: null,
+      })
+
+    await expect(getThreadGroups(false)).resolves.toEqual([
+      {
+        projectName: '/repo/two',
+        cwd: '/repo/two',
+        threads: [
+          expect.objectContaining({ id: 'second' }),
+        ],
+      },
+      {
+        projectName: '/repo/one',
+        cwd: '/repo/one',
+        threads: [
+          expect.objectContaining({ id: 'first' }),
+        ],
+      },
+    ])
+
+    expect(rpcMock.rpcCall).toHaveBeenNthCalledWith(1, 'thread/list', {
+      archived: false,
+      limit: 100,
+      sortKey: 'updated_at',
+    })
+    expect(rpcMock.rpcCall).toHaveBeenNthCalledWith(2, 'thread/list', {
+      archived: false,
+      limit: 100,
+      sortKey: 'updated_at',
+      cursor: 'cursor-2',
+    })
   })
 
   it('starts threads with normalized optional params', async () => {

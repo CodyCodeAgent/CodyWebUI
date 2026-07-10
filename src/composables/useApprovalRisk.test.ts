@@ -8,6 +8,7 @@ import {
   isApprovalRequestMethod,
   isCommandApprovalRequestMethod,
   isFileChangeApprovalRequestMethod,
+  translateApprovalRiskMessage,
 } from './useApprovalRisk'
 import type { UiServerRequest } from '../types/codex'
 
@@ -163,5 +164,24 @@ describe('buildApprovalRiskSummary', () => {
     expect(summary.level).toBe('high')
     expect(summary.riskLabels).toEqual(expect.arrayContaining(['External tool', 'Manual decision']))
     expect(summary.recommendation).toContain('destination tool')
+  })
+
+  it('uses the optional translator for visible approval copy', () => {
+    const summary = buildApprovalRiskSummary(
+      buildRequest('item/commandExecution/requestApproval', {
+        command: 'rm -rf dist',
+        cwd: '/workspace/app',
+      }),
+      (key, replacements) => {
+        if (key === 'approvalRisk.title.commandApproval') return '命令审批'
+        if (key === 'approvalRisk.label.deletesFiles') return '删除文件'
+        if (key === 'approvalRisk.impact.cwd') return `工作目录：${replacements?.cwd ?? ''}`
+        return translateApprovalRiskMessage(key, replacements)
+      },
+    )
+
+    expect(summary.title).toBe('命令审批')
+    expect(summary.riskLabels).toContain('删除文件')
+    expect(summary.impacts[0]).toBe('工作目录：/workspace/app')
   })
 })

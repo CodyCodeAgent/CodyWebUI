@@ -1,10 +1,27 @@
 <template>
-  <main class="app-settings-page" aria-label="Application settings">
+  <main class="app-settings-page" :aria-label="t('settings.aria')">
     <section class="app-settings-section">
       <header class="app-settings-section-header">
         <div>
-          <h2 class="app-settings-title">Appearance</h2>
-          <p class="app-settings-subtitle">Theme, density, accent, and imported skins.</p>
+          <h2 class="app-settings-title">{{ t('settings.language.title') }}</h2>
+          <p class="app-settings-subtitle">{{ t('settings.language.subtitle') }}</p>
+        </div>
+        <label class="app-settings-language-select">
+          <span>{{ t('settings.language.current') }}</span>
+          <select :value="locale" @change="onLocaleSelect">
+            <option v-for="option in localeOptions" :key="option.value" :value="option.value">
+              {{ option.value === 'zh-CN' ? t('settings.language.chinese') : t('settings.language.english') }}
+            </option>
+          </select>
+        </label>
+      </header>
+    </section>
+
+    <section class="app-settings-section">
+      <header class="app-settings-section-header">
+        <div>
+          <h2 class="app-settings-title">{{ t('settings.appearance.title') }}</h2>
+          <p class="app-settings-subtitle">{{ t('settings.appearance.subtitle') }}</p>
         </div>
       </header>
       <WorkspaceThemePanel />
@@ -13,12 +30,12 @@
     <section class="app-settings-section">
       <header class="app-settings-section-header">
         <div>
-          <h2 class="app-settings-title">Token Flame</h2>
-          <p class="app-settings-subtitle">A tiny usage charm that grows from spark to blaze as daily token volume rises.</p>
+          <h2 class="app-settings-title">{{ t('settings.tokenFlame.title') }}</h2>
+          <p class="app-settings-subtitle">{{ t('settings.tokenFlame.subtitle') }}</p>
         </div>
         <label class="app-settings-switch">
           <input v-model="flameSettings.enabled" type="checkbox" />
-          <span>{{ flameSettings.enabled ? 'Enabled' : 'Disabled' }}</span>
+          <span>{{ flameSettings.enabled ? t('settings.tokenFlame.enabled') : t('settings.tokenFlame.disabled') }}</span>
         </label>
       </header>
 
@@ -30,33 +47,31 @@
         </div>
 
         <div class="flame-settings-copy">
-          <h3>Daily token firepower</h3>
-          <p>
-            The widget will map today's token volume onto a logarithmic fire level, so small days still move and heavy days can roar.
-          </p>
+          <h3>{{ t('settings.tokenFlame.firepowerTitle') }}</h3>
+          <p>{{ t('settings.tokenFlame.firepowerBody') }}</p>
           <div class="flame-settings-controls">
             <label>
-              <span>Default position</span>
+              <span>{{ t('settings.tokenFlame.defaultPosition') }}</span>
               <select v-model="flameSettings.defaultCorner">
-                <option value="bottom-right">Bottom right</option>
-                <option value="bottom-left">Bottom left</option>
-                <option value="top-right">Top right</option>
-                <option value="top-left">Top left</option>
+                <option value="bottom-right">{{ t('settings.tokenFlame.bottomRight') }}</option>
+                <option value="bottom-left">{{ t('settings.tokenFlame.bottomLeft') }}</option>
+                <option value="top-right">{{ t('settings.tokenFlame.topRight') }}</option>
+                <option value="top-left">{{ t('settings.tokenFlame.topLeft') }}</option>
               </select>
             </label>
             <label class="flame-settings-checkbox">
               <input v-model="flameSettings.reducedMotion" type="checkbox" />
-              <span>Calm animation</span>
+              <span>{{ t('settings.tokenFlame.calmAnimation') }}</span>
             </label>
             <button class="flame-settings-reset-position" type="button" @click="resetFlamePosition">
-              Reset position
+              {{ t('settings.tokenFlame.resetPosition') }}
             </button>
           </div>
           <p v-if="saveMessage" class="flame-settings-message" :data-tone="saveTone">{{ saveMessage }}</p>
         </div>
       </div>
 
-      <ol class="flame-level-list" aria-label="Token flame levels">
+      <ol class="flame-level-list" :aria-label="t('settings.tokenFlame.levelsAria')">
         <li v-for="level in flameLevels" :key="level.name">
           <span class="flame-level-dot" :data-level="level.level" />
           <span class="flame-level-name">{{ level.name }}</span>
@@ -71,6 +86,7 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { fetchUserSetting, writeUserSetting } from '../../api/codexSettingsClient'
 import { DESKTOP_SETTING_KEYS } from '../../composables/desktopSettingsKeys'
+import { useLocale, type AppLocale } from '../../composables/useLocale'
 import WorkspaceThemePanel from './WorkspaceThemePanel.vue'
 
 type FlameCorner = 'bottom-right' | 'bottom-left' | 'top-right' | 'top-left'
@@ -92,20 +108,25 @@ const DEFAULT_FLAME_SETTINGS: FlameSettings = {
   position: null,
 }
 
-const flameLevels = [
-  { level: 'spark', name: 'Spark', range: '< 20k tokens' },
-  { level: 'campfire', name: 'Campfire', range: '20k - 80k' },
-  { level: 'steady', name: 'Steady burn', range: '80k - 200k' },
-  { level: 'bonfire', name: 'Bonfire', range: '200k - 500k' },
-  { level: 'blaze', name: 'Blaze', range: '500k - 1M' },
-  { level: 'inferno', name: 'Inferno', range: '1M+ tokens' },
-] as const
+const { locale, localeOptions, setLocale, t } = useLocale()
 
 const flameSettings = ref<FlameSettings>({ ...DEFAULT_FLAME_SETTINGS })
 const saveMessage = ref('')
 const saveTone = ref<'success' | 'danger'>('success')
 const hasHydrated = ref(false)
 const previewLevel = computed(() => flameSettings.value.enabled ? 'bonfire' : 'spark')
+const flameLevels = computed(() => [
+  { level: 'spark', name: t('settings.tokenFlame.level.spark'), range: t('settings.tokenFlame.range.less20k') },
+  { level: 'campfire', name: t('settings.tokenFlame.level.campfire'), range: t('settings.tokenFlame.range.20k80k') },
+  { level: 'steady', name: t('settings.tokenFlame.level.steady'), range: t('settings.tokenFlame.range.80k200k') },
+  { level: 'bonfire', name: t('settings.tokenFlame.level.bonfire'), range: t('settings.tokenFlame.range.200k500k') },
+  { level: 'blaze', name: t('settings.tokenFlame.level.blaze'), range: t('settings.tokenFlame.range.500k1m') },
+  { level: 'inferno', name: t('settings.tokenFlame.level.inferno'), range: t('settings.tokenFlame.range.1mPlus') },
+] as const)
+
+function onLocaleSelect(event: Event): void {
+  setLocale((event.target as HTMLSelectElement).value as AppLocale)
+}
 
 function normalizeFlameSettings(value: unknown): FlameSettings {
   const row = value !== null && typeof value === 'object' && !Array.isArray(value)
@@ -163,11 +184,11 @@ watch(flameSettings, (nextSettings) => {
   void writeUserSetting(DESKTOP_SETTING_KEYS.tokenFlameWidget, nextSettings)
     .then(() => {
       saveTone.value = 'success'
-      saveMessage.value = 'Saved to local settings.'
+      saveMessage.value = t('settings.tokenFlame.saved')
     })
     .catch(() => {
       saveTone.value = 'danger'
-      saveMessage.value = 'Could not save settings; this browser session will keep the current value.'
+      saveMessage.value = t('settings.tokenFlame.saveFailed')
     })
 }, { deep: true })
 
@@ -216,6 +237,22 @@ onMounted(() => {
 .app-settings-switch input {
   @apply h-4 w-4;
   accent-color: var(--color-accent);
+}
+
+.app-settings-language-select {
+  @apply grid shrink-0 gap-1;
+}
+
+.app-settings-language-select span {
+  @apply text-xs font-semibold uppercase tracking-normal text-zinc-500;
+  color: var(--color-text-muted);
+}
+
+.app-settings-language-select select {
+  @apply h-9 min-w-40 rounded-md border border-zinc-200 bg-white px-2 text-sm text-zinc-900 outline-none transition focus:border-blue-300;
+  background: var(--color-surface);
+  border-color: var(--color-border);
+  color: var(--color-text);
 }
 
 .flame-settings-card {

@@ -3,6 +3,7 @@ export const DESKTOP_STORAGE_KEYS = {
   defaultNewThreadCwd: 'cody-web-ui.default-new-thread-cwd.v1',
   projectDisplayName: 'cody-web-ui.project-display-name.v1',
   projectOrder: 'cody-web-ui.project-order.v1',
+  locale: 'cody-web-ui.locale.v1',
   readState: 'cody-web-ui.thread-read-state.v1',
   scrollState: 'cody-web-ui.thread-scroll-state.v1',
   selectedThread: 'cody-web-ui.selected-thread-id.v1',
@@ -14,6 +15,7 @@ export const DESKTOP_STORAGE_KEYS = {
 
 export const DESKTOP_SETTING_KEYS = {
   defaultNewThreadCwd: 'desktop.default-new-thread-cwd.v1',
+  locale: 'desktop.locale.v1',
   theme: 'theme.preferences.v1',
   themeImportedSkins: 'theme.imported-skins.v1',
   tokenFlameWidget: 'token-flame.widget.v1',

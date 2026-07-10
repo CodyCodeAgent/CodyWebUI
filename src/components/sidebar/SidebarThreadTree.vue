@@ -1,69 +1,7 @@
 <template>
   <section class="thread-tree-root">
-    <section
-      v-if="pinnedThreads.length > 0"
-      class="pinned-section"
-      :data-thread-menu-open="hasPinnedThreadMenuOpen"
-    >
-      <ul class="thread-list">
-        <li v-for="thread in pinnedThreads" :key="thread.id" class="thread-row-item">
-          <SidebarMenuRow
-            class="thread-row"
-            :data-active="thread.id === selectedThreadId"
-            :data-pinned="isPinned(thread.id)"
-            :force-right-hover="isThreadMenuOpen(thread.id)"
-            @mouseleave="onThreadRowLeave(thread.id)"
-          >
-            <template #left>
-              <span class="thread-left-stack">
-                <span v-if="thread.inProgress || thread.unread" class="thread-status-indicator" :data-state="getThreadState(thread)" />
-                <button class="thread-pin-button" type="button" title="pin" @click="togglePin(thread.id)">
-                  <IconTablerPin class="thread-icon" />
-                </button>
-              </span>
-            </template>
-            <input
-              v-if="isRenamingThread(thread.id)"
-              :ref="(el) => setThreadRenameInputRef(thread.id, el)"
-              v-model="threadRenameDraft"
-              class="thread-rename-input"
-              type="text"
-              @click.stop
-              @mousedown.stop
-              @blur="submitThreadRename(thread)"
-              @keydown.enter.prevent="submitThreadRename(thread)"
-              @keydown.esc.stop.prevent="cancelThreadRename"
-            />
-            <button v-else class="thread-main-button" type="button" @click="onSelect(thread.id)">
-              <span class="thread-row-title">{{ thread.title }}</span>
-            </button>
-            <template #right>
-              <span class="thread-row-time">{{ formatRelative(thread.createdAtIso || thread.updatedAtIso) }}</span>
-            </template>
-            <template #right-hover>
-              <div :ref="(el) => setThreadMenuWrapRef(thread.id, el)" class="thread-menu-wrap">
-                <button class="thread-menu-trigger" type="button" title="thread_menu" @click.stop="toggleThreadMenu(thread.id)">
-                  <IconTablerDots class="thread-icon" />
-                </button>
-
-                <div v-if="isThreadMenuOpen(thread.id)" class="thread-menu-panel" @click.stop>
-                  <button class="thread-menu-item" type="button" @click="startThreadRenameFromMenu(thread)">Rename</button>
-                  <button v-if="!isArchiveView" class="thread-menu-item" type="button" @click="onForkClick(thread.id)">Fork</button>
-                  <button v-if="!isArchiveView" class="thread-menu-item" type="button" @click="onCompactClick(thread.id)">Compact</button>
-                  <button v-if="isArchiveView" class="thread-menu-item" type="button" @click="onUnarchiveClick(thread.id)">Restore</button>
-                  <button v-else class="thread-menu-item thread-menu-item-danger" type="button" @click="onArchiveClick(thread.id)">
-                    {{ archiveThreadButtonLabel(thread.id) }}
-                  </button>
-                </div>
-              </div>
-            </template>
-          </SidebarMenuRow>
-        </li>
-      </ul>
-    </section>
-
     <SidebarMenuRow as="header" class="thread-tree-header-row">
-      <span class="thread-tree-header">{{ archiveViewHeaderLabel }}</span>
+      <span class="thread-tree-header">{{ projectHeaderLabel }}</span>
       <template #right>
         <button class="thread-archive-view-toggle" type="button" @click="$emit('toggle-archive-view', !isArchiveView)">
           {{ archiveViewToggleLabel }}
@@ -71,31 +9,34 @@
       </template>
     </SidebarMenuRow>
 
-    <p v-if="isSearchActive && filteredGroups.length === 0" class="thread-tree-no-results">No matching threads</p>
+    <p v-if="isLoading && groups.length === 0" class="thread-tree-loading">Loading threads...</p>
 
-    <p v-else-if="isLoading && groups.length === 0" class="thread-tree-loading">Loading threads...</p>
+    <template v-else>
+      <p v-if="hasNoSearchResults" class="thread-tree-no-results">No matching threads</p>
 
-    <div v-else ref="groupsContainerRef" class="thread-tree-groups" :style="groupsContainerStyle">
-      <article
-        v-for="group in filteredGroups"
-        :key="group.projectName"
-        :ref="(el) => setProjectGroupRef(group.projectName, el)"
-        class="project-group"
-        :data-project-name="group.projectName"
-        :data-expanded="!isCollapsed(group.projectName)"
-        :data-dragging="isDraggingProject(group.projectName)"
-        :data-thread-menu-open="isThreadMenuOpenInProject(group)"
-        :style="projectGroupStyle(group.projectName)"
-      >
+      <div v-else ref="groupsContainerRef" class="thread-tree-projects" :style="groupsContainerStyle">
+        <article
+          v-for="group in filteredProjects"
+          :key="group.projectName"
+          :ref="(el) => setProjectGroupRef(group.projectName, el)"
+          class="project-group"
+          :data-project-name="group.projectName"
+          :data-active="isProjectSelected(group)"
+          :data-expanded="!isCollapsed(group.projectName)"
+          :data-dragging="isDraggingProject(group.projectName)"
+          :style="projectGroupStyle(group.projectName)"
+        >
           <SidebarMenuRow
             as="div"
             class="project-header-row"
+            :data-active="isProjectSelected(group)"
             :force-right-hover="isProjectMenuOpen(group.projectName)"
             role="button"
             tabindex="0"
-            @click="toggleProjectCollapse(group.projectName)"
-            @keydown.enter.prevent="toggleProjectCollapse(group.projectName)"
-            @keydown.space.prevent="toggleProjectCollapse(group.projectName)"
+            :aria-expanded="!isCollapsed(group.projectName)"
+            @click="onProjectSelect(group.projectName)"
+            @keydown.enter.prevent="onProjectSelect(group.projectName)"
+            @keydown.space.prevent="onProjectSelect(group.projectName)"
           >
             <template #left>
               <span class="project-icon-stack">
@@ -116,8 +57,8 @@
             >
               <span class="project-title" :title="getProjectTitleText(group)">
                 <span class="project-title-name">{{ getProjectDisplayName(group.projectName) }}</span>
-                <span v-if="getProjectPath(group)" class="project-title-path">
-                  ({{ getProjectPath(group) }})
+                <span v-if="getProjectPath(group)" class="project-title-path" :title="getProjectPath(group)">
+                  {{ getProjectPath(group) }}
                 </span>
               </span>
             </span>
@@ -171,8 +112,8 @@
             </template>
           </SidebarMenuRow>
 
-          <ul v-if="hasThreads(group)" class="thread-list">
-            <li v-for="thread in visibleThreads(group)" :key="thread.id" class="thread-row-item">
+          <ul v-if="hasProjectThreads(group)" class="thread-list project-thread-list">
+            <li v-for="thread in visibleProjectThreads(group)" :key="thread.id" class="thread-row-item">
               <SidebarMenuRow
                 class="thread-row"
                 :data-active="thread.id === selectedThreadId"
@@ -208,7 +149,7 @@
                   <span class="thread-row-title">{{ thread.title }}</span>
                 </button>
                 <template #right>
-                  <span class="thread-row-time">{{ formatRelative(thread.createdAtIso || thread.updatedAtIso) }}</span>
+                  <span class="thread-row-time">{{ formatThreadRelative(thread) }}</span>
                 </template>
                 <template #right-hover>
                   <div :ref="(el) => setThreadMenuWrapRef(thread.id, el)" class="thread-menu-wrap">
@@ -231,23 +172,91 @@
             </li>
           </ul>
 
-          <SidebarMenuRow v-else as="p" class="project-empty-row">
+          <SidebarMenuRow
+            v-if="hasHiddenProjectThreads(group)"
+            as="button"
+            class="thread-show-more-row"
+            type="button"
+            :data-expanded="isExpanded(group.projectName)"
+            @click="toggleProjectExpansion(group.projectName)"
+          >
             <template #left>
-              <span class="project-empty-spacer" />
+              <IconTablerChevronDown
+                class="thread-show-more-chevron"
+                :data-expanded="isExpanded(group.projectName)"
+              />
             </template>
-            <span class="project-empty">No threads</span>
+            <span class="thread-show-more-label">{{ projectExpansionButtonLabel(group) }}</span>
           </SidebarMenuRow>
+        </article>
+      </div>
 
-          <SidebarMenuRow v-if="hasHiddenThreads(group)" class="thread-show-more-row">
+      <SidebarMenuRow as="header" class="thread-tree-header-row conversation-section-header">
+        <span class="thread-tree-header">{{ conversationHeaderLabel }}</span>
+      </SidebarMenuRow>
+
+      <ul v-if="conversationRows.length > 0" class="thread-list">
+        <li v-for="thread in conversationRows" :key="thread.id" class="thread-row-item">
+          <SidebarMenuRow
+            class="thread-row"
+            :data-active="thread.id === selectedThreadId"
+            :data-pinned="isPinned(thread.id)"
+            :force-right-hover="isThreadMenuOpen(thread.id)"
+            @mouseleave="onThreadRowLeave(thread.id)"
+          >
             <template #left>
-              <span class="thread-show-more-spacer" />
+              <span class="thread-left-stack">
+                <span
+                  v-if="thread.inProgress || thread.unread"
+                  class="thread-status-indicator"
+                  :data-state="getThreadState(thread)"
+                />
+                <button class="thread-pin-button" type="button" title="pin" @click="togglePin(thread.id)">
+                  <IconTablerPin class="thread-icon" />
+                </button>
+              </span>
             </template>
-            <button class="thread-show-more-button" type="button" @click="toggleProjectExpansion(group.projectName)">
-              {{ projectExpansionButtonLabel(group.projectName) }}
+            <input
+              v-if="isRenamingThread(thread.id)"
+              :ref="(el) => setThreadRenameInputRef(thread.id, el)"
+              v-model="threadRenameDraft"
+              class="thread-rename-input"
+              type="text"
+              @click.stop
+              @mousedown.stop
+              @blur="submitThreadRename(thread)"
+              @keydown.enter.prevent="submitThreadRename(thread)"
+              @keydown.esc.stop.prevent="cancelThreadRename"
+            />
+            <button v-else class="thread-main-button" type="button" @click="onSelect(thread.id)">
+              <span class="thread-row-title">{{ thread.title }}</span>
             </button>
+            <template #right>
+              <span class="thread-row-time">{{ formatThreadRelative(thread) }}</span>
+            </template>
+            <template #right-hover>
+              <div :ref="(el) => setThreadMenuWrapRef(thread.id, el)" class="thread-menu-wrap">
+                <button class="thread-menu-trigger" type="button" title="thread_menu" @click.stop="toggleThreadMenu(thread.id)">
+                  <IconTablerDots class="thread-icon" />
+                </button>
+
+                <div v-if="isThreadMenuOpen(thread.id)" class="thread-menu-panel" @click.stop>
+                  <button class="thread-menu-item" type="button" @click="startThreadRenameFromMenu(thread)">Rename</button>
+                  <button v-if="!isArchiveView" class="thread-menu-item" type="button" @click="onForkClick(thread.id)">Fork</button>
+                  <button v-if="!isArchiveView" class="thread-menu-item" type="button" @click="onCompactClick(thread.id)">Compact</button>
+                  <button v-if="isArchiveView" class="thread-menu-item" type="button" @click="onUnarchiveClick(thread.id)">Restore</button>
+                  <button v-else class="thread-menu-item thread-menu-item-danger" type="button" @click="onArchiveClick(thread.id)">
+                    {{ archiveThreadButtonLabel(thread.id) }}
+                  </button>
+                </div>
+              </div>
+            </template>
           </SidebarMenuRow>
-      </article>
-    </div>
+        </li>
+      </ul>
+
+      <p v-else class="thread-tree-no-results">No conversations</p>
+    </template>
   </section>
 </template>
 
@@ -256,33 +265,37 @@ import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import type { ComponentPublicInstance } from 'vue'
 import type { UiProjectGroup, UiThread } from '../../types/codex'
 import {
+  buildSidebarConversationThreads,
+  filterSidebarConversationGroups,
   buildSidebarGroupsContainerStyle,
   buildSidebarLayoutProjectOrder,
   buildSidebarLayoutTopByProject,
   buildSidebarPinnedThreads,
   closedSidebarThreadMenuState,
-  filterSidebarGroupsBySearch,
+  filterSidebarProjectGroups,
+  filterSidebarProjectsBySearch,
   formatSidebarRelativeTime,
   hasSidebarHiddenThreads,
-  hasSidebarThreads,
   isSidebarEventInsideElement,
   isSidebarPointerInProjectDropZone,
   normalizeSidebarSearchQuery,
   sidebarArchiveThreadButtonLabel,
-  sidebarArchiveViewHeaderLabel,
   sidebarArchiveViewToggleLabel,
   sidebarElementFromRef,
   sidebarDropTargetIndex,
   sidebarProjectGroupStyle,
   sidebarProjectDisplayName,
-  sidebarProjectExpansionButtonLabel,
   sidebarProjectOuterHeight,
+  sidebarProjectExpansionButtonLabel,
   sidebarProjectPath,
   sidebarProjectedDropProjectIndex,
   sidebarProjectTitleText,
   sidebarArchiveThreadClickResult,
+  sidebarHiddenThreadCount,
+  sidebarThreadTimeIso,
   sidebarThreadState,
   sidebarThreadRenameResult,
+  threadMatchesSidebarSearch,
   type SidebarActiveProjectDrag,
   toggleSidebarPinnedThreadIds,
   toggleSidebarProjectCollapseState,
@@ -303,6 +316,7 @@ const props = defineProps<{
   groups: UiProjectGroup[]
   projectDisplayNameById: Record<string, string>
   selectedThreadId: string
+  selectedProjectName?: string
   isLoading: boolean
   searchQuery: string
   isArchiveView: boolean
@@ -314,6 +328,7 @@ const emit = defineEmits<{
   unarchive: [threadId: string]
   fork: [threadId: string]
   compact: [threadId: string]
+  'select-project': [projectName: string]
   'toggle-archive-view': [value: boolean]
   'rename-thread': [payload: { threadId: string; title: string }]
   'start-new-thread': [projectName: string]
@@ -345,9 +360,9 @@ type DragPointerSample = {
 }
 
 const DRAG_START_THRESHOLD_PX = 4
-const PROJECT_GROUP_EXPANDED_GAP_PX = 6
-const expandedProjects = ref<Record<string, boolean>>({})
+const PROJECT_GROUP_GAP_PX = 6
 const collapsedProjects = ref<Record<string, boolean>>({})
+const expandedProjects = ref<Record<string, boolean>>({})
 const pinnedThreadIds = ref<string[]>([])
 const archiveConfirmThreadId = ref('')
 const renamingThreadId = ref('')
@@ -405,34 +420,46 @@ watch(
   },
   { deep: true },
 )
-
 const normalizedSearchQuery = computed(() => normalizeSidebarSearchQuery(props.searchQuery))
 
 const isSearchActive = computed(() => normalizedSearchQuery.value.length > 0)
 
-const filteredGroups = computed<UiProjectGroup[]>(() => {
-  return filterSidebarGroupsBySearch(props.groups, normalizedSearchQuery.value)
+const projectGroups = computed(() => filterSidebarProjectGroups(props.groups))
+const conversationGroups = computed(() => filterSidebarConversationGroups(props.groups))
+const filteredProjects = computed<UiProjectGroup[]>(() => {
+  return filterSidebarProjectsBySearch(
+    projectGroups.value,
+    normalizedSearchQuery.value,
+    props.projectDisplayNameById,
+  )
 })
-const archiveViewHeaderLabel = computed(() => sidebarArchiveViewHeaderLabel(props.isArchiveView))
+const projectHeaderLabel = computed(() => props.isArchiveView ? 'Archived projects' : 'Projects')
+const conversationHeaderLabel = computed(() => props.isArchiveView ? 'Archived conversations' : 'Conversations')
 const archiveViewToggleLabel = computed(() => sidebarArchiveViewToggleLabel(props.isArchiveView))
 
 const pinnedThreads = computed(() =>
-  buildSidebarPinnedThreads(props.groups, pinnedThreadIds.value, normalizedSearchQuery.value),
+  buildSidebarPinnedThreads(conversationGroups.value, pinnedThreadIds.value, normalizedSearchQuery.value),
 )
-const hasPinnedThreadMenuOpen = computed(() =>
-  pinnedThreads.value.some((thread) => isThreadMenuOpen(thread.id)),
+const conversationThreads = computed(() =>
+  buildSidebarConversationThreads(conversationGroups.value, pinnedThreadIds.value, normalizedSearchQuery.value),
+)
+const conversationRows = computed(() => [
+  ...pinnedThreads.value,
+  ...conversationThreads.value,
+])
+const hasNoSearchResults = computed(() =>
+  isSearchActive.value && filteredProjects.value.length === 0 && conversationRows.value.length === 0,
 )
 
 const projectedDropProjectIndex = computed<number | null>(() => {
   return sidebarProjectedDropProjectIndex({
     drag: activeProjectDrag.value,
-    projectCount: props.groups.length,
+    projectCount: projectGroups.value.length,
   })
 })
 
 const layoutProjectOrder = computed<string[]>(() => {
-  const sourceGroups = isSearchActive.value ? filteredGroups.value : props.groups
-  const names = sourceGroups.map((group) => group.projectName)
+  const names = filteredProjects.value.map((group) => group.projectName)
   return buildSidebarLayoutProjectOrder({
     projectNames: names,
     drag: activeProjectDrag.value,
@@ -455,6 +482,10 @@ const groupsContainerStyle = computed<Record<string, string>>(() => {
 
 function formatRelative(value: string): string {
   return formatSidebarRelativeTime(value)
+}
+
+function formatThreadRelative(thread: UiThread): string {
+  return formatRelative(sidebarThreadTimeIso(thread))
 }
 
 function isPinned(threadId: string): boolean {
@@ -509,10 +540,6 @@ function onCompactClick(threadId: string): void {
 
 function isThreadMenuOpen(threadId: string): boolean {
   return openThreadMenuId.value === threadId
-}
-
-function isThreadMenuOpenInProject(group: UiProjectGroup): boolean {
-  return group.threads.some((thread) => isThreadMenuOpen(thread.id))
 }
 
 function closeThreadMenu(): void {
@@ -596,6 +623,20 @@ function onStartNewThread(projectName: string): void {
   emit('start-new-thread', projectName)
 }
 
+function onProjectSelect(projectName: string): void {
+  if (!projectName) return
+  const shouldSuppressSelect = suppressNextProjectToggleId.value === projectName
+  const result = toggleSidebarProjectCollapseState({
+    collapsedProjects: collapsedProjects.value,
+    projectName,
+    suppressProjectName: suppressNextProjectToggleId.value,
+  })
+  collapsedProjects.value = result.collapsedProjects
+  suppressNextProjectToggleId.value = result.suppressProjectName
+  if (shouldSuppressSelect) return
+  emit('select-project', projectName)
+}
+
 function onThreadRowLeave(threadId: string): void {
   if (archiveConfirmThreadId.value === threadId) {
     archiveConfirmThreadId.value = ''
@@ -612,6 +653,18 @@ function getProjectPath(group: UiProjectGroup): string {
 
 function getProjectTitleText(group: UiProjectGroup): string {
   return sidebarProjectTitleText(group, props.projectDisplayNameById)
+}
+
+function isProjectSelected(group: UiProjectGroup): boolean {
+  const selectedProjectName = props.selectedProjectName?.trim() ?? ''
+  if (selectedProjectName) {
+    return group.projectName === selectedProjectName || group.cwd === selectedProjectName
+  }
+  return group.threads.some((thread) => thread.id === props.selectedThreadId)
+}
+
+function isCollapsed(projectName: string): boolean {
+  return collapsedProjects.value[projectName] !== false
 }
 
 function isProjectMenuOpen(projectName: string): boolean {
@@ -695,26 +748,52 @@ function isExpanded(projectName: string): boolean {
   return expandedProjects.value[projectName] === true
 }
 
-function projectExpansionButtonLabel(projectName: string): string {
-  return sidebarProjectExpansionButtonLabel(isExpanded(projectName))
-}
-
-function isCollapsed(projectName: string): boolean {
-  return collapsedProjects.value[projectName] === true
+function projectExpansionButtonLabel(group: UiProjectGroup): string {
+  return sidebarProjectExpansionButtonLabel(
+    isExpanded(group.projectName),
+    hiddenProjectThreadCount(group),
+  )
 }
 
 function toggleProjectExpansion(projectName: string): void {
   expandedProjects.value = toggleSidebarProjectExpansionState(expandedProjects.value, projectName)
 }
 
-function toggleProjectCollapse(projectName: string): void {
-  const result = toggleSidebarProjectCollapseState({
-    collapsedProjects: collapsedProjects.value,
-    projectName,
-    suppressProjectName: suppressNextProjectToggleId.value,
+function projectThreadsForDisplay(group: UiProjectGroup): UiThread[] {
+  if (!isSearchActive.value) return group.threads
+  return group.threads.filter((thread) => threadMatchesSidebarSearch(thread, normalizedSearchQuery.value))
+}
+
+function projectGroupForDisplay(group: UiProjectGroup): UiProjectGroup {
+  return {
+    ...group,
+    threads: projectThreadsForDisplay(group),
+  }
+}
+
+function visibleProjectThreads(group: UiProjectGroup): UiThread[] {
+  return visibleSidebarThreads(projectGroupForDisplay(group), {
+    pinnedThreadIds: [],
+    isSearchActive: isSearchActive.value,
+    isCollapsed: isCollapsed(group.projectName),
+    isExpanded: isExpanded(group.projectName),
   })
-  collapsedProjects.value = result.collapsedProjects
-  suppressNextProjectToggleId.value = result.suppressProjectName
+}
+
+function hasProjectThreads(group: UiProjectGroup): boolean {
+  return visibleProjectThreads(group).length > 0
+}
+
+function hasHiddenProjectThreads(group: UiProjectGroup): boolean {
+  return hasSidebarHiddenThreads(projectGroupForDisplay(group), {
+    pinnedThreadIds: [],
+    isSearchActive: isSearchActive.value,
+    isCollapsed: isCollapsed(group.projectName),
+  })
+}
+
+function hiddenProjectThreadCount(group: UiProjectGroup): number {
+  return sidebarHiddenThreadCount(projectGroupForDisplay(group), [])
 }
 
 function getProjectOuterHeight(projectName: string): number {
@@ -725,7 +804,7 @@ function getProjectOuterHeight(projectName: string): number {
     measuredHeight,
     dragHeight,
     isCollapsed: isCollapsed(projectName),
-    expandedGapPx: PROJECT_GROUP_EXPANDED_GAP_PX,
+    expandedGapPx: PROJECT_GROUP_GAP_PX,
   })
 }
 
@@ -817,14 +896,14 @@ function setProjectGroupRef(projectName: string, element: Element | ComponentPub
 
 function onProjectHandleMouseDown(event: MouseEvent, projectName: string): void {
   if (event.button !== 0) return
+  if (isSearchActive.value) return
   if (pendingProjectDrag.value || activeProjectDrag.value) return
 
-  const fromIndex = props.groups.findIndex((group) => group.projectName === projectName)
+  const fromIndex = projectGroups.value.findIndex((group) => group.projectName === projectName)
   const projectGroupElement = projectGroupElementByName.get(projectName)
   if (fromIndex < 0 || !projectGroupElement) return
 
   const groupRect = projectGroupElement.getBoundingClientRect()
-  const groupGap = isCollapsed(projectName) ? 0 : PROJECT_GROUP_EXPANDED_GAP_PX
   pendingProjectDrag.value = {
     projectName,
     fromIndex,
@@ -834,7 +913,7 @@ function onProjectHandleMouseDown(event: MouseEvent, projectName: string): void 
     groupLeft: groupRect.left,
     groupWidth: groupRect.width,
     groupHeight: groupRect.height,
-    groupOuterHeight: groupRect.height + groupGap,
+    groupOuterHeight: groupRect.height + PROJECT_GROUP_GAP_PX,
   }
 
   event.preventDefault()
@@ -869,7 +948,7 @@ function onProjectDragMouseUp(event: MouseEvent): void {
 
   const drag = activeProjectDrag.value
   if (drag && projectedDropProjectIndex.value !== null) {
-    const currentProjectIndex = props.groups.findIndex((group) => group.projectName === drag.projectName)
+    const currentProjectIndex = projectGroups.value.findIndex((group) => group.projectName === drag.projectName)
     if (currentProjectIndex >= 0) {
       const toIndex = projectedDropProjectIndex.value
       if (toIndex !== currentProjectIndex) {
@@ -881,7 +960,15 @@ function onProjectDragMouseUp(event: MouseEvent): void {
     }
   }
 
-  resetProjectDragState()
+  const suppressProjectName = drag?.projectName ?? ''
+  resetProjectDragState({ preserveProjectToggleSuppression: Boolean(suppressProjectName) })
+  if (suppressProjectName) {
+    window.setTimeout(() => {
+      if (suppressNextProjectToggleId.value === suppressProjectName) {
+        suppressNextProjectToggleId.value = ''
+      }
+    }, 0)
+  }
 }
 
 function onProjectDragKeyDown(event: KeyboardEvent): void {
@@ -892,7 +979,7 @@ function onProjectDragKeyDown(event: KeyboardEvent): void {
   resetProjectDragState()
 }
 
-function resetProjectDragState(): void {
+function resetProjectDragState(options: { preserveProjectToggleSuppression?: boolean } = {}): void {
   if (dragPointerRafId !== null) {
     window.cancelAnimationFrame(dragPointerRafId)
     dragPointerRafId = null
@@ -900,7 +987,9 @@ function resetProjectDragState(): void {
   pendingDragPointerSample = null
   pendingProjectDrag.value = null
   activeProjectDrag.value = null
-  suppressNextProjectToggleId.value = ''
+  if (!options.preserveProjectToggleSuppression) {
+    suppressNextProjectToggleId.value = ''
+  }
   unbindProjectDragListeners()
 }
 
@@ -966,7 +1055,7 @@ function updateProjectDropTarget(sample: DragPointerSample): void {
   drag.dropTargetIndexFull = sidebarDropTargetIndex({
     cursorY: sample.clientY,
     containerTop: containerRect.top,
-    projectNames: props.groups.map((group) => group.projectName),
+    projectNames: projectGroups.value.map((group) => group.projectName),
     draggedProjectName: drag.projectName,
     getProjectOuterHeight,
   })
@@ -979,9 +1068,7 @@ function isDraggingProject(projectName: string): boolean {
 function projectGroupStyle(projectName: string): Record<string, string> | undefined {
   const drag = activeProjectDrag.value
   const targetTop = layoutTopByProject.value[projectName] ?? 0
-  const isMenuOpen = isProjectMenuOpen(projectName) || props.groups
-    .find((group) => group.projectName === projectName)
-    ?.threads.some((thread) => isThreadMenuOpen(thread.id)) === true
+  const isMenuOpen = isProjectMenuOpen(projectName)
 
   return sidebarProjectGroupStyle({
     projectName,
@@ -989,27 +1076,6 @@ function projectGroupStyle(projectName: string): Record<string, string> | undefi
     targetTop,
     isMenuOpen,
   })
-}
-
-function visibleThreads(group: UiProjectGroup): UiThread[] {
-  return visibleSidebarThreads(group, {
-    pinnedThreadIds: pinnedThreadIds.value,
-    isSearchActive: isSearchActive.value,
-    isCollapsed: isCollapsed(group.projectName),
-    isExpanded: isExpanded(group.projectName),
-  })
-}
-
-function hasHiddenThreads(group: UiProjectGroup): boolean {
-  return hasSidebarHiddenThreads(group, {
-    pinnedThreadIds: pinnedThreadIds.value,
-    isSearchActive: isSearchActive.value,
-    isCollapsed: isCollapsed(group.projectName),
-  })
-}
-
-function hasThreads(group: UiProjectGroup): boolean {
-  return hasSidebarThreads(group, pinnedThreadIds.value)
 }
 
 function getThreadState(thread: UiThread): 'working' | 'unread' | 'idle' {
@@ -1073,16 +1139,12 @@ onBeforeUnmount(() => {
   @apply flex flex-col;
 }
 
-.pinned-section {
-  @apply relative z-20 mb-1;
-}
-
-.pinned-section[data-thread-menu-open='true'] {
-  @apply z-50;
-}
-
 .thread-tree-header-row {
   @apply cursor-default;
+}
+
+.conversation-section-header {
+  @apply mt-6;
 }
 
 .thread-tree-header {
@@ -1105,7 +1167,7 @@ onBeforeUnmount(() => {
   @apply px-3 py-2 text-sm text-zinc-400;
 }
 
-.thread-tree-groups {
+.thread-tree-projects {
   @apply pr-0.5 relative;
 }
 
@@ -1121,6 +1183,10 @@ onBeforeUnmount(() => {
   @apply hover:bg-zinc-200 cursor-pointer focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-zinc-400;
 }
 
+.project-header-row[data-active='true'] {
+  @apply bg-zinc-200 ring-1 ring-amber-500;
+}
+
 .project-main-button {
   @apply min-w-0 w-full text-left rounded px-0 py-0 flex items-center min-h-5 cursor-grab;
 }
@@ -1130,27 +1196,24 @@ onBeforeUnmount(() => {
 }
 
 .project-icon-stack {
-  @apply relative w-4 h-4 flex items-center justify-center text-zinc-500;
+  @apply w-8 h-4 flex items-center justify-start gap-0.5 text-zinc-500;
 }
 
-.project-icon-folder {
-  @apply absolute inset-0 flex items-center justify-center opacity-100;
-}
-
+.project-icon-folder,
 .project-icon-chevron {
-  @apply absolute inset-0 items-center justify-center opacity-0 hidden;
+  @apply h-4 w-4 flex items-center justify-center;
 }
 
 .project-title {
-  @apply min-w-0 text-sm font-normal text-zinc-700 truncate select-none;
+  @apply min-w-0 flex items-baseline gap-1.5 text-sm font-normal select-none;
 }
 
 .project-title-name {
-  @apply align-baseline;
+  @apply min-w-0 shrink-0 max-w-[45%] truncate text-zinc-700 align-baseline;
 }
 
 .project-title-path {
-  @apply ml-1 align-baseline text-xs text-zinc-400;
+  @apply min-w-0 truncate text-xs text-zinc-500 align-baseline;
 }
 
 .project-menu-wrap {
@@ -1185,23 +1248,11 @@ onBeforeUnmount(() => {
   @apply px-2 py-1 text-sm text-zinc-800 bg-transparent border-none outline-none;
 }
 
-.project-empty-row {
-  @apply cursor-default;
-}
-
-.project-empty-spacer {
-  @apply block w-4 h-4;
-}
-
-.project-empty {
-  @apply text-sm text-zinc-400;
-}
-
 .thread-list {
   @apply list-none m-0 p-0 flex flex-col gap-0.5;
 }
 
-.project-group > .thread-list {
+.project-thread-list {
   @apply mt-0.5;
 }
 
@@ -1278,23 +1329,19 @@ onBeforeUnmount(() => {
 }
 
 .thread-show-more-row {
-  @apply mt-1;
+  @apply mt-1 border-0 bg-transparent text-zinc-500 cursor-pointer hover:bg-zinc-100 hover:text-zinc-700 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-zinc-300;
 }
 
-.thread-show-more-spacer {
-  @apply block w-4 h-4;
+.thread-show-more-chevron {
+  @apply h-3.5 w-3.5 transition-transform;
 }
 
-.thread-show-more-button {
-  @apply block mx-auto rounded-lg px-2 py-0.5 text-sm font-normal text-zinc-600 transition hover:text-zinc-800 hover:bg-zinc-200;
+.thread-show-more-chevron[data-expanded='true'] {
+  transform: rotate(180deg);
 }
 
-.project-header-row:hover .project-icon-folder {
-  @apply opacity-0;
-}
-
-.project-header-row:hover .project-icon-chevron {
-  @apply flex opacity-100;
+.thread-show-more-label {
+  @apply text-sm font-normal;
 }
 
 .thread-row[data-active='true'] {

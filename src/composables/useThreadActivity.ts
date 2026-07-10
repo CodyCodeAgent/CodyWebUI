@@ -1,5 +1,6 @@
 import type { UiMessage, UiServerRequest, UiToolTimelineEntry } from '../types/codex'
 import type { UiDiffLineKind, UiDiffReview, UiDiffReviewFile } from './useDiffReview'
+import type { ApprovalRiskTranslator } from './useApprovalRisk'
 import { isToolFailureStatus } from './threadToolTimelineRules'
 import {
   buildServerRequestCards,
@@ -167,8 +168,11 @@ export function isPendingApprovalRequest(request: UiServerRequest): boolean {
   return isServerApprovalRequest(request)
 }
 
-export function buildPendingApprovalCards(requests: UiServerRequest[]): PendingApprovalCard[] {
-  return buildServerRequestCards(requests)
+export function buildPendingApprovalCards(
+  requests: UiServerRequest[],
+  approvalRiskTranslator?: ApprovalRiskTranslator,
+): PendingApprovalCard[] {
+  return buildServerRequestCards(requests, approvalRiskTranslator)
 }
 
 export function buildWorkLogFileStatLabel(input: {

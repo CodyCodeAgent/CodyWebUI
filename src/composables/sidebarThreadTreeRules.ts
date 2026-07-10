@@ -56,6 +56,98 @@ export function threadMatchesSidebarSearch(thread: UiThread, normalizedQuery: st
   )
 }
 
+export function sidebarThreadTimeIso(thread: Pick<UiThread, 'createdAtIso' | 'updatedAtIso'>): string {
+  return thread.updatedAtIso || thread.createdAtIso
+}
+
+function sidebarThreadTimestamp(thread: Pick<UiThread, 'createdAtIso' | 'updatedAtIso'>): number {
+  const timestamp = new Date(sidebarThreadTimeIso(thread)).getTime()
+  return Number.isNaN(timestamp) ? 0 : timestamp
+}
+
+export function compareSidebarThreadsByUpdatedDesc(first: UiThread, second: UiThread): number {
+  const timestampDiff = sidebarThreadTimestamp(second) - sidebarThreadTimestamp(first)
+  if (timestampDiff !== 0) return timestampDiff
+  return first.title.localeCompare(second.title)
+}
+
+export function flattenSidebarThreads(groups: UiProjectGroup[]): UiThread[] {
+  const threadsById = new Map<string, UiThread>()
+  for (const group of groups) {
+    for (const thread of group.threads) {
+      if (!threadsById.has(thread.id)) {
+        threadsById.set(thread.id, thread)
+      }
+    }
+  }
+  return Array.from(threadsById.values())
+}
+
+export function buildSidebarConversationThreads(
+  groups: UiProjectGroup[],
+  pinnedThreadIds: string[],
+  normalizedQuery: string,
+): UiThread[] {
+  const pinned = new Set(pinnedThreadIds)
+  return flattenSidebarThreads(groups)
+    .filter((thread) => !pinned.has(thread.id))
+    .filter((thread) => threadMatchesSidebarSearch(thread, normalizedQuery))
+    .sort(compareSidebarThreadsByUpdatedDesc)
+}
+
+function isCodexConversationPath(path: string): boolean {
+  if (path.includes('Codex')) return true
+
+  return path
+    .split(/[\\/]+/u)
+    .filter(Boolean)
+    .some((segment) => {
+      const normalized = segment.toLowerCase()
+      return normalized === 'codex' || normalized === '.codex'
+    })
+}
+
+export function isSidebarProjectGroup(group: UiProjectGroup): boolean {
+  const projectName = group.projectName.trim()
+  const projectPath = sidebarProjectPath(group).trim()
+  return projectPath.length > 0 && projectName !== 'unknown-project' && !isCodexConversationPath(projectPath)
+}
+
+export function filterSidebarProjectGroups(groups: UiProjectGroup[]): UiProjectGroup[] {
+  return groups.filter(isSidebarProjectGroup)
+}
+
+export function filterSidebarConversationGroups(groups: UiProjectGroup[]): UiProjectGroup[] {
+  return groups.filter((group) => !isSidebarProjectGroup(group))
+}
+
+export function projectMatchesSidebarSearch(
+  group: UiProjectGroup,
+  normalizedQuery: string,
+  projectDisplayNameById: Record<string, string>,
+): boolean {
+  if (!normalizedQuery) return true
+  const displayName = sidebarProjectDisplayName(group.projectName, projectDisplayNameById)
+  const path = sidebarProjectPath(group)
+  return (
+    displayName.toLowerCase().includes(normalizedQuery) ||
+    group.projectName.toLowerCase().includes(normalizedQuery) ||
+    path.toLowerCase().includes(normalizedQuery) ||
+    group.threads.some((thread) => threadMatchesSidebarSearch(thread, normalizedQuery))
+  )
+}
+
+export function filterSidebarProjectsBySearch(
+  groups: UiProjectGroup[],
+  normalizedQuery: string,
+  projectDisplayNameById: Record<string, string>,
+): UiProjectGroup[] {
+  if (!normalizedQuery) return groups
+  return groups.filter((group) =>
+    projectMatchesSidebarSearch(group, normalizedQuery, projectDisplayNameById),
+  )
+}
+
 export function filterSidebarGroupsBySearch(groups: UiProjectGroup[], normalizedQuery: string): UiProjectGroup[] {
   if (!normalizedQuery) return groups
   return groups
@@ -155,6 +247,14 @@ export function hasSidebarHiddenThreads(
   return !options.isCollapsed && sidebarProjectThreads(group, options.pinnedThreadIds).length > (options.limit ?? 10)
 }
 
+export function sidebarHiddenThreadCount(
+  group: UiProjectGroup,
+  pinnedThreadIds: string[],
+  limit = 10,
+): number {
+  return Math.max(0, sidebarProjectThreads(group, pinnedThreadIds).length - limit)
+}
+
 export function hasSidebarThreads(group: UiProjectGroup, pinnedThreadIds: string[]): boolean {
   return sidebarProjectThreads(group, pinnedThreadIds).length > 0
 }
@@ -225,8 +325,9 @@ export function sidebarArchiveThreadButtonLabel(params: {
   return params.archiveConfirmThreadId === params.threadId ? 'Confirm archive' : 'Archive'
 }
 
-export function sidebarProjectExpansionButtonLabel(isExpanded: boolean): string {
-  return isExpanded ? 'Show less' : 'Show more'
+export function sidebarProjectExpansionButtonLabel(isExpanded: boolean, hiddenCount = 0): string {
+  if (isExpanded) return 'Show less'
+  return hiddenCount > 0 ? `Show ${String(hiddenCount)} more` : 'Show more'
 }
 
 export function sidebarArchiveThreadClickResult(
@@ -296,7 +397,7 @@ export function toggleSidebarProjectCollapseState(params: {
   return {
     collapsedProjects: {
       ...params.collapsedProjects,
-      [params.projectName]: params.collapsedProjects[params.projectName] !== true,
+      [params.projectName]: params.collapsedProjects[params.projectName] === false,
     },
     suppressProjectName: params.suppressProjectName,
   }
