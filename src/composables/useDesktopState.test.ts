@@ -533,6 +533,34 @@ describe('useDesktopState realtime messages', () => {
       },
     ])
 
+    listener?.({
+      method: 'turn/completed',
+      params: {
+        threadId: 'thread-b',
+        turn: {
+          id: 'turn-b',
+          startedAt: '2026-07-07T00:00:00.000Z',
+          completedAt: '2026-07-07T00:00:08.000Z',
+        },
+      },
+      atIso: '2026-07-07T00:00:08.000Z',
+    })
+
+    expect(state.messages.value).toEqual([
+      {
+        id: 'turn-summary:turn-b',
+        role: 'system',
+        text: 'Worked for 8s',
+        messageType: 'worked',
+      },
+      {
+        id: 'msg-b',
+        role: 'assistant',
+        text: '后台最终输出',
+        messageType: 'agentMessage.live',
+      },
+    ])
+
     state.stopRealtimeSync()
   })
 

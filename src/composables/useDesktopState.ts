@@ -81,6 +81,7 @@ import {
   clearLiveReasoningTextForThread,
   mergeMessages,
   removeMessageById,
+  removeLivePlanMessagesForTurn,
   removeRedundantLiveAgentMessages,
   updateLiveReasoningTextForThread,
   updateMessagesForThread,
@@ -836,6 +837,14 @@ export function useDesktopState() {
         explicitDurationMs: durationHints.explicitDurationMs,
         turnDurationMs: durationHints.turnDurationMs,
       }))
+      setLiveAgentMessagesForThread(
+        completedTurn.threadId,
+        removeLivePlanMessagesForTurn(
+          liveAgentMessagesByThreadId.value[completedTurn.threadId] ?? [],
+          completedTurn.turnId,
+          livePlanMessageIdByTurnId.get(completedTurn.turnId),
+        ),
+      )
       activeTurnIdByThreadId.value = clearActiveTurnForThread(
         activeTurnIdByThreadId.value,
         completedTurn.threadId,

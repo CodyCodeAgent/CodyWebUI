@@ -17,6 +17,7 @@ import {
   mergeTurnActivity,
   normalizeMessageText,
   removeDuplicateAdjacentUserMessages,
+  removeLivePlanMessagesForTurn,
   removeMessageById,
   removeRedundantLiveAgentMessages,
   resolveTurnDurationMs,
@@ -339,6 +340,23 @@ describe('desktopMessageState', () => {
       textDelta: 'ignored',
       messageType: 'agentMessage.live',
     })).toBe(second)
+  })
+
+  it('removes only the live plan for a completed turn', () => {
+    const messages = [
+      message({ id: 'answer-live', text: 'answer', messageType: 'agentMessage.live' }),
+      message({ id: 'plan-live', text: 'plan', messageType: 'plan.live' }),
+      message({ id: 'plan:turn-1:live', text: 'fallback plan', messageType: 'plan.live' }),
+      message({ id: 'plan:turn-2:live', text: 'other turn plan', messageType: 'plan.live' }),
+      message({ id: 'persisted-plan', text: 'persisted', messageType: 'plan' }),
+    ]
+
+    expect(removeLivePlanMessagesForTurn(messages, 'turn-1', 'plan-live')).toEqual([
+      message({ id: 'answer-live', text: 'answer', messageType: 'agentMessage.live' }),
+      message({ id: 'plan:turn-2:live', text: 'other turn plan', messageType: 'plan.live' }),
+      message({ id: 'persisted-plan', text: 'persisted', messageType: 'plan' }),
+    ])
+    expect(removeLivePlanMessagesForTurn(messages, '', 'plan-live')).toBe(messages)
   })
 
   it('preserves live reasoning whitespace until display time', () => {

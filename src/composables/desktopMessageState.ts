@@ -125,6 +125,25 @@ export function removeMessageById(messages: UiMessage[], messageId: string): UiM
   return next.length === messages.length ? messages : next
 }
 
+export function removeLivePlanMessagesForTurn(
+  messages: UiMessage[],
+  turnId: string,
+  planMessageId?: string,
+): UiMessage[] {
+  if (!turnId) return messages
+  const fallbackPlanMessageId = `plan:${turnId}:live`
+  const removableIds = new Set([fallbackPlanMessageId])
+  const normalizedPlanMessageId = planMessageId?.trim()
+  if (normalizedPlanMessageId) {
+    removableIds.add(normalizedPlanMessageId)
+  }
+
+  const next = messages.filter((message) => {
+    return message.messageType !== 'plan.live' || !removableIds.has(message.id)
+  })
+  return next.length === messages.length ? messages : next
+}
+
 function replaceOptimisticUserMessages(
   previous: UiMessage[],
   incoming: UiMessage[],
