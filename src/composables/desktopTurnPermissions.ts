@@ -7,7 +7,7 @@ export type ComposerPermissionModeOption = {
 
 export type TurnPermissionOverride = {
   approvalPolicy?: 'untrusted' | 'on-failure' | 'on-request' | 'never'
-  sandboxPolicy?: { type: 'danger-full-access' }
+  sandboxPolicy?: { type: 'dangerFullAccess' }
 }
 
 export const DEFAULT_COMPOSER_PERMISSION_MODE: UiComposerPermissionMode = 'current'
@@ -25,6 +25,6 @@ export function buildTurnPermissionOverride(mode: UiComposerPermissionMode): Tur
   if (mode !== 'yolo') return null
   return {
     approvalPolicy: 'never',
-    sandboxPolicy: { type: 'danger-full-access' },
+    sandboxPolicy: { type: 'dangerFullAccess' },
   }
 }

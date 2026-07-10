@@ -190,7 +190,7 @@ describe('codex thread client', () => {
       null,
       {
         approvalPolicy: 'never',
-        sandboxPolicy: { type: 'danger-full-access' },
+        sandboxPolicy: { type: 'dangerFullAccess' },
       },
     )).resolves.toBe('turn-1')
 
@@ -198,7 +198,7 @@ describe('codex thread client', () => {
       threadId: 'thread-1',
       input: [{ type: 'text', text: 'hello', text_elements: [] }],
       approvalPolicy: 'never',
-      sandboxPolicy: { type: 'danger-full-access' },
+      sandboxPolicy: { type: 'dangerFullAccess' },
     })
   })
 })

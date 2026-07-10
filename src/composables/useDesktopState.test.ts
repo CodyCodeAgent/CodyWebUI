@@ -871,7 +871,7 @@ describe('useDesktopState realtime messages', () => {
       },
       {
         approvalPolicy: 'never',
-        sandboxPolicy: { type: 'danger-full-access' },
+        sandboxPolicy: { type: 'dangerFullAccess' },
       },
     )
   })

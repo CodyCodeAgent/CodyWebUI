@@ -15,7 +15,7 @@ describe('desktopTurnPermissions', () => {
     expect(buildTurnPermissionOverride('current')).toBeNull()
     expect(buildTurnPermissionOverride('yolo')).toEqual({
       approvalPolicy: 'never',
-      sandboxPolicy: { type: 'danger-full-access' },
+      sandboxPolicy: { type: 'dangerFullAccess' },
     })
   })
 })
