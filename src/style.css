@@ -1,5 +1,41 @@
 @import "tailwindcss";
 
+@utility theme-bg-panel { background-color: var(--color-panel); }
+@utility theme-bg-subtle { background-color: var(--color-surface-muted); }
+@utility theme-bg-control { background-color: var(--color-control); }
+@utility theme-border { border-color: var(--color-border); }
+@utility theme-text { color: var(--color-text); }
+@utility theme-muted { color: var(--color-text-muted); }
+@utility theme-on-accent { color: var(--color-on-accent); }
+@utility theme-bg-accent { background-color: var(--color-accent); }
+@utility theme-bg-accent-hover { background-color: color-mix(in srgb, var(--color-accent) 84%, var(--color-text)); }
+@utility theme-bg-disabled { background-color: var(--color-disabled); }
+@utility theme-bg-code { background-color: var(--color-code-background); }
+@utility theme-danger-soft { border-color: color-mix(in srgb, var(--color-danger) 35%, transparent); background-color: var(--color-danger-soft); color: var(--color-danger); }
+@utility theme-warning-soft { border-color: color-mix(in srgb, var(--color-warning) 35%, transparent); background-color: var(--color-warning-soft); color: var(--color-warning); }
+@utility theme-success-soft { border-color: color-mix(in srgb, var(--color-success) 35%, transparent); background-color: var(--color-success-soft); color: var(--color-success); }
+@utility theme-info-soft { border-color: color-mix(in srgb, var(--color-info) 35%, transparent); background-color: var(--color-info-soft); color: var(--color-info); }
+@utility theme-bg-danger-soft { background-color: var(--color-danger-soft); }
+@utility theme-bg-warning-soft { background-color: var(--color-warning-soft); }
+@utility theme-bg-success-soft { background-color: var(--color-success-soft); }
+@utility theme-bg-info-soft { background-color: var(--color-info-soft); }
+@utility theme-bg-danger { background-color: var(--color-danger); }
+@utility theme-bg-warning { background-color: var(--color-warning); }
+@utility theme-bg-success { background-color: var(--color-success); }
+@utility theme-bg-info { background-color: var(--color-info); }
+@utility theme-border-danger { border-color: color-mix(in srgb, var(--color-danger) 35%, transparent); }
+@utility theme-border-warning { border-color: color-mix(in srgb, var(--color-warning) 35%, transparent); }
+@utility theme-border-success { border-color: color-mix(in srgb, var(--color-success) 35%, transparent); }
+@utility theme-border-info { border-color: color-mix(in srgb, var(--color-info) 35%, transparent); }
+@utility theme-text-danger { color: var(--color-danger); }
+@utility theme-text-warning { color: var(--color-warning); }
+@utility theme-text-success { color: var(--color-success); }
+@utility theme-text-info { color: var(--color-info); }
+@utility theme-on-danger { color: var(--color-on-danger); }
+@utility theme-on-warning { color: var(--color-on-warning); }
+@utility theme-on-success { color: var(--color-on-success); }
+@utility theme-on-info { color: var(--color-on-info); }
+
 :root {
   color-scheme: light;
   --color-background: #f4f4f5;
@@ -14,8 +50,24 @@
   --color-warning: #d97706;
   --color-success: #16a34a;
   --color-info: #2563eb;
+  --color-on-accent: #ffffff;
+  --color-on-danger: #ffffff;
+  --color-on-warning: #0b0e13;
+  --color-on-success: #ffffff;
+  --color-on-info: #ffffff;
   --color-code-background: #18181b;
   --color-terminal-background: #101216;
+  --color-surface-muted: color-mix(in srgb, var(--color-panel) 88%, var(--color-background));
+  --color-control: color-mix(in srgb, var(--color-elevated) 92%, var(--color-text) 8%);
+  --color-control-hover: color-mix(in srgb, var(--color-elevated) 84%, var(--color-text) 16%);
+  --color-control-active: color-mix(in srgb, var(--color-accent) 16%, var(--color-panel));
+  --color-disabled: color-mix(in srgb, var(--color-elevated) 78%, var(--color-background));
+  --color-placeholder: color-mix(in srgb, var(--color-text-muted) 84%, var(--color-panel));
+  --color-scrim: rgb(0 0 0 / 0.68);
+  --color-danger-soft: color-mix(in srgb, var(--color-danger) 13%, var(--color-panel));
+  --color-warning-soft: color-mix(in srgb, var(--color-warning) 13%, var(--color-panel));
+  --color-success-soft: color-mix(in srgb, var(--color-success) 13%, var(--color-panel));
+  --color-info-soft: color-mix(in srgb, var(--color-info) 13%, var(--color-panel));
   --font-sans: "IBM Plex Sans", "Avenir Next", "Segoe UI", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "IBM Plex Mono", "Cascadia Code", "SFMono-Regular", ui-monospace, monospace;
   --space-xs: 0.25rem;

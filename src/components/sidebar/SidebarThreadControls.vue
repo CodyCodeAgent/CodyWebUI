@@ -58,22 +58,22 @@ defineEmits<{
 </script>
 
 <style scoped>
-@reference "tailwindcss";
+@reference "../../style.css";
 
 .sidebar-thread-controls {
   @apply flex flex-row flex-nowrap items-center gap-2;
 }
 
 .sidebar-thread-controls-button {
-  @apply h-6.75 w-6.75 rounded-md border border-transparent bg-transparent text-zinc-600 flex items-center justify-center transition hover:border-zinc-200 hover:bg-zinc-50;
+  @apply h-6.75 w-6.75 rounded-md border border-transparent bg-transparent theme-muted flex items-center justify-center transition hover:theme-border hover:theme-bg-subtle;
 }
 
 .sidebar-thread-controls-button[aria-pressed='true'] {
-  @apply border-emerald-200 bg-emerald-50 text-emerald-700;
+  @apply theme-border-success theme-bg-success-soft theme-text-success;
 }
 
 .sidebar-thread-controls-button[aria-pressed='false'] {
-  @apply text-zinc-500;
+  @apply theme-muted;
 }
 
 .sidebar-thread-controls-icon {

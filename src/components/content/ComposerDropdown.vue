@@ -98,18 +98,18 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
-@reference "tailwindcss";
+@reference "../../style.css";
 
 .composer-dropdown {
   @apply relative inline-flex min-w-0;
 }
 
 .composer-dropdown-trigger {
-  @apply inline-flex h-7 items-center gap-1 border-0 bg-transparent p-0 text-sm leading-none text-zinc-500 outline-none transition;
+  @apply inline-flex h-7 items-center gap-1 border-0 bg-transparent p-0 text-sm leading-none theme-muted outline-none transition;
 }
 
 .composer-dropdown-trigger:disabled {
-  @apply cursor-not-allowed text-zinc-500;
+  @apply cursor-not-allowed theme-muted;
 }
 
 .composer-dropdown-value {
@@ -117,7 +117,7 @@ onBeforeUnmount(() => {
 }
 
 .composer-dropdown-chevron {
-  @apply mt-px h-3.5 w-3.5 shrink-0 text-zinc-500;
+  @apply mt-px h-3.5 w-3.5 shrink-0 theme-muted;
 }
 
 .composer-dropdown-menu-wrap {
@@ -133,14 +133,14 @@ onBeforeUnmount(() => {
 }
 
 .composer-dropdown-menu {
-  @apply m-0 min-w-40 list-none rounded-xl border border-zinc-200 bg-white p-1 shadow-lg;
+  @apply m-0 min-w-40 list-none rounded-xl border theme-border theme-bg-panel p-1 shadow-lg;
 }
 
 .composer-dropdown-option {
-  @apply flex w-full items-center rounded-lg border-0 bg-transparent px-2 py-1.5 text-left text-sm text-zinc-700 transition hover:bg-zinc-100;
+  @apply flex w-full items-center rounded-lg border-0 bg-transparent px-2 py-1.5 text-left text-sm theme-muted transition hover:theme-bg-control;
 }
 
 .composer-dropdown-option.is-selected {
-  @apply bg-zinc-100;
+  @apply theme-bg-control;
 }
 </style>

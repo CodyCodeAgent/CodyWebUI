@@ -134,10 +134,10 @@ watch(primaryThreadId, () => {
 </script>
 
 <style scoped>
-@reference "tailwindcss";
+@reference "../../style.css";
 
 .workspace-mobile-supervision {
-  @apply rounded-lg border border-zinc-200 bg-white p-3;
+  @apply rounded-lg border theme-border theme-bg-panel p-3;
 }
 
 .workspace-mobile-supervision-header {
@@ -145,19 +145,19 @@ watch(primaryThreadId, () => {
 }
 
 .workspace-mobile-supervision-title {
-  @apply m-0 text-xs font-semibold uppercase tracking-normal text-zinc-500;
+  @apply m-0 text-xs font-semibold uppercase tracking-normal theme-muted;
 }
 
 .workspace-mobile-supervision-subtitle {
-  @apply m-0 mt-1 text-xs text-zinc-600;
+  @apply m-0 mt-1 text-xs theme-muted;
 }
 
 .workspace-mobile-supervision-badge {
-  @apply shrink-0 rounded-full border border-zinc-200 bg-zinc-50 px-2 py-0.5 text-[0.68rem] font-semibold text-zinc-600;
+  @apply shrink-0 rounded-full border theme-border theme-bg-subtle px-2 py-0.5 text-[0.68rem] font-semibold theme-muted;
 }
 
 .workspace-mobile-supervision-task {
-  @apply mt-2 grid gap-2 rounded-md border border-zinc-200 bg-zinc-50 p-2;
+  @apply mt-2 grid gap-2 rounded-md border theme-border theme-bg-subtle p-2;
 }
 
 .workspace-mobile-supervision-task-main {
@@ -165,15 +165,15 @@ watch(primaryThreadId, () => {
 }
 
 .workspace-mobile-supervision-status {
-  @apply w-fit rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 text-[0.68rem] font-semibold text-blue-700;
+  @apply w-fit rounded-full border theme-border-info theme-bg-info-soft px-2 py-0.5 text-[0.68rem] font-semibold theme-text-info;
 }
 
 .workspace-mobile-supervision-task-main strong {
-  @apply truncate text-sm font-semibold text-zinc-950;
+  @apply truncate text-sm font-semibold theme-text;
 }
 
 .workspace-mobile-supervision-task-main p {
-  @apply m-0 line-clamp-2 text-xs leading-4 text-zinc-600;
+  @apply m-0 line-clamp-2 text-xs leading-4 theme-muted;
 }
 
 .workspace-mobile-supervision-risk-row {
@@ -181,19 +181,19 @@ watch(primaryThreadId, () => {
 }
 
 .workspace-mobile-supervision-risk-row span {
-  @apply rounded-full border border-zinc-200 bg-white px-2 py-0.5 text-[0.68rem] font-medium leading-4 text-zinc-600;
+  @apply rounded-full border theme-border theme-bg-panel px-2 py-0.5 text-[0.68rem] font-medium leading-4 theme-muted;
 }
 
 .workspace-mobile-supervision-risk-row span[data-tone='info'] {
-  @apply border-blue-200 bg-blue-50 text-blue-700;
+  @apply theme-border-info theme-bg-info-soft theme-text-info;
 }
 
 .workspace-mobile-supervision-risk-row span[data-tone='warning'] {
-  @apply border-amber-200 bg-amber-50 text-amber-700;
+  @apply theme-border-warning theme-bg-warning-soft theme-text-warning;
 }
 
 .workspace-mobile-supervision-risk-row span[data-tone='danger'] {
-  @apply border-rose-200 bg-rose-50 text-rose-700;
+  @apply theme-border-danger theme-bg-danger-soft theme-text-danger;
 }
 
 .workspace-mobile-supervision-facts {
@@ -201,15 +201,15 @@ watch(primaryThreadId, () => {
 }
 
 .workspace-mobile-supervision-facts div {
-  @apply min-w-0 rounded-md border border-zinc-200 bg-white px-2 py-1;
+  @apply min-w-0 rounded-md border theme-border theme-bg-panel px-2 py-1;
 }
 
 .workspace-mobile-supervision-facts dt {
-  @apply text-[0.65rem] font-semibold uppercase tracking-normal text-zinc-500;
+  @apply text-[0.65rem] font-semibold uppercase tracking-normal theme-muted;
 }
 
 .workspace-mobile-supervision-facts dd {
-  @apply m-0 truncate text-xs font-semibold text-zinc-900;
+  @apply m-0 truncate text-xs font-semibold theme-text;
 }
 
 .workspace-mobile-supervision-follow-up {
@@ -217,12 +217,12 @@ watch(primaryThreadId, () => {
 }
 
 .workspace-mobile-supervision-follow-up input {
-  @apply h-8 min-w-0 rounded-md border border-zinc-200 bg-white px-2 text-xs text-zinc-900 outline-none transition placeholder:text-zinc-400 focus:border-blue-300 focus:ring-2 focus:ring-blue-100 disabled:cursor-not-allowed disabled:bg-zinc-100;
+  @apply h-8 min-w-0 rounded-md border theme-border theme-bg-panel px-2 text-xs theme-text outline-none transition placeholder:theme-muted focus:theme-border-info focus:ring-2 focus:ring-blue-100 disabled:cursor-not-allowed disabled:theme-bg-control;
 }
 
 .workspace-mobile-supervision-follow-up button,
 .workspace-mobile-supervision-actions button {
-  @apply inline-flex h-8 shrink-0 items-center justify-center rounded-md border border-zinc-300 bg-white px-2.5 text-[0.68rem] font-semibold text-zinc-700 transition hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-55;
+  @apply inline-flex h-8 shrink-0 items-center justify-center rounded-md border theme-border theme-bg-panel px-2.5 text-[0.68rem] font-semibold theme-muted transition hover:theme-bg-control disabled:cursor-not-allowed disabled:opacity-55;
 }
 
 .workspace-mobile-supervision-actions {
@@ -230,11 +230,11 @@ watch(primaryThreadId, () => {
 }
 
 .workspace-mobile-supervision-actions button[data-tone='danger'] {
-  @apply border-rose-200 text-rose-700 hover:bg-rose-50;
+  @apply theme-border-danger theme-text-danger hover:theme-bg-danger-soft;
 }
 
 .workspace-mobile-supervision-empty {
-  @apply m-0 mt-2 rounded-md border border-dashed border-zinc-200 px-3 py-2 text-xs text-zinc-500;
+  @apply m-0 mt-2 rounded-md border border-dashed theme-border px-3 py-2 text-xs theme-muted;
 }
 
 @media (max-width: 760px) {

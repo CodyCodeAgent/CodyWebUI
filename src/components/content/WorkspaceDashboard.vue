@@ -572,7 +572,7 @@ watch(
 </script>
 
 <style scoped>
-@reference "tailwindcss";
+@reference "../../style.css";
 
 .workspace-dashboard {
   @apply mx-auto flex w-full max-w-6xl shrink-0 flex-col gap-3 px-6 pt-2;
@@ -587,19 +587,19 @@ watch(
 }
 
 .workspace-dashboard-eyebrow {
-  @apply m-0 text-xs font-semibold uppercase tracking-normal text-zinc-500;
+  @apply m-0 text-xs font-semibold uppercase tracking-normal theme-muted;
 }
 
 .workspace-dashboard-title {
-  @apply m-0 mt-0.5 truncate text-xl font-semibold text-zinc-950;
+  @apply m-0 mt-0.5 truncate text-xl font-semibold theme-text;
 }
 
 .workspace-dashboard-path {
-  @apply m-0 mt-1 truncate font-mono text-xs text-zinc-500;
+  @apply m-0 mt-1 truncate font-mono text-xs theme-muted;
 }
 
 .workspace-dashboard-refresh {
-  @apply inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md border border-zinc-200 bg-white px-2.5 text-xs font-medium text-zinc-700 transition hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-60;
+  @apply inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md border theme-border theme-bg-panel px-2.5 text-xs font-medium theme-muted transition hover:theme-bg-subtle disabled:cursor-not-allowed disabled:opacity-60;
 }
 
 .workspace-dashboard-refresh-icon {
@@ -607,7 +607,7 @@ watch(
 }
 
 .workspace-dashboard-error {
-  @apply m-0 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700;
+  @apply m-0 rounded-md border theme-border-danger theme-bg-danger-soft px-3 py-2 text-xs theme-text-danger;
 }
 
 .workspace-dashboard-grid {
@@ -615,11 +615,11 @@ watch(
 }
 
 .workspace-dashboard-panel {
-  @apply min-w-0 rounded-lg border border-zinc-200 bg-white p-3;
+  @apply min-w-0 rounded-lg border theme-border theme-bg-panel p-3;
 }
 
 .workspace-dashboard-panel-title {
-  @apply m-0 text-xs font-semibold uppercase tracking-normal text-zinc-500;
+  @apply m-0 text-xs font-semibold uppercase tracking-normal theme-muted;
 }
 
 .workspace-dashboard-metric-row {
@@ -627,27 +627,27 @@ watch(
 }
 
 .workspace-dashboard-metric {
-  @apply min-w-0 rounded-md border border-zinc-200 bg-zinc-50 px-2 py-1.5;
+  @apply min-w-0 rounded-md border theme-border theme-bg-subtle px-2 py-1.5;
 }
 
 .workspace-dashboard-metric[data-tone='success'] {
-  @apply border-emerald-200 bg-emerald-50;
+  @apply theme-border-success theme-bg-success-soft;
 }
 
 .workspace-dashboard-metric[data-tone='warning'] {
-  @apply border-amber-200 bg-amber-50;
+  @apply theme-border-warning theme-bg-warning-soft;
 }
 
 .workspace-dashboard-metric[data-tone='working'] {
-  @apply border-blue-200 bg-blue-50;
+  @apply theme-border-info theme-bg-info-soft;
 }
 
 .workspace-dashboard-metric-value {
-  @apply block truncate text-sm font-semibold leading-5 text-zinc-950;
+  @apply block truncate text-sm font-semibold leading-5 theme-text;
 }
 
 .workspace-dashboard-metric-label {
-  @apply block truncate text-[0.68rem] leading-4 text-zinc-500;
+  @apply block truncate text-[0.68rem] leading-4 theme-muted;
 }
 
 .workspace-dashboard-status-list {
@@ -655,15 +655,15 @@ watch(
 }
 
 .workspace-dashboard-status-list div {
-  @apply rounded-md border border-zinc-200 bg-zinc-50 px-2 py-1;
+  @apply rounded-md border theme-border theme-bg-subtle px-2 py-1;
 }
 
 .workspace-dashboard-status-list dt {
-  @apply text-[0.68rem] uppercase leading-4 text-zinc-500;
+  @apply text-[0.68rem] uppercase leading-4 theme-muted;
 }
 
 .workspace-dashboard-status-list dd {
-  @apply m-0 text-xs font-semibold text-zinc-900;
+  @apply m-0 text-xs font-semibold theme-text;
 }
 
 .workspace-dashboard-file-list,
@@ -674,24 +674,24 @@ watch(
 }
 
 .workspace-dashboard-file-list li {
-  @apply grid grid-cols-[3rem_minmax(0,1fr)] gap-2 rounded-md border border-zinc-200 bg-zinc-50 px-2 py-1;
+  @apply grid grid-cols-[3rem_minmax(0,1fr)] gap-2 rounded-md border theme-border theme-bg-subtle px-2 py-1;
 }
 
 .workspace-dashboard-file-status {
-  @apply font-mono text-[0.68rem] leading-4 text-zinc-500;
+  @apply font-mono text-[0.68rem] leading-4 theme-muted;
 }
 
 .workspace-dashboard-file-path {
-  @apply truncate font-mono text-[0.68rem] leading-4 text-zinc-700;
+  @apply truncate font-mono text-[0.68rem] leading-4 theme-muted;
 }
 
 .workspace-dashboard-script-summary {
-  @apply mt-2 flex flex-wrap gap-1.5 text-xs text-zinc-500;
+  @apply mt-2 flex flex-wrap gap-1.5 text-xs theme-muted;
 }
 
 .workspace-dashboard-script-summary span,
 .workspace-dashboard-config-grid span {
-  @apply rounded-full border border-zinc-200 bg-zinc-50 px-2 py-0.5;
+  @apply rounded-full border theme-border theme-bg-subtle px-2 py-0.5;
 }
 
 .workspace-dashboard-validation-plan {
@@ -703,11 +703,11 @@ watch(
 }
 
 .workspace-dashboard-validation-plan-header h4 {
-  @apply m-0 text-[0.68rem] font-semibold uppercase tracking-normal text-zinc-500;
+  @apply m-0 text-[0.68rem] font-semibold uppercase tracking-normal theme-muted;
 }
 
 .workspace-dashboard-validation-plan-header span {
-  @apply truncate text-[0.68rem] leading-4 text-zinc-500;
+  @apply truncate text-[0.68rem] leading-4 theme-muted;
 }
 
 .workspace-dashboard-validation-plan-list {
@@ -715,19 +715,19 @@ watch(
 }
 
 .workspace-dashboard-validation-plan-list li {
-  @apply rounded-md border border-zinc-200 bg-zinc-50 px-2 py-1.5;
+  @apply rounded-md border theme-border theme-bg-subtle px-2 py-1.5;
 }
 
 .workspace-dashboard-validation-plan-list li[data-status='covered'] {
-  @apply border-emerald-200 bg-emerald-50;
+  @apply theme-border-success theme-bg-success-soft;
 }
 
 .workspace-dashboard-validation-plan-list li[data-status='failed'] {
-  @apply border-rose-200 bg-rose-50;
+  @apply theme-border-danger theme-bg-danger-soft;
 }
 
 .workspace-dashboard-validation-plan-list li[data-status='blocked'] {
-  @apply border-amber-200 bg-amber-50;
+  @apply theme-border-warning theme-bg-warning-soft;
 }
 
 .workspace-dashboard-validation-plan-row {
@@ -739,15 +739,15 @@ watch(
 }
 
 .workspace-dashboard-validation-plan-copy span {
-  @apply block truncate text-xs font-semibold text-zinc-900;
+  @apply block truncate text-xs font-semibold theme-text;
 }
 
 .workspace-dashboard-validation-plan-copy code {
-  @apply mt-0.5 block truncate font-mono text-[0.68rem] leading-4 text-zinc-600;
+  @apply mt-0.5 block truncate font-mono text-[0.68rem] leading-4 theme-muted;
 }
 
 .workspace-dashboard-validation-plan-copy small {
-  @apply mt-0.5 block text-[0.68rem] leading-4 text-zinc-500;
+  @apply mt-0.5 block text-[0.68rem] leading-4 theme-muted;
 }
 
 .workspace-dashboard-validation-plan-badges {
@@ -755,15 +755,15 @@ watch(
 }
 
 .workspace-dashboard-validation-plan-badges span {
-  @apply rounded-full border border-zinc-200 bg-white/80 px-1.5 py-0.5 text-[0.62rem] font-semibold uppercase leading-3 text-zinc-500;
+  @apply rounded-full border theme-border bg-white/80 px-1.5 py-0.5 text-[0.62rem] font-semibold uppercase leading-3 theme-muted;
 }
 
 .workspace-dashboard-validation-plan-evidence {
-  @apply m-0 mt-1 text-[0.68rem] leading-4 text-zinc-600;
+  @apply m-0 mt-1 text-[0.68rem] leading-4 theme-muted;
 }
 
 .workspace-dashboard-script-list li {
-  @apply rounded-md border border-zinc-200 bg-zinc-50 px-2 py-1.5;
+  @apply rounded-md border theme-border theme-bg-subtle px-2 py-1.5;
 }
 
 .workspace-dashboard-script-row {
@@ -775,44 +775,44 @@ watch(
 }
 
 .workspace-dashboard-script-name {
-  @apply mr-2 font-mono text-xs font-semibold text-zinc-900;
+  @apply mr-2 font-mono text-xs font-semibold theme-text;
 }
 
 .workspace-dashboard-script-list code {
-  @apply break-words font-mono text-[0.68rem] leading-4 text-zinc-600;
+  @apply break-words font-mono text-[0.68rem] leading-4 theme-muted;
 }
 
 .workspace-dashboard-script-run {
-  @apply inline-flex h-6 shrink-0 items-center rounded-md border border-zinc-300 bg-white px-2 text-[0.68rem] font-semibold text-zinc-700 transition hover:bg-zinc-100 disabled:cursor-wait disabled:opacity-60;
+  @apply inline-flex h-6 shrink-0 items-center rounded-md border theme-border theme-bg-panel px-2 text-[0.68rem] font-semibold theme-muted transition hover:theme-bg-control disabled:cursor-wait disabled:opacity-60;
 }
 
 .workspace-dashboard-script-manual {
-  @apply rounded-md border border-zinc-200 bg-white px-2 py-1 text-[0.68rem] font-medium leading-4 text-zinc-400;
+  @apply rounded-md border theme-border theme-bg-panel px-2 py-1 text-[0.68rem] font-medium leading-4 theme-muted;
 }
 
 .workspace-dashboard-script-error {
-  @apply m-0 mt-1 rounded-md border border-rose-200 bg-rose-50 px-2 py-1 text-[0.68rem] leading-4 text-rose-700;
+  @apply m-0 mt-1 rounded-md border theme-border-danger theme-bg-danger-soft px-2 py-1 text-[0.68rem] leading-4 theme-text-danger;
 }
 
 .workspace-dashboard-script-result {
-  @apply mt-1 rounded-md border border-zinc-200 bg-white p-2;
+  @apply mt-1 rounded-md border theme-border theme-bg-panel p-2;
 }
 
 .workspace-dashboard-script-result[data-status='passed'] {
-  @apply border-emerald-200 bg-emerald-50;
+  @apply theme-border-success theme-bg-success-soft;
 }
 
 .workspace-dashboard-script-result[data-status='failed'],
 .workspace-dashboard-script-result[data-status='timed_out'] {
-  @apply border-rose-200 bg-rose-50;
+  @apply theme-border-danger theme-bg-danger-soft;
 }
 
 .workspace-dashboard-script-result-meta {
-  @apply mb-1 flex flex-wrap gap-1.5 text-[0.68rem] font-semibold uppercase leading-4 text-zinc-500;
+  @apply mb-1 flex flex-wrap gap-1.5 text-[0.68rem] font-semibold uppercase leading-4 theme-muted;
 }
 
 .workspace-dashboard-script-result-meta span {
-  @apply rounded-full border border-zinc-200 bg-white/70 px-1.5 py-0.5;
+  @apply rounded-full border theme-border bg-white/70 px-1.5 py-0.5;
 }
 
 .workspace-dashboard-script-evidence {
@@ -820,19 +820,19 @@ watch(
 }
 
 .workspace-dashboard-script-evidence span {
-  @apply rounded-md border border-zinc-200 bg-white/80 px-2 py-1 font-mono text-[0.68rem] leading-4 text-zinc-700;
+  @apply rounded-md border theme-border bg-white/80 px-2 py-1 font-mono text-[0.68rem] leading-4 theme-muted;
 }
 
 .workspace-dashboard-script-result pre {
-  @apply m-0 mt-1 max-h-36 overflow-auto whitespace-pre-wrap rounded-md border border-zinc-200 bg-zinc-950 p-2 font-mono text-[0.68rem] leading-4 text-zinc-100;
+  @apply m-0 mt-1 max-h-36 overflow-auto whitespace-pre-wrap rounded-md border theme-border bg-zinc-950 p-2 font-mono text-[0.68rem] leading-4 text-zinc-100;
 }
 
 .workspace-dashboard-config-grid {
-  @apply mt-2 flex flex-wrap gap-1.5 text-[0.68rem] text-zinc-500;
+  @apply mt-2 flex flex-wrap gap-1.5 text-[0.68rem] theme-muted;
 }
 
 .workspace-dashboard-config-grid span[data-present='true'] {
-  @apply border-emerald-200 bg-emerald-50 text-emerald-700;
+  @apply theme-border-success theme-bg-success-soft theme-text-success;
 }
 
 .workspace-dashboard-project-context {
@@ -844,11 +844,11 @@ watch(
 }
 
 .workspace-dashboard-project-context-header h4 {
-  @apply m-0 text-[0.68rem] font-semibold uppercase tracking-normal text-zinc-500;
+  @apply m-0 text-[0.68rem] font-semibold uppercase tracking-normal theme-muted;
 }
 
 .workspace-dashboard-project-context-header span {
-  @apply truncate text-[0.68rem] leading-4 text-zinc-500;
+  @apply truncate text-[0.68rem] leading-4 theme-muted;
 }
 
 .workspace-dashboard-project-context-list {
@@ -856,11 +856,11 @@ watch(
 }
 
 .workspace-dashboard-project-context-list li {
-  @apply rounded-md border border-zinc-200 bg-zinc-50 px-2 py-1.5;
+  @apply rounded-md border theme-border theme-bg-subtle px-2 py-1.5;
 }
 
 .workspace-dashboard-project-context-list li[data-present='true'] {
-  @apply border-emerald-200 bg-emerald-50;
+  @apply theme-border-success theme-bg-success-soft;
 }
 
 .workspace-dashboard-project-context-list div {
@@ -868,15 +868,15 @@ watch(
 }
 
 .workspace-dashboard-project-context-list span {
-  @apply truncate text-xs font-semibold text-zinc-900;
+  @apply truncate text-xs font-semibold theme-text;
 }
 
 .workspace-dashboard-project-context-list code {
-  @apply truncate font-mono text-[0.68rem] leading-4 text-zinc-500;
+  @apply truncate font-mono text-[0.68rem] leading-4 theme-muted;
 }
 
 .workspace-dashboard-project-context-list p {
-  @apply m-0 mt-1 text-[0.68rem] leading-4 text-zinc-600;
+  @apply m-0 mt-1 text-[0.68rem] leading-4 theme-muted;
 }
 
 .workspace-dashboard-policy-list {
@@ -884,15 +884,15 @@ watch(
 }
 
 .workspace-dashboard-policy-list div {
-  @apply min-w-0 rounded-md border border-zinc-200 bg-zinc-50 px-2 py-1.5;
+  @apply min-w-0 rounded-md border theme-border theme-bg-subtle px-2 py-1.5;
 }
 
 .workspace-dashboard-policy-list dt {
-  @apply text-[0.65rem] font-semibold uppercase tracking-normal text-zinc-500;
+  @apply text-[0.65rem] font-semibold uppercase tracking-normal theme-muted;
 }
 
 .workspace-dashboard-policy-list dd {
-  @apply m-0 truncate text-xs font-semibold text-zinc-900;
+  @apply m-0 truncate text-xs font-semibold theme-text;
 }
 
 .workspace-dashboard-config-command-list {
@@ -900,15 +900,15 @@ watch(
 }
 
 .workspace-dashboard-config-command-list li {
-  @apply min-w-0 rounded-md border border-zinc-200 bg-zinc-50 px-2 py-1.5;
+  @apply min-w-0 rounded-md border theme-border theme-bg-subtle px-2 py-1.5;
 }
 
 .workspace-dashboard-config-command-list span {
-  @apply block truncate text-xs font-semibold text-zinc-900;
+  @apply block truncate text-xs font-semibold theme-text;
 }
 
 .workspace-dashboard-config-command-list code {
-  @apply mt-1 block truncate font-mono text-[0.68rem] text-zinc-500;
+  @apply mt-1 block truncate font-mono text-[0.68rem] theme-muted;
 }
 
 .workspace-dashboard-notification-test {
@@ -920,27 +920,27 @@ watch(
 }
 
 .workspace-dashboard-notification-test-header h4 {
-  @apply m-0 text-[0.68rem] font-semibold uppercase tracking-normal text-zinc-500;
+  @apply m-0 text-[0.68rem] font-semibold uppercase tracking-normal theme-muted;
 }
 
 .workspace-dashboard-notification-result {
-  @apply mt-2 rounded-md border border-zinc-200 bg-zinc-50 p-2;
+  @apply mt-2 rounded-md border theme-border theme-bg-subtle p-2;
 }
 
 .workspace-dashboard-notification-result[data-status='passed'] {
-  @apply border-emerald-200 bg-emerald-50;
+  @apply theme-border-success theme-bg-success-soft;
 }
 
 .workspace-dashboard-notification-result[data-status='failed'] {
-  @apply border-rose-200 bg-rose-50;
+  @apply theme-border-danger theme-bg-danger-soft;
 }
 
 .workspace-dashboard-notification-result p {
-  @apply m-0 mt-1 text-[0.68rem] leading-4 text-zinc-600;
+  @apply m-0 mt-1 text-[0.68rem] leading-4 theme-muted;
 }
 
 .workspace-dashboard-notification-result p:first-child {
-  @apply mt-0 font-semibold text-zinc-800;
+  @apply mt-0 font-semibold theme-text;
 }
 
 .workspace-dashboard-notification-result ul {
@@ -952,27 +952,27 @@ watch(
 }
 
 .workspace-dashboard-notification-result span {
-  @apply truncate text-[0.68rem] font-semibold text-zinc-800;
+  @apply truncate text-[0.68rem] font-semibold theme-text;
 }
 
 .workspace-dashboard-notification-result code {
-  @apply font-mono text-[0.65rem] text-zinc-500;
+  @apply font-mono text-[0.65rem] theme-muted;
 }
 
 .workspace-dashboard-thread-list button {
-  @apply grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-2 rounded-md border border-zinc-200 bg-zinc-50 px-2 py-1 text-left transition hover:bg-zinc-100;
+  @apply grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-2 rounded-md border theme-border theme-bg-subtle px-2 py-1 text-left transition hover:theme-bg-control;
 }
 
 .workspace-dashboard-thread-title {
-  @apply truncate text-xs font-medium text-zinc-900;
+  @apply truncate text-xs font-medium theme-text;
 }
 
 .workspace-dashboard-thread-meta {
-  @apply text-[0.68rem] text-zinc-500;
+  @apply text-[0.68rem] theme-muted;
 }
 
 .workspace-dashboard-warning-list li {
-  @apply rounded-md border border-amber-200 bg-amber-50 px-2 py-1.5 text-xs leading-4 text-amber-800;
+  @apply rounded-md border theme-border-warning theme-bg-warning-soft px-2 py-1.5 text-xs leading-4 theme-text-warning;
   background: color-mix(in srgb, var(--color-warning) 12%, var(--color-surface));
   border-color: color-mix(in srgb, var(--color-warning) 34%, var(--color-border));
   color: color-mix(in srgb, var(--color-warning) 42%, var(--color-text));
@@ -983,35 +983,35 @@ watch(
 }
 
 .workspace-dashboard-resource-header span {
-  @apply rounded-full border border-zinc-200 bg-zinc-50 px-2 py-0.5 text-[0.68rem] font-semibold text-zinc-600;
+  @apply rounded-full border theme-border theme-bg-subtle px-2 py-0.5 text-[0.68rem] font-semibold theme-muted;
   background: var(--color-elevated);
   border-color: var(--color-border);
   color: var(--color-text-muted);
 }
 
 .workspace-dashboard-resource-header span[data-tone='success'] {
-  @apply border-emerald-200 bg-emerald-50 text-emerald-700;
+  @apply theme-border-success theme-bg-success-soft theme-text-success;
   background: color-mix(in srgb, var(--color-success) 14%, var(--color-surface));
   border-color: color-mix(in srgb, var(--color-success) 36%, var(--color-border));
   color: color-mix(in srgb, var(--color-success) 48%, var(--color-text));
 }
 
 .workspace-dashboard-resource-header span[data-tone='warning'] {
-  @apply border-amber-200 bg-amber-50 text-amber-700;
+  @apply theme-border-warning theme-bg-warning-soft theme-text-warning;
   background: color-mix(in srgb, var(--color-warning) 14%, var(--color-surface));
   border-color: color-mix(in srgb, var(--color-warning) 36%, var(--color-border));
   color: color-mix(in srgb, var(--color-warning) 48%, var(--color-text));
 }
 
 .workspace-dashboard-resource-header span[data-tone='danger'] {
-  @apply border-rose-200 bg-rose-50 text-rose-700;
+  @apply theme-border-danger theme-bg-danger-soft theme-text-danger;
   background: color-mix(in srgb, var(--color-danger) 14%, var(--color-surface));
   border-color: color-mix(in srgb, var(--color-danger) 36%, var(--color-border));
   color: color-mix(in srgb, var(--color-danger) 48%, var(--color-text));
 }
 
 .workspace-dashboard-resource-header span[data-tone='info'] {
-  @apply border-blue-200 bg-blue-50 text-blue-700;
+  @apply theme-border-info theme-bg-info-soft theme-text-info;
   background: color-mix(in srgb, var(--color-info) 14%, var(--color-surface));
   border-color: color-mix(in srgb, var(--color-info) 36%, var(--color-border));
   color: color-mix(in srgb, var(--color-info) 48%, var(--color-text));
@@ -1022,47 +1022,47 @@ watch(
 }
 
 .workspace-dashboard-resource-metric {
-  @apply min-w-0 rounded-md border border-zinc-200 bg-zinc-50 px-2 py-1.5;
+  @apply min-w-0 rounded-md border theme-border theme-bg-subtle px-2 py-1.5;
   background: var(--color-elevated);
   border-color: var(--color-border);
 }
 
 .workspace-dashboard-resource-metric[data-tone='success'] {
-  @apply border-emerald-200 bg-emerald-50;
+  @apply theme-border-success theme-bg-success-soft;
   background: color-mix(in srgb, var(--color-success) 10%, var(--color-surface));
   border-color: color-mix(in srgb, var(--color-success) 30%, var(--color-border));
 }
 
 .workspace-dashboard-resource-metric[data-tone='warning'] {
-  @apply border-amber-200 bg-amber-50;
+  @apply theme-border-warning theme-bg-warning-soft;
   background: color-mix(in srgb, var(--color-warning) 10%, var(--color-surface));
   border-color: color-mix(in srgb, var(--color-warning) 30%, var(--color-border));
 }
 
 .workspace-dashboard-resource-metric[data-tone='danger'] {
-  @apply border-rose-200 bg-rose-50;
+  @apply theme-border-danger theme-bg-danger-soft;
   background: color-mix(in srgb, var(--color-danger) 10%, var(--color-surface));
   border-color: color-mix(in srgb, var(--color-danger) 30%, var(--color-border));
 }
 
 .workspace-dashboard-resource-metric[data-tone='info'] {
-  @apply border-blue-200 bg-blue-50;
+  @apply theme-border-info theme-bg-info-soft;
   background: color-mix(in srgb, var(--color-info) 10%, var(--color-surface));
   border-color: color-mix(in srgb, var(--color-info) 30%, var(--color-border));
 }
 
 .workspace-dashboard-resource-metric span {
-  @apply block truncate text-[0.65rem] font-semibold uppercase tracking-normal text-zinc-500;
+  @apply block truncate text-[0.65rem] font-semibold uppercase tracking-normal theme-muted;
   color: var(--color-text-muted);
 }
 
 .workspace-dashboard-resource-metric strong {
-  @apply mt-0.5 block truncate text-sm font-semibold text-zinc-950;
+  @apply mt-0.5 block truncate text-sm font-semibold theme-text;
   color: var(--color-text);
 }
 
 .workspace-dashboard-resource-metric small {
-  @apply mt-0.5 block truncate text-[0.68rem] leading-4 text-zinc-500;
+  @apply mt-0.5 block truncate text-[0.68rem] leading-4 theme-muted;
   color: var(--color-text-muted);
 }
 
@@ -1071,14 +1071,14 @@ watch(
 }
 
 .workspace-dashboard-resource-notes li {
-  @apply rounded-md border border-zinc-200 bg-white px-2 py-1 text-[0.68rem] leading-4 text-zinc-600;
+  @apply rounded-md border theme-border theme-bg-panel px-2 py-1 text-[0.68rem] leading-4 theme-muted;
   background: var(--color-surface);
   border-color: var(--color-border);
   color: var(--color-text-muted);
 }
 
 .workspace-dashboard-empty {
-  @apply m-0 mt-2 rounded-md border border-dashed border-zinc-200 px-3 py-2 text-xs text-zinc-500;
+  @apply m-0 mt-2 rounded-md border border-dashed theme-border px-3 py-2 text-xs theme-muted;
 }
 
 .workspace-dashboard-tools {

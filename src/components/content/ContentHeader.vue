@@ -18,7 +18,7 @@ defineProps<{
 </script>
 
 <style scoped>
-@reference "tailwindcss";
+@reference "../../style.css";
 
 .content-header {
   @apply relative z-50 w-full min-h-14 flex items-center gap-3 px-4;

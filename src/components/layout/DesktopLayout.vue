@@ -88,7 +88,7 @@ function onResizeHandleMouseDown(event: MouseEvent): void {
 </script>
 
 <style scoped>
-@reference "tailwindcss";
+@reference "../../style.css";
 
 .desktop-layout {
   @apply h-screen grid overflow-hidden;

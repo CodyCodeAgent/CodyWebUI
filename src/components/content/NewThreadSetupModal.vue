@@ -182,26 +182,26 @@ onMounted(() => {
 </script>
 
 <style scoped>
-@reference "tailwindcss";
+@reference "../../style.css";
 
 .new-thread-modal-backdrop {
   @apply fixed inset-0 z-40 flex items-center justify-center bg-black/30 p-4;
 }
 
 .new-thread-modal {
-  @apply w-full max-w-130 rounded-xl border border-zinc-200 bg-white shadow-xl;
+  @apply w-full max-w-130 rounded-xl border theme-border theme-bg-panel shadow-xl;
 }
 
 .new-thread-modal-header {
-  @apply flex items-center justify-between border-b border-zinc-100 px-4 py-3;
+  @apply flex items-center justify-between border-b theme-border px-4 py-3;
 }
 
 .new-thread-modal-title {
-  @apply m-0 text-sm font-semibold text-zinc-900;
+  @apply m-0 text-sm font-semibold theme-text;
 }
 
 .new-thread-modal-close {
-  @apply h-7 w-7 rounded-md text-zinc-500 flex items-center justify-center hover:bg-zinc-100 hover:text-zinc-900;
+  @apply h-7 w-7 rounded-md theme-muted flex items-center justify-center hover:theme-bg-control hover:theme-text;
 }
 
 .new-thread-modal-icon {
@@ -217,31 +217,31 @@ onMounted(() => {
 }
 
 .new-thread-modal-label {
-  @apply text-xs font-medium text-zinc-500;
+  @apply text-xs font-medium theme-muted;
 }
 
 .new-thread-modal-select,
 .new-thread-modal-input {
-  @apply h-9 w-full min-w-0 rounded-md border border-zinc-300 bg-white px-2 text-sm text-zinc-900 outline-none focus:border-zinc-600;
+  @apply h-9 w-full min-w-0 rounded-md border theme-border theme-bg-panel px-2 text-sm theme-text outline-none focus:border-zinc-600;
 }
 
 .new-thread-modal-add-project {
-  @apply inline-flex h-8 w-fit items-center gap-2 rounded-md border border-zinc-200 bg-white px-3 text-sm text-zinc-700 hover:bg-zinc-50;
+  @apply inline-flex h-8 w-fit items-center gap-2 rounded-md border theme-border theme-bg-panel px-3 text-sm theme-muted hover:theme-bg-subtle;
 }
 
 .new-thread-modal-footer {
-  @apply flex items-center gap-2 border-t border-zinc-100 px-4 py-3;
+  @apply flex items-center gap-2 border-t theme-border px-4 py-3;
 }
 
 .new-thread-modal-cwd {
-  @apply m-0 min-w-0 flex-1 truncate text-xs text-zinc-500;
+  @apply m-0 min-w-0 flex-1 truncate text-xs theme-muted;
 }
 
 .new-thread-modal-cancel {
-  @apply rounded-md border border-zinc-200 px-3 py-1.5 text-sm text-zinc-700 hover:bg-zinc-50;
+  @apply rounded-md border theme-border px-3 py-1.5 text-sm theme-muted hover:theme-bg-subtle;
 }
 
 .new-thread-modal-confirm {
-  @apply rounded-md border border-zinc-900 bg-zinc-900 px-3 py-1.5 text-sm text-white hover:bg-black disabled:cursor-not-allowed disabled:border-zinc-200 disabled:bg-zinc-200 disabled:text-zinc-500;
+  @apply rounded-md border theme-border theme-bg-accent px-3 py-1.5 text-sm theme-on-accent hover:theme-bg-accent-hover disabled:cursor-not-allowed disabled:theme-border disabled:theme-bg-disabled disabled:theme-muted;
 }
 </style>

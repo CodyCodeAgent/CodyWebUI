@@ -110,10 +110,10 @@ watch(
 </script>
 
 <style scoped>
-@reference "tailwindcss";
+@reference "../../style.css";
 
 .workspace-security-panel {
-  @apply rounded-lg border border-zinc-200 bg-white p-3;
+  @apply rounded-lg border theme-border theme-bg-panel p-3;
 }
 
 .workspace-security-panel-header {
@@ -121,15 +121,15 @@ watch(
 }
 
 .workspace-security-panel-title {
-  @apply m-0 text-xs font-semibold uppercase tracking-normal text-zinc-500;
+  @apply m-0 text-xs font-semibold uppercase tracking-normal theme-muted;
 }
 
 .workspace-security-panel-subtitle {
-  @apply m-0 mt-1 text-xs text-zinc-600;
+  @apply m-0 mt-1 text-xs theme-muted;
 }
 
 .workspace-security-panel-refresh {
-  @apply inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md border border-zinc-200 bg-white px-2.5 text-xs font-medium text-zinc-700 transition hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-60;
+  @apply inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md border theme-border theme-bg-panel px-2.5 text-xs font-medium theme-muted transition hover:theme-bg-subtle disabled:cursor-not-allowed disabled:opacity-60;
 }
 
 .workspace-security-panel-refresh-icon {
@@ -137,7 +137,7 @@ watch(
 }
 
 .workspace-security-panel-error {
-  @apply m-0 mt-2 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700;
+  @apply m-0 mt-2 rounded-md border theme-border-danger theme-bg-danger-soft px-3 py-2 text-xs theme-text-danger;
 }
 
 .workspace-security-panel-metrics {
@@ -145,19 +145,19 @@ watch(
 }
 
 .workspace-security-panel-metrics span {
-  @apply rounded-md border border-zinc-200 bg-zinc-50 px-2 py-1 text-[0.68rem] font-semibold text-zinc-700;
+  @apply rounded-md border theme-border theme-bg-subtle px-2 py-1 text-[0.68rem] font-semibold theme-muted;
 }
 
 .workspace-security-panel-metrics span[data-tone='success'] {
-  @apply border-emerald-200 bg-emerald-50 text-emerald-800;
+  @apply theme-border-success theme-bg-success-soft theme-text-success;
 }
 
 .workspace-security-panel-metrics span[data-tone='warning'] {
-  @apply border-amber-200 bg-amber-50 text-amber-800;
+  @apply theme-border-warning theme-bg-warning-soft theme-text-warning;
 }
 
 .workspace-security-panel-metrics span[data-tone='danger'] {
-  @apply border-rose-200 bg-rose-50 text-rose-800;
+  @apply theme-border-danger theme-bg-danger-soft theme-text-danger;
 }
 
 .workspace-security-panel-warning-list,
@@ -166,19 +166,19 @@ watch(
 }
 
 .workspace-security-panel-warning-list {
-  @apply rounded-md border border-amber-200 bg-amber-50 px-2 py-1 text-xs text-amber-800;
+  @apply rounded-md border theme-border-warning theme-bg-warning-soft px-2 py-1 text-xs theme-text-warning;
 }
 
 .workspace-security-panel-finding {
-  @apply rounded-md border border-zinc-200 bg-zinc-50 px-2 py-1.5;
+  @apply rounded-md border theme-border theme-bg-subtle px-2 py-1.5;
 }
 
 .workspace-security-panel-finding[data-severity='danger'] {
-  @apply border-rose-200 bg-rose-50;
+  @apply theme-border-danger theme-bg-danger-soft;
 }
 
 .workspace-security-panel-finding[data-severity='warning'] {
-  @apply border-amber-200 bg-amber-50;
+  @apply theme-border-warning theme-bg-warning-soft;
 }
 
 .workspace-security-panel-finding-header {
@@ -186,26 +186,26 @@ watch(
 }
 
 .workspace-security-panel-finding-title {
-  @apply truncate text-xs font-semibold text-zinc-950;
+  @apply truncate text-xs font-semibold theme-text;
 }
 
 .workspace-security-panel-finding-severity {
-  @apply shrink-0 rounded-md border border-zinc-200 bg-white px-1.5 py-0.5 text-[0.68rem] font-medium uppercase text-zinc-600;
+  @apply shrink-0 rounded-md border theme-border theme-bg-panel px-1.5 py-0.5 text-[0.68rem] font-medium uppercase theme-muted;
 }
 
 .workspace-security-panel-finding-summary {
-  @apply m-0 mt-1 text-xs leading-5 text-zinc-700;
+  @apply m-0 mt-1 text-xs leading-5 theme-muted;
 }
 
 .workspace-security-panel-finding-path {
-  @apply m-0 mt-1 truncate font-mono text-[0.68rem] leading-4 text-zinc-500;
+  @apply m-0 mt-1 truncate font-mono text-[0.68rem] leading-4 theme-muted;
 }
 
 .workspace-security-panel-evidence {
-  @apply mt-1 block truncate rounded-md border border-zinc-200 bg-white px-1.5 py-1 font-mono text-[0.68rem] text-zinc-700;
+  @apply mt-1 block truncate rounded-md border theme-border theme-bg-panel px-1.5 py-1 font-mono text-[0.68rem] theme-muted;
 }
 
 .workspace-security-panel-empty {
-  @apply m-0 mt-2 rounded-md border border-dashed border-zinc-200 px-3 py-2 text-xs text-zinc-500;
+  @apply m-0 mt-2 rounded-md border border-dashed theme-border px-3 py-2 text-xs theme-muted;
 }
 </style>

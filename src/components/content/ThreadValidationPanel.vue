@@ -123,10 +123,10 @@ function formatCoverageSummary(summary: ValidationCoverageSummary): string {
 </script>
 
 <style scoped>
-@reference "tailwindcss";
+@reference "../../style.css";
 
 .thread-validation-panel {
-  @apply flex shrink-0 flex-col gap-2 rounded-lg border border-slate-200 bg-white p-3;
+  @apply flex shrink-0 flex-col gap-2 rounded-lg border theme-border theme-bg-panel p-3;
 }
 
 .thread-validation-header {
@@ -134,11 +134,11 @@ function formatCoverageSummary(summary: ValidationCoverageSummary): string {
 }
 
 .thread-validation-title {
-  @apply m-0 text-xs font-semibold uppercase tracking-normal text-slate-500;
+  @apply m-0 text-xs font-semibold uppercase tracking-normal theme-muted;
 }
 
 .thread-validation-summary {
-  @apply m-0 mt-0.5 text-xs text-slate-500;
+  @apply m-0 mt-0.5 text-xs theme-muted;
 }
 
 .thread-validation-metrics {
@@ -146,23 +146,23 @@ function formatCoverageSummary(summary: ValidationCoverageSummary): string {
 }
 
 .thread-validation-pill {
-  @apply rounded-md border border-slate-200 bg-slate-50 px-2 py-1 text-xs font-medium text-slate-600;
+  @apply rounded-md border theme-border theme-bg-subtle px-2 py-1 text-xs font-medium theme-muted;
 }
 
 .thread-validation-pill[data-tone='success'] {
-  @apply border-emerald-200 bg-emerald-50 text-emerald-700;
+  @apply theme-border-success theme-bg-success-soft theme-text-success;
 }
 
 .thread-validation-pill[data-tone='danger'] {
-  @apply border-rose-200 bg-rose-50 text-rose-700;
+  @apply theme-border-danger theme-bg-danger-soft theme-text-danger;
 }
 
 .thread-validation-pill[data-tone='working'] {
-  @apply border-blue-200 bg-blue-50 text-blue-700;
+  @apply theme-border-info theme-bg-info-soft theme-text-info;
 }
 
 .thread-validation-empty {
-  @apply m-0 rounded-md border border-dashed border-slate-200 px-3 py-2 text-xs text-slate-500;
+  @apply m-0 rounded-md border border-dashed theme-border px-3 py-2 text-xs theme-muted;
 }
 
 .thread-validation-list {
@@ -170,19 +170,19 @@ function formatCoverageSummary(summary: ValidationCoverageSummary): string {
 }
 
 .thread-validation-card {
-  @apply rounded-md border border-slate-200 bg-slate-50 px-2 py-2;
+  @apply rounded-md border theme-border theme-bg-subtle px-2 py-2;
 }
 
 .thread-validation-card[data-tone='passed'] {
-  @apply border-emerald-200 bg-emerald-50;
+  @apply theme-border-success theme-bg-success-soft;
 }
 
 .thread-validation-card[data-tone='failed'] {
-  @apply border-rose-200 bg-rose-50;
+  @apply theme-border-danger theme-bg-danger-soft;
 }
 
 .thread-validation-card[data-tone='running'] {
-  @apply border-blue-200 bg-blue-50;
+  @apply theme-border-info theme-bg-info-soft;
 }
 
 .thread-validation-card-header {
@@ -190,15 +190,15 @@ function formatCoverageSummary(summary: ValidationCoverageSummary): string {
 }
 
 .thread-validation-kind {
-  @apply min-w-0 truncate text-xs font-semibold uppercase tracking-normal text-slate-600;
+  @apply min-w-0 truncate text-xs font-semibold uppercase tracking-normal theme-muted;
 }
 
 .thread-validation-status {
-  @apply shrink-0 rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[0.68rem] font-medium leading-4 text-slate-600;
+  @apply shrink-0 rounded-full border theme-border theme-bg-panel px-2 py-0.5 text-[0.68rem] font-medium leading-4 theme-muted;
 }
 
 .thread-validation-command {
-  @apply m-0 mt-1 whitespace-pre-wrap break-words font-mono text-xs leading-5 text-slate-900;
+  @apply m-0 mt-1 whitespace-pre-wrap break-words font-mono text-xs leading-5 theme-text;
 }
 
 .thread-validation-meta {
@@ -210,11 +210,11 @@ function formatCoverageSummary(summary: ValidationCoverageSummary): string {
 }
 
 .thread-validation-meta dt {
-  @apply text-[0.68rem] font-semibold uppercase leading-4 text-slate-500;
+  @apply text-[0.68rem] font-semibold uppercase leading-4 theme-muted;
 }
 
 .thread-validation-meta dd {
-  @apply m-0 min-w-0 truncate font-mono text-[0.68rem] leading-4 text-slate-600;
+  @apply m-0 min-w-0 truncate font-mono text-[0.68rem] leading-4 theme-muted;
 }
 
 .thread-validation-evidence-summary {
@@ -222,15 +222,15 @@ function formatCoverageSummary(summary: ValidationCoverageSummary): string {
 }
 
 .thread-validation-evidence-summary span {
-  @apply rounded-md border border-slate-200 bg-white/80 px-2 py-1 font-mono text-[0.68rem] leading-4 text-slate-700;
+  @apply rounded-md border theme-border bg-white/80 px-2 py-1 font-mono text-[0.68rem] leading-4 theme-muted;
 }
 
 .thread-validation-failure-list {
-  @apply m-0 mt-2 grid list-none gap-1 rounded-md border border-rose-200 bg-white/70 px-2 py-1.5 text-xs leading-4 text-rose-800;
+  @apply m-0 mt-2 grid list-none gap-1 rounded-md border theme-border-danger bg-white/70 px-2 py-1.5 text-xs leading-4 theme-text-danger;
 }
 
 .thread-validation-output {
-  @apply mt-2 border-t border-slate-200 pt-2 text-xs text-slate-600;
+  @apply mt-2 border-t theme-border pt-2 text-xs theme-muted;
 }
 
 .thread-validation-output summary {
@@ -238,7 +238,7 @@ function formatCoverageSummary(summary: ValidationCoverageSummary): string {
 }
 
 .thread-validation-output pre {
-  @apply m-0 mt-1 max-h-56 overflow-auto rounded-md border border-slate-200 bg-white px-2 py-1.5 text-xs leading-5 text-slate-800;
+  @apply m-0 mt-1 max-h-56 overflow-auto rounded-md border theme-border theme-bg-panel px-2 py-1.5 text-xs leading-5 theme-text;
 }
 
 .thread-validation-output code {

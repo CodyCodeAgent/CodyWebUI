@@ -154,10 +154,10 @@ onBeforeUnmount(() => window.clearTimeout(renderTimer))
 </script>
 
 <style scoped>
-@reference "tailwindcss";
+@reference "../../style.css";
 
 .message-markdown {
-  @apply text-sm leading-relaxed text-slate-800;
+  @apply text-sm leading-relaxed theme-text;
   overflow-wrap: anywhere;
 }
 
@@ -170,7 +170,7 @@ onBeforeUnmount(() => window.clearTimeout(renderTimer))
 .message-markdown :deep(h3),
 .message-markdown :deep(h4),
 .message-markdown :deep(h5),
-.message-markdown :deep(h6) { @apply mb-2 mt-5 font-semibold leading-snug text-slate-900; }
+.message-markdown :deep(h6) { @apply mb-2 mt-5 font-semibold leading-snug theme-text; }
 .message-markdown :deep(h1) { @apply text-xl; }
 .message-markdown :deep(h2) { @apply text-lg; }
 .message-markdown :deep(h3) { @apply text-base; }
@@ -183,57 +183,57 @@ onBeforeUnmount(() => window.clearTimeout(renderTimer))
 .message-markdown :deep(li > ul),
 .message-markdown :deep(li > ol) { @apply my-1; }
 
-.message-markdown :deep(blockquote) { @apply my-3 border-l-4 border-slate-200 pl-3 text-slate-600; }
+.message-markdown :deep(blockquote) { @apply my-3 border-l-4 theme-border pl-3 theme-muted; }
 .message-markdown :deep(blockquote > :first-child) { margin-top: 0; }
 .message-markdown :deep(blockquote > :last-child) { margin-bottom: 0; }
 
-.message-markdown :deep(pre) { @apply my-3 overflow-x-auto rounded-lg border border-slate-200 bg-slate-950 px-3 py-2 text-sm leading-relaxed text-slate-100; }
+.message-markdown :deep(pre) { @apply my-3 overflow-x-auto rounded-lg border theme-border bg-slate-950 px-3 py-2 text-sm leading-relaxed text-slate-100; }
 .message-markdown :deep(pre.is-compact),
 .message-markdown :deep(pre:has(> code.is-compact-code)) { @apply w-fit max-w-full px-2.5 py-1.5; }
 .message-markdown :deep(pre code) { @apply rounded-none border-0 bg-transparent p-0 text-inherit; white-space: pre; }
-.message-markdown :deep(.markdown-code-shell) { @apply relative my-3 overflow-hidden rounded-lg border border-slate-200 bg-slate-950; }
+.message-markdown :deep(.markdown-code-shell) { @apply relative my-3 overflow-hidden rounded-lg border theme-border bg-slate-950; }
 .message-markdown :deep(.markdown-code-shell.is-compact) { @apply w-fit max-w-full; }
 .message-markdown :deep(.markdown-code-shell pre) { @apply m-0 rounded-none border-0; }
 .message-markdown :deep(.markdown-code-toolbar),
-.message-markdown :deep(.markdown-table-toolbar) { @apply flex min-h-8 items-center justify-between border-b border-slate-700 px-2.5 font-mono text-[0.65rem] uppercase tracking-wide text-slate-400; }
+.message-markdown :deep(.markdown-table-toolbar) { @apply flex min-h-8 items-center justify-between border-b border-slate-700 px-2.5 font-mono text-[0.65rem] uppercase tracking-wide theme-muted; }
 .message-markdown :deep(.markdown-code-shell.is-compact .markdown-code-toolbar) { @apply hidden; }
 .message-markdown :deep(.markdown-code-actions) { @apply flex gap-1; }
 .message-markdown :deep(.markdown-tool-button) { @apply rounded px-1.5 py-1 text-[0.65rem] normal-case tracking-normal text-slate-300 hover:bg-white/10 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-1; }
 .message-markdown :deep(.markdown-code-shell.is-wrapped pre code) { white-space: pre-wrap; word-break: break-word; }
-.message-markdown :deep(code) { @apply rounded-md border border-slate-200 bg-slate-100/60 px-1.5 py-0.5 font-mono text-[0.875em] leading-[1.4] text-slate-900; }
+.message-markdown :deep(code) { @apply rounded-md border theme-border bg-slate-100/60 px-1.5 py-0.5 font-mono text-[0.875em] leading-[1.4] theme-text; }
 
 .message-markdown :deep(a) { @apply text-[#0969da] underline decoration-[#0969da]/35 underline-offset-2 hover:decoration-current; }
-.message-markdown :deep(strong) { @apply font-semibold text-slate-900; }
-.message-markdown :deep(del) { @apply text-slate-500; }
-.message-markdown :deep(hr) { @apply my-5 border-0 border-t border-slate-200; }
-.message-markdown :deep(img) { @apply my-3 max-h-[32rem] max-w-full cursor-zoom-in rounded-lg border border-slate-200 object-contain; }
+.message-markdown :deep(strong) { @apply font-semibold theme-text; }
+.message-markdown :deep(del) { @apply theme-muted; }
+.message-markdown :deep(hr) { @apply my-5 border-0 border-t theme-border; }
+.message-markdown :deep(img) { @apply my-3 max-h-[32rem] max-w-full cursor-zoom-in rounded-lg border theme-border object-contain; }
 .message-markdown :deep(img[alt='']) { @apply opacity-80; }
 .message-markdown :deep(img.is-load-error) { @apply min-h-16 border-dashed object-none p-4 text-xs; }
 
-.message-markdown :deep(.markdown-table-shell) { @apply relative my-4 max-w-full overflow-hidden rounded-lg border border-slate-200 focus-visible:outline-2 focus-visible:outline-offset-2; }
-.message-markdown :deep(.markdown-table-toolbar) { @apply justify-end border-slate-200 bg-slate-50 text-slate-500; }
-.message-markdown :deep(.markdown-table-toolbar .markdown-tool-button) { @apply text-slate-600 hover:bg-slate-200 hover:text-slate-900; }
+.message-markdown :deep(.markdown-table-shell) { @apply relative my-4 max-w-full overflow-hidden rounded-lg border theme-border focus-visible:outline-2 focus-visible:outline-offset-2; }
+.message-markdown :deep(.markdown-table-toolbar) { @apply justify-end theme-border theme-bg-subtle theme-muted; }
+.message-markdown :deep(.markdown-table-toolbar .markdown-tool-button) { @apply theme-muted hover:bg-slate-200 hover:theme-text; }
 .message-markdown :deep(.markdown-table-scroll) { @apply max-w-full overflow-x-auto; }
 .message-markdown :deep(table) { @apply w-full border-separate border-spacing-0 text-left text-[0.8125rem]; }
-.message-markdown :deep(th) { @apply border-b border-t border-slate-300 bg-slate-100 px-3 py-2 font-semibold text-slate-900; }
-.message-markdown :deep(td) { @apply border-b border-slate-200 px-3 py-2 align-top text-slate-700; }
+.message-markdown :deep(th) { @apply border-b border-t theme-border theme-bg-control px-3 py-2 font-semibold theme-text; }
+.message-markdown :deep(td) { @apply border-b theme-border px-3 py-2 align-top theme-muted; }
 .message-markdown :deep(th:first-child),
-.message-markdown :deep(td:first-child) { @apply border-l border-slate-200; }
+.message-markdown :deep(td:first-child) { @apply border-l theme-border; }
 .message-markdown :deep(th:last-child),
-.message-markdown :deep(td:last-child) { @apply border-r border-slate-200; }
+.message-markdown :deep(td:last-child) { @apply border-r theme-border; }
 .message-markdown :deep(th:first-child) { @apply rounded-tl-lg; }
 .message-markdown :deep(th:last-child) { @apply rounded-tr-lg; }
 .message-markdown :deep(tr:last-child td:first-child) { @apply rounded-bl-lg; }
 .message-markdown :deep(tr:last-child td:last-child) { @apply rounded-br-lg; }
 .message-markdown :deep(th) { @apply sticky top-0 z-10; }
 .message-markdown :deep(td:first-child), .message-markdown :deep(th:first-child) { @apply sticky left-0 z-10; }
-.message-markdown :deep(td:first-child) { @apply bg-white; }
+.message-markdown :deep(td:first-child) { @apply theme-bg-panel; }
 .message-markdown :deep(td[data-numeric='true']) { @apply text-right font-mono tabular-nums; }
 
 .message-markdown :deep(.markdown-file-link) { @apply inline cursor-pointer border-0 bg-transparent p-0 align-baseline text-inherit; }
 .message-markdown :deep(.markdown-file-link code) { @apply text-[#0969da] underline decoration-dotted underline-offset-2; }
-.message-markdown :deep(.footnotes) { @apply mt-6 border-t border-slate-200 pt-3 text-xs text-slate-600; }
-.message-markdown :deep(details) { @apply my-3 rounded-lg border border-slate-200 px-3 py-2; }
+.message-markdown :deep(.footnotes) { @apply mt-6 border-t theme-border pt-3 text-xs theme-muted; }
+.message-markdown :deep(details) { @apply my-3 rounded-lg border theme-border px-3 py-2; }
 .message-markdown :deep(summary) { @apply cursor-pointer font-semibold; }
 .message-markdown :deep(a:focus-visible),
 .message-markdown :deep(button:focus-visible),

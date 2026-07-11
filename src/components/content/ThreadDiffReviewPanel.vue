@@ -863,10 +863,10 @@ watch(
 </script>
 
 <style scoped>
-@reference "tailwindcss";
+@reference "../../style.css";
 
 .thread-diff-review-panel {
-  @apply flex shrink-0 flex-col gap-2 rounded-lg border border-slate-200 bg-white p-3;
+  @apply flex shrink-0 flex-col gap-2 rounded-lg border theme-border theme-bg-panel p-3;
 }
 
 .thread-diff-review-header {
@@ -882,19 +882,19 @@ watch(
 }
 
 .thread-diff-review-title {
-  @apply m-0 text-xs font-semibold uppercase tracking-normal text-slate-500;
+  @apply m-0 text-xs font-semibold uppercase tracking-normal theme-muted;
 }
 
 .thread-diff-review-summary {
-  @apply m-0 mt-0.5 text-xs text-slate-500;
+  @apply m-0 mt-0.5 text-xs theme-muted;
 }
 
 .thread-diff-copy-button {
-  @apply inline-flex h-7 shrink-0 items-center gap-1 rounded-md border border-slate-200 bg-white px-2 text-xs font-medium text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-70;
+  @apply inline-flex h-7 shrink-0 items-center gap-1 rounded-md border theme-border theme-bg-panel px-2 text-xs font-medium theme-muted transition hover:theme-bg-control disabled:cursor-not-allowed disabled:opacity-70;
 }
 
 .thread-diff-rollback-all-button {
-  @apply inline-flex h-7 shrink-0 items-center rounded-md border border-rose-200 bg-white px-2 text-xs font-medium text-rose-700 transition hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-70;
+  @apply inline-flex h-7 shrink-0 items-center rounded-md border theme-border-danger theme-bg-panel px-2 text-xs font-medium theme-text-danger transition hover:theme-bg-danger-soft disabled:cursor-not-allowed disabled:opacity-70;
 }
 
 .thread-diff-copy-icon {
@@ -902,19 +902,19 @@ watch(
 }
 
 .thread-diff-workspace-rollback-note {
-  @apply m-0 rounded-md border border-slate-200 bg-slate-50 px-2 py-1.5 text-xs leading-4 text-slate-600;
+  @apply m-0 rounded-md border theme-border theme-bg-subtle px-2 py-1.5 text-xs leading-4 theme-muted;
 }
 
 .thread-diff-workspace-rollback-note[data-state='rolledBack'] {
-  @apply border-emerald-200 bg-emerald-50 text-emerald-800;
+  @apply theme-border-success theme-bg-success-soft theme-text-success;
 }
 
 .thread-diff-workspace-rollback-note[data-state='failed'] {
-  @apply border-rose-200 bg-rose-50 text-rose-800;
+  @apply theme-border-danger theme-bg-danger-soft theme-text-danger;
 }
 
 .thread-diff-comment-error {
-  @apply m-0 rounded-md border border-rose-200 bg-rose-50 px-2 py-1.5 text-xs leading-4 text-rose-700;
+  @apply m-0 rounded-md border theme-border-danger theme-bg-danger-soft px-2 py-1.5 text-xs leading-4 theme-text-danger;
 }
 
 .thread-diff-stat-row {
@@ -926,19 +926,19 @@ watch(
 }
 
 .thread-diff-stat-added {
-  @apply border-emerald-200 bg-emerald-50 text-emerald-700;
+  @apply theme-border-success theme-bg-success-soft theme-text-success;
 }
 
 .thread-diff-stat-removed {
-  @apply border-rose-200 bg-rose-50 text-rose-700;
+  @apply theme-border-danger theme-bg-danger-soft theme-text-danger;
 }
 
 .thread-diff-empty {
-  @apply m-0 rounded-md border border-dashed border-slate-200 px-3 py-2 text-xs text-slate-500;
+  @apply m-0 rounded-md border border-dashed theme-border px-3 py-2 text-xs theme-muted;
 }
 
 .thread-review-draft-section {
-  @apply rounded-md border border-slate-200 bg-slate-50 px-2 py-2;
+  @apply rounded-md border theme-border theme-bg-subtle px-2 py-2;
 }
 
 .thread-review-draft-header {
@@ -946,20 +946,20 @@ watch(
 }
 
 .thread-review-draft-title {
-  @apply m-0 text-xs font-semibold uppercase tracking-normal text-slate-500;
+  @apply m-0 text-xs font-semibold uppercase tracking-normal theme-muted;
 }
 
 .thread-review-draft-summary {
-  @apply m-0 mt-0.5 text-xs leading-4 text-slate-500;
+  @apply m-0 mt-0.5 text-xs leading-4 theme-muted;
 }
 
 .thread-review-draft-refresh,
 .thread-review-draft-copy {
-  @apply rounded-md border border-slate-200 bg-white px-2 py-1 text-xs font-medium text-slate-600 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60;
+  @apply rounded-md border theme-border theme-bg-panel px-2 py-1 text-xs font-medium theme-muted transition hover:theme-bg-control disabled:cursor-not-allowed disabled:opacity-60;
 }
 
 .thread-review-draft-error {
-  @apply m-0 mt-2 rounded-md border border-rose-200 bg-rose-50 px-2 py-1.5 text-xs leading-4 text-rose-700;
+  @apply m-0 mt-2 rounded-md border theme-border-danger theme-bg-danger-soft px-2 py-1.5 text-xs leading-4 theme-text-danger;
 }
 
 .thread-review-draft {
@@ -971,15 +971,15 @@ watch(
 }
 
 .thread-review-draft-warning-list p {
-  @apply m-0 rounded-md border border-amber-200 bg-amber-50 px-2 py-1.5 text-xs leading-4 text-amber-800;
+  @apply m-0 rounded-md border theme-border-warning theme-bg-warning-soft px-2 py-1.5 text-xs leading-4 theme-text-warning;
 }
 
 .thread-review-draft-field {
-  @apply grid gap-1 text-xs font-medium text-slate-600;
+  @apply grid gap-1 text-xs font-medium theme-muted;
 }
 
 .thread-review-draft-field textarea {
-  @apply min-h-20 resize-y rounded-md border border-slate-200 bg-white px-2 py-1.5 font-mono text-[0.68rem] leading-4 text-slate-800 outline-none;
+  @apply min-h-20 resize-y rounded-md border theme-border theme-bg-panel px-2 py-1.5 font-mono text-[0.68rem] leading-4 theme-text outline-none;
 }
 
 .thread-review-draft-grid {
@@ -987,23 +987,23 @@ watch(
 }
 
 .thread-review-draft-grid section {
-  @apply rounded-md border border-slate-200 bg-white px-2 py-1.5;
+  @apply rounded-md border theme-border theme-bg-panel px-2 py-1.5;
 }
 
 .thread-review-draft-grid h5 {
-  @apply m-0 text-xs font-semibold text-slate-700;
+  @apply m-0 text-xs font-semibold theme-muted;
 }
 
 .thread-review-draft-grid ul {
-  @apply m-0 mt-1 grid gap-1 pl-4 text-xs leading-4 text-slate-600;
+  @apply m-0 mt-1 grid gap-1 pl-4 text-xs leading-4 theme-muted;
 }
 
 .thread-review-draft-empty {
-  @apply m-0 rounded-md border border-dashed border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-500;
+  @apply m-0 rounded-md border border-dashed theme-border theme-bg-panel px-2 py-1.5 text-xs theme-muted;
 }
 
 .thread-checkpoint-section {
-  @apply rounded-md border border-slate-200 bg-slate-50 px-2 py-2;
+  @apply rounded-md border theme-border theme-bg-subtle px-2 py-2;
 }
 
 .thread-checkpoint-header {
@@ -1011,15 +1011,15 @@ watch(
 }
 
 .thread-checkpoint-title {
-  @apply m-0 text-xs font-semibold uppercase tracking-normal text-slate-500;
+  @apply m-0 text-xs font-semibold uppercase tracking-normal theme-muted;
 }
 
 .thread-checkpoint-refresh {
-  @apply rounded-md border border-slate-200 bg-white px-2 py-1 text-xs font-medium text-slate-600 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60;
+  @apply rounded-md border theme-border theme-bg-panel px-2 py-1 text-xs font-medium theme-muted transition hover:theme-bg-control disabled:cursor-not-allowed disabled:opacity-60;
 }
 
 .thread-checkpoint-empty {
-  @apply m-0 mt-2 rounded-md border border-dashed border-slate-200 px-2 py-1.5 text-xs text-slate-500;
+  @apply m-0 mt-2 rounded-md border border-dashed theme-border px-2 py-1.5 text-xs theme-muted;
 }
 
 .thread-checkpoint-list {
@@ -1027,7 +1027,7 @@ watch(
 }
 
 .thread-checkpoint-item {
-  @apply rounded-md border border-slate-200 bg-white px-2 py-1.5;
+  @apply rounded-md border theme-border theme-bg-panel px-2 py-1.5;
 }
 
 .thread-checkpoint-main {
@@ -1035,16 +1035,16 @@ watch(
 }
 
 .thread-checkpoint-label {
-  @apply min-w-0 break-words text-xs font-semibold text-slate-900;
+  @apply min-w-0 break-words text-xs font-semibold theme-text;
 }
 
 .thread-checkpoint-time {
-  @apply shrink-0 text-[0.68rem] leading-4 text-slate-500;
+  @apply shrink-0 text-[0.68rem] leading-4 theme-muted;
 }
 
 .thread-checkpoint-paths,
 .thread-checkpoint-meta {
-  @apply m-0 mt-1 break-words font-mono text-[0.68rem] leading-4 text-slate-500;
+  @apply m-0 mt-1 break-words font-mono text-[0.68rem] leading-4 theme-muted;
 }
 
 .thread-checkpoint-actions {
@@ -1052,15 +1052,15 @@ watch(
 }
 
 .thread-checkpoint-patch-button {
-  @apply rounded-md border border-slate-200 bg-white px-2 py-1 text-xs font-medium text-slate-600 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60;
+  @apply rounded-md border theme-border theme-bg-panel px-2 py-1 text-xs font-medium theme-muted transition hover:theme-bg-control disabled:cursor-not-allowed disabled:opacity-60;
 }
 
 .thread-checkpoint-patch-error {
-  @apply m-0 mt-1 rounded-md border border-rose-200 bg-rose-50 px-2 py-1 text-xs text-rose-700;
+  @apply m-0 mt-1 rounded-md border theme-border-danger theme-bg-danger-soft px-2 py-1 text-xs theme-text-danger;
 }
 
 .thread-checkpoint-patch {
-  @apply mt-2 overflow-hidden rounded-md border border-slate-200 bg-slate-950;
+  @apply mt-2 overflow-hidden rounded-md border theme-border bg-slate-950;
 }
 
 .thread-checkpoint-patch pre {
@@ -1080,7 +1080,7 @@ watch(
 }
 
 .thread-diff-file {
-  @apply rounded-md border border-slate-200 bg-slate-50;
+  @apply rounded-md border theme-border theme-bg-subtle;
 }
 
 .thread-diff-file-summary {
@@ -1092,19 +1092,19 @@ watch(
 }
 
 .thread-diff-file-name {
-  @apply min-w-0 truncate font-semibold text-slate-900;
+  @apply min-w-0 truncate font-semibold theme-text;
 }
 
 .thread-diff-file-directory {
-  @apply min-w-0 truncate text-[0.68rem] leading-4 text-slate-500;
+  @apply min-w-0 truncate text-[0.68rem] leading-4 theme-muted;
 }
 
 .thread-diff-file-old-path {
-  @apply col-span-2 min-w-0 break-words font-mono text-[0.68rem] leading-4 text-slate-500;
+  @apply col-span-2 min-w-0 break-words font-mono text-[0.68rem] leading-4 theme-muted;
 }
 
 .thread-diff-file-status {
-  @apply row-start-1 rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[0.68rem] font-medium uppercase leading-4 text-slate-600;
+  @apply row-start-1 rounded-full border theme-border theme-bg-panel px-2 py-0.5 text-[0.68rem] font-medium uppercase leading-4 theme-muted;
 }
 
 .thread-diff-file-lines {
@@ -1112,59 +1112,59 @@ watch(
 }
 
 .thread-diff-file-actions {
-  @apply flex items-center justify-between gap-2 border-t border-slate-200 px-2 py-2;
+  @apply flex items-center justify-between gap-2 border-t theme-border px-2 py-2;
 }
 
 .thread-diff-rollback-note {
-  @apply m-0 min-w-0 flex-1 break-words text-xs leading-4 text-slate-500;
+  @apply m-0 min-w-0 flex-1 break-words text-xs leading-4 theme-muted;
 }
 
 .thread-diff-rollback-button {
-  @apply shrink-0 rounded-md border border-rose-200 bg-white px-2 py-1 text-xs font-medium text-rose-700 transition hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-60;
+  @apply shrink-0 rounded-md border theme-border-danger theme-bg-panel px-2 py-1 text-xs font-medium theme-text-danger transition hover:theme-bg-danger-soft disabled:cursor-not-allowed disabled:opacity-60;
 }
 
 .thread-diff-file[data-rollback-state='rolledBack'] {
-  @apply border-emerald-200 bg-emerald-50;
+  @apply theme-border-success theme-bg-success-soft;
 }
 
 .thread-diff-file[data-rollback-state='failed'] {
-  @apply border-rose-200 bg-rose-50;
+  @apply theme-border-danger theme-bg-danger-soft;
 }
 
 .thread-diff-line-added {
-  @apply text-emerald-700;
+  @apply theme-text-success;
 }
 
 .thread-diff-line-removed {
-  @apply text-rose-700;
+  @apply theme-text-danger;
 }
 
 .thread-diff-hunk-list {
-  @apply border-t border-slate-200;
+  @apply border-t theme-border;
 }
 
 .thread-diff-hunk {
-  @apply border-b border-slate-200 last:border-b-0;
+  @apply border-b theme-border last:border-b-0;
 }
 
 .thread-diff-hunk[data-hunk-state='rolledBack'] {
-  @apply bg-emerald-50;
+  @apply theme-bg-success-soft;
 }
 
 .thread-diff-hunk[data-stage-state='staged'] {
-  @apply bg-emerald-50;
+  @apply theme-bg-success-soft;
 }
 
 .thread-diff-hunk[data-hunk-state='failed'] {
-  @apply bg-rose-50;
+  @apply theme-bg-danger-soft;
 }
 
 .thread-diff-hunk[data-stage-state='failed'] {
-  @apply bg-rose-50;
+  @apply theme-bg-danger-soft;
 }
 
 .thread-diff-hunk-header {
-  @apply flex items-center justify-between gap-2 bg-slate-100 px-2 py-1.5 text-[0.68rem] text-slate-600;
+  @apply flex items-center justify-between gap-2 theme-bg-control px-2 py-1.5 text-[0.68rem] theme-muted;
 }
 
 .thread-diff-hunk-header code {
@@ -1176,19 +1176,19 @@ watch(
 }
 
 .thread-diff-hunk-rollback-button {
-  @apply shrink-0 rounded-md border border-rose-200 bg-white px-2 py-1 text-[0.68rem] font-medium text-rose-700 transition hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-60;
+  @apply shrink-0 rounded-md border theme-border-danger theme-bg-panel px-2 py-1 text-[0.68rem] font-medium theme-text-danger transition hover:theme-bg-danger-soft disabled:cursor-not-allowed disabled:opacity-60;
 }
 
 .thread-diff-hunk-stage-button {
-  @apply shrink-0 rounded-md border border-emerald-200 bg-white px-2 py-1 text-[0.68rem] font-medium text-emerald-700 transition hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-60;
+  @apply shrink-0 rounded-md border theme-border-success theme-bg-panel px-2 py-1 text-[0.68rem] font-medium theme-text-success transition hover:theme-bg-success-soft disabled:cursor-not-allowed disabled:opacity-60;
 }
 
 .thread-diff-hunk-rollback-note {
-  @apply m-0 border-t border-slate-200 px-2 py-1 text-[0.68rem] leading-4 text-slate-500;
+  @apply m-0 border-t theme-border px-2 py-1 text-[0.68rem] leading-4 theme-muted;
 }
 
 .thread-diff-code {
-  @apply m-0 max-h-72 overflow-auto bg-white py-1 text-xs leading-5;
+  @apply m-0 max-h-72 overflow-auto theme-bg-panel py-1 text-xs leading-5;
 }
 
 .thread-diff-code code {
@@ -1200,23 +1200,23 @@ watch(
 }
 
 .thread-diff-code-line[data-kind='add'] {
-  @apply bg-emerald-50 text-emerald-950;
+  @apply theme-bg-success-soft theme-text-success;
 }
 
 .thread-diff-code-line[data-kind='remove'] {
-  @apply bg-rose-50 text-rose-950;
+  @apply theme-bg-danger-soft theme-text-danger;
 }
 
 .thread-diff-code-line[data-kind='meta'] {
-  @apply text-slate-500;
+  @apply theme-muted;
 }
 
 .thread-diff-line-number {
-  @apply select-none text-right text-[0.68rem] text-slate-400;
+  @apply select-none text-right text-[0.68rem] theme-muted;
 }
 
 .thread-diff-line-prefix {
-  @apply select-none text-center text-[0.68rem] text-slate-500;
+  @apply select-none text-center text-[0.68rem] theme-muted;
 }
 
 .thread-diff-line-content {
@@ -1224,7 +1224,7 @@ watch(
 }
 
 .thread-diff-line-comment-button {
-  @apply invisible mt-0.5 rounded border border-slate-200 bg-white px-1.5 py-0.5 text-[0.62rem] font-medium text-slate-500 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50;
+  @apply invisible mt-0.5 rounded border theme-border theme-bg-panel px-1.5 py-0.5 text-[0.62rem] font-medium theme-muted transition hover:theme-bg-control disabled:cursor-not-allowed disabled:opacity-50;
 }
 
 .thread-diff-code-line:hover .thread-diff-line-comment-button,
@@ -1233,15 +1233,15 @@ watch(
 }
 
 .thread-diff-comment-composer {
-  @apply border-t border-slate-200 bg-white px-2 py-2;
+  @apply border-t theme-border theme-bg-panel px-2 py-2;
 }
 
 .thread-diff-comment-composer p {
-  @apply m-0 text-xs font-medium text-slate-600;
+  @apply m-0 text-xs font-medium theme-muted;
 }
 
 .thread-diff-comment-composer textarea {
-  @apply mt-1 min-h-20 w-full resize-y rounded-md border border-slate-200 bg-white px-2 py-1.5 text-xs leading-5 text-slate-900 outline-none focus:border-slate-400;
+  @apply mt-1 min-h-20 w-full resize-y rounded-md border theme-border theme-bg-panel px-2 py-1.5 text-xs leading-5 theme-text outline-none focus:border-slate-400;
 }
 
 .thread-diff-comment-composer div,
@@ -1251,15 +1251,15 @@ watch(
 
 .thread-diff-comment-composer button,
 .thread-diff-comment-list button {
-  @apply rounded-md border border-slate-200 bg-white px-2 py-1 text-xs font-medium text-slate-600 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60;
+  @apply rounded-md border theme-border theme-bg-panel px-2 py-1 text-xs font-medium theme-muted transition hover:theme-bg-control disabled:cursor-not-allowed disabled:opacity-60;
 }
 
 .thread-diff-comment-list {
-  @apply m-0 grid list-none gap-1 border-t border-slate-200 bg-white px-2 py-2;
+  @apply m-0 grid list-none gap-1 border-t theme-border theme-bg-panel px-2 py-2;
 }
 
 .thread-diff-comment-list li {
-  @apply rounded-md border border-slate-200 bg-slate-50 px-2 py-1.5;
+  @apply rounded-md border theme-border theme-bg-subtle px-2 py-1.5;
 }
 
 .thread-diff-comment-list li[data-status='follow_up_created'] {
@@ -1267,7 +1267,7 @@ watch(
 }
 
 .thread-diff-comment-list li[data-status='resolved'] {
-  @apply border-emerald-200 bg-emerald-50;
+  @apply theme-border-success theme-bg-success-soft;
 }
 
 .thread-diff-comment-list header {
@@ -1275,14 +1275,14 @@ watch(
 }
 
 .thread-diff-comment-list header span {
-  @apply min-w-0 break-words font-mono text-[0.68rem] font-semibold text-slate-700;
+  @apply min-w-0 break-words font-mono text-[0.68rem] font-semibold theme-muted;
 }
 
 .thread-diff-comment-list header small {
-  @apply shrink-0 text-[0.62rem] uppercase text-slate-500;
+  @apply shrink-0 text-[0.62rem] uppercase theme-muted;
 }
 
 .thread-diff-comment-list p {
-  @apply m-0 mt-1 whitespace-pre-wrap break-words text-xs leading-5 text-slate-700;
+  @apply m-0 mt-1 whitespace-pre-wrap break-words text-xs leading-5 theme-muted;
 }
 </style>

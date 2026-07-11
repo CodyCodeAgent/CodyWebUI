@@ -932,7 +932,7 @@ async function submitFirstMessageForNewThread(payload: UiComposerSubmitPayload):
 </script>
 
 <style scoped>
-@reference "tailwindcss";
+@reference "./style.css";
 
 .sidebar-root {
   @apply min-h-full py-4 px-2 flex flex-col gap-2 select-none;
@@ -944,7 +944,7 @@ async function submitFirstMessageForNewThread(payload: UiComposerSubmitPayload):
 }
 
 .content-root {
-  @apply relative h-full min-h-0 w-full flex flex-col overflow-y-hidden overflow-x-visible bg-white;
+  @apply relative h-full min-h-0 w-full flex flex-col overflow-y-hidden overflow-x-visible theme-bg-panel;
 }
 
 .sidebar-thread-controls-host {
@@ -952,11 +952,11 @@ async function submitFirstMessageForNewThread(payload: UiComposerSubmitPayload):
 }
 
 .sidebar-search-toggle {
-  @apply h-6.75 w-6.75 rounded-md border border-transparent bg-transparent text-zinc-600 flex items-center justify-center transition hover:border-zinc-200 hover:bg-zinc-50;
+  @apply h-6.75 w-6.75 rounded-md border border-transparent bg-transparent theme-muted flex items-center justify-center transition hover:theme-border hover:theme-bg-subtle;
 }
 
 .sidebar-search-toggle[aria-pressed='true']:not([data-theme-toggle='true']) {
-  @apply border-zinc-300 bg-zinc-100 text-zinc-700;
+  @apply theme-border theme-bg-control theme-muted;
 }
 
 .sidebar-search-toggle-icon {
@@ -964,19 +964,19 @@ async function submitFirstMessageForNewThread(payload: UiComposerSubmitPayload):
 }
 
 .sidebar-search-bar {
-  @apply flex items-center gap-1.5 mx-2 px-2 py-1 rounded-md border border-zinc-200 bg-white transition-colors focus-within:border-zinc-400;
+  @apply flex items-center gap-1.5 mx-2 px-2 py-1 rounded-md border theme-border theme-bg-panel transition-colors focus-within:border-zinc-400;
 }
 
 .sidebar-search-bar-icon {
-  @apply w-3.5 h-3.5 text-zinc-400 shrink-0;
+  @apply w-3.5 h-3.5 theme-muted shrink-0;
 }
 
 .sidebar-search-input {
-  @apply flex-1 min-w-0 bg-transparent text-sm text-zinc-800 placeholder-zinc-400 outline-none border-none p-0;
+  @apply flex-1 min-w-0 bg-transparent text-sm theme-text placeholder-zinc-400 outline-none border-none p-0;
 }
 
 .sidebar-search-clear {
-  @apply w-4 h-4 rounded text-zinc-400 flex items-center justify-center transition hover:text-zinc-600;
+  @apply w-4 h-4 rounded theme-muted flex items-center justify-center transition hover:theme-muted;
 }
 
 .sidebar-search-clear-icon {
@@ -1109,7 +1109,7 @@ async function submitFirstMessageForNewThread(payload: UiComposerSubmitPayload):
 }
 
 .content-error {
-  @apply mx-0 mt-1 flex shrink-0 items-start gap-2 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700;
+  @apply mx-0 mt-1 flex shrink-0 items-start gap-2 rounded-lg border theme-border-danger theme-bg-danger-soft px-3 py-2 text-sm theme-text-danger;
 }
 
 .content-error-text {
@@ -1117,7 +1117,7 @@ async function submitFirstMessageForNewThread(payload: UiComposerSubmitPayload):
 }
 
 .content-error-dismiss {
-  @apply -mr-1 flex h-5 w-5 shrink-0 items-center justify-center rounded text-rose-500 transition hover:bg-rose-100 hover:text-rose-800;
+  @apply -mr-1 flex h-5 w-5 shrink-0 items-center justify-center rounded text-rose-500 transition hover:theme-bg-danger-soft hover:theme-text-danger;
 }
 
 .content-error-dismiss-icon {

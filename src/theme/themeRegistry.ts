@@ -117,6 +117,41 @@ export function resolveThemeTokens(skin: SkinPack, preferences: ThemePreferences
   }
 }
 
+function parseHexColor(value: string): [number, number, number] | null {
+  const normalized = value.trim().replace(/^#/u, '')
+  const expanded = normalized.length === 3
+    ? normalized.split('').map((character) => `${character}${character}`).join('')
+    : normalized
+  if (!/^[0-9a-f]{6}$/iu.test(expanded)) return null
+  return [0, 2, 4].map((offset) => Number.parseInt(expanded.slice(offset, offset + 2), 16)) as [number, number, number]
+}
+
+function luminance(color: [number, number, number]): number {
+  const channels = color.map((channel) => {
+    const normalized = channel / 255
+    return normalized <= 0.04045 ? normalized / 12.92 : ((normalized + 0.055) / 1.055) ** 2.4
+  })
+  return channels[0] * 0.2126 + channels[1] * 0.7152 + channels[2] * 0.0722
+}
+
+export function contrastRatio(foreground: string, background: string): number {
+  const foregroundColor = parseHexColor(foreground)
+  const backgroundColor = parseHexColor(background)
+  if (!foregroundColor || !backgroundColor) return 1
+  const lighter = Math.max(luminance(foregroundColor), luminance(backgroundColor))
+  const darker = Math.min(luminance(foregroundColor), luminance(backgroundColor))
+  return (lighter + 0.05) / (darker + 0.05)
+}
+
+export function contrastingTextColor(background: string): '#0b0e13' | '#ffffff' {
+  const parsed = parseHexColor(background)
+  if (!parsed) return '#ffffff'
+  const backgroundLuminance = luminance(parsed)
+  const darkContrast = (backgroundLuminance + 0.05) / 0.05
+  const lightContrast = 1.05 / (backgroundLuminance + 0.05)
+  return darkContrast >= lightContrast ? '#0b0e13' : '#ffffff'
+}
+
 export function themeTokensToCssVariables(tokens: ThemeTokens): Record<string, string> {
   return {
     '--color-background': tokens.color.background,
@@ -131,6 +166,11 @@ export function themeTokensToCssVariables(tokens: ThemeTokens): Record<string, s
     '--color-warning': tokens.color.warning,
     '--color-success': tokens.color.success,
     '--color-info': tokens.color.info,
+    '--color-on-accent': contrastingTextColor(tokens.color.accent),
+    '--color-on-danger': contrastingTextColor(tokens.color.danger),
+    '--color-on-warning': contrastingTextColor(tokens.color.warning),
+    '--color-on-success': contrastingTextColor(tokens.color.success),
+    '--color-on-info': contrastingTextColor(tokens.color.info),
     '--color-code-background': tokens.color.codeBackground,
     '--color-terminal-background': tokens.color.terminalBackground,
     '--font-sans': tokens.font.sans,

@@ -118,10 +118,10 @@ function validationGateLabel(gate: UiWorkspaceValidationGate): string {
 </script>
 
 <style scoped>
-@reference "tailwindcss";
+@reference "../../style.css";
 
 .workspace-task-board {
-  @apply rounded-lg border border-zinc-200 bg-white p-3;
+  @apply rounded-lg border theme-border theme-bg-panel p-3;
 }
 
 .workspace-task-board-header {
@@ -129,11 +129,11 @@ function validationGateLabel(gate: UiWorkspaceValidationGate): string {
 }
 
 .workspace-task-board-title {
-  @apply m-0 text-xs font-semibold uppercase tracking-normal text-zinc-500;
+  @apply m-0 text-xs font-semibold uppercase tracking-normal theme-muted;
 }
 
 .workspace-task-board-subtitle {
-  @apply m-0 mt-1 text-xs text-zinc-600;
+  @apply m-0 mt-1 text-xs theme-muted;
 }
 
 .workspace-task-board-metrics {
@@ -142,22 +142,22 @@ function validationGateLabel(gate: UiWorkspaceValidationGate): string {
 
 .workspace-task-board-metrics span,
 .workspace-task-board-risk {
-  @apply rounded-full border border-zinc-200 bg-zinc-50 px-2 py-0.5 text-[0.68rem] font-medium leading-4 text-zinc-600;
+  @apply rounded-full border theme-border theme-bg-subtle px-2 py-0.5 text-[0.68rem] font-medium leading-4 theme-muted;
 }
 
 .workspace-task-board-metrics span[data-tone='working'],
 .workspace-task-board-risk[data-tone='info'] {
-  @apply border-blue-200 bg-blue-50 text-blue-700;
+  @apply theme-border-info theme-bg-info-soft theme-text-info;
 }
 
 .workspace-task-board-metrics span[data-tone='review'],
 .workspace-task-board-risk[data-tone='warning'] {
-  @apply border-amber-200 bg-amber-50 text-amber-700;
+  @apply theme-border-warning theme-bg-warning-soft theme-text-warning;
 }
 
 .workspace-task-board-metrics span[data-tone='danger'],
 .workspace-task-board-risk[data-tone='danger'] {
-  @apply border-rose-200 bg-rose-50 text-rose-700;
+  @apply theme-border-danger theme-bg-danger-soft theme-text-danger;
 }
 
 .workspace-task-board-lanes {
@@ -165,28 +165,28 @@ function validationGateLabel(gate: UiWorkspaceValidationGate): string {
 }
 
 .workspace-task-board-lane {
-  @apply min-w-0 rounded-lg border border-zinc-200 bg-zinc-50 p-2;
+  @apply min-w-0 rounded-lg border theme-border theme-bg-subtle p-2;
 }
 
 .workspace-task-board-lane[data-status='coding'] {
-  @apply border-blue-200 bg-blue-50;
+  @apply theme-border-info theme-bg-info-soft;
 }
 
 .workspace-task-board-lane[data-status='waiting_for_approval'],
 .workspace-task-board-lane[data-status='testing'] {
-  @apply border-amber-200 bg-amber-50;
+  @apply theme-border-warning theme-bg-warning-soft;
 }
 
 .workspace-task-board-lane[data-status='failed'] {
-  @apply border-rose-200 bg-rose-50;
+  @apply theme-border-danger theme-bg-danger-soft;
 }
 
 .workspace-task-board-lane[data-status='ready_for_review'] {
-  @apply border-emerald-200 bg-emerald-50;
+  @apply theme-border-success theme-bg-success-soft;
 }
 
 .workspace-task-board-lane-header {
-  @apply flex items-center justify-between gap-2 px-1 text-xs font-semibold uppercase tracking-normal text-zinc-600;
+  @apply flex items-center justify-between gap-2 px-1 text-xs font-semibold uppercase tracking-normal theme-muted;
 }
 
 .workspace-task-board-card-list {
@@ -194,37 +194,37 @@ function validationGateLabel(gate: UiWorkspaceValidationGate): string {
 }
 
 .workspace-task-board-card button {
-  @apply grid w-full gap-1 rounded-md border border-zinc-200 bg-white px-2 py-2 text-left transition hover:border-zinc-300 hover:bg-zinc-50;
+  @apply grid w-full gap-1 rounded-md border theme-border theme-bg-panel px-2 py-2 text-left transition hover:theme-border hover:theme-bg-subtle;
 }
 
 .workspace-task-board-card-title {
-  @apply truncate text-xs font-semibold text-zinc-900;
+  @apply truncate text-xs font-semibold theme-text;
 }
 
 .workspace-task-board-card-time {
-  @apply truncate text-[0.68rem] leading-4 text-zinc-500;
+  @apply truncate text-[0.68rem] leading-4 theme-muted;
 }
 
 .workspace-task-board-card-preview {
-  @apply line-clamp-2 text-xs leading-4 text-zinc-600;
+  @apply line-clamp-2 text-xs leading-4 theme-muted;
 }
 
 .workspace-task-board-gate-row {
-  @apply rounded-md border border-zinc-200 bg-zinc-50 px-2 py-1 text-[0.68rem] font-medium leading-4 text-zinc-600;
+  @apply rounded-md border theme-border theme-bg-subtle px-2 py-1 text-[0.68rem] font-medium leading-4 theme-muted;
 }
 
 .workspace-task-board-gate-row[data-status='clear'] {
-  @apply border-emerald-200 bg-emerald-50 text-emerald-700;
+  @apply theme-border-success theme-bg-success-soft theme-text-success;
 }
 
 .workspace-task-board-gate-row[data-status='missing_required'],
 .workspace-task-board-gate-row[data-status='manual_required'],
 .workspace-task-board-gate-row[data-status='not_configured'] {
-  @apply border-amber-200 bg-amber-50 text-amber-700;
+  @apply theme-border-warning theme-bg-warning-soft theme-text-warning;
 }
 
 .workspace-task-board-gate-row[data-status='failed_required'] {
-  @apply border-rose-200 bg-rose-50 text-rose-700;
+  @apply theme-border-danger theme-bg-danger-soft theme-text-danger;
 }
 
 .workspace-task-board-risk-row {
@@ -232,7 +232,7 @@ function validationGateLabel(gate: UiWorkspaceValidationGate): string {
 }
 
 .workspace-task-board-empty {
-  @apply m-0 mt-2 rounded-md border border-dashed border-zinc-200 bg-white/70 px-2 py-2 text-xs text-zinc-500;
+  @apply m-0 mt-2 rounded-md border border-dashed theme-border bg-white/70 px-2 py-2 text-xs theme-muted;
 }
 
 @media (max-width: 920px) {

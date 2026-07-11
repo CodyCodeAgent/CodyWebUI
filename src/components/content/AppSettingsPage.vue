@@ -306,7 +306,7 @@ onMounted(() => {
 </script>
 
 <style scoped>
-@reference "tailwindcss";
+@reference "../../style.css";
 
 .app-settings-page {
   @apply mx-auto grid h-full min-h-0 w-full gap-5 overflow-y-auto px-6 pb-8 pt-4;
@@ -401,7 +401,7 @@ onMounted(() => {
 }
 
 .app-settings-section {
-  @apply rounded-lg border border-zinc-200 bg-zinc-50 p-4;
+  @apply rounded-lg border theme-border theme-bg-subtle p-4;
   background: var(--color-panel);
   border-color: var(--color-border);
   box-shadow: var(--shadow-panel);
@@ -412,14 +412,14 @@ onMounted(() => {
 }
 
 .catalog-sync-button {
-  @apply inline-flex h-9 shrink-0 items-center justify-center rounded-md border border-zinc-200 bg-white px-3 text-sm font-medium text-zinc-700 transition hover:bg-zinc-100 disabled:cursor-wait disabled:opacity-60;
+  @apply inline-flex h-9 shrink-0 items-center justify-center rounded-md border theme-border theme-bg-panel px-3 text-sm font-medium theme-muted transition hover:theme-bg-control disabled:cursor-wait disabled:opacity-60;
   background: var(--color-surface);
   border-color: var(--color-border);
   color: var(--color-text);
 }
 
 .catalog-sync-status {
-  @apply m-0 grid grid-cols-3 gap-3 border-t border-zinc-200 pt-3;
+  @apply m-0 grid grid-cols-3 gap-3 border-t theme-border pt-3;
   border-color: var(--color-border);
 }
 
@@ -428,12 +428,12 @@ onMounted(() => {
 }
 
 .catalog-sync-status dt {
-  @apply text-xs font-semibold text-zinc-500;
+  @apply text-xs font-semibold theme-muted;
   color: var(--color-text-muted);
 }
 
 .catalog-sync-status dd {
-  @apply m-0 mt-1 truncate text-sm text-zinc-900;
+  @apply m-0 mt-1 truncate text-sm theme-text;
   color: var(--color-text);
 }
 
@@ -443,17 +443,17 @@ onMounted(() => {
 }
 
 .app-settings-title {
-  @apply m-0 text-base font-semibold text-zinc-950;
+  @apply m-0 text-base font-semibold theme-text;
   color: var(--color-text);
 }
 
 .app-settings-subtitle {
-  @apply m-0 mt-1 text-sm text-zinc-500;
+  @apply m-0 mt-1 text-sm theme-muted;
   color: var(--color-text-muted);
 }
 
 .app-settings-switch {
-  @apply inline-flex shrink-0 items-center gap-2 rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm font-medium text-zinc-700;
+  @apply inline-flex shrink-0 items-center gap-2 rounded-md border theme-border theme-bg-panel px-3 py-2 text-sm font-medium theme-muted;
   background: var(--color-surface);
   border-color: var(--color-border);
   color: var(--color-text);
@@ -469,19 +469,19 @@ onMounted(() => {
 }
 
 .app-settings-language-select span {
-  @apply text-xs font-semibold uppercase tracking-normal text-zinc-500;
+  @apply text-xs font-semibold uppercase tracking-normal theme-muted;
   color: var(--color-text-muted);
 }
 
 .app-settings-language-select select {
-  @apply h-9 min-w-40 rounded-md border border-zinc-200 bg-white px-2 text-sm text-zinc-900 outline-none transition focus:border-blue-300;
+  @apply h-9 min-w-40 rounded-md border theme-border theme-bg-panel px-2 text-sm theme-text outline-none transition focus:theme-border-info;
   background: var(--color-surface);
   border-color: var(--color-border);
   color: var(--color-text);
 }
 
 .flame-settings-card {
-  @apply grid grid-cols-[7rem_minmax(0,1fr)] gap-4 rounded-lg border border-zinc-200 bg-white p-4;
+  @apply grid grid-cols-[7rem_minmax(0,1fr)] gap-4 rounded-lg border theme-border theme-bg-panel p-4;
   background: var(--color-surface);
   border-color: var(--color-border);
 }
@@ -508,7 +508,7 @@ onMounted(() => {
 }
 
 .flame-preview-tip {
-  @apply h-24 w-8 bg-rose-500;
+  @apply h-24 w-8 theme-bg-danger;
   clip-path: polygon(50% 0, 82% 48%, 68% 100%, 30% 100%, 18% 48%);
 }
 
@@ -520,12 +520,12 @@ onMounted(() => {
 }
 
 .flame-settings-copy h3 {
-  @apply m-0 text-sm font-semibold text-zinc-900;
+  @apply m-0 text-sm font-semibold theme-text;
   color: var(--color-text);
 }
 
 .flame-settings-copy p {
-  @apply m-0 mt-1 text-sm leading-5 text-zinc-600;
+  @apply m-0 mt-1 text-sm leading-5 theme-muted;
   color: var(--color-text-muted);
 }
 
@@ -538,19 +538,19 @@ onMounted(() => {
 }
 
 .flame-settings-controls label > span {
-  @apply text-xs font-semibold uppercase tracking-normal text-zinc-500;
+  @apply text-xs font-semibold uppercase tracking-normal theme-muted;
   color: var(--color-text-muted);
 }
 
 .flame-settings-controls select {
-  @apply h-9 rounded-md border border-zinc-200 bg-white px-2 text-sm text-zinc-900 outline-none transition focus:border-blue-300;
+  @apply h-9 rounded-md border theme-border theme-bg-panel px-2 text-sm theme-text outline-none transition focus:theme-border-info;
   background: var(--color-surface);
   border-color: var(--color-border);
   color: var(--color-text);
 }
 
 .flame-settings-checkbox {
-  @apply flex h-9 grid-flow-col items-center gap-2 rounded-md border border-zinc-200 px-2;
+  @apply flex h-9 grid-flow-col items-center gap-2 rounded-md border theme-border px-2;
   border-color: var(--color-border);
   color: var(--color-text-muted);
 }
@@ -561,7 +561,7 @@ onMounted(() => {
 }
 
 .flame-settings-reset-position {
-  @apply h-9 rounded-md border border-zinc-200 bg-white px-3 text-sm font-medium text-zinc-700 transition hover:bg-zinc-50;
+  @apply h-9 rounded-md border theme-border theme-bg-panel px-3 text-sm font-medium theme-muted transition hover:theme-bg-subtle;
   background: var(--color-surface);
   border-color: var(--color-border);
   color: var(--color-text);
@@ -572,14 +572,14 @@ onMounted(() => {
 }
 
 .flame-settings-message[data-tone='success'] {
-  @apply border-emerald-200 bg-emerald-50 text-emerald-700;
+  @apply theme-border-success theme-bg-success-soft theme-text-success;
   background: color-mix(in srgb, var(--color-success) 12%, var(--color-surface));
   border-color: color-mix(in srgb, var(--color-success) 34%, var(--color-border));
   color: color-mix(in srgb, var(--color-success) 48%, var(--color-text));
 }
 
 .flame-settings-message[data-tone='danger'] {
-  @apply border-rose-200 bg-rose-50 text-rose-700;
+  @apply theme-border-danger theme-bg-danger-soft theme-text-danger;
   background: color-mix(in srgb, var(--color-danger) 12%, var(--color-surface));
   border-color: color-mix(in srgb, var(--color-danger) 34%, var(--color-border));
   color: color-mix(in srgb, var(--color-danger) 48%, var(--color-text));
@@ -590,7 +590,7 @@ onMounted(() => {
 }
 
 .flame-level-list li {
-  @apply grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm;
+  @apply grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 rounded-md border theme-border theme-bg-panel px-3 py-2 text-sm;
   background: var(--color-surface);
   border-color: var(--color-border);
 }
@@ -605,12 +605,12 @@ onMounted(() => {
 
 .flame-level-dot[data-level='campfire'],
 .flame-level-dot[data-level='steady'] {
-  @apply bg-orange-500;
+  @apply theme-bg-warning;
 }
 
 .flame-level-dot[data-level='bonfire'],
 .flame-level-dot[data-level='blaze'] {
-  @apply bg-rose-500;
+  @apply theme-bg-danger;
 }
 
 .flame-level-dot[data-level='inferno'] {
@@ -618,12 +618,12 @@ onMounted(() => {
 }
 
 .flame-level-name {
-  @apply min-w-0 font-medium text-zinc-900;
+  @apply min-w-0 font-medium theme-text;
   color: var(--color-text);
 }
 
 .flame-level-range {
-  @apply shrink-0 text-xs text-zinc-500;
+  @apply shrink-0 text-xs theme-muted;
   color: var(--color-text-muted);
 }
 

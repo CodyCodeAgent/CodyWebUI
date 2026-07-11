@@ -285,10 +285,10 @@ watch(
 </script>
 
 <style scoped>
-@reference "tailwindcss";
+@reference "../../style.css";
 
 .workspace-ports-panel {
-  @apply rounded-lg border border-zinc-200 bg-white p-3;
+  @apply rounded-lg border theme-border theme-bg-panel p-3;
 }
 
 .workspace-ports-panel-header {
@@ -296,15 +296,15 @@ watch(
 }
 
 .workspace-ports-panel-title {
-  @apply m-0 text-xs font-semibold uppercase tracking-normal text-zinc-500;
+  @apply m-0 text-xs font-semibold uppercase tracking-normal theme-muted;
 }
 
 .workspace-ports-panel-subtitle {
-  @apply m-0 mt-1 text-xs text-zinc-600;
+  @apply m-0 mt-1 text-xs theme-muted;
 }
 
 .workspace-ports-panel-refresh {
-  @apply inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md border border-zinc-200 bg-white px-2.5 text-xs font-medium text-zinc-700 transition hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-60;
+  @apply inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md border theme-border theme-bg-panel px-2.5 text-xs font-medium theme-muted transition hover:theme-bg-subtle disabled:cursor-not-allowed disabled:opacity-60;
 }
 
 .workspace-ports-panel-refresh-icon {
@@ -312,7 +312,7 @@ watch(
 }
 
 .workspace-ports-panel-error {
-  @apply m-0 mt-2 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700;
+  @apply m-0 mt-2 rounded-md border theme-border-danger theme-bg-danger-soft px-3 py-2 text-xs theme-text-danger;
 }
 
 .workspace-ports-panel-warning-list {
@@ -320,31 +320,31 @@ watch(
 }
 
 .workspace-ports-panel-warning-list li {
-  @apply rounded-md border border-amber-200 bg-amber-50 px-2 py-1.5 text-xs leading-4 text-amber-800;
+  @apply rounded-md border theme-border-warning theme-bg-warning-soft px-2 py-1.5 text-xs leading-4 theme-text-warning;
 }
 
 .workspace-ports-panel-policy {
-  @apply mt-2 grid grid-cols-[auto_minmax(0,1fr)] items-center gap-2 rounded-md border border-zinc-200 bg-zinc-50 px-2 py-1.5;
+  @apply mt-2 grid grid-cols-[auto_minmax(0,1fr)] items-center gap-2 rounded-md border theme-border theme-bg-subtle px-2 py-1.5;
 }
 
 .workspace-ports-panel-policy span {
-  @apply text-xs font-semibold text-zinc-900;
+  @apply text-xs font-semibold theme-text;
 }
 
 .workspace-ports-panel-policy small {
-  @apply truncate text-right font-mono text-[0.68rem] leading-4 text-zinc-500;
+  @apply truncate text-right font-mono text-[0.68rem] leading-4 theme-muted;
 }
 
 .workspace-ports-panel-preview-controls {
-  @apply mt-2 grid grid-cols-3 overflow-hidden rounded-md border border-zinc-200 bg-zinc-50;
+  @apply mt-2 grid grid-cols-3 overflow-hidden rounded-md border theme-border theme-bg-subtle;
 }
 
 .workspace-ports-panel-preview-controls button {
-  @apply grid min-w-0 gap-0.5 border-0 border-r border-zinc-200 bg-transparent px-2 py-1.5 text-left text-xs text-zinc-600 transition last:border-r-0 hover:bg-white;
+  @apply grid min-w-0 gap-0.5 border-0 border-r theme-border bg-transparent px-2 py-1.5 text-left text-xs theme-muted transition last:border-r-0 hover:theme-bg-panel;
 }
 
 .workspace-ports-panel-preview-controls button[data-active='true'] {
-  @apply bg-white text-zinc-950 shadow-sm;
+  @apply theme-bg-panel theme-text shadow-sm;
 }
 
 .workspace-ports-panel-preview-controls span,
@@ -357,7 +357,7 @@ watch(
 }
 
 .workspace-ports-panel-preview-controls small {
-  @apply font-mono text-[0.68rem] text-zinc-500;
+  @apply font-mono text-[0.68rem] theme-muted;
 }
 
 .workspace-ports-panel-list {
@@ -369,32 +369,32 @@ watch(
 }
 
 .workspace-ports-panel-known-list li {
-  @apply grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 rounded-md border border-zinc-200 bg-zinc-50 px-2 py-1.5;
+  @apply grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 rounded-md border theme-border theme-bg-subtle px-2 py-1.5;
 }
 
 .workspace-ports-panel-known-list li[data-required='true'][data-listening='false'] {
-  @apply border-amber-200 bg-amber-50;
+  @apply theme-border-warning theme-bg-warning-soft;
 }
 
 .workspace-ports-panel-known-list span {
-  @apply block truncate text-xs font-semibold text-zinc-900;
+  @apply block truncate text-xs font-semibold theme-text;
 }
 
 .workspace-ports-panel-known-list small {
-  @apply block truncate font-mono text-[0.68rem] leading-4 text-zinc-500;
+  @apply block truncate font-mono text-[0.68rem] leading-4 theme-muted;
 }
 
 .workspace-ports-panel-list li {
-  @apply grid grid-cols-[4.5rem_minmax(0,1fr)_minmax(8rem,12rem)_auto] items-center gap-2 rounded-md border border-zinc-200 bg-zinc-50 px-2 py-1.5;
+  @apply grid grid-cols-[4.5rem_minmax(0,1fr)_minmax(8rem,12rem)_auto] items-center gap-2 rounded-md border theme-border theme-bg-subtle px-2 py-1.5;
 }
 
 .workspace-ports-panel-list li[data-exposure='wildcard'],
 .workspace-ports-panel-list li[data-exposure='external'] {
-  @apply border-amber-200 bg-amber-50;
+  @apply theme-border-warning theme-bg-warning-soft;
 }
 
 .workspace-ports-panel-list li:has(.workspace-ports-panel-policy-cell[data-status='denied']) {
-  @apply border-rose-200 bg-rose-50;
+  @apply theme-border-danger theme-bg-danger-soft;
 }
 
 .workspace-ports-panel-port,
@@ -406,21 +406,21 @@ watch(
 .workspace-ports-panel-port span,
 .workspace-ports-panel-process span,
 .workspace-ports-panel-policy-cell span {
-  @apply block truncate text-xs font-semibold text-zinc-900;
+  @apply block truncate text-xs font-semibold theme-text;
 }
 
 .workspace-ports-panel-port small,
 .workspace-ports-panel-process small,
 .workspace-ports-panel-policy-cell small {
-  @apply block truncate font-mono text-[0.68rem] leading-4 text-zinc-500;
+  @apply block truncate font-mono text-[0.68rem] leading-4 theme-muted;
 }
 
 .workspace-ports-panel-policy-cell[data-status='allowed'] span {
-  @apply text-emerald-700;
+  @apply theme-text-success;
 }
 
 .workspace-ports-panel-policy-cell[data-status='denied'] span {
-  @apply text-rose-700;
+  @apply theme-text-danger;
 }
 
 .workspace-ports-panel-actions {
@@ -430,7 +430,7 @@ watch(
 .workspace-ports-panel-list a,
 .workspace-ports-panel-known-list a,
 .workspace-ports-panel-actions button {
-  @apply inline-flex h-7 shrink-0 items-center rounded-md border border-zinc-300 bg-white px-2 text-[0.68rem] font-semibold text-zinc-700 no-underline transition hover:bg-zinc-100;
+  @apply inline-flex h-7 shrink-0 items-center rounded-md border theme-border theme-bg-panel px-2 text-[0.68rem] font-semibold theme-muted no-underline transition hover:theme-bg-control;
 }
 
 .workspace-ports-panel-actions button:disabled {
@@ -438,27 +438,27 @@ watch(
 }
 
 .workspace-ports-panel-probe {
-  @apply mt-2 rounded-md border border-zinc-200 bg-zinc-50 px-3 py-2 text-xs text-zinc-700;
+  @apply mt-2 rounded-md border theme-border theme-bg-subtle px-3 py-2 text-xs theme-muted;
 }
 
 .workspace-ports-panel-screenshot {
-  @apply mt-2 rounded-md border border-zinc-200 bg-zinc-50 px-3 py-2 text-xs text-zinc-700;
+  @apply mt-2 rounded-md border theme-border theme-bg-subtle px-3 py-2 text-xs theme-muted;
 }
 
 .workspace-ports-panel-probe[data-status='passed'] {
-  @apply border-emerald-200 bg-emerald-50 text-emerald-800;
+  @apply theme-border-success theme-bg-success-soft theme-text-success;
 }
 
 .workspace-ports-panel-screenshot[data-source='browser'] {
-  @apply border-emerald-200 bg-emerald-50 text-emerald-800;
+  @apply theme-border-success theme-bg-success-soft theme-text-success;
 }
 
 .workspace-ports-panel-screenshot[data-source='evidence-card'] {
-  @apply border-amber-200 bg-amber-50 text-amber-800;
+  @apply theme-border-warning theme-bg-warning-soft theme-text-warning;
 }
 
 .workspace-ports-panel-probe[data-status='failed'] {
-  @apply border-amber-200 bg-amber-50 text-amber-800;
+  @apply theme-border-warning theme-bg-warning-soft theme-text-warning;
 }
 
 .workspace-ports-panel-probe header,
@@ -486,11 +486,11 @@ watch(
 }
 
 .workspace-ports-panel-probe-body {
-  @apply text-zinc-600;
+  @apply theme-muted;
 }
 
 .workspace-ports-panel-screenshot img {
-  @apply mt-2 block max-h-[28rem] w-full rounded-md border border-zinc-200 bg-white object-contain;
+  @apply mt-2 block max-h-[28rem] w-full rounded-md border theme-border theme-bg-panel object-contain;
 }
 
 .workspace-ports-panel-probe ul,
@@ -499,11 +499,11 @@ watch(
 }
 
 .workspace-ports-panel-empty {
-  @apply m-0 mt-2 rounded-md border border-dashed border-zinc-200 px-3 py-2 text-xs text-zinc-500;
+  @apply m-0 mt-2 rounded-md border border-dashed theme-border px-3 py-2 text-xs theme-muted;
 }
 
 .workspace-ports-panel-more {
-  @apply m-0 mt-2 rounded-md border border-zinc-200 bg-zinc-50 px-3 py-2 text-xs text-zinc-500;
+  @apply m-0 mt-2 rounded-md border theme-border theme-bg-subtle px-3 py-2 text-xs theme-muted;
 }
 
 @media (max-width: 760px) {
