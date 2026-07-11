@@ -124,50 +124,30 @@ function formatTime(value: string): string {
 </script>
 
 <style scoped>
+@reference "../../style.css";
+
 .browser-notifications {
   position: relative;
 }
 
 .browser-notifications-trigger {
-  position: relative;
-  display: flex;
-  width: 2rem;
-  height: 2rem;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid #e4e4e7;
-  border-radius: 0.5rem;
-  background: #fff;
-  color: #52525b;
-  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+  @apply relative inline-flex h-9 w-9 items-center justify-center rounded-md border theme-border theme-bg-panel theme-muted shadow-sm transition focus-visible:outline-2 focus-visible:outline-offset-2;
 }
 
-.browser-notifications-trigger:hover {
-  border-color: #cbd5e1;
-  background: #f8fafc;
-  color: #18181b;
+.browser-notifications-trigger:hover,
+.browser-notifications-trigger[aria-expanded='true'] {
+  border-color: color-mix(in srgb, var(--color-accent) 55%, var(--color-border));
+  background: var(--color-info-soft);
+  color: var(--color-info);
 }
 
 .browser-notifications-trigger-icon {
-  width: 1rem;
-  height: 1rem;
+  @apply h-5 w-5;
 }
 
 .browser-notifications-badge {
-  position: absolute;
-  top: -0.35rem;
-  right: -0.35rem;
-  display: flex;
-  min-width: 1.1rem;
-  height: 1.1rem;
-  align-items: center;
-  justify-content: center;
-  border-radius: 999px;
-  background: #dc2626;
-  color: #fff;
-  font-size: 0.62rem;
-  font-weight: 700;
-  line-height: 1;
+  @apply absolute -right-1.5 -top-1.5 inline-flex h-[1.125rem] min-w-[1.125rem] items-center justify-center rounded-full theme-bg-danger px-1 font-mono text-[0.58rem] font-bold leading-none theme-on-danger;
+  box-shadow: 0 0 0 2px var(--color-background);
 }
 
 .browser-notifications-popover {
@@ -176,13 +156,13 @@ function formatTime(value: string): string {
   right: 0;
   z-index: 50;
   width: min(23rem, calc(100vw - 1rem));
-  border: 1px solid #e4e4e7;
-  border-radius: 0.5rem;
-  background: rgb(255 255 255 / 0.98);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: color-mix(in srgb, var(--color-panel) 97%, transparent);
   padding: 0.75rem;
-  color: #27272a;
-  box-shadow: 0 18px 40px rgb(15 23 42 / 0.16);
-  backdrop-filter: blur(10px);
+  color: var(--color-text);
+  box-shadow: var(--shadow-floating);
+  backdrop-filter: blur(18px);
 }
 
 .browser-notifications-header,
@@ -196,7 +176,7 @@ function formatTime(value: string): string {
 
 .browser-notifications-header h2 {
   margin: 0;
-  color: #18181b;
+  color: var(--color-text);
   font-size: 0.9rem;
   font-weight: 650;
   line-height: 1.2;
@@ -206,7 +186,7 @@ function formatTime(value: string): string {
 .browser-notifications-empty,
 .browser-notifications-error {
   margin: 0.2rem 0 0;
-  color: #71717a;
+  color: var(--color-text-muted);
   font-size: 0.72rem;
   line-height: 1.35;
 }
@@ -214,11 +194,11 @@ function formatTime(value: string): string {
 .browser-notifications-clear,
 .browser-notifications-enable {
   min-height: 1.75rem;
-  border: 1px solid #e4e4e7;
+  border: 1px solid var(--color-border);
   border-radius: 0.45rem;
-  background: #fff;
+  background: var(--color-control);
   padding: 0 0.55rem;
-  color: #3f3f46;
+  color: var(--color-text);
   font-size: 0.72rem;
   font-weight: 600;
 }
@@ -227,6 +207,9 @@ function formatTime(value: string): string {
   cursor: default;
   opacity: 0.45;
 }
+
+.browser-notifications-clear:hover:not(:disabled),
+.browser-notifications-enable:hover { background: var(--color-control-hover); }
 
 .browser-notifications-controls {
   margin-top: 0.75rem;
@@ -242,7 +225,7 @@ function formatTime(value: string): string {
 }
 
 .browser-notifications-controls span {
-  color: #52525b;
+  color: var(--color-text-muted);
   font-size: 0.74rem;
   font-weight: 600;
 }
@@ -250,15 +233,15 @@ function formatTime(value: string): string {
 .browser-notifications-controls select {
   width: 100%;
   min-height: 1.85rem;
-  border: 1px solid #d4d4d8;
+  border: 1px solid var(--color-border);
   border-radius: 0.45rem;
-  background: #fff;
-  color: #27272a;
+  background: var(--color-control);
+  color: var(--color-text);
   font-size: 0.76rem;
 }
 
 .browser-notifications-error {
-  color: #b91c1c;
+  color: var(--color-danger);
 }
 
 .browser-notifications-list {
@@ -273,33 +256,33 @@ function formatTime(value: string): string {
 }
 
 .browser-notifications-event {
-  border: 1px solid #e4e4e7;
+  border: 1px solid var(--color-border);
   border-left-width: 0.25rem;
   border-radius: 0.5rem;
-  background: #fafafa;
+  background: var(--color-surface-muted);
   padding: 0.55rem 0.65rem;
 }
 
 .browser-notifications-event[data-severity='success'] {
-  border-left-color: #16a34a;
+  border-left-color: var(--color-success);
 }
 
 .browser-notifications-event[data-severity='warning'] {
-  border-left-color: #d97706;
+  border-left-color: var(--color-warning);
 }
 
 .browser-notifications-event[data-severity='danger'] {
-  border-left-color: #dc2626;
+  border-left-color: var(--color-danger);
 }
 
 .browser-notifications-event[data-severity='info'] {
-  border-left-color: #2563eb;
+  border-left-color: var(--color-info);
 }
 
 .browser-notifications-event-header span {
   min-width: 0;
   overflow: hidden;
-  color: #27272a;
+  color: var(--color-text);
   font-size: 0.78rem;
   font-weight: 650;
   text-overflow: ellipsis;
@@ -308,13 +291,13 @@ function formatTime(value: string): string {
 
 .browser-notifications-event-header time {
   flex: 0 0 auto;
-  color: #71717a;
+  color: var(--color-text-muted);
   font-size: 0.68rem;
 }
 
 .browser-notifications-event p {
   margin: 0.25rem 0 0;
-  color: #52525b;
+  color: var(--color-text-muted);
   font-size: 0.72rem;
   line-height: 1.35;
   overflow-wrap: anywhere;

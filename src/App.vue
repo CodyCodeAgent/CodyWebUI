@@ -143,6 +143,17 @@
             </SidebarThreadControls>
           </template>
           <template #actions>
+            <button
+              v-if="!isSettingsRoute"
+              class="content-prompt-trigger"
+              type="button"
+              aria-label="Open prompt library"
+              title="Prompt library"
+              :aria-expanded="isPromptLibraryOpen"
+              @click="isPromptLibraryOpen = true"
+            >
+              <IconTablerClipboardList />
+            </button>
             <ThreadActivityPanel
               v-if="shouldShowWorkLogAction || allPendingServerRequests.length > 0"
               :messages="filteredMessages"
@@ -236,6 +247,7 @@
               </div>
 
               <ThreadComposer :active-thread-id="composerThreadContextId" :disabled="isSendingMessage"
+                :prompt-insertion="promptInsertion"
                 :models="availableModelIds" :selected-model="selectedModelId"
                 :selected-reasoning-effort="selectedReasoningEffort"
                 :collaboration-modes="collaborationModeOptions"
@@ -267,6 +279,7 @@
               </div>
 
               <ThreadComposer :active-thread-id="composerThreadContextId"
+                :prompt-insertion="promptInsertion"
                 :disabled="isSendingMessage" :models="availableModelIds"
                 :selected-model="selectedModelId" :selected-reasoning-effort="selectedReasoningEffort"
                 :collaboration-modes="collaborationModeOptions"
@@ -300,6 +313,12 @@
     @close="isNewThreadDialogOpen = false"
     @create="onCreateNewThreadFromDialog"
   />
+  <PromptLibraryDrawer
+    :open="isPromptLibraryOpen"
+    :cwd="tokenFlameCwd"
+    @close="isPromptLibraryOpen = false"
+    @insert="onInsertPrompt"
+  />
 </template>
 
 <script setup lang="ts">
@@ -319,8 +338,10 @@ import AppSettingsPage from './components/content/AppSettingsPage.vue'
 import TokenFlameWidget from './components/content/TokenFlameWidget.vue'
 import MissionChecklist from './components/content/MissionChecklist.vue'
 import BrowserNotificationsPanel from './components/content/BrowserNotificationsPanel.vue'
+import PromptLibraryDrawer from './components/content/PromptLibraryDrawer.vue'
 import SidebarThreadControls from './components/sidebar/SidebarThreadControls.vue'
 import IconTablerFolder from './components/icons/IconTablerFolder.vue'
+import IconTablerClipboardList from './components/icons/IconTablerClipboardList.vue'
 import IconTablerMoon from './components/icons/IconTablerMoon.vue'
 import IconTablerSearch from './components/icons/IconTablerSearch.vue'
 import IconTablerSettings from './components/icons/IconTablerSettings.vue'
@@ -359,6 +380,7 @@ import type {
   UiServerRequestReply,
   UiToolingRollbackFileResult,
 } from './types/codex'
+import type { PromptInsertion } from './composables/promptLibraryRules'
 
 const MOBILE_SIDEBAR_BREAKPOINT = 700
 const WorkspaceDashboard = defineAsyncComponent(() => import('./components/content/WorkspaceDashboard.vue'))
@@ -438,12 +460,18 @@ const pendingNewThreadName = ref('')
 const newThreadDialogInitialCwd = ref('')
 const isNewThreadDialogOpen = ref(false)
 const isDirectoryPickerOpen = ref(false)
+const isPromptLibraryOpen = ref(false)
+const promptInsertion = ref<PromptInsertion | null>(null)
 const isSidebarCollapsed = ref(loadSidebarCollapsed())
 const isMobileViewport = ref(false)
 const sidebarSearchQuery = ref('')
 const isSidebarSearchVisible = ref(false)
 const homeSurface = ref<'brief' | 'console'>('brief')
 const sidebarSearchInputRef = ref<HTMLInputElement | null>(null)
+
+function onInsertPrompt(insertion: PromptInsertion): void {
+  promptInsertion.value = { ...insertion, id: Date.now() }
+}
 
 const routeThreadId = computed(() => {
   const rawThreadId = route.params.threadId
@@ -990,6 +1018,24 @@ async function submitFirstMessageForNewThread(payload: UiComposerSubmitPayload):
 .content-notifications-host {
   @apply flex items-center;
 }
+
+.content-prompt-trigger {
+  @apply relative inline-flex h-9 w-9 items-center justify-center rounded-md border theme-border theme-bg-panel theme-muted shadow-sm transition hover:border-[var(--color-accent)] hover:theme-bg-subtle hover:theme-text focus-visible:outline-2 focus-visible:outline-offset-2;
+}
+
+.content-prompt-trigger::after {
+  position: absolute;
+  right: .35rem;
+  bottom: .28rem;
+  width: .27rem;
+  height: .27rem;
+  border-radius: 999px;
+  background: var(--color-accent);
+  box-shadow: 0 0 7px color-mix(in srgb, var(--color-accent) 64%, transparent);
+  content: '';
+}
+
+.content-prompt-trigger svg { @apply h-4 w-4; }
 
 .workspace-context-bar {
   display: flex;

@@ -680,15 +680,18 @@ watch(() => props.threadId, () => {
 }
 
 .thread-work-log-trigger {
-  @apply relative inline-flex h-9 w-9 items-center justify-center rounded-md border theme-border theme-bg-panel theme-muted shadow-sm transition hover:theme-border-info hover:theme-bg-info-soft hover:theme-text-info focus:outline-none focus:ring-2 focus:ring-blue-200;
+  @apply relative inline-flex h-9 w-9 items-center justify-center rounded-md border theme-border theme-bg-panel theme-muted shadow-sm transition hover:theme-border-info hover:theme-bg-info-soft hover:theme-text-info focus-visible:outline-2 focus-visible:outline-offset-2;
 }
+
+.thread-work-log-trigger[aria-expanded='true'] { @apply theme-border-info theme-bg-info-soft theme-text-info; }
 
 .thread-work-log-trigger-icon {
   @apply h-5 w-5;
 }
 
 .thread-work-log-trigger-badge {
-  @apply absolute -right-2 -top-2 inline-flex h-5 min-w-5 items-center justify-center rounded-full theme-bg-danger px-1 text-[0.68rem] font-semibold leading-none theme-on-danger ring-2 theme-border;
+  @apply absolute -right-1.5 -top-1.5 inline-flex h-[1.125rem] min-w-[1.125rem] items-center justify-center rounded-full theme-bg-danger px-1 font-mono text-[0.58rem] font-bold leading-none theme-on-danger;
+  box-shadow: 0 0 0 2px var(--color-background);
 }
 
 .thread-activity-panel {

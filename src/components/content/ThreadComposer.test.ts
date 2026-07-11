@@ -80,4 +80,19 @@ describe('ThreadComposer', () => {
 
     expect(wrapper.emitted('update:selected-permission-mode')).toEqual([['yolo']])
   })
+
+  it('places prompt library content into the draft without sending it', async () => {
+    const wrapper = mountComposer()
+    const input = wrapper.get('[data-testid="thread-composer-input"]')
+    await input.setValue('Existing note')
+    ;(input.element as HTMLTextAreaElement).setSelectionRange(13, 13)
+
+    await wrapper.setProps({ promptInsertion: { id: 1, text: 'Reusable prompt', mode: 'insert' } })
+
+    expect((input.element as HTMLTextAreaElement).value).toBe('Existing note\n\nReusable prompt')
+    expect(wrapper.emitted('submit')).toBeUndefined()
+
+    await wrapper.setProps({ promptInsertion: { id: 2, text: 'Replacement', mode: 'replace' } })
+    expect((input.element as HTMLTextAreaElement).value).toBe('Replacement')
+  })
 })
