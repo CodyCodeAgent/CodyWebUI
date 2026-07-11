@@ -7,21 +7,21 @@
     :style="cardPositionStyle"
     :title="detailsTitle"
     aria-keyshortcuts="ArrowUp ArrowDown ArrowLeft ArrowRight"
-    aria-label="Codex rate limit status"
+    :aria-label="t('rateLimit.aria')"
     tabindex="0"
     @keydown="onKeyboardMove"
   >
     <div
       class="rate-limit-heading"
-      title="Drag to move"
+      :title="t('rateLimit.drag')"
       @pointerdown="startDrag"
     >
       <span class="rate-limit-title">Codex</span>
       <button
         class="rate-limit-refresh"
         type="button"
-        aria-label="Refresh rate limits"
-        title="Refresh rate limits"
+        :aria-label="t('rateLimit.refresh')"
+        :title="t('rateLimit.refresh')"
         :disabled="isLoading"
         @pointerdown.stop
         @click="$emit('refresh')"
@@ -77,6 +77,7 @@ import {
   moveFloatingPosition,
 } from '../../composables/floatingPositionRules'
 import type { UiRateLimitSnapshot, UiRateLimitWindow } from '../../types/codex'
+import { useLocale } from '../../composables/useLocale'
 
 const props = defineProps<{
   snapshot: UiRateLimitSnapshot | null
@@ -86,6 +87,7 @@ const props = defineProps<{
 defineEmits<{
   refresh: []
 }>()
+const { t } = useLocale()
 
 type RateLimitRow = {
   label: string
@@ -126,15 +128,15 @@ const resetCreditsText = computed(() => {
     return ''
   }
   const count = props.snapshot.availableResetCredits
-  return `${count} reset credit${count === 1 ? '' : 's'}`
+  return t(count === 1 ? 'rateLimit.credits.one' : 'rateLimit.credits.many', { count: String(count) })
 })
 const detailsTitle = computed(() => {
   if (!props.snapshot) return ''
   const parts = [
-    props.snapshot.limitId ? `Bucket: ${props.snapshot.limitId}` : '',
-    props.snapshot.limitName ? `Name: ${props.snapshot.limitName}` : '',
-    props.snapshot.planType ? `Plan: ${props.snapshot.planType}` : '',
-    resetCreditsText.value ? `Credits: ${resetCreditsText.value}` : '',
+    props.snapshot.limitId ? t('rateLimit.bucket', { value: props.snapshot.limitId }) : '',
+    props.snapshot.limitName ? t('rateLimit.name', { value: props.snapshot.limitName }) : '',
+    props.snapshot.planType ? t('rateLimit.plan', { value: props.snapshot.planType }) : '',
+    resetCreditsText.value ? t('rateLimit.credits', { value: resetCreditsText.value }) : '',
   ].filter(Boolean)
   return parts.join('\n')
 })
@@ -167,25 +169,25 @@ function clamp(value: number, min: number, max: number): number {
 function formatWindowLabel(durationMins: number | null): string {
   if (durationMins === 300) return '5h'
   if (durationMins === 10080) return '7d'
-  if (!durationMins) return 'limit'
+  if (!durationMins) return t('rateLimit.limit')
   if (durationMins % 1440 === 0) return `${durationMins / 1440}d`
   if (durationMins % 60 === 0) return `${durationMins / 60}h`
   return `${durationMins}m`
 }
 
 function formatReset(resetsAt: number | null): string {
-  if (!resetsAt) return 'reset --'
+  if (!resetsAt) return t('rateLimit.reset.unknown')
 
   const secondsLeft = Math.max(0, resetsAt - nowSeconds.value)
-  if (secondsLeft <= 30) return 'reset soon'
+  if (secondsLeft <= 30) return t('rateLimit.reset.soon')
 
   const days = Math.floor(secondsLeft / 86400)
   const hours = Math.floor((secondsLeft % 86400) / 3600)
   const minutes = Math.ceil((secondsLeft % 3600) / 60)
 
-  if (days > 0) return `reset ${days}d ${hours}h`
-  if (hours > 0) return `reset ${hours}h ${minutes}m`
-  return `reset ${minutes}m`
+  if (days > 0) return t('rateLimit.reset.days', { days: String(days), hours: String(hours) })
+  if (hours > 0) return t('rateLimit.reset.hours', { hours: String(hours), minutes: String(minutes) })
+  return t('rateLimit.reset.minutes', { minutes: String(minutes) })
 }
 
 function colorForPercent(percent: number): string {

@@ -1,0 +1,122 @@
+import type Database from 'better-sqlite3'
+import type { IncomingMessage, ServerResponse } from 'node:http'
+import { withLocalDatabase } from './localDatabase.js'
+
+const LEGACY_SETTING_KEY = 'prompt-library.templates.v1'
+const MAX_BODY_BYTES = 512 * 1024
+
+export type StoredPromptTemplate = {
+  id: string; title: string; description: string; content: string; category: string
+  scope: 'global' | 'workspace'; workspaceCwd: string; isFavorite: boolean
+  useCount: number; lastUsedAtIso: string; createdAtIso: string; updatedAtIso: string
+}
+
+function ensurePromptTable(db: Database.Database): void {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS prompt_templates (
+      id TEXT PRIMARY KEY,
+      title TEXT NOT NULL,
+      description TEXT NOT NULL DEFAULT '',
+      content TEXT NOT NULL,
+      category TEXT NOT NULL DEFAULT 'General',
+      scope TEXT NOT NULL CHECK(scope IN ('global', 'workspace')),
+      workspace_cwd TEXT NOT NULL DEFAULT '',
+      is_favorite INTEGER NOT NULL DEFAULT 0,
+      use_count INTEGER NOT NULL DEFAULT 0,
+      last_used_at_iso TEXT NOT NULL DEFAULT '',
+      created_at_iso TEXT NOT NULL,
+      updated_at_iso TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_prompt_templates_scope ON prompt_templates(scope, workspace_cwd);
+    CREATE INDEX IF NOT EXISTS idx_prompt_templates_recent ON prompt_templates(last_used_at_iso DESC);
+  `)
+}
+
+function text(value: unknown): string { return typeof value === 'string' ? value.trim() : '' }
+
+function normalizeTemplate(value: unknown): StoredPromptTemplate | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null
+  const row = value as Record<string, unknown>
+  const id = text(row.id); const title = text(row.title); const content = text(row.content)
+  if (!id || !title || !content || id.length > 160 || title.length > 160 || content.length > 128 * 1024) return null
+  const scope = row.scope === 'workspace' ? 'workspace' : 'global'
+  const now = new Date().toISOString()
+  return {
+    id, title, content, description: text(row.description), category: text(row.category) || 'General', scope,
+    workspaceCwd: scope === 'workspace' ? text(row.workspaceCwd) : '', isFavorite: row.isFavorite === true,
+    useCount: typeof row.useCount === 'number' && Number.isFinite(row.useCount) ? Math.max(0, Math.trunc(row.useCount)) : 0,
+    lastUsedAtIso: text(row.lastUsedAtIso), createdAtIso: text(row.createdAtIso) || now, updatedAtIso: text(row.updatedAtIso) || now,
+  }
+}
+
+function upsertTemplate(db: Database.Database, template: StoredPromptTemplate): void {
+  db.prepare(`
+    INSERT INTO prompt_templates (id, title, description, content, category, scope, workspace_cwd, is_favorite, use_count, last_used_at_iso, created_at_iso, updated_at_iso)
+    VALUES (@id, @title, @description, @content, @category, @scope, @workspaceCwd, @isFavorite, @useCount, @lastUsedAtIso, @createdAtIso, @updatedAtIso)
+    ON CONFLICT(id) DO UPDATE SET title=excluded.title, description=excluded.description, content=excluded.content,
+      category=excluded.category, scope=excluded.scope, workspace_cwd=excluded.workspace_cwd,
+      is_favorite=excluded.is_favorite, use_count=excluded.use_count, last_used_at_iso=excluded.last_used_at_iso,
+      updated_at_iso=excluded.updated_at_iso
+  `).run({ ...template, isFavorite: template.isFavorite ? 1 : 0 })
+}
+
+function migrateLegacyTemplates(db: Database.Database): void {
+  const count = Number((db.prepare('SELECT COUNT(*) AS count FROM prompt_templates').get() as { count?: unknown })?.count ?? 0)
+  if (count > 0) return
+  const settingsTable = db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'settings'").get()
+  if (!settingsTable) return
+  const row = db.prepare('SELECT value_json AS valueJson FROM settings WHERE key = ? LIMIT 1').get(LEGACY_SETTING_KEY) as { valueJson?: unknown } | undefined
+  if (typeof row?.valueJson !== 'string') return
+  try {
+    const values = JSON.parse(row.valueJson) as unknown
+    if (!Array.isArray(values)) return
+    for (const value of values) {
+      const template = normalizeTemplate(value)
+      if (template) upsertTemplate(db, template)
+    }
+  } catch { /* Ignore malformed legacy settings. */ }
+}
+
+export async function listPromptTemplates(): Promise<StoredPromptTemplate[]> {
+  return withLocalDatabase((db) => {
+    ensurePromptTable(db); migrateLegacyTemplates(db)
+    const rows = db.prepare(`SELECT id, title, description, content, category, scope, workspace_cwd AS workspaceCwd,
+      is_favorite AS isFavorite, use_count AS useCount, last_used_at_iso AS lastUsedAtIso,
+      created_at_iso AS createdAtIso, updated_at_iso AS updatedAtIso FROM prompt_templates ORDER BY updated_at_iso DESC`).all()
+    return (rows as Array<Record<string, unknown>>).map((row) => ({ ...row, isFavorite: row.isFavorite === 1 } as StoredPromptTemplate))
+  })
+}
+
+export async function replacePromptTemplates(values: unknown): Promise<StoredPromptTemplate[]> {
+  if (!Array.isArray(values)) throw new Error('templates must be an array')
+  const templates = values.map(normalizeTemplate).filter((value): value is StoredPromptTemplate => value !== null)
+  if (templates.length !== values.length) throw new Error('One or more prompt templates are invalid')
+  await withLocalDatabase((db) => {
+    ensurePromptTable(db)
+    db.transaction(() => {
+      const ids = new Set(templates.map((template) => template.id))
+      for (const template of templates) upsertTemplate(db, template)
+      for (const row of db.prepare('SELECT id FROM prompt_templates').all() as Array<{ id: string }>) {
+        if (!ids.has(row.id)) db.prepare('DELETE FROM prompt_templates WHERE id = ?').run(row.id)
+      }
+    })()
+  })
+  return listPromptTemplates()
+}
+
+async function readBody(req: IncomingMessage): Promise<unknown> {
+  const chunks: Uint8Array[] = []; let size = 0
+  for await (const chunk of req) { const value = typeof chunk === 'string' ? Buffer.from(chunk) : chunk; size += value.byteLength; if (size > MAX_BODY_BYTES) throw new Error('Request body is too large'); chunks.push(value) }
+  return JSON.parse(Buffer.concat(chunks).toString('utf8') || '{}') as unknown
+}
+
+function send(res: ServerResponse, status: number, payload: unknown): void { res.statusCode = status; res.setHeader('Content-Type', 'application/json; charset=utf-8'); res.end(JSON.stringify(payload)) }
+
+export async function handleListPromptTemplates(_url: URL, res: ServerResponse): Promise<void> {
+  send(res, 200, { result: { templates: await listPromptTemplates() } })
+}
+
+export async function handleReplacePromptTemplates(req: IncomingMessage, res: ServerResponse): Promise<void> {
+  const body = await readBody(req) as { templates?: unknown }
+  send(res, 200, { result: { templates: await replacePromptTemplates(body.templates) } })
+}

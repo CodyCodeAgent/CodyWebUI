@@ -6,24 +6,35 @@
     @click="onMarkdownClick"
   />
   <dialog ref="imageDialogRef" class="markdown-image-dialog" @click="closeImagePreview">
-    <button type="button" aria-label="Close image preview" @click="closeImagePreview">×</button>
-    <img :src="previewImageUrl" alt="Markdown image preview">
+    <button type="button" :aria-label="t('markdown.closeImagePreview')" @click="closeImagePreview">×</button>
+    <img :src="previewImageUrl" :alt="t('markdown.imagePreview')">
   </dialog>
 </template>
 
 <script setup lang="ts">
 import { nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import DOMPurify from 'dompurify'
-import { renderMarkdown } from '../../composables/renderMarkdown'
+import { renderMarkdown, type MarkdownUiLabels } from '../../composables/renderMarkdown'
+import { useLocale } from '../../composables/useLocale'
 
 const props = defineProps<{
   text: string
   cwd?: string
 }>()
+const { locale, t } = useLocale()
+
+function uiLabels(): MarkdownUiLabels {
+  return {
+    zoomOut: t('markdown.zoomOut'), fit: t('markdown.fit'), zoomIn: t('markdown.zoomIn'), source: t('markdown.source'), fullscreen: t('markdown.fullscreen'),
+    rendering: (engine) => t('markdown.rendering', { engine }), diagramAria: (engine) => t('markdown.diagramAria', { engine }),
+    wrap: t('markdown.wrap'), copy: t('markdown.copy'), save: t('markdown.save'), dataTable: t('markdown.dataTable'), copyCsv: t('markdown.copyCsv'),
+    openFile: (path) => t('markdown.openFile', { path }),
+  }
+}
 
 const rootRef = ref<HTMLElement | null>(null)
 const imageDialogRef = ref<HTMLDialogElement | null>(null)
-const renderedHtml = ref(renderMarkdown(props.text))
+const renderedHtml = ref(renderMarkdown(props.text, uiLabels()))
 const previewImageUrl = ref('')
 let renderTimer = 0
 let diagramSequence = 0
@@ -36,7 +47,7 @@ function stabilizeStreamingMarkdown(value: string): string {
 async function renderNext(value: string): Promise<void> {
   window.clearTimeout(renderTimer)
   renderTimer = window.setTimeout(async () => {
-    renderedHtml.value = renderMarkdown(stabilizeStreamingMarkdown(value))
+    renderedHtml.value = renderMarkdown(stabilizeStreamingMarkdown(value), uiLabels())
     await nextTick()
     void highlightCodeBlocks()
   }, 75)
@@ -58,7 +69,7 @@ async function highlightCodeBlocks(): Promise<void> {
     if (/^-?[\d,.]+%?$/u.test(cell.textContent?.trim() ?? '')) cell.dataset.numeric = 'true'
   }
   for (const image of Array.from(rootRef.value?.querySelectorAll<HTMLImageElement>('img') ?? [])) {
-    image.addEventListener('error', () => { image.alt = image.alt || 'Image failed to load'; image.classList.add('is-load-error') }, { once: true })
+    image.addEventListener('error', () => { image.alt = image.alt || t('markdown.imageLoadFailed'); image.classList.add('is-load-error') }, { once: true })
   }
   rewriteWorkspaceAssetLinks()
   for (const shell of Array.from(rootRef.value?.querySelectorAll<HTMLElement>('.markdown-code-shell') ?? [])) {
@@ -104,7 +115,7 @@ function rewriteWorkspaceAssetLinks(): void {
     anchor.href = assetUrl.toString()
     anchor.target = '_blank'
     anchor.rel = 'noopener noreferrer'
-    anchor.title = 'Open workspace image'
+    anchor.title = t('markdown.openWorkspaceImage')
   }
 }
 
@@ -134,7 +145,7 @@ async function renderDiagrams(): Promise<void> {
       shell.dataset.rendered = 'yes'
       shell.style.setProperty('--diagram-scale', '1')
     } catch (error) {
-      stage.innerHTML = `<p class="markdown-diagram-error">${escapeText(error instanceof Error ? error.message : 'Diagram rendering failed')}</p>`
+      stage.innerHTML = `<p class="markdown-diagram-error">${escapeText(error instanceof Error ? error.message : t('markdown.diagramFailed'))}</p>`
       shell.querySelector<HTMLElement>('.markdown-diagram-source')?.removeAttribute('hidden')
       shell.dataset.rendered = 'error'
     }
@@ -185,7 +196,7 @@ async function exportDiagramPng(shell: HTMLElement): Promise<void> {
   const serialized = new XMLSerializer().serializeToString(svg)
   const image = new Image()
   const url = URL.createObjectURL(new Blob([serialized], { type: 'image/svg+xml' }))
-  await new Promise<void>((resolve, reject) => { image.onload = () => resolve(); image.onerror = () => reject(new Error('PNG export failed')); image.src = url })
+  await new Promise<void>((resolve, reject) => { image.onload = () => resolve(); image.onerror = () => reject(new Error(t('markdown.pngExportFailed'))); image.src = url })
   const canvas = document.createElement('canvas')
   canvas.width = Math.max(1, image.naturalWidth * 2); canvas.height = Math.max(1, image.naturalHeight * 2)
   canvas.getContext('2d')?.drawImage(image, 0, 0, canvas.width, canvas.height)
@@ -216,9 +227,9 @@ async function copyText(text: string, button: HTMLButtonElement): Promise<void> 
       textarea.remove()
       if (!copied) throw new Error('Copy command was rejected')
     }
-    button.textContent = 'Copied'
+    button.textContent = t('markdown.copied')
   } catch {
-    button.textContent = 'Copy failed'
+    button.textContent = t('markdown.copyFailed')
   }
   window.setTimeout(() => { button.textContent = original }, 1_200)
 }
@@ -242,7 +253,7 @@ function onMarkdownClick(event: MouseEvent): void {
   if (action === 'copy-code') void copyText(shell?.querySelector('code')?.textContent ?? '', button)
   if (action === 'wrap-code') {
     const isWrapped = shell?.classList.toggle('is-wrapped') ?? false
-    button.textContent = isWrapped ? 'Scroll' : 'Wrap'
+    button.textContent = isWrapped ? t('markdown.scroll') : t('markdown.wrap')
     button.setAttribute('aria-pressed', String(isWrapped))
   }
   if (action === 'save-code') {
@@ -275,6 +286,7 @@ function onMarkdownClick(event: MouseEvent): void {
 function closeImagePreview(): void { imageDialogRef.value?.close() }
 
 watch(() => props.text, (value) => { void renderNext(value) })
+watch(locale, () => { void renderNext(props.text) })
 onMounted(() => { void highlightCodeBlocks() })
 onBeforeUnmount(() => window.clearTimeout(renderTimer))
 </script>

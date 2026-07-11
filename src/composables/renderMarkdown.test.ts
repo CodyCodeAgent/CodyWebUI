@@ -74,4 +74,17 @@ describe('renderMarkdown', () => {
     expect(mermaid).toContain('data-markdown-action="diagram-fullscreen"')
     expect(plantuml).toContain('data-markdown-action="diagram-export-svg"')
   })
+
+  it('accepts localized labels for generated Markdown controls', () => {
+    const html = renderMarkdown('```ts\nconst answer = 42\n```', {
+      zoomOut: '缩小', fit: '适应', zoomIn: '放大', source: '源码', fullscreen: '全屏',
+      rendering: (engine) => `渲染 ${engine}`, diagramAria: (engine) => `${engine} 技术图`,
+      wrap: '换行', copy: '复制', save: '保存', dataTable: '数据表', copyCsv: '复制 CSV',
+      openFile: (path) => `打开 ${path}`,
+    })
+
+    expect(html).toContain('>换行</button>')
+    expect(html).toContain('>复制</button>')
+    expect(html).toContain('>保存</button>')
+  })
 })

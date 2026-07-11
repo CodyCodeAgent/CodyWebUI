@@ -932,34 +932,34 @@ watch(() => props.threadId, () => {
 }
 
 .work-log-diff-row[data-kind='add'] {
-  background: #e6ffec;
+  background: color-mix(in srgb, var(--color-success) 13%, var(--color-panel));
 }
 
 .work-log-diff-row[data-kind='remove'] {
-  background: #ffebe9;
+  background: color-mix(in srgb, var(--color-danger) 13%, var(--color-panel));
 }
 
 .work-log-diff-row[data-kind='meta'],
 .work-log-diff-row-hunk {
-  background: #ddf4ff;
+  background: color-mix(in srgb, var(--color-info) 12%, var(--color-panel));
 }
 
 .work-log-line-number {
   @apply select-none border-r theme-border px-2 text-right text-[0.68rem] theme-muted;
-  background: rgb(248 250 252 / 0.82);
+  background: var(--color-elevated);
 }
 
 .work-log-diff-row[data-kind='add'] .work-log-line-number {
-  background: #ccffd8;
+  background: color-mix(in srgb, var(--color-success) 20%, var(--color-panel));
 }
 
 .work-log-diff-row[data-kind='remove'] .work-log-line-number {
-  background: #ffd7d5;
+  background: color-mix(in srgb, var(--color-danger) 20%, var(--color-panel));
 }
 
 .work-log-diff-row-hunk .work-log-line-number,
 .work-log-diff-row[data-kind='meta'] .work-log-line-number {
-  background: #b6e3ff;
+  background: color-mix(in srgb, var(--color-info) 20%, var(--color-panel));
 }
 
 .work-log-line-prefix {
@@ -992,7 +992,7 @@ watch(() => props.threadId, () => {
 
 .work-log-split-line-number {
   @apply select-none border-r theme-border px-2 text-right text-[0.68rem] theme-muted;
-  background: rgb(248 250 252 / 0.82);
+  background: var(--color-elevated);
 }
 
 .work-log-split-line-number:nth-child(3) {
@@ -1005,22 +1005,22 @@ watch(() => props.threadId, () => {
 
 .work-log-split-line-number[data-kind='add'],
 .work-log-split-code[data-kind='add'] {
-  background: #e6ffec;
+  background: color-mix(in srgb, var(--color-success) 13%, var(--color-panel));
 }
 
 .work-log-split-line-number[data-kind='remove'],
 .work-log-split-code[data-kind='remove'] {
-  background: #ffebe9;
+  background: color-mix(in srgb, var(--color-danger) 13%, var(--color-panel));
 }
 
 .work-log-split-line-number[data-kind='meta'],
 .work-log-split-code[data-kind='meta'] {
-  background: #ddf4ff;
+  background: color-mix(in srgb, var(--color-info) 12%, var(--color-panel));
 }
 
 .work-log-split-line-number[data-kind='empty'],
 .work-log-split-code[data-kind='empty'] {
-  background: #f8fafc;
+  background: var(--color-surface-muted);
 }
 
 .work-log-diff-truncation {
