@@ -80,8 +80,7 @@
 
 <script setup lang="ts">
 import { computed, onUnmounted, reactive, ref, watch } from 'vue'
-import { fetchUserSetting, writeUserSetting } from '../../api/codexSettingsClient'
-import { DESKTOP_SETTING_KEYS } from '../../composables/desktopSettingsKeys'
+import { fetchPromptTemplates, replacePromptTemplates } from '../../api/codexPromptLibraryClient'
 import { useLocale } from '../../composables/useLocale'
 import {
   normalizePromptTemplates,
@@ -114,9 +113,9 @@ const categories = computed(() => ['All', ...new Set(visiblePromptTemplates(temp
 async function loadTemplates(): Promise<void> {
   isLoading.value = true
   try {
-    const setting = await fetchUserSetting<unknown>(DESKTOP_SETTING_KEYS.promptLibrary)
-    templates.value = normalizePromptTemplates(setting?.value)
-    if (!setting) await persistTemplates()
+    const stored = await fetchPromptTemplates()
+    templates.value = stored.length > 0 ? normalizePromptTemplates(stored) : normalizePromptTemplates(null)
+    if (stored.length === 0) await persistTemplates()
   } catch {
     templates.value = normalizePromptTemplates(null)
   } finally {
@@ -125,7 +124,7 @@ async function loadTemplates(): Promise<void> {
 }
 
 async function persistTemplates(): Promise<void> {
-  await writeUserSetting(DESKTOP_SETTING_KEYS.promptLibrary, templates.value)
+  templates.value = normalizePromptTemplates(await replacePromptTemplates(templates.value))
 }
 
 function resetEditor(): void {

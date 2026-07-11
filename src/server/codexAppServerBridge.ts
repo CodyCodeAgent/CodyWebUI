@@ -28,6 +28,7 @@ import { appendCodexSessionEvent, handleDailyTokenUsage, handleListCodexSessionE
 import { TokenUsageReconciliationService } from './tokenUsageReconciliationService.js'
 import { renderPlantUmlSvg } from './diagramRenderService.js'
 import { handleListUserSettings, handleReadUserSetting, handleWriteUserSetting } from './settingsStore.js'
+import { handleListPromptTemplates, handleReplacePromptTemplates } from './promptLibraryStore.js'
 import {
   handleApplyPatchToWorkspaceWorktree,
   handleApplyWorkspaceWorkflowImplementation,
@@ -1919,6 +1920,16 @@ export function createCodexBridgeMiddleware(): CodexBridgeMiddleware {
 
       if (req.method === 'POST' && url.pathname === '/codex-api/settings') {
         await handleWriteUserSetting(req, res)
+        return
+      }
+
+      if (req.method === 'GET' && url.pathname === '/codex-api/prompt-templates') {
+        await handleListPromptTemplates(url, res)
+        return
+      }
+
+      if (req.method === 'POST' && url.pathname === '/codex-api/prompt-templates') {
+        await handleReplacePromptTemplates(req, res)
         return
       }
 

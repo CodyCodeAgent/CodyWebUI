@@ -341,7 +341,7 @@ async function loadUsage(): Promise<void> {
   }
 }
 
-const hasUsage = computed(() => (usage.value?.tokenUsageEventCount ?? 0) > 0)
+const hasUsageSnapshot = computed(() => usage.value !== null)
 const displayTotalTokens = computed(() => usage.value?.totalTokens ?? 0)
 const displayInputTokens = computed(() => usage.value?.inputTokens ?? 0)
 const displayOutputTokens = computed(() => usage.value?.outputTokens ?? 0)
@@ -355,8 +355,8 @@ const outerFlamePath = computed(() => {
   }
   return 'M50 114C19 105 12 79 26 55C33 43 36 31 33 15C44 23 50 34 51 44C60 31 64 19 61 4C78 18 85 39 79 56C92 66 95 82 88 96C81 108 66 114 50 114Z'
 })
-const compactTokenCount = computed(() => hasUsage.value ? compactNumber(displayTotalTokens.value) : '—')
-const formattedTotalTokens = computed(() => hasUsage.value ? formatNumber(displayTotalTokens.value) : t('tokenFlame.unavailable'))
+const compactTokenCount = computed(() => hasUsageSnapshot.value ? compactNumber(displayTotalTokens.value) : '—')
+const formattedTotalTokens = computed(() => hasUsageSnapshot.value ? formatNumber(displayTotalTokens.value) : t('tokenFlame.unavailable'))
 const fireLevelLabel = computed(() => ({
   spark: t('settings.tokenFlame.level.spark'),
   campfire: t('settings.tokenFlame.level.campfire'),
@@ -374,7 +374,7 @@ const usageSourceLabel = computed(() => {
   if (usage.value?.source === 'realtime-events') return t('tokenFlame.source.live')
   return t('tokenFlame.source.none')
 })
-const summaryTitle = computed(() => hasUsage.value
+const summaryTitle = computed(() => hasUsageSnapshot.value
   ? t('tokenFlame.summary', { tokens: formattedTotalTokens.value, level: fireLevelLabel.value })
   : t('tokenFlame.summaryUnavailable'))
 const widgetStyle = computed(() => {
