@@ -1,7 +1,7 @@
 import type { SkinPack, ThemeTokens } from './tokens'
 
-const systemSans = 'Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif'
-const systemMono = '"SFMono-Regular", "Cascadia Code", "Roboto Mono", ui-monospace, monospace'
+const systemSans = '"IBM Plex Sans", "Avenir Next", "Segoe UI", ui-sans-serif, system-ui, sans-serif'
+const systemMono = '"IBM Plex Mono", "Cascadia Code", "SFMono-Regular", ui-monospace, monospace'
 
 function tokens(overrides: Partial<ThemeTokens> & { color: ThemeTokens['color'] }): ThemeTokens {
   return {
@@ -12,19 +12,19 @@ function tokens(overrides: Partial<ThemeTokens> & { color: ThemeTokens['color'] 
     },
     spacing: overrides.spacing ?? {
       xs: '0.25rem',
-      sm: '0.5rem',
-      md: '0.75rem',
-      lg: '1rem',
+      sm: '0.625rem',
+      md: '0.875rem',
+      lg: '1.25rem',
     },
     radius: overrides.radius ?? {
-      sm: '0.375rem',
-      md: '0.5rem',
-      lg: '0.75rem',
+      sm: '0.4rem',
+      md: '0.7rem',
+      lg: '1rem',
     },
     shadow: overrides.shadow ?? {
-      panel: '0 1px 2px rgb(15 23 42 / 0.08)',
-      floating: '0 18px 42px rgb(15 23 42 / 0.18)',
-      focus: '0 0 0 3px rgb(59 130 246 / 0.24)',
+      panel: '0 1px 0 rgb(255 255 255 / 0.035), 0 12px 32px rgb(7 10 15 / 0.14)',
+      floating: '0 24px 64px rgb(7 10 15 / 0.34)',
+      focus: '0 0 0 3px rgb(66 200 245 / 0.22)',
     },
     motion: overrides.motion ?? {
       fast: '120ms',
@@ -75,25 +75,25 @@ export const BUILT_IN_SKINS: SkinPack[] = [
     background: { type: 'grid' },
     tokens: tokens({
       color: {
-        background: '#0f1115',
-        surface: '#151820',
-        panel: '#181b22',
-        elevated: '#20242c',
-        text: '#f3f4f6',
-        textMuted: '#c7ccd6',
-        border: '#303643',
-        accent: '#38bdf8',
-        danger: '#fb7185',
-        warning: '#f59e0b',
-        success: '#34d399',
-        info: '#60a5fa',
-        codeBackground: '#05070c',
-        terminalBackground: '#05070c',
+        background: '#0b0e13',
+        surface: '#10151d',
+        panel: '#121821',
+        elevated: '#1b2430',
+        text: '#edf3f8',
+        textMuted: '#8d9bab',
+        border: '#283442',
+        accent: '#42c8f5',
+        danger: '#ff6b7a',
+        warning: '#f0b35a',
+        success: '#55d6a7',
+        info: '#78a9ff',
+        codeBackground: '#070a0f',
+        terminalBackground: '#070a0f',
       },
       shadow: {
-        panel: '0 1px 2px rgb(0 0 0 / 0.22)',
-        floating: '0 18px 42px rgb(0 0 0 / 0.42)',
-        focus: '0 0 0 3px rgb(56 189 248 / 0.24)',
+        panel: '0 1px 0 rgb(255 255 255 / 0.035), 0 14px 36px rgb(0 0 0 / 0.22)',
+        floating: '0 28px 72px rgb(0 0 0 / 0.52)',
+        focus: '0 0 0 3px rgb(66 200 245 / 0.24)',
       },
       density: 'compact',
     }),
@@ -220,4 +220,3 @@ export const BUILT_IN_SKINS: SkinPack[] = [
     }),
   },
 ]
-

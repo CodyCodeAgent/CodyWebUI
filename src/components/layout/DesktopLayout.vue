@@ -91,16 +91,21 @@ function onResizeHandleMouseDown(event: MouseEvent): void {
 @reference "tailwindcss";
 
 .desktop-layout {
-  @apply h-screen grid bg-slate-100 text-slate-900 overflow-hidden;
+  @apply h-screen grid overflow-hidden;
   grid-template-columns: var(--layout-columns);
+  background: var(--color-background);
+  color: var(--color-text);
 }
 
 .desktop-sidebar {
-  @apply bg-slate-100 min-h-0 overflow-y-auto;
+  @apply min-h-0 overflow-y-auto;
+  background: var(--color-surface);
+  border-right: 1px solid color-mix(in srgb, var(--color-border) 72%, transparent);
 }
 
 .desktop-resize-handle {
-  @apply relative w-px cursor-col-resize bg-slate-300 hover:bg-slate-400 transition;
+  @apply relative w-px cursor-col-resize transition;
+  background: var(--color-border);
 }
 
 .desktop-resize-handle::before {
@@ -109,6 +114,7 @@ function onResizeHandleMouseDown(event: MouseEvent): void {
 }
 
 .desktop-main {
-  @apply bg-white min-h-0 overflow-y-hidden overflow-x-visible;
+  @apply min-h-0 overflow-y-hidden overflow-x-visible;
+  background: var(--color-background);
 }
 </style>

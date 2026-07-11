@@ -18,7 +18,7 @@
           @start-new-thread="onStartNewThreadFromToolbar"
         >
           <button
-            class="sidebar-search-toggle"
+            class="sidebar-search-toggle toolbar-secondary"
             type="button"
             data-theme-toggle="true"
             :aria-pressed="isDarkMode"
@@ -30,7 +30,7 @@
             <IconTablerMoon v-else class="sidebar-search-toggle-icon" />
           </button>
           <button
-            class="sidebar-search-toggle"
+            class="sidebar-search-toggle toolbar-secondary"
             type="button"
             :aria-pressed="isSidebarSearchVisible"
             aria-label="Search threads"
@@ -40,7 +40,7 @@
             <IconTablerSearch class="sidebar-search-toggle-icon" />
           </button>
           <button
-            class="sidebar-search-toggle"
+            class="sidebar-search-toggle toolbar-secondary"
             type="button"
             aria-label="Add project"
             title="Add project"
@@ -49,7 +49,7 @@
             <IconTablerFolder class="sidebar-search-toggle-icon" />
           </button>
           <button
-            class="sidebar-search-toggle"
+            class="sidebar-search-toggle toolbar-secondary"
             type="button"
             :aria-pressed="isSettingsRoute"
             :aria-label="t('nav.settings')"
@@ -110,7 +110,7 @@
               @start-new-thread="onStartNewThreadFromToolbar"
             >
               <button
-                class="sidebar-search-toggle"
+                class="sidebar-search-toggle toolbar-secondary"
                 type="button"
                 data-theme-toggle="true"
                 :aria-pressed="isDarkMode"
@@ -122,7 +122,7 @@
                 <IconTablerMoon v-else class="sidebar-search-toggle-icon" />
               </button>
               <button
-                class="sidebar-search-toggle"
+                class="sidebar-search-toggle toolbar-secondary"
                 type="button"
                 aria-label="Add project"
                 title="Add project"
@@ -131,7 +131,7 @@
                 <IconTablerFolder class="sidebar-search-toggle-icon" />
               </button>
               <button
-                class="sidebar-search-toggle"
+                class="sidebar-search-toggle toolbar-secondary"
                 type="button"
                 :aria-pressed="isSettingsRoute"
                 :aria-label="t('nav.settings')"
@@ -168,12 +168,23 @@
           </template>
         </ContentHeader>
 
+        <div v-if="!isSettingsRoute" class="workspace-context-bar" aria-label="Current workspace context">
+          <span class="workspace-context-live" aria-hidden="true" />
+          <span><small>Workspace</small>{{ newThreadProjectLabel || 'Not selected' }}</span>
+          <span><small>Path</small>{{ tokenFlameCwd || '—' }}</span>
+          <span><small>Permissions</small>{{ selectedPermissionMode }}</span>
+          <button v-if="isHomeRoute" type="button" @click="homeSurface = homeSurface === 'brief' ? 'console' : 'brief'">
+            {{ homeSurface === 'brief' ? 'Open workspace console' : 'Back to brief' }}
+          </button>
+        </div>
+
         <RateLimitFloatingStatus
           :snapshot="rateLimitSnapshot"
           :is-loading="isLoadingRateLimits"
           @refresh="refreshRateLimits"
         />
         <TokenFlameWidget
+          v-if="!isSettingsRoute && (!isHomeRoute || homeSurface === 'brief')"
           :cwd="tokenFlameCwd"
           :rate-limit-snapshot="rateLimitSnapshot"
         />
@@ -190,9 +201,29 @@
             <AppSettingsPage />
           </template>
           <template v-else-if="isHomeRoute">
-            <div class="content-grid new-thread-grid">
+            <nav class="mission-stage-nav" aria-label="Task stages">
+              <button v-for="stage in missionStages" :key="stage.id" type="button" :data-active="stage.id === activeMissionStage">
+                <span>{{ stage.label }}</span><small>{{ stage.hint }}</small>
+              </button>
+            </nav>
+            <WorkspaceDashboard
+              v-if="homeSurface === 'console'"
+              :cwd="newThreadCwd"
+              :project-label="newThreadProjectLabel"
+              :threads="allThreads"
+              :pending-requests="allPendingServerRequests"
+              :rate-limit-snapshot="rateLimitSnapshot"
+              @select-thread="onSelectThread"
+              @respond-server-request="onRespondServerRequest"
+            />
+            <div v-else class="content-grid new-thread-grid">
               <div class="new-thread-empty">
-                <p class="new-thread-hero">Let's build</p>
+                <div class="new-thread-kicker">
+                  <span class="new-thread-kicker-signal" aria-hidden="true" />
+                  Agent mission control
+                </div>
+                <p class="new-thread-hero">What are we shipping?</p>
+                <p class="new-thread-subtitle">Choose a workspace, brief the agent, and supervise the work from plan to delivery.</p>
                 <ComposerDropdown class="new-thread-folder-dropdown" :model-value="newThreadCwd"
                   :options="newThreadFolderOptions" placeholder="Choose folder"
                   :disabled="newThreadFolderOptions.length === 0" @update:model-value="onSelectNewThreadFolder" />
@@ -265,7 +296,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, defineAsyncComponent, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import DesktopLayout from './components/layout/DesktopLayout.vue'
 import SidebarThreadTree from './components/sidebar/SidebarThreadTree.vue'
@@ -322,6 +353,7 @@ import type {
 } from './types/codex'
 
 const MOBILE_SIDEBAR_BREAKPOINT = 700
+const WorkspaceDashboard = defineAsyncComponent(() => import('./components/content/WorkspaceDashboard.vue'))
 
 const {
   projectGroups,
@@ -402,6 +434,7 @@ const isSidebarCollapsed = ref(loadSidebarCollapsed())
 const isMobileViewport = ref(false)
 const sidebarSearchQuery = ref('')
 const isSidebarSearchVisible = ref(false)
+const homeSurface = ref<'brief' | 'console'>('brief')
 const sidebarSearchInputRef = ref<HTMLInputElement | null>(null)
 
 const routeThreadId = computed(() => {
@@ -458,6 +491,20 @@ const newThreadFolderOptions = computed(() => buildNewThreadFolderOptions({
 const newThreadWorkspaceGroup = computed(() =>
   findNewThreadWorkspaceGroup(projectGroups.value, newThreadCwd.value)
 )
+const allThreads = computed(() => projectGroups.value.flatMap((group) => group.threads))
+const missionStages = [
+  { id: 'brief', label: 'Brief', hint: 'Define the job' },
+  { id: 'plan', label: 'Plan', hint: 'Review approach' },
+  { id: 'build', label: 'Build', hint: 'Supervise work' },
+  { id: 'validate', label: 'Validate', hint: 'Check evidence' },
+  { id: 'review', label: 'Review', hint: 'Inspect changes' },
+  { id: 'deliver', label: 'Deliver', hint: 'Ship safely' },
+] as const
+const activeMissionStage = computed(() => {
+  if (allPendingServerRequests.value.length > 0) return 'review'
+  if (isSendingMessage.value) return 'build'
+  return 'brief'
+})
 const selectedSidebarProjectName = computed(() =>
   selectedThread.value?.projectName || newThreadWorkspaceGroup.value?.projectName || newThreadCwd.value,
 )
@@ -936,6 +983,119 @@ async function submitFirstMessageForNewThread(payload: UiComposerSubmitPayload):
   @apply flex items-center;
 }
 
+.workspace-context-bar {
+  display: flex;
+  min-height: 2.5rem;
+  align-items: center;
+  gap: 1.1rem;
+  overflow-x: auto;
+  border-bottom: 1px solid var(--color-border);
+  background: color-mix(in srgb, var(--color-panel) 72%, transparent);
+  padding: 0.4rem 1rem;
+  color: var(--color-text-muted);
+  scrollbar-width: none;
+}
+
+.workspace-context-bar > span:not(.workspace-context-live) {
+  display: flex;
+  min-width: 0;
+  max-width: 24rem;
+  align-items: baseline;
+  gap: 0.4rem;
+  overflow: hidden;
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workspace-context-bar small {
+  color: color-mix(in srgb, var(--color-text-muted) 64%, transparent);
+  font-size: 0.58rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.workspace-context-live {
+  width: 0.45rem;
+  height: 0.45rem;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: var(--color-success);
+  box-shadow: 0 0 10px var(--color-success);
+}
+
+.workspace-context-bar button {
+  margin-left: auto;
+  flex: 0 0 auto;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-elevated);
+  padding: 0.35rem 0.65rem;
+  color: var(--color-text);
+  font-size: 0.7rem;
+}
+
+.mission-stage-nav {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 1px;
+  margin: 0 var(--ui-content-gutter) 0.4rem;
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-border);
+}
+
+.mission-stage-nav button {
+  display: grid;
+  min-width: 0;
+  gap: 0.12rem;
+  border: 0;
+  background: var(--color-panel);
+  padding: 0.48rem 0.65rem;
+  color: var(--color-text-muted);
+  text-align: left;
+}
+
+.mission-stage-nav button[data-active='true'] {
+  background: color-mix(in srgb, var(--color-accent) 10%, var(--color-elevated));
+  color: var(--color-text);
+  box-shadow: inset 0 2px 0 var(--color-accent);
+}
+
+.mission-stage-nav span {
+  font-size: 0.7rem;
+  font-weight: 650;
+}
+
+.mission-stage-nav small {
+  overflow: hidden;
+  font-size: 0.58rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 700px) {
+  .toolbar-secondary {
+    display: none;
+  }
+
+  .workspace-context-bar > span:nth-of-type(3) {
+    display: none;
+  }
+
+  .mission-stage-nav {
+    display: flex;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .mission-stage-nav button {
+    min-width: 6.5rem;
+  }
+}
+
 .content-body {
   @apply flex-1 min-h-0 w-full flex flex-col gap-3 pt-1 pb-4 overflow-y-hidden overflow-x-visible;
 }
@@ -962,6 +1122,22 @@ async function submitFirstMessageForNewThread(payload: UiComposerSubmitPayload):
 
 .new-thread-grid {
   @apply items-center justify-center gap-6 overflow-hidden;
+  position: relative;
+  isolation: isolate;
+}
+
+.new-thread-grid::before {
+  content: '';
+  position: absolute;
+  inset: 7% 8% 10%;
+  z-index: -1;
+  pointer-events: none;
+  background-image:
+    linear-gradient(var(--telemetry-grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--telemetry-grid) 1px, transparent 1px);
+  background-size: 42px 42px;
+  mask-image: radial-gradient(circle at 50% 52%, black 4%, transparent 70%);
+  opacity: 0.44;
 }
 
 .content-workbench {
@@ -977,21 +1153,47 @@ async function submitFirstMessageForNewThread(payload: UiComposerSubmitPayload):
 }
 
 .new-thread-empty {
-  @apply shrink-0 flex flex-col items-center justify-center gap-0.5 px-6 py-4;
+  @apply shrink-0 flex flex-col items-center justify-center px-6 py-4 text-center;
+  max-width: 48rem;
 }
 
 .new-thread-hero {
-  @apply m-0 text-[2.5rem] font-normal leading-[1.05] text-zinc-900;
+  @apply m-0 font-semibold;
+  font-size: clamp(2.6rem, 6vw, 5.4rem);
+  line-height: 0.94;
+  letter-spacing: -0.065em;
   color: var(--color-text);
 }
 
+.new-thread-kicker {
+  @apply mb-5 inline-flex items-center gap-2 font-mono text-[0.67rem] font-semibold uppercase;
+  color: var(--color-text-muted);
+  letter-spacing: 0.16em;
+}
+
+.new-thread-kicker-signal {
+  width: 0.55rem;
+  height: 0.55rem;
+  border-radius: 50%;
+  background: var(--color-success);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--color-success) 13%, transparent), 0 0 16px color-mix(in srgb, var(--color-success) 55%, transparent);
+}
+
+.new-thread-subtitle {
+  @apply mt-5 mb-4 max-w-xl text-sm leading-6;
+  color: var(--color-text-muted);
+}
+
 .new-thread-folder-dropdown {
-  @apply text-[2.5rem] text-zinc-500;
+  @apply text-sm;
   color: var(--color-text-muted);
 }
 
 .new-thread-folder-dropdown :deep(.composer-dropdown-trigger) {
-  @apply h-auto text-[2.5rem] leading-[1.05];
+  @apply h-9 px-3 text-sm leading-none;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-panel);
 }
 
 .new-thread-folder-dropdown :deep(.composer-dropdown-value) {
@@ -999,7 +1201,7 @@ async function submitFirstMessageForNewThread(payload: UiComposerSubmitPayload):
 }
 
 .new-thread-folder-dropdown :deep(.composer-dropdown-chevron) {
-  @apply h-5 w-5 mt-0;
+  @apply h-4 w-4 mt-0;
 }
 
 </style>
