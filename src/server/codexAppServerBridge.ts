@@ -55,6 +55,7 @@ import {
   handleCreateWorkspaceReviewComment,
   handleCreateWorkspaceReviewFollowUp,
   handleReadWorkspaceFile,
+  handleReadWorkspaceAsset,
   handleReadToolingCheckpointPatch,
   handleRollbackToolingHunk,
   handleRemoveWorkspaceWorktree,
@@ -2116,6 +2117,11 @@ export function createCodexBridgeMiddleware(): CodexBridgeMiddleware {
 
       if (req.method === 'GET' && url.pathname === '/codex-api/tooling/workspace-file') {
         await handleReadWorkspaceFile(url, res)
+        return
+      }
+
+      if (req.method === 'GET' && url.pathname === '/codex-api/tooling/workspace-asset') {
+        await handleReadWorkspaceAsset(url, res)
         return
       }
 
