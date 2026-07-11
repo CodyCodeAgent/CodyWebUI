@@ -9,6 +9,15 @@
       </template>
     </SidebarMenuRow>
 
+    <details class="thread-status-legend">
+      <summary>Status guide</summary>
+      <div>
+        <span><i data-state="working" />Running</span>
+        <span><i data-state="unread" />New activity</span>
+        <span><i data-state="attention" />Needs review</span>
+      </div>
+    </details>
+
     <p v-if="isLoading && groups.length === 0" class="thread-tree-loading">Loading threads...</p>
 
     <template v-else>
@@ -1175,6 +1184,41 @@ onBeforeUnmount(() => {
 .thread-tree-loading {
   @apply px-3 py-2 text-sm text-zinc-500;
 }
+
+.thread-status-legend {
+  margin: 0 0.65rem 0.35rem;
+  color: var(--color-text-muted);
+  font-size: 0.68rem;
+}
+
+.thread-status-legend summary {
+  cursor: pointer;
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+}
+
+.thread-status-legend div {
+  display: grid;
+  gap: 0.35rem;
+  padding: 0.55rem 0.2rem 0.15rem;
+}
+
+.thread-status-legend span {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.thread-status-legend i {
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 50%;
+  background: var(--color-text-muted);
+}
+
+.thread-status-legend i[data-state='working'] { background: var(--color-accent); }
+.thread-status-legend i[data-state='unread'] { background: var(--color-success); }
+.thread-status-legend i[data-state='attention'] { background: var(--color-warning); }
 
 .thread-tree-no-results {
   @apply px-3 py-2 text-sm text-zinc-400;

@@ -1,6 +1,18 @@
 <template>
   <main class="app-settings-page" :aria-label="t('settings.aria')">
-    <section class="app-settings-section">
+    <aside class="app-settings-nav" aria-label="Settings sections">
+      <label class="app-settings-search">
+        <span>Find a setting</span>
+        <input v-model="settingsQuery" type="search" placeholder="Theme, language, usage…" />
+      </label>
+      <nav>
+        <a v-for="item in visibleNavItems" :key="item.id" :href="`#${item.id}`">{{ item.label }}</a>
+      </nav>
+      <p class="app-settings-save-state" :data-tone="saveTone">{{ unifiedSaveState }}</p>
+    </aside>
+
+    <div class="app-settings-content">
+    <section v-show="matchesSettings('language')" id="settings-language" class="app-settings-section">
       <header class="app-settings-section-header">
         <div>
           <h2 class="app-settings-title">{{ t('settings.language.title') }}</h2>
@@ -17,7 +29,7 @@
       </header>
     </section>
 
-    <section class="app-settings-section">
+    <section v-show="matchesSettings('catalog')" id="settings-catalog" class="app-settings-section">
       <header class="app-settings-section-header">
         <div>
           <h2 class="app-settings-title">{{ t('settings.catalog.title') }}</h2>
@@ -43,7 +55,7 @@
       </dl>
     </section>
 
-    <section class="app-settings-section">
+    <section v-show="matchesSettings('appearance')" id="settings-appearance" class="app-settings-section">
       <header class="app-settings-section-header">
         <div>
           <h2 class="app-settings-title">{{ t('settings.appearance.title') }}</h2>
@@ -53,7 +65,7 @@
       <WorkspaceThemePanel />
     </section>
 
-    <section class="app-settings-section">
+    <section v-show="matchesSettings('usage')" id="settings-usage" class="app-settings-section">
       <header class="app-settings-section-header">
         <div>
           <h2 class="app-settings-title">{{ t('settings.tokenFlame.title') }}</h2>
@@ -105,6 +117,8 @@
         </li>
       </ol>
     </section>
+    <p v-if="visibleNavItems.length === 0" class="app-settings-no-results">No settings match “{{ settingsQuery }}”.</p>
+    </div>
   </main>
 </template>
 
@@ -144,6 +158,20 @@ const isCatalogSyncing = ref(false)
 const saveMessage = ref('')
 const saveTone = ref<'success' | 'danger'>('success')
 const hasHydrated = ref(false)
+const settingsQuery = ref('')
+const settingsNavItems = [
+  { id: 'settings-language', key: 'language', label: 'Language', terms: 'language locale chinese english' },
+  { id: 'settings-catalog', key: 'catalog', label: 'Catalog', terms: 'catalog sync projects conversations' },
+  { id: 'settings-appearance', key: 'appearance', label: 'Appearance', terms: 'appearance theme skin layout density accent' },
+  { id: 'settings-usage', key: 'usage', label: 'Usage', terms: 'usage token flame position motion' },
+] as const
+const visibleNavItems = computed(() => settingsNavItems.filter((item) => matchesSettings(item.key)))
+const unifiedSaveState = computed(() => {
+  if (!hasHydrated.value) return 'Loading preferences…'
+  if (saveTone.value === 'danger') return 'Some changes could not be saved'
+  if (saveMessage.value) return 'Preferences saved'
+  return 'Changes save automatically'
+})
 const previewLevel = computed(() => flameSettings.value.enabled ? 'bonfire' : 'spark')
 const flameLevels = computed(() => [
   { level: 'spark', name: t('settings.tokenFlame.level.spark'), range: t('settings.tokenFlame.range.less20k') },
@@ -163,6 +191,13 @@ const catalogStatusLabel = computed(() => {
   if (catalogStatusTone.value === 'working') return t('settings.catalog.status.running')
   return t('settings.catalog.status.ready')
 })
+
+function matchesSettings(key: string): boolean {
+  const query = settingsQuery.value.trim().toLowerCase()
+  if (!query) return true
+  const item = settingsNavItems.find((candidate) => candidate.key === key)
+  return Boolean(item && `${item.label} ${item.terms}`.toLowerCase().includes(query))
+}
 
 function formatCatalogTime(value: string | null | undefined): string {
   if (!value) return t('settings.catalog.never')
@@ -274,9 +309,95 @@ onMounted(() => {
 @reference "tailwindcss";
 
 .app-settings-page {
-  @apply mx-auto flex h-full min-h-0 w-full max-w-5xl flex-col gap-4 overflow-y-auto px-6 pb-8 pt-4;
+  @apply mx-auto grid h-full min-h-0 w-full gap-5 overflow-y-auto px-6 pb-8 pt-4;
+  grid-template-columns: 13rem minmax(0, 1fr);
   background: var(--color-background);
   color: var(--color-text);
+}
+
+.app-settings-nav {
+  position: sticky;
+  top: 0;
+  align-self: start;
+  display: grid;
+  gap: 0.9rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-panel);
+  padding: 0.8rem;
+  box-shadow: var(--shadow-panel);
+}
+
+.app-settings-search {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.app-settings-search span {
+  color: var(--color-text-muted);
+  font-family: var(--font-mono);
+  font-size: 0.63rem;
+  font-weight: 650;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.app-settings-search input {
+  min-width: 0;
+  width: 100%;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-elevated);
+  padding: 0.55rem 0.65rem;
+  color: var(--color-text);
+  font-size: 0.78rem;
+}
+
+.app-settings-nav nav {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.app-settings-nav a {
+  border-radius: var(--radius-sm);
+  padding: 0.5rem 0.6rem;
+  color: var(--color-text-muted);
+  font-size: 0.82rem;
+  text-decoration: none;
+}
+
+.app-settings-nav a:hover {
+  background: var(--color-elevated);
+  color: var(--color-text);
+}
+
+.app-settings-save-state {
+  margin: 0;
+  border-top: 1px solid var(--color-border);
+  padding: 0.7rem 0.25rem 0;
+  color: var(--color-text-muted);
+  font-size: 0.7rem;
+  line-height: 1.4;
+}
+
+.app-settings-save-state[data-tone='danger'] {
+  color: var(--color-danger);
+}
+
+.app-settings-content {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.app-settings-no-results {
+  margin: 0;
+  border: 1px dashed var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: 2rem;
+  color: var(--color-text-muted);
+  text-align: center;
 }
 
 .app-settings-section {
@@ -506,9 +627,48 @@ onMounted(() => {
   color: var(--color-text-muted);
 }
 
-@media (max-width: 640px) {
+@media (max-width: 1000px) {
+  .app-settings-page {
+    grid-template-columns: minmax(0, 1fr);
+    padding-inline: 0.75rem;
+  }
+
+  .app-settings-nav {
+    position: relative;
+  }
+
+  .app-settings-nav nav {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .app-settings-save-state {
+    display: none;
+  }
+
+  .app-settings-nav a {
+    text-align: center;
+  }
+
+  .app-settings-section-header {
+    flex-wrap: wrap;
+  }
+
+  .app-settings-language-select {
+    width: 100%;
+  }
+
+  .app-settings-language-select select {
+    width: 100%;
+  }
+
   .catalog-sync-status {
     @apply grid-cols-1;
+  }
+}
+
+@media (max-width: 520px) {
+  .app-settings-nav nav {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 </style>

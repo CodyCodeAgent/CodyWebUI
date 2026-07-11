@@ -303,6 +303,16 @@
       :pending-requests="pendingRequests"
       @select-thread="$emit('selectThread', $event)"
     />
+    <WorkspaceWorkflowPanel :cwd="cwd" @changed="loadSnapshot" />
+    <WorkspaceGitPanel :cwd="cwd" @changed="loadSnapshot" />
+    <WorkspaceFilesPanel :cwd="cwd" />
+
+    <details class="workspace-dashboard-tools">
+      <summary>
+        <span>More workspace tools</span>
+        <small>Mobile supervision, security, terminal, diagnostics, worktrees, problems, audit, ports, and theme</small>
+      </summary>
+      <div class="workspace-dashboard-tools-grid">
     <WorkspaceMobileSupervisionPanel
       :threads="threads"
       :snapshot="snapshot"
@@ -316,17 +326,16 @@
       @interrupt="$emit('mobileInterrupt', $event)"
       @archive="$emit('mobileArchive', $event)"
     />
-    <WorkspaceWorkflowPanel :cwd="cwd" @changed="loadSnapshot" />
     <WorkspaceThemePanel :workspace-theme="workspaceConfig.theme" />
     <WorkspaceDiagnosticsPanel :cwd="cwd" />
-    <WorkspaceGitPanel :cwd="cwd" @changed="loadSnapshot" />
     <WorkspaceSecurityPanel :cwd="cwd" />
     <WorkspaceWorktreesPanel :cwd="cwd" @changed="loadSnapshot" />
     <WorkspaceCommandsPanel :cwd="cwd" :scripts="snapshot?.scripts ?? []" @changed="loadSnapshot" />
     <WorkspaceProblemsPanel :runs="allValidationRuns" />
     <WorkspaceAuditPanel :cwd="cwd" />
     <WorkspacePortsPanel :cwd="cwd" />
-    <WorkspaceFilesPanel :cwd="cwd" />
+      </div>
+    </details>
   </section>
 </template>
 
@@ -602,7 +611,7 @@ watch(
 }
 
 .workspace-dashboard-grid {
-  @apply grid grid-cols-4 gap-3;
+  @apply grid grid-cols-2 gap-3;
 }
 
 .workspace-dashboard-panel {
@@ -1072,10 +1081,37 @@ watch(
   @apply m-0 mt-2 rounded-md border border-dashed border-zinc-200 px-3 py-2 text-xs text-zinc-500;
 }
 
-@media (max-width: 1180px) {
-  .workspace-dashboard-grid {
-    @apply grid-cols-2;
-  }
+.workspace-dashboard-tools {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-panel);
+  box-shadow: var(--shadow-panel);
+}
+
+.workspace-dashboard-tools > summary {
+  display: flex;
+  cursor: pointer;
+  list-style: none;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.9rem 1rem;
+  color: var(--color-text);
+  font-weight: 650;
+}
+
+.workspace-dashboard-tools > summary::-webkit-details-marker { display: none; }
+
+.workspace-dashboard-tools > summary small {
+  color: var(--color-text-muted);
+  font-weight: 400;
+}
+
+.workspace-dashboard-tools-grid {
+  display: grid;
+  gap: var(--ui-panel-gap);
+  border-top: 1px solid var(--color-border);
+  padding: var(--ui-panel-gap);
 }
 
 @media (max-width: 760px) {

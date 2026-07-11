@@ -88,10 +88,10 @@
               data-testid="workspace-approval-scope"
               @click="respondApprovalScope(card.request.id, scope.scope)"
             >
-              {{ scope.label }}
+              {{ approvalActionLabel(scope.scope) }}
             </button>
             <button type="button" data-tone="danger" data-testid="workspace-approval-decline" @click="respondApproval(card.request.id, 'decline')">
-              Decline
+              Deny and return to agent
             </button>
           </template>
           <template v-else>
@@ -170,6 +170,15 @@ const approvalScopeOptions = APPROVAL_SCOPE_OPTIONS
 const approvalGrants = ref<UiApprovalGrant[]>([])
 const isLoadingGrants = ref(false)
 const isRevokingGrant = ref('')
+
+function approvalActionLabel(scope: UiApprovalDecisionScope): string {
+  return ({
+    single: 'Allow this once',
+    session: 'Allow for this task',
+    workspace: 'Trust in this workspace',
+    permanent: 'Always allow on this machine',
+  } as const)[scope]
+}
 const grantError = ref('')
 const approvalCards = computed(() => buildServerRequestCards(props.pendingRequests))
 const badgeTone = computed(() => serverRequestBadgeTone(approvalCards.value))

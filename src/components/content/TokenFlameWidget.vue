@@ -105,8 +105,9 @@ const DEFAULT_SETTINGS: FlameSettings = {
   reducedMotion: false,
   position: null,
 }
-const WIDGET_SIZE = 64
+const WIDGET_SIZE = 52
 const WIDGET_MARGIN = 12
+const BOTTOM_ACTION_SAFE_AREA = 112
 
 const widgetRef = ref<HTMLElement | null>(null)
 const isOpen = ref(false)
@@ -191,7 +192,7 @@ async function loadSettings(): Promise<void> {
 
 function defaultPosition(corner: FlameCorner): NonNullable<FlameSettings['position']> {
   const right = Math.max(WIDGET_MARGIN, window.innerWidth - WIDGET_SIZE - 20)
-  const bottom = Math.max(WIDGET_MARGIN, window.innerHeight - WIDGET_SIZE - 20)
+  const bottom = Math.max(WIDGET_MARGIN, window.innerHeight - WIDGET_SIZE - BOTTOM_ACTION_SAFE_AREA)
   if (corner === 'bottom-left') return { x: 20, y: bottom }
   if (corner === 'top-right') return { x: right, y: 80 }
   if (corner === 'top-left') return { x: 20, y: 80 }
@@ -376,12 +377,12 @@ onUnmounted(() => {
 }
 
 .token-flame-button {
-  @apply flex h-16 w-16 cursor-move flex-col items-center justify-center rounded-full border border-orange-300 bg-zinc-950 text-white shadow-xl transition hover:scale-105;
+  @apply flex h-13 w-13 cursor-move flex-col items-center justify-center rounded-full border border-orange-300 bg-zinc-950 text-white shadow-xl transition hover:scale-105;
   touch-action: none;
 }
 
 .token-flame-graphic {
-  @apply relative block h-9 w-9;
+  @apply relative block h-7 w-7;
 }
 
 .token-flame-glow,
@@ -420,6 +421,12 @@ onUnmounted(() => {
 
 .token-flame-count {
   @apply mt-0.5 text-[0.62rem] font-semibold leading-none text-orange-100;
+}
+
+@media (max-width: 900px) {
+  .token-flame-widget {
+    display: none;
+  }
 }
 
 .token-flame-widget[data-level='spark'] .token-flame-graphic {

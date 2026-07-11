@@ -131,6 +131,17 @@
           <IconTablerPhoto class="thread-composer-attach-icon" />
         </button>
 
+        <button
+          class="thread-composer-mobile-options"
+          type="button"
+          :aria-expanded="isMobileOptionsOpen"
+          aria-controls="composer-mobile-options"
+          @click="isMobileOptionsOpen = true"
+        >
+          <span>Run settings</span>
+          <small>{{ selectedModel }} · {{ selectedPermissionMode }}</small>
+        </button>
+
         <ComposerDropdown
           class="thread-composer-control"
           :model-value="selectedCollaborationMode"
@@ -203,6 +214,50 @@
         </div>
       </div>
     </div>
+
+    <Teleport to="body">
+      <div
+        v-if="isMobileOptionsOpen"
+        class="thread-composer-options-backdrop"
+        @click.self="isMobileOptionsOpen = false"
+      >
+        <section id="composer-mobile-options" class="thread-composer-options-sheet" role="dialog" aria-modal="true" aria-label="Run settings">
+          <header>
+            <div>
+              <span>Before this run</span>
+              <h2>Run settings</h2>
+            </div>
+            <button type="button" aria-label="Close run settings" @click="isMobileOptionsOpen = false">Done</button>
+          </header>
+          <label>
+            <span>Collaboration</span>
+            <select :value="selectedCollaborationMode" :disabled="isTurnInProgress" @change="onMobileCollaborationChange">
+              <option v-for="option in collaborationModeOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
+            </select>
+            <small>Choose how the agent plans and coordinates the work.</small>
+          </label>
+          <label>
+            <span>Model</span>
+            <select :value="selectedModel" :disabled="isTurnInProgress" @change="onMobileModelChange">
+              <option v-for="option in modelOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
+            </select>
+          </label>
+          <label>
+            <span>Thinking</span>
+            <select :value="selectedReasoningEffort" :disabled="isTurnInProgress" @change="onMobileReasoningChange">
+              <option v-for="option in reasoningOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
+            </select>
+          </label>
+          <label>
+            <span>Permissions</span>
+            <select :value="selectedPermissionMode" :disabled="isTurnInProgress" @change="onMobilePermissionChange">
+              <option v-for="option in permissionModeOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
+            </select>
+            <small>Controls which commands and file changes need approval.</small>
+          </label>
+        </section>
+      </div>
+    </Teleport>
   </form>
 </template>
 
@@ -254,6 +309,7 @@ const emit = defineEmits<{
 }>()
 
 const draft = ref('')
+const isMobileOptionsOpen = ref(false)
 const draftInputRef = ref<HTMLTextAreaElement | null>(null)
 const fileInputRef = ref<HTMLInputElement | null>(null)
 const dragDepth = ref(0)
@@ -422,6 +478,15 @@ function onCollaborationModeSelect(value: string): void {
 function onPermissionModeSelect(value: string): void {
   emit('update:selected-permission-mode', value === 'yolo' ? 'yolo' : 'current')
 }
+
+function eventValue(event: Event): string {
+  return (event.target as HTMLSelectElement).value
+}
+
+function onMobileCollaborationChange(event: Event): void { onCollaborationModeSelect(eventValue(event)) }
+function onMobileModelChange(event: Event): void { onModelSelect(eventValue(event)) }
+function onMobileReasoningChange(event: Event): void { onReasoningEffortSelect(eventValue(event)) }
+function onMobilePermissionChange(event: Event): void { onPermissionModeSelect(eventValue(event)) }
 
 function openFilePicker(): void {
   fileInputRef.value?.click()
@@ -655,6 +720,10 @@ watch(
   @apply shrink-0;
 }
 
+.thread-composer-mobile-options {
+  @apply hidden;
+}
+
 .thread-composer-permission-control {
   @apply text-amber-700;
 }
@@ -707,5 +776,118 @@ watch(
 
 .thread-composer-stop-icon {
   @apply h-5 w-5;
+}
+
+.thread-composer-options-backdrop,
+.thread-composer-options-sheet {
+  display: none;
+}
+
+@media (max-width: 720px) {
+  .thread-composer-control {
+    display: none;
+  }
+
+  .thread-composer-mobile-options {
+    display: grid;
+    min-width: 0;
+    gap: 0.1rem;
+    border: 0;
+    background: transparent;
+    color: var(--color-text);
+    text-align: left;
+  }
+
+  .thread-composer-mobile-options span {
+    font-size: 0.72rem;
+    font-weight: 650;
+  }
+
+  .thread-composer-mobile-options small {
+    max-width: 10rem;
+    overflow: hidden;
+    color: var(--color-text-muted);
+    font-family: var(--font-mono);
+    font-size: 0.62rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .thread-composer-options-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 100;
+    display: flex;
+    align-items: flex-end;
+    background: rgb(2 6 12 / 0.66);
+    backdrop-filter: blur(6px);
+  }
+
+  .thread-composer-options-sheet {
+    display: grid;
+    width: 100%;
+    max-height: 86vh;
+    gap: 1rem;
+    overflow-y: auto;
+    border: 1px solid var(--color-border);
+    border-bottom: 0;
+    border-radius: 1.25rem 1.25rem 0 0;
+    background: var(--color-panel);
+    padding: 1.1rem 1rem calc(1rem + env(safe-area-inset-bottom));
+    box-shadow: var(--shadow-floating);
+  }
+
+  .thread-composer-options-sheet header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+  }
+
+  .thread-composer-options-sheet header span,
+  .thread-composer-options-sheet label > span {
+    color: var(--color-text-muted);
+    font-family: var(--font-mono);
+    font-size: 0.64rem;
+    font-weight: 650;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+
+  .thread-composer-options-sheet h2 {
+    margin: 0.2rem 0 0;
+    color: var(--color-text);
+    font-size: 1.25rem;
+  }
+
+  .thread-composer-options-sheet header button {
+    border: 0;
+    border-radius: var(--radius-md);
+    background: var(--color-accent);
+    padding: 0.55rem 0.8rem;
+    color: #071018;
+    font-weight: 700;
+  }
+
+  .thread-composer-options-sheet label {
+    display: grid;
+    gap: 0.4rem;
+  }
+
+  .thread-composer-options-sheet select {
+    width: 100%;
+    min-height: 2.75rem;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--color-elevated);
+    padding-inline: 0.75rem;
+    color: var(--color-text);
+  }
+
+  .thread-composer-options-sheet label small {
+    color: var(--color-text-muted);
+    font-size: 0.72rem;
+    line-height: 1.4;
+  }
 }
 </style>

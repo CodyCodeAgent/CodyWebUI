@@ -16,8 +16,8 @@
   --color-info: #2563eb;
   --color-code-background: #18181b;
   --color-terminal-background: #101216;
-  --font-sans: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  --font-mono: "SFMono-Regular", "Cascadia Code", "Roboto Mono", ui-monospace, monospace;
+  --font-sans: "IBM Plex Sans", "Avenir Next", "Segoe UI", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", "Cascadia Code", "SFMono-Regular", ui-monospace, monospace;
   --space-xs: 0.25rem;
   --space-sm: 0.5rem;
   --space-md: 0.75rem;
@@ -36,7 +36,7 @@
   --ui-dashboard-max: 88rem;
   --ui-conversation-max: 52rem;
   --ui-composer-max: 52rem;
-  --ui-content-gutter: 1.5rem;
+  --ui-content-gutter: 1.25rem;
   --ui-panel-gap: 0.75rem;
   --ui-panel-padding: 0.75rem;
   --ui-sidebar-padding-y: 1rem;
@@ -44,8 +44,13 @@
   --ui-message-gap: 0.75rem;
   --ui-composer-padding: 0.75rem;
   --ui-composer-radius: 1rem;
-  --ui-header-padding-top: 1rem;
-  --ui-header-padding-bottom: 0.5rem;
+  --ui-header-padding-top: 0.75rem;
+  --ui-header-padding-bottom: 0.75rem;
+  --telemetry-cyan: #42c8f5;
+  --telemetry-amber: #f0b35a;
+  --telemetry-mint: #55d6a7;
+  --telemetry-coral: #ff6b7a;
+  --telemetry-grid: color-mix(in srgb, var(--color-border) 34%, transparent);
 }
 
 .app-dark {
@@ -1540,4 +1545,631 @@ input[type='radio'] {
 
 .desktop-layout[data-layout-preset='ide-mode'] .workspace-dashboard > .workspace-commands-panel {
   order: -26;
+}
+
+/* Mission Control visual system ------------------------------------------------
+   A single, deliberate layer shared by conversations, review surfaces, and the
+   workspace console. Component styles keep their layout responsibilities; this
+   layer supplies the product identity and interaction language. */
+
+html,
+body,
+#app {
+  min-width: 320px;
+  min-height: 100%;
+  margin: 0;
+  background: var(--color-background);
+  font-family: var(--font-sans);
+  font-feature-settings: "ss01" 1, "cv02" 1, "cv03" 1;
+  text-rendering: optimizeLegibility;
+}
+
+body {
+  overflow: hidden;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+button,
+[role='button'] {
+  -webkit-tap-highlight-color: transparent;
+}
+
+::selection {
+  background: color-mix(in srgb, var(--color-accent) 28%, transparent);
+  color: var(--color-text);
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--color-text-muted) 34%, transparent) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+*::-webkit-scrollbar-thumb {
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--color-text-muted) 32%, transparent);
+  background-clip: padding-box;
+}
+
+#app :is(button, input, textarea, select, a):focus-visible {
+  outline: none;
+  box-shadow: var(--shadow-focus);
+}
+
+#app .desktop-layout {
+  position: relative;
+  background:
+    radial-gradient(circle at 82% -18%, color-mix(in srgb, var(--color-accent) 8%, transparent), transparent 34rem),
+    var(--color-background);
+}
+
+#app .desktop-sidebar {
+  box-shadow: 14px 0 42px rgb(0 0 0 / 0.07);
+}
+
+#app .sidebar-root {
+  gap: 0.7rem;
+  padding: 0.85rem 0.65rem 1.25rem;
+}
+
+#app .sidebar-root::before {
+  content: 'CODY / CONTROL';
+  display: block;
+  margin: 0.15rem 0.65rem 0.25rem;
+  color: var(--color-text-muted);
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  opacity: 0.8;
+}
+
+#app .sidebar-thread-controls {
+  gap: 0.28rem;
+}
+
+#app :is(.sidebar-search-toggle, .sidebar-thread-controls-button) {
+  width: 1.9rem;
+  height: 1.9rem;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  color: var(--color-text-muted);
+  transition: color var(--motion-fast), background var(--motion-fast), border-color var(--motion-fast), transform var(--motion-fast);
+}
+
+#app :is(.sidebar-search-toggle, .sidebar-thread-controls-button):hover {
+  border-color: var(--color-border);
+  background: var(--color-elevated);
+  color: var(--color-text);
+  transform: translateY(-1px);
+}
+
+#app .sidebar-search-bar {
+  min-height: 2.25rem;
+  margin-inline: 0.55rem;
+  padding-inline: 0.75rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--color-panel) 84%, transparent);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.025);
+}
+
+#app .sidebar-search-bar:focus-within {
+  border-color: color-mix(in srgb, var(--color-accent) 65%, var(--color-border));
+  box-shadow: var(--shadow-focus);
+}
+
+#app :is(.thread-tree-header, .project-menu-label) {
+  font-family: var(--font-mono);
+  font-size: 0.64rem;
+  font-weight: 600;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+#app :is(.project-header-row, .thread-row, .thread-show-more-row) {
+  margin-block: 2px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  transition: background var(--motion-fast), border-color var(--motion-fast), transform var(--motion-fast);
+}
+
+#app :is(.project-header-row, .thread-row, .thread-show-more-row):hover {
+  border-color: color-mix(in srgb, var(--color-border) 72%, transparent);
+  background: color-mix(in srgb, var(--color-elevated) 76%, transparent);
+}
+
+#app :is(.project-header-row, .thread-row)[data-active='true'] {
+  border-color: color-mix(in srgb, var(--color-accent) 32%, var(--color-border));
+  background: linear-gradient(90deg, color-mix(in srgb, var(--color-accent) 13%, var(--color-elevated)), var(--color-elevated));
+  box-shadow: inset 2px 0 0 var(--color-accent);
+}
+
+#app :is(.project-title-name, .thread-row-title) {
+  color: var(--color-text);
+  font-weight: 520;
+  letter-spacing: -0.008em;
+}
+
+#app :is(.project-title-path, .thread-row-time) {
+  color: var(--color-text-muted);
+  font-family: var(--font-mono);
+  font-size: 0.66rem;
+}
+
+#app .thread-status-indicator[data-state='unread'] {
+  background: var(--color-accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-accent) 12%, transparent), 0 0 10px color-mix(in srgb, var(--color-accent) 46%, transparent);
+}
+
+#app .thread-status-indicator[data-state='working'] {
+  border-color: var(--color-accent);
+  border-top-color: transparent;
+}
+
+#app :is(.project-menu-panel, .thread-menu-panel, .composer-dropdown-menu, .thread-message-type-menu, .thread-composer-skill-menu) {
+  padding: 0.4rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--color-panel) 96%, transparent);
+  box-shadow: var(--shadow-floating);
+  backdrop-filter: blur(24px);
+}
+
+#app :is(.project-menu-item, .thread-menu-item, .composer-dropdown-option) {
+  min-height: 2rem;
+  border-radius: var(--radius-sm);
+  color: var(--color-text-muted);
+}
+
+#app :is(.project-menu-item, .thread-menu-item, .composer-dropdown-option):hover {
+  background: var(--color-elevated);
+  color: var(--color-text);
+}
+
+#app .content-root {
+  min-width: 0;
+  background: transparent;
+}
+
+#app .content-body {
+  min-width: 0;
+  padding-bottom: 1rem;
+}
+
+#app :is(.content-grid, .content-workbench, .content-thread, .thread-composer) {
+  min-width: 0;
+  max-width: 100%;
+}
+
+#app .content-error {
+  margin-inline: var(--ui-content-gutter);
+  border-color: color-mix(in srgb, var(--color-danger) 40%, var(--color-border));
+  background: color-mix(in srgb, var(--color-danger) 9%, var(--color-panel));
+  color: var(--color-text);
+}
+
+#app .conversation-list {
+  padding-inline: clamp(1rem, 3vw, 3rem);
+  padding-bottom: 1.25rem;
+  gap: 1.05rem;
+}
+
+#app .message-row {
+  max-width: var(--ui-conversation-max);
+}
+
+#app .message-body[data-role='user'] {
+  max-width: min(88%, 42rem);
+  padding: 0.72rem 0.9rem;
+  border: 1px solid color-mix(in srgb, var(--color-accent) 22%, var(--color-border));
+  border-radius: 1rem 1rem 0.28rem 1rem;
+  background: color-mix(in srgb, var(--color-accent) 9%, var(--color-panel));
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.035);
+}
+
+#app .message-body[data-role='assistant'] {
+  max-width: 100%;
+}
+
+#app :is(.message-markdown, .message-text, .message-content) {
+  color: var(--color-text);
+  font-size: 0.925rem;
+  line-height: 1.72;
+}
+
+#app :is(code, pre, kbd, samp, .request-subject, .activity-entry-command) {
+  font-family: var(--font-mono);
+}
+
+#app :not(pre) > code {
+  border: 1px solid color-mix(in srgb, var(--color-border) 82%, transparent);
+  border-radius: 0.32rem;
+  background: color-mix(in srgb, var(--color-elevated) 80%, transparent);
+  padding: 0.12em 0.38em;
+  color: color-mix(in srgb, var(--color-accent) 75%, var(--color-text));
+}
+
+#app :is(.thread-composer-shell, .request-card, .activity-entry-card, .work-log-card) {
+  border: 1px solid var(--color-border);
+  background: color-mix(in srgb, var(--color-panel) 95%, transparent);
+  box-shadow: var(--shadow-panel);
+}
+
+#app .thread-composer-shell {
+  position: relative;
+  overflow: visible;
+  border-radius: 1.05rem;
+  box-shadow: 0 18px 50px rgb(0 0 0 / 0.18), inset 0 1px 0 rgb(255 255 255 / 0.045);
+}
+
+#app .thread-composer-shell::before {
+  content: '';
+  position: absolute;
+  top: -1px;
+  left: 1.1rem;
+  width: 5.5rem;
+  height: 1px;
+  background: var(--color-accent);
+  box-shadow: 0 0 14px color-mix(in srgb, var(--color-accent) 60%, transparent);
+}
+
+#app .thread-composer-input {
+  color: var(--color-text);
+  line-height: 1.55;
+}
+
+#app :is(.thread-composer-attach, .composer-dropdown-trigger, .message-copy-button, .conversation-scroll-bottom) {
+  border-color: var(--color-border);
+  background: color-mix(in srgb, var(--color-elevated) 68%, transparent);
+  color: var(--color-text-muted);
+}
+
+#app :is(.thread-composer-attach, .composer-dropdown-trigger, .message-copy-button, .conversation-scroll-bottom):hover {
+  border-color: color-mix(in srgb, var(--color-accent) 38%, var(--color-border));
+  background: var(--color-elevated);
+  color: var(--color-text);
+}
+
+#app :is(.thread-composer-send, .request-button-primary, .workspace-files-button-primary) {
+  border-color: var(--color-accent);
+  background: var(--color-accent);
+  color: #071018;
+  font-weight: 700;
+  box-shadow: 0 8px 24px color-mix(in srgb, var(--color-accent) 20%, transparent);
+}
+
+#app :is(.thread-composer-send, .request-button-primary, .workspace-files-button-primary):hover:not(:disabled) {
+  filter: brightness(1.08);
+  transform: translateY(-1px);
+}
+
+#app :is(.request-card, .workspace-approval-center-card) {
+  border-color: color-mix(in srgb, var(--color-warning) 42%, var(--color-border));
+  background: linear-gradient(135deg, color-mix(in srgb, var(--color-warning) 10%, var(--color-panel)), var(--color-panel) 56%);
+  box-shadow: inset 3px 0 0 var(--color-warning), var(--shadow-panel);
+}
+
+#app :is(.request-risk-badge, .workspace-approval-center-risk-badge, [data-tone], [data-level]) {
+  font-family: var(--font-mono);
+  letter-spacing: 0.04em;
+}
+
+#app :is(.live-overlay-details, .tool-timeline-card) {
+  border-color: var(--color-border);
+}
+
+#app .live-overlay-label {
+  color: var(--color-text-muted);
+}
+
+#app .live-overlay-chevron {
+  color: var(--color-accent);
+}
+
+#app :is(
+  .workspace-dashboard-panel,
+  .workspace-task-board,
+  .workspace-theme-panel,
+  .workspace-workflow-panel,
+  .workspace-approval-center,
+  .workspace-recent-sessions,
+  .workspace-mobile-supervision,
+  .workspace-diagnostics-panel,
+  .workspace-git-panel,
+  .workspace-security-panel,
+  .workspace-access-security-panel,
+  .workspace-worktrees-panel,
+  .workspace-ports-panel,
+  .workspace-commands-panel,
+  .workspace-audit-panel,
+  .workspace-problems-panel,
+  .workspace-files-panel,
+  .thread-diff-review-panel,
+  .thread-validation-panel,
+  .app-settings-section,
+  .flame-settings-card
+) {
+  position: relative;
+  overflow: clip;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: linear-gradient(145deg, color-mix(in srgb, var(--color-panel) 98%, white 2%), var(--color-panel));
+  box-shadow: var(--shadow-panel);
+}
+
+#app :is(
+  .workspace-dashboard-panel,
+  .workspace-task-board,
+  .workspace-theme-panel,
+  .workspace-workflow-panel,
+  .workspace-approval-center,
+  .workspace-recent-sessions,
+  .workspace-diagnostics-panel,
+  .workspace-git-panel,
+  .workspace-security-panel,
+  .workspace-access-security-panel,
+  .workspace-worktrees-panel,
+  .workspace-ports-panel,
+  .workspace-commands-panel,
+  .workspace-audit-panel,
+  .workspace-problems-panel,
+  .workspace-files-panel,
+  .thread-diff-review-panel,
+  .thread-validation-panel,
+  .app-settings-section
+)::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 1rem;
+  width: 4rem;
+  height: 1px;
+  background: color-mix(in srgb, var(--color-accent) 70%, transparent);
+  box-shadow: 0 0 12px color-mix(in srgb, var(--color-accent) 24%, transparent);
+}
+
+#app :is(
+  .workspace-dashboard-title,
+  .workspace-task-board-title,
+  .workspace-workflow-title,
+  .workspace-approval-center-title,
+  .workspace-git-panel-title,
+  .workspace-security-panel-title,
+  .workspace-access-security-title,
+  .workspace-worktrees-panel-title,
+  .workspace-ports-panel-title,
+  .workspace-commands-panel-title,
+  .workspace-audit-panel-title,
+  .workspace-problems-panel-title,
+  .workspace-files-title,
+  .thread-validation-title,
+  .app-settings-title
+) {
+  color: var(--color-text);
+  font-weight: 650;
+  letter-spacing: -0.025em;
+}
+
+#app :is(
+  .workspace-dashboard-subtitle,
+  .workspace-task-board-subtitle,
+  .workspace-workflow-subtitle,
+  .workspace-approval-center-subtitle,
+  .workspace-git-panel-subtitle,
+  .workspace-security-panel-subtitle,
+  .workspace-access-security-subtitle,
+  .workspace-worktrees-panel-subtitle,
+  .workspace-ports-panel-subtitle,
+  .workspace-commands-panel-subtitle,
+  .workspace-audit-panel-subtitle,
+  .workspace-problems-panel-subtitle,
+  .app-settings-subtitle
+) {
+  color: var(--color-text-muted);
+  line-height: 1.55;
+}
+
+#app :is(
+  .workspace-dashboard-refresh,
+  .workspace-workflow-refresh,
+  .workspace-git-panel-refresh,
+  .workspace-security-panel-refresh,
+  .workspace-access-security-refresh,
+  .workspace-worktrees-panel-refresh,
+  .workspace-ports-panel-refresh,
+  .workspace-commands-panel-refresh,
+  .workspace-audit-panel-refresh,
+  .workspace-files-button,
+  .catalog-sync-button,
+  .workspace-theme-panel-reset,
+  .workspace-git-panel-draft-button
+) {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-elevated);
+  color: var(--color-text-muted);
+  transition: color var(--motion-fast), border-color var(--motion-fast), background var(--motion-fast), transform var(--motion-fast);
+}
+
+#app :is(
+  .workspace-dashboard-refresh,
+  .workspace-workflow-refresh,
+  .workspace-git-panel-refresh,
+  .workspace-security-panel-refresh,
+  .workspace-access-security-refresh,
+  .workspace-worktrees-panel-refresh,
+  .workspace-ports-panel-refresh,
+  .workspace-commands-panel-refresh,
+  .workspace-audit-panel-refresh,
+  .workspace-files-button,
+  .catalog-sync-button,
+  .workspace-theme-panel-reset,
+  .workspace-git-panel-draft-button
+):hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--color-accent) 34%, var(--color-border));
+  background: color-mix(in srgb, var(--color-accent) 7%, var(--color-elevated));
+  color: var(--color-text);
+  transform: translateY(-1px);
+}
+
+#app :is(.workspace-dashboard-metric, .workspace-git-panel-metric, .thread-activity-metric, .workspace-security-panel-metrics > *, .workspace-problems-panel-metrics > *) {
+  border: 1px solid color-mix(in srgb, var(--color-border) 78%, transparent);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--color-elevated) 60%, transparent);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.025);
+}
+
+#app :is(input, textarea, select):not(.thread-composer-input):not(.sidebar-search-input) {
+  border-color: var(--color-border);
+  background: color-mix(in srgb, var(--color-elevated) 74%, transparent);
+  color: var(--color-text);
+}
+
+#app :is(input, textarea)::placeholder {
+  color: color-mix(in srgb, var(--color-text-muted) 68%, transparent);
+}
+
+#app :is(.workspace-file-code, .workspace-file-editor, .workspace-commands-panel-session pre, .thread-diff-file, .thread-diff-code) {
+  border-color: var(--color-border);
+  background: var(--color-code-background);
+  color: var(--color-text);
+  font-family: var(--font-mono);
+}
+
+#app .app-settings-page {
+  max-width: 76rem;
+  padding: 1.25rem clamp(1rem, 3vw, 2.5rem) 3rem;
+}
+
+#app .workspace-dashboard {
+  padding-inline: clamp(1rem, 2.6vw, 2.25rem);
+}
+
+#app .rate-limit-card {
+  border-color: var(--color-border);
+  background: color-mix(in srgb, var(--color-panel) 94%, transparent);
+  box-shadow: var(--shadow-floating);
+  backdrop-filter: blur(20px);
+}
+
+#app .app-dark :is(
+  .workspace-dashboard-validation-plan-list li,
+  .workspace-dashboard-script-list li,
+  .workspace-dashboard-project-context-list li,
+  .workspace-dashboard-script-summary span,
+  .workspace-dashboard-config-grid span,
+  .workspace-dashboard-policy-list div,
+  .workspace-dashboard-file-list li
+) {
+  border-color: var(--color-border);
+  background: color-mix(in srgb, var(--color-elevated) 72%, transparent);
+  color: var(--color-text);
+}
+
+#app .app-dark :is(
+  .workspace-dashboard-validation-plan-copy span,
+  .workspace-dashboard-script-name,
+  .workspace-dashboard-project-context-list span,
+  .workspace-dashboard-policy-list dd,
+  .workspace-dashboard-file-path
+) {
+  color: var(--color-text);
+}
+
+#app .app-dark :is(
+  .workspace-dashboard-validation-plan-copy small,
+  .workspace-dashboard-validation-plan-copy code,
+  .workspace-dashboard-validation-plan-evidence,
+  .workspace-dashboard-script-list code,
+  .workspace-dashboard-project-context-list p,
+  .workspace-dashboard-project-context-list code
+) {
+  color: var(--color-text-muted);
+}
+
+@media (max-width: 720px) {
+  #app .desktop-main {
+    min-width: 0;
+  }
+
+  #app .content-header {
+    min-height: 3.25rem;
+    padding-inline: 0.75rem;
+  }
+
+  #app .conversation-list {
+    padding-inline: 0.75rem;
+  }
+
+  #app .thread-composer {
+    width: calc(100vw - 2.5rem);
+    max-width: calc(100vw - 2.5rem);
+    margin-inline: auto;
+    padding-inline: 0;
+  }
+
+  #app .thread-composer-shell {
+    width: 100%;
+    padding: 0.75rem;
+  }
+
+  #app .thread-composer-controls {
+    max-width: 100%;
+    gap: 0.45rem;
+    overflow-x: auto;
+    padding-bottom: 0.15rem;
+    scrollbar-width: none;
+  }
+
+  #app .thread-composer-controls::-webkit-scrollbar {
+    display: none;
+  }
+
+  #app .thread-composer-control {
+    flex: 0 0 auto;
+  }
+
+  #app .message-body[data-role='user'] {
+    max-width: 94%;
+  }
+
+  #app .new-thread-grid::before {
+    inset: 4%;
+    background-size: 30px 30px;
+  }
+
+  #app .new-thread-hero {
+    font-size: clamp(2.35rem, 12vw, 3rem);
+    line-height: 0.98;
+    letter-spacing: -0.055em;
+    max-width: 100%;
+  }
+
+  #app .new-thread-subtitle {
+    max-width: 20rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
