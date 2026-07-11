@@ -70,7 +70,7 @@ import {
   floatingKeyboardDelta,
   moveFloatingPosition,
 } from '../../composables/floatingPositionRules'
-import type { UiDailyTokenUsage, UiRateLimitSnapshot } from '../../types/codex'
+import type { UiDailyTokenUsage } from '../../types/codex'
 
 type FlameCorner = 'bottom-right' | 'bottom-left' | 'top-right' | 'top-left'
 type FlameLevel = 'spark' | 'campfire' | 'steady' | 'bonfire' | 'blaze' | 'inferno'
@@ -96,7 +96,6 @@ type DragState = {
 
 const props = defineProps<{
   cwd: string
-  rateLimitSnapshot: UiRateLimitSnapshot | null
 }>()
 
 const DEFAULT_SETTINGS: FlameSettings = {
@@ -169,12 +168,6 @@ function levelFromTokens(tokens: number): FlameLevel {
   if (tokens >= 80_000) return 'steady'
   if (tokens >= 20_000) return 'campfire'
   return 'spark'
-}
-
-function estimatedTokensFromRateLimit(snapshot: UiRateLimitSnapshot | null): number {
-  const percent = Math.max(snapshot?.primary?.usedPercent ?? 0, snapshot?.secondary?.usedPercent ?? 0)
-  if (percent <= 0) return 0
-  return Math.round((percent / 100) * 500_000)
 }
 
 async function loadSettings(): Promise<void> {
@@ -318,14 +311,13 @@ async function loadUsage(): Promise<void> {
   }
 }
 
-const hasExactUsage = computed(() => (usage.value?.tokenUsageEventCount ?? 0) > 0)
-const estimatedTotalTokens = computed(() => estimatedTokensFromRateLimit(props.rateLimitSnapshot))
-const displayTotalTokens = computed(() => hasExactUsage.value ? usage.value?.totalTokens ?? 0 : estimatedTotalTokens.value)
-const displayInputTokens = computed(() => hasExactUsage.value ? usage.value?.inputTokens ?? 0 : 0)
-const displayOutputTokens = computed(() => hasExactUsage.value ? usage.value?.outputTokens ?? 0 : 0)
+const hasUsage = computed(() => (usage.value?.tokenUsageEventCount ?? 0) > 0)
+const displayTotalTokens = computed(() => usage.value?.totalTokens ?? 0)
+const displayInputTokens = computed(() => usage.value?.inputTokens ?? 0)
+const displayOutputTokens = computed(() => usage.value?.outputTokens ?? 0)
 const fireLevel = computed<FlameLevel>(() => levelFromTokens(displayTotalTokens.value))
-const compactTokenCount = computed(() => compactNumber(displayTotalTokens.value))
-const formattedTotalTokens = computed(() => formatNumber(displayTotalTokens.value))
+const compactTokenCount = computed(() => hasUsage.value ? compactNumber(displayTotalTokens.value) : '—')
+const formattedTotalTokens = computed(() => hasUsage.value ? formatNumber(displayTotalTokens.value) : 'Unavailable')
 const fireLevelLabel = computed(() => ({
   spark: 'Spark',
   campfire: 'Campfire',
@@ -334,8 +326,18 @@ const fireLevelLabel = computed(() => ({
   blaze: 'Blaze',
   inferno: 'Inferno',
 })[fireLevel.value])
-const usageSourceLabel = computed(() => hasExactUsage.value ? 'Codex usage events' : 'Estimated from rate limit')
-const summaryTitle = computed(() => `Today: ${formattedTotalTokens.value} tokens · ${fireLevelLabel.value}`)
+const usageSourceLabel = computed(() => {
+  if (usage.value?.source === 'reconciled-rollouts') {
+    const timestamp = usage.value.lastReconciledAtIso
+    const reconciled = timestamp ? new Intl.DateTimeFormat([], { hour: '2-digit', minute: '2-digit' }).format(new Date(timestamp)) : 'recently'
+    return `Local Codex sessions · checked ${reconciled}`
+  }
+  if (usage.value?.source === 'realtime-events') return 'Live Codex events · awaiting cross-check'
+  return 'No local token usage found today'
+})
+const summaryTitle = computed(() => hasUsage.value
+  ? `Today: ${formattedTotalTokens.value} tokens · ${fireLevelLabel.value}`
+  : 'Today’s token usage is unavailable')
 const widgetStyle = computed(() => {
   const position = settings.value.position ?? defaultPosition(settings.value.defaultCorner)
   return {

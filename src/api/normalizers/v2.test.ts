@@ -83,7 +83,13 @@ describe('normalizeThreadMessagesV2', () => {
       'patch-1',
       'mcp-1',
       'agent-1',
+      'turn-summary:turn-1',
     ])
+
+    expect(messages.at(-1)).toMatchObject({
+      messageType: 'worked',
+      role: 'system',
+    })
 
     expect(messages[1]).toMatchObject({
       role: 'system',

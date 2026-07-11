@@ -37,6 +37,27 @@ afterEach(async () => {
 })
 
 describe('codexSessionEventFromNotification', () => {
+  it('reads the last usage delta from standard token usage notifications', () => {
+    const event = codexSessionEventFromNotification(
+      { cwd: '/repo', repoRoot: '/repo' },
+      {
+        method: 'thread/tokenUsage/updated',
+        atIso: '2026-07-11T05:00:00.000Z',
+        params: {
+          threadId: 'thread-a',
+          turnId: 'turn-a',
+          tokenUsage: {
+            last: { inputTokens: 120, outputTokens: 30, totalTokens: 150 },
+          },
+        },
+      },
+    )
+    expect(event).toMatchObject({
+      kind: 'token_usage',
+      metadata: { inputTokens: 120, outputTokens: 30, totalTokens: 150, usageSource: 'realtime' },
+    })
+  })
+
   it('maps Codex notifications into replayable session events', () => {
     const event = codexSessionEventFromNotification(
       { cwd: '/repo', repoRoot: '/repo' },
@@ -328,7 +349,7 @@ describe('session event store', () => {
       turnCount: 2,
       costUsd: 0.02,
       costEventCount: 1,
-      source: 'codex-events',
+      source: 'realtime-events',
     })
   })
 

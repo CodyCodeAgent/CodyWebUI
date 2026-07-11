@@ -186,7 +186,6 @@
         <TokenFlameWidget
           v-if="!isSettingsRoute && (!isHomeRoute || homeSurface === 'brief')"
           :cwd="tokenFlameCwd"
-          :rate-limit-snapshot="rateLimitSnapshot"
         />
         <MissionChecklist
           v-if="!isHomeRoute && !isSettingsRoute"

@@ -235,11 +235,17 @@
                 :data-role="message.role"
                 :data-message-type="message.messageType || ''"
               >
-                <div v-if="message.messageType === 'worked'" class="worked-separator" aria-live="polite">
-                  <span class="worked-separator-line" aria-hidden="true" />
-                  <p class="worked-separator-text">{{ message.text }}</p>
-                  <span class="worked-separator-line" aria-hidden="true" />
-                </div>
+                <details v-if="message.messageType === 'worked'" class="turn-receipt" aria-live="polite">
+                  <summary>
+                    <span class="turn-receipt-rail" aria-hidden="true" />
+                    <span class="turn-receipt-status">{{ turnReceiptHeadline(message) }}</span>
+                    <span class="turn-receipt-evidence">{{ turnReceiptEvidence(message) }}</span>
+                    <span class="turn-receipt-chevron" aria-hidden="true">›</span>
+                  </summary>
+                  <dl v-if="turnReceiptDetails(message).length > 0">
+                    <div v-for="detail in turnReceiptDetails(message)" :key="detail.label"><dt>{{ detail.label }}</dt><dd>{{ detail.value }}</dd></div>
+                  </dl>
+                </details>
                 <div v-else-if="message.messageType === 'plan' || message.messageType === 'plan.live'" class="plan-message">
                   <p class="plan-message-title">Plan</p>
                   <MessageMarkdown :text="message.text" />
@@ -879,6 +885,37 @@ onBeforeUnmount(() => {
     window.clearTimeout(copiedMessageTimer)
   }
 })
+type TurnReceiptDetail = { label: string; value: string }
+
+function turnReceiptPayload(message: UiMessage): Record<string, unknown> | null {
+  if (!message.rawPayload) return null
+  try {
+    const value = JSON.parse(message.rawPayload) as unknown
+    return value !== null && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : null
+  } catch { return null }
+}
+
+function turnReceiptHeadline(message: UiMessage): string {
+  const payload = turnReceiptPayload(message)
+  if (typeof payload?.label === 'string') return payload.label
+  const [headline] = message.text.split(' · ')
+  return headline || message.text
+}
+
+function turnReceiptEvidence(message: UiMessage): string {
+  const parts = message.text.split(' · ')
+  return parts.slice(1).join(' · ') || (message.text.startsWith('Worked for ') ? message.text.replace('Worked for ', '') : '')
+}
+
+function turnReceiptDetails(message: UiMessage): TurnReceiptDetail[] {
+  const payload = turnReceiptPayload(message)
+  if (!payload) return []
+  return [
+    typeof payload.fileCount === 'number' && payload.fileCount > 0 ? { label: 'Files changed', value: String(payload.fileCount) } : null,
+    typeof payload.commandCount === 'number' && payload.commandCount > 0 ? { label: 'Commands', value: String(payload.commandCount) } : null,
+    typeof payload.validationCount === 'number' && payload.validationCount > 0 ? { label: 'Validations', value: `${String(payload.validationCount)} passed` } : null,
+  ].filter((detail): detail is TurnReceiptDetail => detail !== null)
+}
 </script>
 
 <style scoped>
@@ -1356,6 +1393,42 @@ onBeforeUnmount(() => {
 
 .worked-separator-text {
   @apply m-0 text-sm leading-relaxed font-normal text-slate-800;
+}
+
+.turn-receipt {
+  width: min(100%, 42rem);
+  margin: .35rem auto .2rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--color-panel) 74%, transparent);
+  color: var(--color-text-muted);
+}
+
+.turn-receipt summary {
+  display: grid;
+  grid-template-columns: 2.75rem auto minmax(0,1fr) auto;
+  align-items: center;
+  gap: .65rem;
+  min-height: 2.35rem;
+  cursor: pointer;
+  list-style: none;
+  padding: .35rem .65rem;
+}
+
+.turn-receipt summary::-webkit-details-marker { display: none; }
+.turn-receipt-rail { height: 2px; background: var(--color-success); box-shadow: 0 0 10px color-mix(in srgb, var(--color-success) 46%, transparent); }
+.turn-receipt-status { color: var(--color-text); font-size: .75rem; font-weight: 680; }
+.turn-receipt-evidence { overflow: hidden; font-family: var(--font-mono); font-size: .64rem; text-overflow: ellipsis; white-space: nowrap; }
+.turn-receipt-chevron { font-size: 1rem; transition: transform var(--motion-fast); }
+.turn-receipt[open] .turn-receipt-chevron { transform: rotate(90deg); }
+.turn-receipt dl { display: grid; gap: .35rem; margin: 0; border-top: 1px solid var(--color-border); padding: .65rem; }
+.turn-receipt dl div { display: flex; justify-content: space-between; gap: 1rem; }
+.turn-receipt dt { color: var(--color-text-muted); font-size: .7rem; }
+.turn-receipt dd { margin: 0; color: var(--color-text); font-family: var(--font-mono); font-size: .68rem; }
+
+@media (max-width: 720px) {
+  .turn-receipt { width: 100%; }
+  .turn-receipt summary { grid-template-columns: 2rem auto minmax(0,1fr) auto; gap: .45rem; }
 }
 
 .image-modal-backdrop {
