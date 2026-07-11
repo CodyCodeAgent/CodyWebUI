@@ -127,6 +127,34 @@ describe('ThreadConversation', () => {
     expect(list.scrollTop).toBe(320)
   })
 
+  it('stops following live output immediately after the user scrolls up', async () => {
+    const wrapper = mountConversation({
+      messages: Array.from({ length: 20 }, (_, index) => message(index + 1)),
+      scrollState: { scrollTop: 800, scrollRatio: 1, isAtBottom: true },
+    })
+    const list = wrapper.get('[data-testid="conversation-list"]').element as HTMLElement
+    Object.defineProperty(list, 'scrollHeight', { configurable: true, value: 1200 })
+    Object.defineProperty(list, 'clientHeight', { configurable: true, value: 400 })
+    list.scrollTop = 300
+
+    await wrapper.get('[data-testid="conversation-list"]').trigger('scroll')
+    expect(wrapper.find('.conversation-scroll-bottom').exists()).toBe(true)
+
+    await wrapper.setProps({
+      liveOverlay: {
+        activityLabel: 'Writing',
+        activityDetails: [],
+        reasoningText: 'More output below the viewport',
+        errorText: '',
+      },
+    })
+    await nextTick()
+    await waitForAnimationFrame()
+    await waitForAnimationFrame()
+
+    expect(list.scrollTop).toBe(300)
+  })
+
   it('auto-loads earlier messages when scrolling near the top of a long thread', async () => {
     const messages = Array.from({ length: 200 }, (_, index) => message(index + 1))
     const wrapper = mountConversation({ messages })
