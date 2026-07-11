@@ -46,4 +46,50 @@ describe('MissionChecklist', () => {
     expect(wrapper.find('.mission-checklist').exists()).toBe(false)
     vi.useRealTimers()
   })
+
+  it('follows an in-place plan revision instead of a later stale plan message', async () => {
+    const wrapper = mount(MissionChecklist, {
+      props: {
+        threadId: 'thread-1',
+        messages: [
+          {
+            id: 'active-plan',
+            role: 'assistant',
+            messageType: 'plan.live',
+            text: '1. [doing] First step\n2. [todo] Second step',
+          },
+          {
+            id: 'stale-plan',
+            role: 'assistant',
+            messageType: 'plan',
+            text: '1. [doing] Old first step\n2. [todo] Old second step',
+          },
+        ],
+        isTurnInProgress: true,
+        hasPendingApproval: false,
+      },
+    })
+
+    expect(wrapper.find('h2').text()).toBe('Old first step')
+
+    await wrapper.setProps({
+      messages: [
+        {
+          id: 'active-plan',
+          role: 'assistant',
+          messageType: 'plan.live',
+          text: '1. [done] First step\n2. [doing] Second step',
+        },
+        {
+          id: 'stale-plan',
+          role: 'assistant',
+          messageType: 'plan',
+          text: '1. [doing] Old first step\n2. [todo] Old second step',
+        },
+      ],
+    })
+
+    expect(wrapper.find('h2').text()).toBe('Second step')
+    expect(wrapper.text()).toContain('1 / 2')
+  })
 })
