@@ -188,6 +188,13 @@
           :cwd="tokenFlameCwd"
           :rate-limit-snapshot="rateLimitSnapshot"
         />
+        <MissionChecklist
+          v-if="!isHomeRoute && !isSettingsRoute"
+          :thread-id="selectedThreadId"
+          :messages="filteredMessages"
+          :is-turn-in-progress="isSelectedThreadInProgress"
+          :has-pending-approval="selectedThreadServerRequests.length > 0"
+        />
 
         <div v-if="desktopError" class="content-error" role="alert">
           <span class="content-error-text">{{ desktopError }}</span>
@@ -310,6 +317,7 @@ import NewThreadSetupModal, { type NewThreadProjectOption } from './components/c
 import RateLimitFloatingStatus from './components/content/RateLimitFloatingStatus.vue'
 import AppSettingsPage from './components/content/AppSettingsPage.vue'
 import TokenFlameWidget from './components/content/TokenFlameWidget.vue'
+import MissionChecklist from './components/content/MissionChecklist.vue'
 import BrowserNotificationsPanel from './components/content/BrowserNotificationsPanel.vue'
 import SidebarThreadControls from './components/sidebar/SidebarThreadControls.vue'
 import IconTablerFolder from './components/icons/IconTablerFolder.vue'
