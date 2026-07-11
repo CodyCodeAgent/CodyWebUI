@@ -3,6 +3,7 @@ import type {
   ThreadItem,
   ThreadReadResponse,
   ThreadListResponse,
+  Turn,
 } from '../appServerDtos'
 import type { UiMessage, UiProjectGroup, UiThread, UiToolTimelineEntry } from '../../types/codex'
 import {
@@ -235,6 +236,45 @@ function toUiMessages(item: ThreadItem): UiMessage[] {
   return toolMessage ? [toolMessage] : []
 }
 
+function buildTurnReceipt(turn: Turn): UiMessage | null {
+  const status = readStatus(turn.status)
+  if (status === 'inProgress') return null
+  const commandCount = turn.items.filter((item) => item.type === 'commandExecution').length
+  const toolCount = turn.items.filter((item) => (
+    item.type === 'commandExecution' || item.type === 'mcpToolCall' || item.type === 'webSearch' || item.type === 'collabAgentToolCall'
+  )).length
+  const fileCount = turn.items
+    .filter((item): item is Extract<ThreadItem, { type: 'fileChange' }> => item.type === 'fileChange')
+    .reduce((total, item) => total + item.changes.length, 0)
+  const validationCount = turn.items.filter((item) => (
+    item.type === 'commandExecution' && /(?:^|\s)(?:test|build|typecheck|lint)(?:\s|$)/iu.test(item.command) && item.exitCode === 0
+  )).length
+  const planCompleted = turn.items.some((item) => item.type === 'plan' && /\[done\]/iu.test(item.text) && !/\[(?:doing|todo)\]/iu.test(item.text))
+  const label = status === 'failed'
+    ? 'Failed'
+    : status === 'interrupted'
+      ? 'Stopped'
+      : planCompleted && validationCount > 0
+        ? 'Completed'
+        : fileCount > 0
+          ? 'Changed'
+          : toolCount > 0
+            ? 'Worked'
+            : 'Answered'
+  const evidence = [
+    fileCount > 0 ? `${String(fileCount)} file${fileCount === 1 ? '' : 's'}` : '',
+    commandCount > 0 ? `${String(commandCount)} command${commandCount === 1 ? '' : 's'}` : '',
+    validationCount > 0 ? `${String(validationCount)} validation${validationCount === 1 ? '' : 's'} passed` : '',
+  ].filter(Boolean)
+  return {
+    id: `turn-summary:${turn.id}`,
+    role: 'system',
+    text: [label, ...evidence].join(' · '),
+    messageType: 'worked',
+    rawPayload: JSON.stringify({ label, status, fileCount, commandCount, validationCount }),
+  }
+}
+
 function pickThreadName(summary: Thread): string {
   const rawSummary = summary as Thread & { name?: unknown; title?: unknown }
   const direct = [rawSummary.name, rawSummary.title, summary.preview]
@@ -301,6 +341,8 @@ export function normalizeThreadMessagesV2(payload: ThreadReadResponse): UiMessag
     for (const item of items) {
       messages.push(...toUiMessages(item))
     }
+    const receipt = buildTurnReceipt(turn)
+    if (receipt) messages.push(receipt)
   }
   return messages
 }

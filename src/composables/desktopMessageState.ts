@@ -667,12 +667,6 @@ function findLastAssistantMessageIndex(messages: UiMessage[]): number {
 
 export function insertTurnSummaryMessage(messages: UiMessage[], summary: TurnSummaryState): UiMessage[] {
   const summaryMessage = buildTurnSummaryMessage(summary)
-  const sanitizedMessages = messages.filter((message) => message.messageType !== WORKED_MESSAGE_TYPE)
-  const insertIndex = findLastAssistantMessageIndex(sanitizedMessages)
-  if (insertIndex < 0) {
-    return [...sanitizedMessages, summaryMessage]
-  }
-  const next = [...sanitizedMessages]
-  next.splice(insertIndex, 0, summaryMessage)
-  return next
+  const sanitizedMessages = messages.filter((message) => message.id !== summaryMessage.id)
+  return [...sanitizedMessages, summaryMessage]
 }

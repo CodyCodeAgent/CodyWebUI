@@ -401,7 +401,7 @@ describe('desktopMessageState', () => {
     })
   })
 
-  it('formats turn summaries and inserts them before the last assistant response', () => {
+  it('formats turn summaries and inserts them after the last assistant response', () => {
     const user = message({ id: 'user', role: 'user', text: 'question' })
     const assistant = message({ id: 'assistant', role: 'assistant', text: 'answer' })
     const staleSummary = buildTurnSummaryMessage({ turnId: 'old', durationMs: 1 })
@@ -412,8 +412,8 @@ describe('desktopMessageState', () => {
     })
 
     expect(formatTurnDuration(65_000)).toBe('1m 5s')
-    expect(next.map((row) => row.id)).toEqual(['user', 'turn-summary:turn-1', 'assistant'])
-    expect(next[1].text).toBe('Worked for 1m 5s')
+    expect(next.map((row) => row.id)).toEqual(['user', 'turn-summary:old', 'assistant', 'turn-summary:turn-1'])
+    expect(next[3].text).toBe('Worked for 1m 5s')
   })
 
   it('compares turn activities by label and details', () => {
