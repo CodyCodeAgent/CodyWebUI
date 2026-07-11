@@ -283,6 +283,7 @@ import IconTablerPhoto from '../icons/IconTablerPhoto.vue'
 import IconTablerPlayerStopFilled from '../icons/IconTablerPlayerStopFilled.vue'
 import IconTablerX from '../icons/IconTablerX.vue'
 import ComposerDropdown from './ComposerDropdown.vue'
+import { insertPromptIntoDraft, type PromptInsertion } from '../../composables/promptLibraryRules'
 
 const props = defineProps<{
   activeThreadId: string
@@ -297,6 +298,7 @@ const props = defineProps<{
   isInterruptingTurn?: boolean
   disabled?: boolean
   busyLabel?: string
+  promptInsertion?: PromptInsertion | null
 }>()
 
 const emit = defineEmits<{
@@ -385,6 +387,21 @@ const submitButtonLabel = computed(() =>
 )
 const canAttachImages = computed(() => !props.disabled && Boolean(props.activeThreadId))
 const isDraggingImages = computed(() => canAttachImages.value && dragDepth.value > 0)
+
+watch(() => props.promptInsertion?.id, () => {
+  const insertion = props.promptInsertion
+  if (!insertion) return
+  const next = insertPromptIntoDraft(draft.value, insertion.text, getDraftCursor(), insertion.mode)
+  draft.value = next.text
+  void nextTick(() => {
+    const input = draftInputRef.value
+    if (!input) return
+    input.focus()
+    input.setSelectionRange(next.cursor, next.cursor)
+    resizeDraftInput()
+    onDraftCursorChange()
+  })
+})
 
 function onSubmit(): void {
   const text = materializeComposerContextText(draft.value, selectedContexts.value)
