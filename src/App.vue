@@ -255,6 +255,7 @@
               <div class="content-workbench">
                 <div class="content-thread">
                   <ThreadConversation :messages="filteredMessages" :is-loading="isLoadingMessages"
+                    :cwd="selectedThread?.cwd ?? ''"
                     :load-error="selectedMessageLoadError"
                     :active-thread-id="composerThreadContextId" :scroll-state="selectedThreadScrollState"
                     :live-overlay="liveOverlay"
