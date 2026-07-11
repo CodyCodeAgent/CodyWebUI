@@ -26,6 +26,7 @@ import { NotificationDispatcher, type NotificationDispatchEvent } from './notifi
 import { buildSecurityAccessSnapshot } from './securityAccess.js'
 import { appendCodexSessionEvent, handleDailyTokenUsage, handleListCodexSessionEvents, handleListCodexWorkspaceSessions } from './sessionEventStore.js'
 import { TokenUsageReconciliationService } from './tokenUsageReconciliationService.js'
+import { renderPlantUmlSvg } from './diagramRenderService.js'
 import { handleListUserSettings, handleReadUserSetting, handleWriteUserSetting } from './settingsStore.js'
 import {
   handleApplyPatchToWorkspaceWorktree,
@@ -54,6 +55,7 @@ import {
   handleCreateWorkspaceReviewComment,
   handleCreateWorkspaceReviewFollowUp,
   handleReadWorkspaceFile,
+  handleReadWorkspaceAsset,
   handleReadToolingCheckpointPatch,
   handleRollbackToolingHunk,
   handleRemoveWorkspaceWorktree,
@@ -2118,6 +2120,11 @@ export function createCodexBridgeMiddleware(): CodexBridgeMiddleware {
         return
       }
 
+      if (req.method === 'GET' && url.pathname === '/codex-api/tooling/workspace-asset') {
+        await handleReadWorkspaceAsset(url, res)
+        return
+      }
+
       if (req.method === 'POST' && url.pathname === '/codex-api/tooling/workspace-file') {
         await handleWriteWorkspaceFile(req, res)
         return
@@ -2180,6 +2187,18 @@ export function createCodexBridgeMiddleware(): CodexBridgeMiddleware {
 
       if (req.method === 'GET' && url.pathname === '/codex-api/token-usage/today') {
         await handleDailyTokenUsage(url, res)
+        return
+      }
+
+      if (req.method === 'POST' && url.pathname === '/codex-api/diagrams/plantuml') {
+        const body = asRecord(await readJsonBody(req))
+        const source = typeof body?.source === 'string' ? body.source : ''
+        try {
+          const svg = await renderPlantUmlSvg(source)
+          setJson(res, 200, { result: { svg } })
+        } catch (error) {
+          setJson(res, 422, { error: getErrorMessage(error, 'PlantUML rendering failed') })
+        }
         return
       }
 

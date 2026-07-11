@@ -1,5 +1,6 @@
 // @vitest-environment happy-dom
 import { mount } from '@vue/test-utils'
+import { nextTick } from 'vue'
 import { describe, expect, it, vi } from 'vitest'
 import MessageMarkdown from './MessageMarkdown.vue'
 
@@ -21,5 +22,21 @@ describe('MessageMarkdown', () => {
     const link = wrapper.get('[data-markdown-action="open-file"]')
     expect(link.attributes('data-file-path')).toBe('src/main.ts')
     expect(link.attributes('title')).toContain('Open src/main.ts')
+  })
+
+  it('rewrites workspace image links through the safe asset endpoint', async () => {
+    const wrapper = mount(MessageMarkdown, {
+      props: {
+        text: '[runtime diagram](/home/gouchao/code/life-csr/docs/arch/runtime.svg)',
+        cwd: '/home/gouchao/code/life-csr',
+      },
+    })
+    await nextTick()
+    await Promise.resolve()
+
+    const link = wrapper.get('a')
+    expect(link.attributes('href')).toContain('/codex-api/tooling/workspace-asset?')
+    expect(decodeURIComponent(link.attributes('href') ?? '')).toContain('path=/home/gouchao/code/life-csr/docs/arch/runtime.svg')
+    expect(link.attributes('target')).toBe('_blank')
   })
 })
