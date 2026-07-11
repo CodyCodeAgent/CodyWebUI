@@ -18,6 +18,11 @@ function toolbarButton(action: string, label: string): string {
 }
 
 function codeBlockHtml(content: string, language = ''): string {
+  const normalizedLanguage = language.toLowerCase()
+  if (normalizedLanguage === 'mermaid' || normalizedLanguage === 'plantuml' || normalizedLanguage === 'puml') {
+    const engine = normalizedLanguage === 'mermaid' ? 'mermaid' : 'plantuml'
+    return `<div class="markdown-diagram-shell" data-diagram-engine="${engine}"><header class="markdown-diagram-toolbar"><span>${engine}</span><span class="markdown-diagram-actions">${toolbarButton('diagram-zoom-out', 'Zoom out')}${toolbarButton('diagram-fit', 'Fit')}${toolbarButton('diagram-zoom-in', 'Zoom in')}${toolbarButton('diagram-source', 'Source')}${toolbarButton('diagram-fullscreen', 'Fullscreen')}${toolbarButton('diagram-export-svg', 'SVG')}${toolbarButton('diagram-export-png', 'PNG')}</span></header><div class="markdown-diagram-stage" role="img" aria-label="${engine} technical diagram"><p class="markdown-diagram-status">Rendering ${engine}…</p></div><pre class="markdown-diagram-source" hidden><code>${markdown.utils.escapeHtml(content)}</code></pre></div>\n`
+  }
   const lines = content.replace(/\n$/u, '').split('\n')
   const isCompact = lines.length <= 2 && lines.every((line) => line.length <= 96)
   const blockClass = isCompact ? 'markdown-code-block is-compact' : 'markdown-code-block'
