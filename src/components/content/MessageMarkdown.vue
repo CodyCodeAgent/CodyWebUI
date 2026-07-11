@@ -154,7 +154,7 @@ onBeforeUnmount(() => window.clearTimeout(renderTimer))
 .message-markdown :deep(pre) { @apply my-3 overflow-x-auto rounded-lg border border-slate-200 bg-slate-950 px-3 py-2 text-sm leading-relaxed text-slate-100; }
 .message-markdown :deep(pre.is-compact),
 .message-markdown :deep(pre:has(> code.is-compact-code)) { @apply w-fit max-w-full px-2.5 py-1.5; }
-.message-markdown :deep(pre code) { @apply bg-transparent p-0 text-inherit; white-space: pre; }
+.message-markdown :deep(pre code) { @apply rounded-none border-0 bg-transparent p-0 text-inherit; white-space: pre; }
 .message-markdown :deep(.markdown-code-shell) { @apply relative my-3 overflow-hidden rounded-lg border border-slate-200 bg-slate-950; }
 .message-markdown :deep(.markdown-code-shell.is-compact) { @apply w-fit max-w-full; }
 .message-markdown :deep(.markdown-code-shell pre) { @apply m-0 rounded-none border-0; }
