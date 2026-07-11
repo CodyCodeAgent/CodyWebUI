@@ -366,7 +366,6 @@ import {
   readToolQuestions,
   restoredConversationScrollTop,
   shouldShowBlockingConversationLoadError,
-  shouldLockConversationToBottom,
   shouldPreserveConversationViewport,
   shouldRestoreConversationToBottom,
   shouldShowBlockingConversationLoading,
@@ -423,6 +422,7 @@ const conversationListRef = ref<HTMLElement | null>(null)
 const bottomAnchorRef = ref<HTMLElement | null>(null)
 const modalImageUrl = ref('')
 const copiedMessageId = ref('')
+const isFollowingBottom = ref(props.scrollState?.isAtBottom !== false)
 const isLiveOverlayExpanded = ref((props.liveOverlay?.reasoningText ?? '').trim().length > 0)
 const visibleMessageCount = ref(DEFAULT_VISIBLE_MESSAGE_COUNT)
 const openToolMessageIds = ref<Record<string, boolean>>({})
@@ -436,6 +436,7 @@ let scrollRestoreFrame = 0
 let bottomLockFrame = 0
 let bottomLockFramesLeft = 0
 let copiedMessageTimer: number | null = null
+let hasAppliedInitialScroll = false
 const trackedPendingImages = new WeakSet<HTMLImageElement>()
 
 const hasLiveOverlayDetails = computed(() => {
@@ -501,7 +502,7 @@ const showScrollToBottomButton = computed(() => {
     messageCount: props.messages.length,
     pendingRequestCount: props.pendingRequests.length,
     hasLiveOverlay: props.liveOverlay !== null,
-    scrollState: props.scrollState,
+    scrollState: { scrollTop: 0, scrollRatio: 0, isAtBottom: isFollowingBottom.value },
   })
 })
 
@@ -688,6 +689,7 @@ function scrollToBottom(): void {
 }
 
 function onScrollToBottomClick(): void {
+  isFollowingBottom.value = true
   enforceBottomState()
   scheduleBottomLock(3)
 }
@@ -728,9 +730,11 @@ function applySavedScrollState(): void {
 
   const savedState = props.scrollState
   if (!savedState || shouldRestoreConversationToBottom(savedState)) {
+    isFollowingBottom.value = true
     enforceBottomState()
     return
   }
+  isFollowingBottom.value = false
 
   const metrics = buildConversationScrollMetrics({
     scrollTop: container.scrollTop,
@@ -752,7 +756,7 @@ function enforceBottomState(): void {
 }
 
 function shouldLockToBottom(): boolean {
-  return shouldLockConversationToBottom(props.scrollState)
+  return isFollowingBottom.value
 }
 
 function runBottomLockFrame(): void {
@@ -806,7 +810,15 @@ async function scheduleScrollRestore(): Promise<void> {
   }
   scrollRestoreFrame = requestAnimationFrame(() => {
     scrollRestoreFrame = 0
-    applySavedScrollState()
+    if (!hasAppliedInitialScroll) {
+      applySavedScrollState()
+      hasAppliedInitialScroll = true
+    } else if (isFollowingBottom.value) {
+      enforceBottomState()
+    } else {
+      const container = conversationListRef.value
+      if (container) emitScrollState(container)
+    }
     bindPendingImageHandlers()
     scheduleBottomLock()
   })
@@ -830,7 +842,7 @@ watch(
       isLiveOverlayExpanded.value = false
     }
     await nextTick()
-    if (!shouldPreserveConversationViewport(props.scrollState)) {
+    if (isFollowingBottom.value) {
       enforceBottomState()
     }
     scheduleBottomLock(8)
@@ -854,6 +866,12 @@ watch(
     visibleMessageCount.value = DEFAULT_VISIBLE_MESSAGE_COUNT
     openToolMessageIds.value = {}
     expandedToolOutputIds.value = {}
+    hasAppliedInitialScroll = false
+    isFollowingBottom.value = props.scrollState?.isAtBottom !== false
+    if (bottomLockFrame) {
+      cancelAnimationFrame(bottomLockFrame)
+      bottomLockFrame = 0
+    }
   },
   { flush: 'post' },
 )
@@ -864,7 +882,19 @@ function onConversationScroll(): void {
   if (container.scrollTop <= HISTORY_TOP_THRESHOLD_PX && hiddenMessagesCount.value > 0) {
     void revealEarlierMessages()
   }
-  emitScrollState(container)
+  const state = buildConversationScrollState({
+    scrollTop: container.scrollTop,
+    scrollHeight: container.scrollHeight,
+    clientHeight: container.clientHeight,
+    bottomThresholdPx: BOTTOM_THRESHOLD_PX,
+  })
+  isFollowingBottom.value = state.isAtBottom
+  if (!state.isAtBottom && bottomLockFrame) {
+    cancelAnimationFrame(bottomLockFrame)
+    bottomLockFrame = 0
+    bottomLockFramesLeft = 0
+  }
+  if (props.activeThreadId) emit('updateScrollState', { threadId: props.activeThreadId, state })
 }
 
 function openImageModal(imageUrl: string): void {
