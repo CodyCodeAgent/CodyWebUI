@@ -18,11 +18,38 @@
       @keydown="onKeyboardMove"
       @pointerdown="startDrag"
     >
-      <span class="token-flame-graphic" aria-hidden="true">
-        <span class="token-flame-glow" />
-        <span class="token-flame-outer" />
-        <span class="token-flame-mid" />
-        <span class="token-flame-inner" />
+      <span class="token-flame-stage" aria-hidden="true">
+        <svg class="token-flame-graphic" viewBox="0 0 100 128" role="presentation">
+          <defs>
+            <linearGradient id="token-flame-outer" x1="0" y1="1" x2="0.68" y2="0">
+              <stop stop-color="#ff3d24" />
+              <stop offset="0.58" stop-color="#ff6b24" />
+              <stop offset="1" stop-color="#ff9b35" />
+            </linearGradient>
+            <linearGradient id="token-flame-middle" x1="0" y1="1" x2="0.42" y2="0">
+              <stop stop-color="#ff8a1f" />
+              <stop offset="1" stop-color="#ffd166" />
+            </linearGradient>
+            <linearGradient id="token-flame-core" x1="0" y1="1" x2="0.5" y2="0">
+              <stop stop-color="#fff0bd" />
+              <stop offset="1" stop-color="#fffdf4" />
+            </linearGradient>
+            <filter id="token-flame-blur" x="-80%" y="-80%" width="260%" height="260%">
+              <feGaussianBlur stdDeviation="9" />
+            </filter>
+          </defs>
+          <ellipse class="token-flame-glow" cx="50" cy="84" rx="33" ry="31" filter="url(#token-flame-blur)" />
+          <g class="token-flame-sparks">
+            <circle class="token-flame-spark token-flame-spark-one" cx="23" cy="47" r="2.5" />
+            <circle class="token-flame-spark token-flame-spark-two" cx="76" cy="31" r="2" />
+            <circle class="token-flame-spark token-flame-spark-three" cx="57" cy="13" r="1.7" />
+          </g>
+          <g class="token-flame-body">
+            <path class="token-flame-outer" :d="outerFlamePath" />
+            <path class="token-flame-middle" d="M50 108C29 101 25 82 35 66C42 55 45 45 44 34C59 46 68 65 65 82C62 98 56 105 50 108Z" />
+            <path class="token-flame-core" d="M50 104C39 98 37 85 43 76C47 70 49 63 50 55C59 65 63 77 60 89C58 98 54 102 50 104Z" />
+          </g>
+        </svg>
       </span>
       <span class="token-flame-count">{{ compactTokenCount }}</span>
     </button>
@@ -104,7 +131,8 @@ const DEFAULT_SETTINGS: FlameSettings = {
   reducedMotion: false,
   position: null,
 }
-const WIDGET_SIZE = 52
+const WIDGET_WIDTH = 84
+const WIDGET_HEIGHT = 92
 const WIDGET_MARGIN = 12
 const BOTTOM_ACTION_SAFE_AREA = 112
 
@@ -184,8 +212,8 @@ async function loadSettings(): Promise<void> {
 }
 
 function defaultPosition(corner: FlameCorner): NonNullable<FlameSettings['position']> {
-  const right = Math.max(WIDGET_MARGIN, window.innerWidth - WIDGET_SIZE - 20)
-  const bottom = Math.max(WIDGET_MARGIN, window.innerHeight - WIDGET_SIZE - BOTTOM_ACTION_SAFE_AREA)
+  const right = Math.max(WIDGET_MARGIN, window.innerWidth - WIDGET_WIDTH - 20)
+  const bottom = Math.max(WIDGET_MARGIN, window.innerHeight - WIDGET_HEIGHT - BOTTOM_ACTION_SAFE_AREA)
   if (corner === 'bottom-left') return { x: 20, y: bottom }
   if (corner === 'top-right') return { x: right, y: 80 }
   if (corner === 'top-left') return { x: 20, y: 80 }
@@ -194,8 +222,8 @@ function defaultPosition(corner: FlameCorner): NonNullable<FlameSettings['positi
 
 function clampPosition(position: NonNullable<FlameSettings['position']>): NonNullable<FlameSettings['position']> {
   const rect = widgetRef.value?.getBoundingClientRect()
-  const width = rect?.width || WIDGET_SIZE
-  const height = rect?.height || WIDGET_SIZE
+  const width = rect?.width || WIDGET_WIDTH
+  const height = rect?.height || WIDGET_HEIGHT
   const maxX = Math.max(WIDGET_MARGIN, window.innerWidth - width - WIDGET_MARGIN)
   const maxY = Math.max(WIDGET_MARGIN, window.innerHeight - height - WIDGET_MARGIN)
   return clampFloatingPosition(position, {
@@ -285,8 +313,8 @@ function onKeyboardMove(event: KeyboardEvent): void {
 
   const currentPosition = settings.value.position ?? defaultPosition(settings.value.defaultCorner)
   const rect = widgetRef.value?.getBoundingClientRect()
-  const width = rect?.width || WIDGET_SIZE
-  const height = rect?.height || WIDGET_SIZE
+  const width = rect?.width || WIDGET_WIDTH
+  const height = rect?.height || WIDGET_HEIGHT
   const nextPosition = moveFloatingPosition(currentPosition, delta, {
     minX: WIDGET_MARGIN,
     maxX: Math.max(WIDGET_MARGIN, window.innerWidth - width - WIDGET_MARGIN),
@@ -316,6 +344,15 @@ const displayTotalTokens = computed(() => usage.value?.totalTokens ?? 0)
 const displayInputTokens = computed(() => usage.value?.inputTokens ?? 0)
 const displayOutputTokens = computed(() => usage.value?.outputTokens ?? 0)
 const fireLevel = computed<FlameLevel>(() => levelFromTokens(displayTotalTokens.value))
+const outerFlamePath = computed(() => {
+  if (fireLevel.value === 'spark') {
+    return 'M50 114C25 105 19 83 30 62C37 49 43 39 43 23C58 37 72 55 71 76C70 97 61 109 50 114Z'
+  }
+  if (fireLevel.value === 'campfire' || fireLevel.value === 'steady') {
+    return 'M50 114C21 105 15 80 28 57C36 43 40 32 38 15C49 24 55 36 55 47C65 39 73 46 78 57C88 77 79 104 50 114Z'
+  }
+  return 'M50 114C19 105 12 79 26 55C33 43 36 31 33 15C44 23 50 34 51 44C60 31 64 19 61 4C78 18 85 39 79 56C92 66 95 82 88 96C81 108 66 114 50 114Z'
+})
 const compactTokenCount = computed(() => hasUsage.value ? compactNumber(displayTotalTokens.value) : '—')
 const formattedTotalTokens = computed(() => hasUsage.value ? formatNumber(displayTotalTokens.value) : 'Unavailable')
 const fireLevelLabel = computed(() => ({
@@ -379,50 +416,95 @@ onUnmounted(() => {
 }
 
 .token-flame-button {
-  @apply flex h-13 w-13 cursor-move flex-col items-center justify-center rounded-full border border-orange-300 bg-zinc-950 text-white shadow-xl transition hover:scale-105;
+  --flame-size: 32px;
+  --flame-motion: 2.8s;
+  @apply relative flex h-[92px] w-[84px] cursor-move flex-col items-center justify-end border-0 bg-transparent pb-1 text-white transition duration-200 hover:scale-[1.04] focus-visible:outline-2 focus-visible:outline-offset-2;
   touch-action: none;
 }
 
-.token-flame-graphic {
-  @apply relative block h-7 w-7;
+.token-flame-stage {
+  @apply absolute bottom-7 left-1/2 flex items-end justify-center;
+  width: 72px;
+  height: 70px;
+  transform: translateX(-50%);
 }
 
-.token-flame-glow,
-.token-flame-outer,
-.token-flame-mid,
-.token-flame-inner {
-  @apply absolute bottom-0 left-1/2 block rounded-full;
-  transform-origin: 50% 100%;
+.token-flame-graphic {
+  display: block;
+  width: var(--flame-size);
+  height: calc(var(--flame-size) * 1.28);
+  overflow: visible;
+  filter: drop-shadow(0 8px 8px rgb(0 0 0 / 0.34));
+  transition: width 320ms cubic-bezier(.2,.8,.2,1), height 320ms cubic-bezier(.2,.8,.2,1), filter 320ms ease;
 }
 
 .token-flame-glow {
-  @apply h-8 w-8 bg-orange-500/40;
-  filter: blur(8px);
-  transform: translateX(-50%) scale(1.2);
+  fill: #ff5b2c;
+  opacity: 0.14;
+  transition: opacity 320ms ease;
+  animation: token-flame-glow-breathe calc(var(--flame-motion) * 1.7) ease-in-out infinite;
 }
 
 .token-flame-outer {
-  @apply h-8 w-7 bg-orange-600;
-  transform: translateX(-50%) rotate(-5deg);
-  clip-path: polygon(50% 0, 86% 44%, 70% 100%, 30% 100%, 14% 44%);
-  animation: flame-sway 1.2s ease-in-out infinite alternate;
+  fill: url(#token-flame-outer);
+  transform-origin: 50px 112px;
+  animation: token-flame-outer-sway var(--flame-motion) ease-in-out infinite alternate;
 }
 
-.token-flame-mid {
-  @apply h-7 w-5 bg-amber-300;
-  transform: translateX(-50%) rotate(5deg);
-  clip-path: polygon(50% 0, 82% 48%, 66% 100%, 34% 100%, 18% 48%);
-  animation: flame-sway 0.9s ease-in-out infinite alternate-reverse;
+.token-flame-middle {
+  fill: url(#token-flame-middle);
+  transform-origin: 50px 108px;
+  animation: token-flame-middle-sway calc(var(--flame-motion) * 0.82) ease-in-out infinite alternate-reverse;
 }
 
-.token-flame-inner {
-  @apply h-5 w-3 bg-white;
-  transform: translateX(-50%);
-  clip-path: polygon(50% 0, 78% 52%, 64% 100%, 36% 100%, 22% 52%);
+.token-flame-core {
+  fill: url(#token-flame-core);
+  transform-origin: 50px 104px;
+  animation: token-flame-core-breathe calc(var(--flame-motion) * 1.2) ease-in-out infinite alternate;
 }
+
+.token-flame-spark {
+  fill: #ffd166;
+  opacity: 0;
+  transform-origin: center;
+}
+
+.token-flame-spark-two { fill: #ff8a1f; }
+.token-flame-spark-three { fill: #fff4d6; }
+
+.token-flame-widget[data-level='bonfire'] .token-flame-spark-one,
+.token-flame-widget[data-level='blaze'] .token-flame-spark-one,
+.token-flame-widget[data-level='blaze'] .token-flame-spark-two,
+.token-flame-widget[data-level='inferno'] .token-flame-spark {
+  animation: token-flame-spark-rise 2.2s ease-out infinite;
+}
+
+.token-flame-widget[data-level='blaze'] .token-flame-spark-two,
+.token-flame-widget[data-level='inferno'] .token-flame-spark-two { animation-delay: -0.9s; }
+.token-flame-widget[data-level='inferno'] .token-flame-spark-three { animation-delay: -1.55s; }
 
 .token-flame-count {
-  @apply mt-0.5 text-[0.62rem] font-semibold leading-none text-orange-100;
+  @apply relative z-10 min-w-11 rounded-full border border-orange-200/20 bg-zinc-950/80 px-2 py-1 text-center font-mono text-[0.67rem] font-semibold leading-none tracking-wide text-orange-50 shadow-lg backdrop-blur-md;
+  box-shadow: 0 4px 14px rgb(0 0 0 / 0.34), inset 0 1px 0 rgb(255 255 255 / 0.08);
+}
+
+.token-flame-widget[data-level='spark'] .token-flame-button { --flame-size: 30px; --flame-motion: 3.4s; }
+.token-flame-widget[data-level='campfire'] .token-flame-button { --flame-size: 36px; --flame-motion: 3s; }
+.token-flame-widget[data-level='steady'] .token-flame-button { --flame-size: 43px; --flame-motion: 2.7s; }
+.token-flame-widget[data-level='bonfire'] .token-flame-button { --flame-size: 50px; --flame-motion: 2.35s; }
+.token-flame-widget[data-level='blaze'] .token-flame-button { --flame-size: 58px; --flame-motion: 2.05s; }
+.token-flame-widget[data-level='inferno'] .token-flame-button { --flame-size: 67px; --flame-motion: 1.8s; }
+
+.token-flame-widget[data-level='spark'] .token-flame-glow { opacity: 0.08; }
+.token-flame-widget[data-level='campfire'] .token-flame-glow { opacity: 0.13; }
+.token-flame-widget[data-level='steady'] .token-flame-glow { opacity: 0.18; }
+.token-flame-widget[data-level='bonfire'] .token-flame-glow { opacity: 0.24; }
+.token-flame-widget[data-level='blaze'] .token-flame-glow { opacity: 0.31; }
+.token-flame-widget[data-level='inferno'] .token-flame-glow { opacity: 0.4; }
+
+.token-flame-widget[data-level='blaze'] .token-flame-graphic,
+.token-flame-widget[data-level='inferno'] .token-flame-graphic {
+  filter: drop-shadow(0 9px 10px rgb(0 0 0 / 0.35)) drop-shadow(0 0 12px rgb(255 83 36 / 0.28));
 }
 
 @media (max-width: 900px) {
@@ -431,37 +513,7 @@ onUnmounted(() => {
   }
 }
 
-.token-flame-widget[data-level='spark'] .token-flame-graphic {
-  transform: scale(0.72);
-}
-
-.token-flame-widget[data-level='campfire'] .token-flame-graphic {
-  transform: scale(0.85);
-}
-
-.token-flame-widget[data-level='steady'] .token-flame-graphic {
-  transform: scale(1);
-}
-
-.token-flame-widget[data-level='bonfire'] .token-flame-graphic {
-  transform: scale(1.12);
-}
-
-.token-flame-widget[data-level='blaze'] .token-flame-graphic,
-.token-flame-widget[data-level='inferno'] .token-flame-graphic {
-  transform: scale(1.25);
-}
-
-.token-flame-widget[data-level='inferno'] .token-flame-outer {
-  @apply bg-fuchsia-600;
-}
-
-.token-flame-widget[data-level='inferno'] .token-flame-mid {
-  @apply bg-sky-300;
-}
-
-.token-flame-widget[data-calm='true'] .token-flame-outer,
-.token-flame-widget[data-calm='true'] .token-flame-mid {
+.token-flame-widget[data-calm='true'] :is(.token-flame-outer, .token-flame-middle, .token-flame-core, .token-flame-glow, .token-flame-spark) {
   animation: none;
 }
 
@@ -515,18 +567,34 @@ onUnmounted(() => {
   @apply m-0 mt-2 rounded-md border border-rose-200 bg-rose-50 px-2 py-1 text-xs text-rose-700;
 }
 
-@keyframes flame-sway {
-  from {
-    transform: translateX(-50%) rotate(-7deg) scaleY(0.96);
-  }
-  to {
-    transform: translateX(-50%) rotate(7deg) scaleY(1.04);
-  }
+@keyframes token-flame-outer-sway {
+  from { transform: rotate(-2.7deg) scaleX(0.985) scaleY(0.97); }
+  to { transform: rotate(2.7deg) scaleX(1.015) scaleY(1.025); }
+}
+
+@keyframes token-flame-middle-sway {
+  from { transform: rotate(-2deg) translateY(1px) scaleY(0.98); }
+  to { transform: rotate(2.4deg) translateY(-1px) scaleY(1.025); }
+}
+
+@keyframes token-flame-core-breathe {
+  from { transform: scale(0.96, 0.975); opacity: 0.92; }
+  to { transform: scale(1.025, 1.035); opacity: 1; }
+}
+
+@keyframes token-flame-glow-breathe {
+  0%, 100% { transform: scale(0.88); }
+  50% { transform: scale(1.12); }
+}
+
+@keyframes token-flame-spark-rise {
+  0% { opacity: 0; transform: translateY(8px) scale(0.65); }
+  24% { opacity: 0.95; }
+  100% { opacity: 0; transform: translateY(-18px) translateX(3px) scale(0.2); }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .token-flame-outer,
-  .token-flame-mid {
+  .token-flame-widget :is(.token-flame-outer, .token-flame-middle, .token-flame-core, .token-flame-glow, .token-flame-spark) {
     animation: none;
   }
 }
