@@ -248,9 +248,9 @@
                 </details>
                 <div v-else-if="message.messageType === 'plan' || message.messageType === 'plan.live'" class="plan-message">
                   <p class="plan-message-title">Plan</p>
-                  <MessageMarkdown :text="message.text" />
+                  <MessageMarkdown :text="message.text" :cwd="cwd" />
                 </div>
-                <MessageMarkdown v-else :text="message.text" />
+                <MessageMarkdown v-else :text="message.text" :cwd="cwd" />
               </article>
 
               <button
@@ -402,6 +402,7 @@ import IconTablerX from '../icons/IconTablerX.vue'
 import MessageMarkdown from './MessageMarkdown.vue'
 
 const props = defineProps<{
+  cwd?: string
   messages: UiMessage[]
   pendingRequests: UiServerRequest[]
   liveOverlay: UiLiveOverlay | null
