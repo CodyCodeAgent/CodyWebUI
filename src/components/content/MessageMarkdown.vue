@@ -58,6 +58,15 @@ async function highlightCodeBlocks(): Promise<void> {
   for (const image of Array.from(rootRef.value?.querySelectorAll<HTMLImageElement>('img') ?? [])) {
     image.addEventListener('error', () => { image.alt = image.alt || 'Image failed to load'; image.classList.add('is-load-error') }, { once: true })
   }
+  for (const shell of Array.from(rootRef.value?.querySelectorAll<HTMLElement>('.markdown-code-shell') ?? [])) {
+    const pre = shell.querySelector('pre')
+    const wrapButton = shell.querySelector<HTMLButtonElement>('[data-markdown-action="wrap-code"]')
+    if (pre && wrapButton) {
+      const hasHorizontalOverflow = pre.scrollWidth > pre.clientWidth + 2
+      wrapButton.hidden = !hasHorizontalOverflow
+      wrapButton.setAttribute('aria-pressed', String(shell.classList.contains('is-wrapped')))
+    }
+  }
   const blocks = Array.from(rootRef.value?.querySelectorAll<HTMLElement>('pre code[class*="language-"]') ?? [])
   if (blocks.length === 0) return
   const { default: hljs } = await import('highlight.js/lib/core')
@@ -73,9 +82,32 @@ async function highlightCodeBlocks(): Promise<void> {
 }
 
 async function copyText(text: string, button: HTMLButtonElement): Promise<void> {
-  await navigator.clipboard.writeText(text)
   const original = button.textContent
-  button.textContent = 'Copied'
+  try {
+    let copied = false
+    if (navigator.clipboard?.writeText) {
+      try {
+        await navigator.clipboard.writeText(text)
+        copied = true
+      } catch {
+        // Fall through to the legacy copy path used by local HTTP/WebView environments.
+      }
+    }
+    if (!copied) {
+      const textarea = document.createElement('textarea')
+      textarea.value = text
+      textarea.style.position = 'fixed'
+      textarea.style.opacity = '0'
+      document.body.appendChild(textarea)
+      textarea.select()
+      copied = document.execCommand('copy')
+      textarea.remove()
+      if (!copied) throw new Error('Copy command was rejected')
+    }
+    button.textContent = 'Copied'
+  } catch {
+    button.textContent = 'Copy failed'
+  }
   window.setTimeout(() => { button.textContent = original }, 1_200)
 }
 
@@ -96,7 +128,11 @@ function onMarkdownClick(event: MouseEvent): void {
   const shell = button.closest<HTMLElement>('.markdown-code-shell, .markdown-table-shell')
   const action = button.dataset.markdownAction
   if (action === 'copy-code') void copyText(shell?.querySelector('code')?.textContent ?? '', button)
-  if (action === 'wrap-code') shell?.classList.toggle('is-wrapped')
+  if (action === 'wrap-code') {
+    const isWrapped = shell?.classList.toggle('is-wrapped') ?? false
+    button.textContent = isWrapped ? 'Scroll' : 'Wrap'
+    button.setAttribute('aria-pressed', String(isWrapped))
+  }
   if (action === 'save-code') {
     const blob = new Blob([shell?.querySelector('code')?.textContent ?? ''], { type: 'text/plain' })
     const anchor = document.createElement('a'); anchor.href = URL.createObjectURL(blob); anchor.download = `snippet.${shell?.dataset.language || 'txt'}`; anchor.click(); URL.revokeObjectURL(anchor.href)
@@ -154,7 +190,7 @@ onBeforeUnmount(() => window.clearTimeout(renderTimer))
 .message-markdown :deep(pre) { @apply my-3 overflow-x-auto rounded-lg border border-slate-200 bg-slate-950 px-3 py-2 text-sm leading-relaxed text-slate-100; }
 .message-markdown :deep(pre.is-compact),
 .message-markdown :deep(pre:has(> code.is-compact-code)) { @apply w-fit max-w-full px-2.5 py-1.5; }
-.message-markdown :deep(pre code) { @apply bg-transparent p-0 text-inherit; white-space: pre; }
+.message-markdown :deep(pre code) { @apply rounded-none border-0 bg-transparent p-0 text-inherit; white-space: pre; }
 .message-markdown :deep(.markdown-code-shell) { @apply relative my-3 overflow-hidden rounded-lg border border-slate-200 bg-slate-950; }
 .message-markdown :deep(.markdown-code-shell.is-compact) { @apply w-fit max-w-full; }
 .message-markdown :deep(.markdown-code-shell pre) { @apply m-0 rounded-none border-0; }
