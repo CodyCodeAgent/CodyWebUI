@@ -48,6 +48,8 @@ const renderedHtml = computed(() => renderMarkdown(props.text))
 .message-markdown :deep(blockquote > :last-child) { margin-bottom: 0; }
 
 .message-markdown :deep(pre) { @apply my-3 overflow-x-auto rounded-lg border border-slate-200 bg-slate-950 px-3 py-2 text-sm leading-relaxed text-slate-100; }
+.message-markdown :deep(pre.is-compact),
+.message-markdown :deep(pre:has(> code.is-compact-code)) { @apply w-fit max-w-full px-2.5 py-1.5; }
 .message-markdown :deep(pre code) { @apply bg-transparent p-0 text-inherit; white-space: pre; }
 .message-markdown :deep(code) { @apply rounded-md border border-slate-200 bg-slate-100/60 px-1.5 py-0.5 font-mono text-[0.875em] leading-[1.4] text-slate-900; }
 

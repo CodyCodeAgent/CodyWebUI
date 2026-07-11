@@ -11,6 +11,22 @@ const markdown = new MarkdownIt({
 
 markdown.use(taskLists, { enabled: false, label: true, labelAfter: true })
 
+function codeBlockHtml(content: string, language = ''): string {
+  const lines = content.replace(/\n$/u, '').split('\n')
+  const isCompact = lines.length <= 2 && lines.every((line) => line.length <= 96)
+  const blockClass = isCompact ? 'markdown-code-block is-compact' : 'markdown-code-block'
+  const codeClasses = [isCompact ? 'is-compact-code' : '', /^[A-Za-z0-9_-]+$/u.test(language) ? `language-${language}` : ''].filter(Boolean)
+  const codeClass = codeClasses.length > 0 ? ` class="${codeClasses.join(' ')}"` : ''
+  return `<pre class="${blockClass}"><code${codeClass}>${markdown.utils.escapeHtml(content)}</code></pre>\n`
+}
+
+markdown.renderer.rules.fence = (tokens, index) => {
+  const token = tokens[index]
+  const language = token.info.trim().split(/\s+/u)[0] ?? ''
+  return codeBlockHtml(token.content, language)
+}
+markdown.renderer.rules.code_block = (tokens, index) => codeBlockHtml(tokens[index].content)
+
 const defaultLinkOpen = markdown.renderer.rules.link_open
 markdown.renderer.rules.link_open = (tokens, index, options, env, self) => {
   const token = tokens[index]

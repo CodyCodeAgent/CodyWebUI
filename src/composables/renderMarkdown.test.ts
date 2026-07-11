@@ -30,4 +30,13 @@ describe('renderMarkdown', () => {
     expect(html).not.toContain('<script')
     expect(html).not.toContain('href="javascript:')
   })
+
+  it('keeps short fenced values compact while preserving diagrams as blocks', () => {
+    const compact = renderMarkdown('```\nBindBudgetControlStrategy\n```')
+    const diagram = renderMarkdown(`\`\`\`text\n${Array.from({ length: 4 }, (_, index) => `node-${index}`).join('\n')}\n\`\`\``)
+
+    expect(compact).toContain('class="is-compact-code"')
+    expect(diagram).not.toContain('is-compact-code')
+    expect(diagram).toContain('class="language-text"')
+  })
 })
