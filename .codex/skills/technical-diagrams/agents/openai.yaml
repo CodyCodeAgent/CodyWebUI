@@ -1,0 +1,4 @@
+interface:
+  display_name: "Technical Diagrams"
+  short_description: "Create Mermaid or PlantUML diagrams for technical explanations"
+  default_prompt: "Use $technical-diagrams to create the clearest Mermaid or PlantUML diagram for this request."

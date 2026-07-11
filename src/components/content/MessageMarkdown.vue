@@ -13,6 +13,7 @@
 
 <script setup lang="ts">
 import { nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import DOMPurify from 'dompurify'
 import { renderMarkdown } from '../../composables/renderMarkdown'
 
 const props = defineProps<{
@@ -25,6 +26,7 @@ const imageDialogRef = ref<HTMLDialogElement | null>(null)
 const renderedHtml = ref(renderMarkdown(props.text))
 const previewImageUrl = ref('')
 let renderTimer = 0
+let diagramSequence = 0
 
 function stabilizeStreamingMarkdown(value: string): string {
   const fences = value.match(/^\s*```/gmu)?.length ?? 0
@@ -67,6 +69,7 @@ async function highlightCodeBlocks(): Promise<void> {
       wrapButton.setAttribute('aria-pressed', String(shell.classList.contains('is-wrapped')))
     }
   }
+  await renderDiagrams()
   const blocks = Array.from(rootRef.value?.querySelectorAll<HTMLElement>('pre code[class*="language-"]') ?? [])
   if (blocks.length === 0) return
   const { default: hljs } = await import('highlight.js/lib/core')
@@ -79,6 +82,91 @@ async function highlightCodeBlocks(): Promise<void> {
     block.innerHTML = hljs.highlight(block.textContent ?? '', { language }).value
     block.dataset.highlighted = 'yes'
   }
+}
+
+async function renderDiagrams(): Promise<void> {
+  const shells = Array.from(rootRef.value?.querySelectorAll<HTMLElement>('.markdown-diagram-shell:not([data-rendered])') ?? [])
+  for (const shell of shells) {
+    shell.dataset.rendered = 'loading'
+    const engine = shell.dataset.diagramEngine ?? ''
+    const source = shell.querySelector('code')?.textContent ?? ''
+    const stage = shell.querySelector<HTMLElement>('.markdown-diagram-stage')
+    if (!stage) continue
+    try {
+      let svg = ''
+      if (engine === 'mermaid') {
+        const { default: mermaid } = await import('mermaid')
+        mermaid.initialize({ startOnLoad: false, securityLevel: 'strict', theme: document.querySelector('.app-dark') ? 'dark' : 'default' })
+        const result = await mermaid.render(`cody-diagram-${String(++diagramSequence)}`, source)
+        svg = result.svg
+      } else {
+        const response = await fetch('/codex-api/diagrams/plantuml', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ source }) })
+        const payload = await response.json() as { result?: { svg?: string }; error?: string }
+        if (!response.ok || !payload.result?.svg) throw new Error(payload.error || 'PlantUML rendering failed')
+        svg = payload.result.svg
+      }
+      stage.innerHTML = DOMPurify.sanitize(svg, { USE_PROFILES: { svg: true, svgFilters: true } })
+      enableDiagramPan(stage)
+      shell.dataset.rendered = 'yes'
+      shell.style.setProperty('--diagram-scale', '1')
+    } catch (error) {
+      stage.innerHTML = `<p class="markdown-diagram-error">${escapeText(error instanceof Error ? error.message : 'Diagram rendering failed')}</p>`
+      shell.querySelector<HTMLElement>('.markdown-diagram-source')?.removeAttribute('hidden')
+      shell.dataset.rendered = 'error'
+    }
+  }
+}
+
+function enableDiagramPan(stage: HTMLElement): void {
+  if (stage.dataset.panReady === 'true') return
+  stage.dataset.panReady = 'true'
+  let startX = 0; let startY = 0; let startLeft = 0; let startTop = 0
+  stage.addEventListener('pointerdown', (event) => {
+    if (event.button !== 0) return
+    startX = event.clientX; startY = event.clientY; startLeft = stage.scrollLeft; startTop = stage.scrollTop
+    stage.setPointerCapture(event.pointerId); stage.classList.add('is-panning')
+  })
+  stage.addEventListener('pointermove', (event) => {
+    if (!stage.hasPointerCapture(event.pointerId)) return
+    stage.scrollLeft = startLeft - (event.clientX - startX); stage.scrollTop = startTop - (event.clientY - startY)
+  })
+  const stop = (event: PointerEvent) => { if (stage.hasPointerCapture(event.pointerId)) stage.releasePointerCapture(event.pointerId); stage.classList.remove('is-panning') }
+  stage.addEventListener('pointerup', stop); stage.addEventListener('pointercancel', stop)
+}
+
+function escapeText(value: string): string {
+  const node = document.createElement('span')
+  node.textContent = value
+  return node.innerHTML
+}
+
+function diagramScale(shell: HTMLElement, delta = 0): number {
+  const current = Number(shell.style.getPropertyValue('--diagram-scale') || '1')
+  const next = delta === 0 ? 1 : Math.min(2.5, Math.max(0.4, current + delta))
+  shell.style.setProperty('--diagram-scale', String(next))
+  return next
+}
+
+function downloadBlob(blob: Blob, filename: string): void {
+  const anchor = document.createElement('a')
+  anchor.href = URL.createObjectURL(blob)
+  anchor.download = filename
+  anchor.click()
+  URL.revokeObjectURL(anchor.href)
+}
+
+async function exportDiagramPng(shell: HTMLElement): Promise<void> {
+  const svg = shell.querySelector<SVGSVGElement>('.markdown-diagram-stage svg')
+  if (!svg) return
+  const serialized = new XMLSerializer().serializeToString(svg)
+  const image = new Image()
+  const url = URL.createObjectURL(new Blob([serialized], { type: 'image/svg+xml' }))
+  await new Promise<void>((resolve, reject) => { image.onload = () => resolve(); image.onerror = () => reject(new Error('PNG export failed')); image.src = url })
+  const canvas = document.createElement('canvas')
+  canvas.width = Math.max(1, image.naturalWidth * 2); canvas.height = Math.max(1, image.naturalHeight * 2)
+  canvas.getContext('2d')?.drawImage(image, 0, 0, canvas.width, canvas.height)
+  URL.revokeObjectURL(url)
+  canvas.toBlob((blob) => { if (blob) downloadBlob(blob, 'diagram.png') }, 'image/png')
 }
 
 async function copyText(text: string, button: HTMLButtonElement): Promise<void> {
@@ -144,6 +232,20 @@ function onMarkdownClick(event: MouseEvent): void {
     const line = Number(button.dataset.fileLine || 0) || 1
     window.location.href = `vscode://file/${path}:${line}`
   }
+  const diagram = button.closest<HTMLElement>('.markdown-diagram-shell')
+  if (diagram && action === 'diagram-zoom-in') diagramScale(diagram, 0.2)
+  if (diagram && action === 'diagram-zoom-out') diagramScale(diagram, -0.2)
+  if (diagram && action === 'diagram-fit') diagramScale(diagram)
+  if (diagram && action === 'diagram-source') {
+    const source = diagram.querySelector<HTMLElement>('.markdown-diagram-source')
+    if (source) source.hidden = !source.hidden
+  }
+  if (diagram && action === 'diagram-fullscreen') void diagram.requestFullscreen?.()
+  if (diagram && action === 'diagram-export-svg') {
+    const svg = diagram.querySelector('svg')
+    if (svg) downloadBlob(new Blob([new XMLSerializer().serializeToString(svg)], { type: 'image/svg+xml' }), 'diagram.svg')
+  }
+  if (diagram && action === 'diagram-export-png') void exportDiagramPng(diagram)
 }
 
 function closeImagePreview(): void { imageDialogRef.value?.close() }
@@ -200,6 +302,19 @@ onBeforeUnmount(() => window.clearTimeout(renderTimer))
 .message-markdown :deep(.markdown-code-actions) { @apply flex gap-1; }
 .message-markdown :deep(.markdown-tool-button) { @apply rounded px-1.5 py-1 text-[0.65rem] normal-case tracking-normal text-slate-300 hover:bg-white/10 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-1; }
 .message-markdown :deep(.markdown-code-shell.is-wrapped pre code) { white-space: pre-wrap; word-break: break-word; }
+.message-markdown :deep(.markdown-diagram-shell) { @apply relative my-4 overflow-hidden rounded-xl border border-slate-200 bg-white; }
+.message-markdown :deep(.markdown-diagram-toolbar) { @apply flex min-h-10 flex-wrap items-center justify-between gap-2 border-b border-slate-200 bg-slate-50 px-3 font-mono text-[0.68rem] uppercase tracking-wide text-slate-500; }
+.message-markdown :deep(.markdown-diagram-actions) { @apply flex flex-wrap justify-end gap-1; }
+.message-markdown :deep(.markdown-diagram-toolbar .markdown-tool-button) { @apply text-slate-600 hover:bg-slate-200 hover:text-slate-950; }
+.message-markdown :deep(.markdown-diagram-stage) { @apply min-h-40 cursor-grab overflow-auto p-5; }
+.message-markdown :deep(.markdown-diagram-stage.is-panning) { @apply cursor-grabbing select-none; }
+.message-markdown :deep(.markdown-diagram-stage svg) { @apply mx-auto h-auto max-w-none; transform: scale(var(--diagram-scale, 1)); transform-origin: top left; transition: transform 140ms ease; }
+.message-markdown :deep(.markdown-diagram-status),
+.message-markdown :deep(.markdown-diagram-error) { @apply m-0 flex min-h-28 items-center justify-center text-sm text-slate-500; }
+.message-markdown :deep(.markdown-diagram-error) { @apply text-red-600; }
+.message-markdown :deep(.markdown-diagram-source) { @apply m-0 rounded-none border-x-0 border-b-0; }
+.message-markdown :deep(.markdown-diagram-shell:fullscreen) { @apply h-screen w-screen rounded-none; }
+.message-markdown :deep(.markdown-diagram-shell:fullscreen .markdown-diagram-stage) { height: calc(100vh - 2.5rem); }
 .message-markdown :deep(code) { @apply rounded-md border border-slate-200 bg-slate-100/60 px-1.5 py-0.5 font-mono text-[0.875em] leading-[1.4] text-slate-900; }
 
 .message-markdown :deep(a) { @apply text-[#0969da] underline decoration-[#0969da]/35 underline-offset-2 hover:decoration-current; }
@@ -266,6 +381,12 @@ onBeforeUnmount(() => window.clearTimeout(renderTimer))
 :global(.app-dark) .message-markdown :deep(td:first-child) { background: var(--color-panel); }
 :global(.app-dark) .message-markdown :deep(.markdown-table-shell) { border-color: var(--color-border); }
 :global(.app-dark) .message-markdown :deep(.markdown-table-toolbar) { background: var(--color-elevated); border-color: var(--color-border); }
+:global(.app-dark) .message-markdown :deep(.markdown-diagram-shell) { background: var(--color-panel); border-color: var(--color-border); }
+:global(.app-dark) .message-markdown :deep(.markdown-diagram-toolbar) { background: var(--color-elevated); border-color: var(--color-border); color: var(--color-text-muted); }
+
+@media (prefers-reduced-motion: reduce) {
+  .message-markdown :deep(.markdown-diagram-stage svg) { transition: none; }
+}
 
 .markdown-image-dialog { @apply m-auto max-h-[92vh] max-w-[92vw] border-0 bg-transparent p-8 backdrop:bg-black/80; }
 .markdown-image-dialog img { @apply max-h-[82vh] max-w-[86vw] rounded-xl object-contain shadow-2xl; }
