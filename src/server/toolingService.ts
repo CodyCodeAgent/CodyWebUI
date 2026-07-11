@@ -17,6 +17,7 @@ const MAX_WORKSPACE_DIRECTORY_ENTRIES = 200
 const MAX_WORKSPACE_SCRIPT_OUTPUT_BYTES = 2 * 1024 * 1024
 const MAX_PREVIEW_PROBE_BYTES = 768 * 1024
 const MAX_PREVIEW_SCREENSHOT_BYTES = 5 * 1024 * 1024
+const MAX_WORKSPACE_ASSET_BYTES = 10 * 1024 * 1024
 const MAX_PROJECT_CONTEXT_SOURCE_BYTES = 16 * 1024
 const MAX_PROJECT_CONTEXT_SOURCES = 24
 const PREVIEW_PROBE_TIMEOUT_MS = 10_000
@@ -8611,6 +8612,51 @@ export async function handleReadWorkspaceFile(url: URL, res: ServerResponse): Pr
     setJson(res, 200, { result })
   } catch (error) {
     const message = error instanceof Error && error.message ? error.message : 'Failed to read workspace file'
+    setJson(res, 400, { error: message })
+  }
+}
+
+const WORKSPACE_ASSET_CONTENT_TYPES: Record<string, string> = {
+  '.svg': 'image/svg+xml; charset=utf-8',
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.gif': 'image/gif',
+  '.webp': 'image/webp',
+}
+
+export async function readWorkspaceAsset(params: { cwd: string; path: string }): Promise<{
+  path: string
+  contentType: string
+  content: Buffer
+}> {
+  const workspace = await getWorkspaceRoot(params.cwd)
+  const target = normalizeWorkspaceTarget(workspace.root, params.path)
+  if (!target.relativePath) throw new Error('path must point to an asset')
+  await assertWorkspaceTargetAllowed(workspace.root, target.relativePath)
+  const extension = `.${target.relativePath.split('.').at(-1)?.toLowerCase() ?? ''}`
+  const contentType = WORKSPACE_ASSET_CONTENT_TYPES[extension]
+  if (!contentType) throw new Error('unsupported workspace asset type')
+  const targetStat = await stat(target.absolutePath)
+  if (!targetStat.isFile()) throw new Error('path must point to a file')
+  if (targetStat.size > MAX_WORKSPACE_ASSET_BYTES) throw new Error('workspace asset exceeds the preview limit')
+  return { path: target.relativePath, contentType, content: await readFile(target.absolutePath) }
+}
+
+export async function handleReadWorkspaceAsset(url: URL, res: ServerResponse): Promise<void> {
+  try {
+    const cwd = url.searchParams.get('cwd')?.trim() ?? ''
+    const path = url.searchParams.get('path')?.trim() ?? ''
+    const result = await readWorkspaceAsset({ cwd, path })
+    res.statusCode = 200
+    res.setHeader('Content-Type', result.contentType)
+    res.setHeader('Content-Length', String(result.content.byteLength))
+    res.setHeader('Cache-Control', 'no-store')
+    res.setHeader('Content-Security-Policy', "default-src 'none'; style-src 'unsafe-inline'; sandbox")
+    res.setHeader('X-Content-Type-Options', 'nosniff')
+    res.end(result.content)
+  } catch (error) {
+    const message = error instanceof Error && error.message ? error.message : 'Failed to read workspace asset'
     setJson(res, 400, { error: message })
   }
 }

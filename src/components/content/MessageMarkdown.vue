@@ -58,6 +58,7 @@ async function highlightCodeBlocks(): Promise<void> {
   for (const image of Array.from(rootRef.value?.querySelectorAll<HTMLImageElement>('img') ?? [])) {
     image.addEventListener('error', () => { image.alt = image.alt || 'Image failed to load'; image.classList.add('is-load-error') }, { once: true })
   }
+  rewriteWorkspaceAssetLinks()
   for (const shell of Array.from(rootRef.value?.querySelectorAll<HTMLElement>('.markdown-code-shell') ?? [])) {
     const pre = shell.querySelector('pre')
     const wrapButton = shell.querySelector<HTMLButtonElement>('[data-markdown-action="wrap-code"]')
@@ -78,6 +79,29 @@ async function highlightCodeBlocks(): Promise<void> {
     if (!hljs.getLanguage(language)) hljs.registerLanguage(language, module.default as never)
     block.innerHTML = hljs.highlight(block.textContent ?? '', { language }).value
     block.dataset.highlighted = 'yes'
+  }
+}
+
+function rewriteWorkspaceAssetLinks(): void {
+  const assetPattern = /\.(?:svg|png|jpe?g|gif|webp)(?:[?#].*)?$/iu
+  for (const anchor of Array.from(rootRef.value?.querySelectorAll<HTMLAnchorElement>('a[href]') ?? [])) {
+    const rawHref = anchor.getAttribute('href') ?? ''
+    if (!assetPattern.test(rawHref) || /^(?:data|blob):/iu.test(rawHref)) continue
+    let filePath = rawHref
+    try {
+      const parsed = new URL(rawHref, window.location.href)
+      if (/^https?:/u.test(parsed.protocol) && parsed.origin !== window.location.origin) continue
+      filePath = decodeURIComponent(parsed.pathname)
+    } catch {
+      // Keep the original relative workspace path.
+    }
+    const assetUrl = new URL('/codex-api/tooling/workspace-asset', window.location.origin)
+    assetUrl.searchParams.set('cwd', props.cwd ?? '')
+    assetUrl.searchParams.set('path', filePath)
+    anchor.href = assetUrl.toString()
+    anchor.target = '_blank'
+    anchor.rel = 'noopener noreferrer'
+    anchor.title = 'Open workspace image'
   }
 }
 

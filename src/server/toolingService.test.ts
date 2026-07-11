@@ -25,6 +25,7 @@ import {
   updateWorkspaceReviewCommentStatus,
   listWorkspaceFiles,
   readWorkspaceFile,
+  readWorkspaceAsset,
   writeWorkspaceFile,
   listToolingCheckpoints,
   readToolingCheckpointPatch,
@@ -2156,6 +2157,22 @@ describe('toolingService', () => {
       cwd: repo,
       path: '../outside.txt',
     })).rejects.toThrow('path must stay inside the workspace root')
+  })
+
+  it('serves supported workspace images from relative or absolute paths', async () => {
+    const repo = await createRepo()
+    const resolvedRepo = await realpath(repo)
+    await mkdir(join(repo, 'docs'))
+    const svgPath = join(resolvedRepo, 'docs', 'architecture.svg')
+    await writeFile(svgPath, '<svg xmlns="http://www.w3.org/2000/svg"><text>Architecture</text></svg>', 'utf8')
+
+    const relativeAsset = await readWorkspaceAsset({ cwd: repo, path: 'docs/architecture.svg' })
+    const absoluteAsset = await readWorkspaceAsset({ cwd: repo, path: svgPath })
+    expect(relativeAsset.contentType).toBe('image/svg+xml; charset=utf-8')
+    expect(relativeAsset.content.toString('utf8')).toContain('Architecture')
+    expect(absoluteAsset.path).toBe('docs/architecture.svg')
+    await expect(readWorkspaceAsset({ cwd: repo, path: 'example.txt' })).rejects.toThrow('unsupported')
+    await expect(readWorkspaceAsset({ cwd: repo, path: '../outside.svg' })).rejects.toThrow('workspace root')
   })
 
   it('hides and blocks sensitive or ignored workspace file paths', async () => {
