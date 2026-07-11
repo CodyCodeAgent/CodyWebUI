@@ -253,10 +253,10 @@ watch(
 </script>
 
 <style scoped>
-@reference "tailwindcss";
+@reference "../../style.css";
 
 .workspace-files-panel {
-  @apply rounded-lg border border-zinc-200 bg-white p-3;
+  @apply rounded-lg border theme-border theme-bg-panel p-3;
 }
 
 .workspace-files-header {
@@ -268,11 +268,11 @@ watch(
 }
 
 .workspace-files-title {
-  @apply m-0 text-xs font-semibold uppercase tracking-normal text-zinc-500;
+  @apply m-0 text-xs font-semibold uppercase tracking-normal theme-muted;
 }
 
 .workspace-files-path {
-  @apply m-0 mt-0.5 truncate font-mono text-xs text-zinc-500;
+  @apply m-0 mt-0.5 truncate font-mono text-xs theme-muted;
 }
 
 .workspace-files-actions {
@@ -280,19 +280,19 @@ watch(
 }
 
 .workspace-files-button {
-  @apply rounded-md border border-zinc-200 bg-white px-2 py-1 text-xs font-medium text-zinc-700 transition hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-60;
+  @apply rounded-md border theme-border theme-bg-panel px-2 py-1 text-xs font-medium theme-muted transition hover:theme-bg-subtle disabled:cursor-not-allowed disabled:opacity-60;
 }
 
 .workspace-files-button-primary {
-  @apply border-zinc-900 bg-zinc-900 text-white hover:bg-zinc-700;
+  @apply theme-border theme-bg-accent theme-on-accent hover:theme-bg-accent-hover;
 }
 
 .workspace-files-error {
-  @apply m-0 mt-2 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700;
+  @apply m-0 mt-2 rounded-md border theme-border-danger theme-bg-danger-soft px-3 py-2 text-xs theme-text-danger;
 }
 
 .workspace-files-save-message {
-  @apply m-2 mb-0 rounded-md border border-emerald-200 bg-emerald-50 px-2 py-1.5 text-xs text-emerald-700;
+  @apply m-2 mb-0 rounded-md border theme-border-success theme-bg-success-soft px-2 py-1.5 text-xs theme-text-success;
 }
 
 .workspace-files-body {
@@ -301,7 +301,7 @@ watch(
 
 .workspace-files-browser,
 .workspace-file-viewer {
-  @apply min-w-0 rounded-md border border-zinc-200 bg-zinc-50;
+  @apply min-w-0 rounded-md border theme-border theme-bg-subtle;
 }
 
 .workspace-files-browser {
@@ -313,7 +313,7 @@ watch(
 }
 
 .workspace-files-entry {
-  @apply grid w-full grid-cols-[1rem_minmax(0,1fr)_auto] items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs transition hover:bg-zinc-100;
+  @apply grid w-full grid-cols-[1rem_minmax(0,1fr)_auto] items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs transition hover:theme-bg-control;
 }
 
 .workspace-files-entry[data-selected='true'] {
@@ -321,21 +321,21 @@ watch(
 }
 
 .workspace-files-entry-icon {
-  @apply h-3.5 w-3.5 text-zinc-500;
+  @apply h-3.5 w-3.5 theme-muted;
 }
 
 .workspace-files-entry-name {
-  @apply truncate font-medium text-zinc-900;
+  @apply truncate font-medium theme-text;
 }
 
 .workspace-files-entry-meta {
-  @apply shrink-0 font-mono text-[0.68rem] text-zinc-500;
+  @apply shrink-0 font-mono text-[0.68rem] theme-muted;
 }
 
 .workspace-files-truncated,
 .workspace-files-warning,
 .workspace-files-empty {
-  @apply m-0 rounded-md border border-dashed border-zinc-200 px-3 py-2 text-xs text-zinc-500;
+  @apply m-0 rounded-md border border-dashed theme-border px-3 py-2 text-xs theme-muted;
 }
 
 .workspace-files-truncated {
@@ -343,7 +343,7 @@ watch(
 }
 
 .workspace-files-warning {
-  @apply mx-2 mt-2 border-amber-200 bg-amber-50 text-amber-800;
+  @apply mx-2 mt-2 theme-border-warning theme-bg-warning-soft theme-text-warning;
 }
 
 .workspace-file-viewer {
@@ -351,7 +351,7 @@ watch(
 }
 
 .workspace-file-viewer-header {
-  @apply flex shrink-0 items-start justify-between gap-2 border-b border-zinc-200 px-3 py-2;
+  @apply flex shrink-0 items-start justify-between gap-2 border-b theme-border px-3 py-2;
 }
 
 .workspace-file-viewer-heading {
@@ -363,15 +363,15 @@ watch(
 }
 
 .workspace-file-viewer-title {
-  @apply m-0 truncate text-xs font-semibold text-zinc-900;
+  @apply m-0 truncate text-xs font-semibold theme-text;
 }
 
 .workspace-file-viewer-meta {
-  @apply m-0 mt-0.5 truncate font-mono text-[0.68rem] text-zinc-500;
+  @apply m-0 mt-0.5 truncate font-mono text-[0.68rem] theme-muted;
 }
 
 .workspace-file-code {
-  @apply m-0 flex-1 overflow-auto bg-white p-3 text-xs leading-5 text-zinc-900;
+  @apply m-0 flex-1 overflow-auto theme-bg-panel p-3 text-xs leading-5 theme-text;
 }
 
 .workspace-file-code code {
@@ -379,7 +379,7 @@ watch(
 }
 
 .workspace-file-editor {
-  @apply min-h-0 flex-1 resize-none border-0 bg-white p-3 font-mono text-xs leading-5 text-zinc-900 outline-none;
+  @apply min-h-0 flex-1 resize-none border-0 theme-bg-panel p-3 font-mono text-xs leading-5 theme-text outline-none;
   tab-size: 2;
 }
 

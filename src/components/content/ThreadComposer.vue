@@ -566,18 +566,18 @@ watch(
 </script>
 
 <style scoped>
-@reference "tailwindcss";
+@reference "../../style.css";
 
 .thread-composer {
   @apply w-full max-w-175 mx-auto px-6;
 }
 
 .thread-composer-shell {
-  @apply rounded-2xl border border-zinc-300 bg-white p-3 shadow-sm transition;
+  @apply rounded-2xl border theme-border theme-bg-panel p-3 shadow-sm transition;
 }
 
 .thread-composer-shell[data-drag-active='true'] {
-  @apply border-zinc-700 bg-zinc-50 ring-2 ring-zinc-300;
+  @apply border-zinc-700 theme-bg-subtle ring-2 ring-zinc-300;
 }
 
 .thread-composer-image-list {
@@ -585,7 +585,7 @@ watch(
 }
 
 .thread-composer-image-item {
-  @apply relative h-16 w-16 shrink-0 overflow-hidden rounded-lg border border-zinc-200 bg-zinc-50;
+  @apply relative h-16 w-16 shrink-0 overflow-hidden rounded-lg border theme-border theme-bg-subtle;
 }
 
 .thread-composer-image-preview {
@@ -605,7 +605,7 @@ watch(
 }
 
 .thread-composer-skill-item {
-  @apply flex max-w-full items-center gap-1 rounded-md border border-slate-300 bg-slate-100 px-2 py-1 text-xs text-slate-800;
+  @apply flex max-w-full items-center gap-1 rounded-md border theme-border theme-bg-control px-2 py-1 text-xs theme-text;
 }
 
 .thread-composer-skill-name {
@@ -613,7 +613,7 @@ watch(
 }
 
 .thread-composer-skill-remove {
-  @apply flex h-4 w-4 shrink-0 items-center justify-center rounded text-slate-500 transition hover:bg-slate-200 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-50;
+  @apply flex h-4 w-4 shrink-0 items-center justify-center rounded theme-muted transition hover:bg-slate-200 hover:theme-text disabled:cursor-not-allowed disabled:opacity-50;
 }
 
 .thread-composer-skill-remove-icon {
@@ -625,7 +625,7 @@ watch(
 }
 
 .thread-composer-context-item {
-  @apply flex max-w-full items-center gap-1 rounded-md border border-emerald-300 bg-emerald-50 px-2 py-1 text-xs text-emerald-900;
+  @apply flex max-w-full items-center gap-1 rounded-md border theme-border-success theme-bg-success-soft px-2 py-1 text-xs theme-text-success;
 }
 
 .thread-composer-context-name {
@@ -633,7 +633,7 @@ watch(
 }
 
 .thread-composer-context-remove {
-  @apply flex h-4 w-4 shrink-0 items-center justify-center rounded text-emerald-600 transition hover:bg-emerald-100 hover:text-emerald-950 disabled:cursor-not-allowed disabled:opacity-50;
+  @apply flex h-4 w-4 shrink-0 items-center justify-center rounded text-emerald-600 transition hover:theme-bg-success-soft hover:theme-text-success disabled:cursor-not-allowed disabled:opacity-50;
 }
 
 .thread-composer-context-remove-icon {
@@ -641,7 +641,7 @@ watch(
 }
 
 .thread-composer-input {
-  @apply block w-full min-w-0 max-h-35 min-h-11 resize-none overflow-y-auto rounded-xl border-0 bg-transparent px-1 py-3 text-sm leading-5 text-zinc-900 outline-none transition;
+  @apply block w-full min-w-0 max-h-35 min-h-11 resize-none overflow-y-auto rounded-xl border-0 bg-transparent px-1 py-3 text-sm leading-5 theme-text outline-none transition;
 }
 
 .thread-composer-input:focus {
@@ -649,15 +649,15 @@ watch(
 }
 
 .thread-composer-input:disabled {
-  @apply bg-zinc-100 text-zinc-500 cursor-not-allowed;
+  @apply theme-bg-control theme-muted cursor-not-allowed;
 }
 
 .thread-composer-skill-menu {
-  @apply mb-2 max-h-64 overflow-y-auto rounded-lg border border-slate-200 bg-white p-1 shadow-lg;
+  @apply mb-2 max-h-64 overflow-y-auto rounded-lg border theme-border theme-bg-panel p-1 shadow-lg;
 }
 
 .thread-composer-skill-status {
-  @apply m-0 px-3 py-2 text-xs text-slate-500;
+  @apply m-0 px-3 py-2 text-xs theme-muted;
 }
 
 .thread-composer-skill-status-error {
@@ -665,23 +665,23 @@ watch(
 }
 
 .thread-composer-skill-option {
-  @apply flex w-full flex-col gap-0.5 rounded-md px-3 py-2 text-left transition hover:bg-slate-100;
+  @apply flex w-full flex-col gap-0.5 rounded-md px-3 py-2 text-left transition hover:theme-bg-control;
 }
 
 .thread-composer-skill-option-name {
-  @apply text-sm font-medium text-slate-900;
+  @apply text-sm font-medium theme-text;
 }
 
 .thread-composer-skill-option-description {
-  @apply line-clamp-2 text-xs leading-4 text-slate-500;
+  @apply line-clamp-2 text-xs leading-4 theme-muted;
 }
 
 .thread-composer-context-menu {
-  @apply mb-2 max-h-64 overflow-y-auto rounded-lg border border-emerald-200 bg-white p-1 shadow-lg;
+  @apply mb-2 max-h-64 overflow-y-auto rounded-lg border theme-border-success theme-bg-panel p-1 shadow-lg;
 }
 
 .thread-composer-context-status {
-  @apply m-0 px-3 py-2 text-xs text-emerald-700;
+  @apply m-0 px-3 py-2 text-xs theme-text-success;
 }
 
 .thread-composer-context-status-error {
@@ -689,15 +689,15 @@ watch(
 }
 
 .thread-composer-context-option {
-  @apply flex w-full flex-col gap-0.5 rounded-md px-3 py-2 text-left transition hover:bg-emerald-50;
+  @apply flex w-full flex-col gap-0.5 rounded-md px-3 py-2 text-left transition hover:theme-bg-success-soft;
 }
 
 .thread-composer-context-option-name {
-  @apply text-sm font-medium text-emerald-950;
+  @apply text-sm font-medium theme-text-success;
 }
 
 .thread-composer-context-option-description {
-  @apply line-clamp-2 text-xs leading-4 text-emerald-700;
+  @apply line-clamp-2 text-xs leading-4 theme-text-success;
 }
 
 .thread-composer-controls {
@@ -709,7 +709,7 @@ watch(
 }
 
 .thread-composer-attach {
-  @apply inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-zinc-200 bg-white text-zinc-700 transition hover:border-zinc-300 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:bg-zinc-100 disabled:text-zinc-400;
+  @apply inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border theme-border theme-bg-panel theme-muted transition hover:theme-border hover:theme-bg-subtle disabled:cursor-not-allowed disabled:theme-bg-control disabled:theme-muted;
 }
 
 .thread-composer-attach-icon {
@@ -725,11 +725,11 @@ watch(
 }
 
 .thread-composer-permission-control {
-  @apply text-amber-700;
+  @apply theme-text-warning;
 }
 
 .thread-composer-uploading {
-  @apply text-xs text-zinc-500;
+  @apply text-xs theme-muted;
 }
 
 .thread-composer-upload-error {
@@ -737,11 +737,11 @@ watch(
 }
 
 .thread-composer-busy {
-  @apply inline-flex min-w-0 flex-1 items-center gap-2 truncate text-xs font-medium text-zinc-600;
+  @apply inline-flex min-w-0 flex-1 items-center gap-2 truncate text-xs font-medium theme-muted;
 }
 
 .thread-composer-busy-dot {
-  @apply h-2 w-2 shrink-0 rounded-full bg-emerald-500;
+  @apply h-2 w-2 shrink-0 rounded-full theme-bg-success;
   animation: thread-composer-busy-pulse 1.1s ease-in-out infinite;
 }
 
@@ -763,7 +763,7 @@ watch(
 }
 
 .thread-composer-submit {
-  @apply inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border-0 bg-zinc-900 text-white transition hover:bg-black disabled:cursor-not-allowed disabled:bg-zinc-200 disabled:text-zinc-500;
+  @apply inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border-0 theme-bg-accent theme-on-accent transition hover:bg-black disabled:cursor-not-allowed disabled:theme-bg-disabled disabled:theme-muted;
 }
 
 .thread-composer-submit-icon {
@@ -771,7 +771,7 @@ watch(
 }
 
 .thread-composer-stop {
-  @apply inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border-0 bg-zinc-900 text-white transition hover:bg-black disabled:cursor-not-allowed disabled:bg-zinc-200 disabled:text-zinc-500;
+  @apply inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border-0 theme-bg-accent theme-on-accent transition hover:bg-black disabled:cursor-not-allowed disabled:theme-bg-disabled disabled:theme-muted;
 }
 
 .thread-composer-stop-icon {

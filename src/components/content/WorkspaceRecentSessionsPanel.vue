@@ -139,10 +139,10 @@ watch(
 </script>
 
 <style scoped>
-@reference "tailwindcss";
+@reference "../../style.css";
 
 .workspace-recent-sessions {
-  @apply rounded-lg border border-zinc-200 bg-white p-3;
+  @apply rounded-lg border theme-border theme-bg-panel p-3;
 }
 
 .workspace-recent-sessions-header {
@@ -150,15 +150,15 @@ watch(
 }
 
 .workspace-recent-sessions-title {
-  @apply m-0 text-xs font-semibold uppercase tracking-normal text-zinc-500;
+  @apply m-0 text-xs font-semibold uppercase tracking-normal theme-muted;
 }
 
 .workspace-recent-sessions-subtitle {
-  @apply m-0 mt-1 text-xs text-zinc-600;
+  @apply m-0 mt-1 text-xs theme-muted;
 }
 
 .workspace-recent-sessions-refresh {
-  @apply inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md border border-zinc-200 bg-white px-2.5 text-xs font-medium text-zinc-700 transition hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-60;
+  @apply inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md border theme-border theme-bg-panel px-2.5 text-xs font-medium theme-muted transition hover:theme-bg-subtle disabled:cursor-not-allowed disabled:opacity-60;
 }
 
 .workspace-recent-sessions-refresh-icon {
@@ -166,7 +166,7 @@ watch(
 }
 
 .workspace-recent-sessions-error {
-  @apply m-0 mt-2 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700;
+  @apply m-0 mt-2 rounded-md border theme-border-danger theme-bg-danger-soft px-3 py-2 text-xs theme-text-danger;
 }
 
 .workspace-recent-sessions-list {
@@ -174,24 +174,24 @@ watch(
 }
 
 .workspace-recent-sessions-item {
-  @apply grid grid-cols-[minmax(0,1fr)_auto] gap-2 rounded-md border border-zinc-200 bg-zinc-50 p-2;
+  @apply grid grid-cols-[minmax(0,1fr)_auto] gap-2 rounded-md border theme-border theme-bg-subtle p-2;
 }
 
 .workspace-recent-sessions-item[data-status='running'],
 .workspace-recent-sessions-item[data-status='active'] {
-  @apply border-blue-200 bg-blue-50;
+  @apply theme-border-info theme-bg-info-soft;
 }
 
 .workspace-recent-sessions-item[data-status='waiting_for_approval'] {
-  @apply border-amber-200 bg-amber-50;
+  @apply theme-border-warning theme-bg-warning-soft;
 }
 
 .workspace-recent-sessions-item[data-status='failed'] {
-  @apply border-rose-200 bg-rose-50;
+  @apply theme-border-danger theme-bg-danger-soft;
 }
 
 .workspace-recent-sessions-item[data-status='completed'] {
-  @apply border-emerald-200 bg-emerald-50;
+  @apply theme-border-success theme-bg-success-soft;
 }
 
 .workspace-recent-sessions-item button {
@@ -203,19 +203,19 @@ watch(
 }
 
 .workspace-recent-sessions-thread {
-  @apply truncate text-xs font-semibold text-zinc-900;
+  @apply truncate text-xs font-semibold theme-text;
 }
 
 .workspace-recent-sessions-status {
-  @apply shrink-0 rounded-full border border-zinc-200 bg-white px-1.5 py-0.5 text-[0.68rem] font-semibold uppercase tracking-normal text-zinc-500;
+  @apply shrink-0 rounded-full border theme-border theme-bg-panel px-1.5 py-0.5 text-[0.68rem] font-semibold uppercase tracking-normal theme-muted;
 }
 
 .workspace-recent-sessions-summary {
-  @apply mt-1 block truncate text-xs text-zinc-700;
+  @apply mt-1 block truncate text-xs theme-muted;
 }
 
 .workspace-recent-sessions-meta {
-  @apply mt-1 block truncate font-mono text-[0.68rem] text-zinc-500;
+  @apply mt-1 block truncate font-mono text-[0.68rem] theme-muted;
 }
 
 .workspace-recent-sessions-counts {
@@ -227,15 +227,15 @@ watch(
 }
 
 .workspace-recent-sessions-counts dt {
-  @apply text-[0.62rem] uppercase tracking-normal text-zinc-500;
+  @apply text-[0.62rem] uppercase tracking-normal theme-muted;
 }
 
 .workspace-recent-sessions-counts dd {
-  @apply m-0 text-xs font-semibold text-zinc-900;
+  @apply m-0 text-xs font-semibold theme-text;
 }
 
 .workspace-recent-sessions-empty {
-  @apply m-0 mt-2 rounded-md border border-dashed border-zinc-200 px-3 py-2 text-xs text-zinc-500;
+  @apply m-0 mt-2 rounded-md border border-dashed theme-border px-3 py-2 text-xs theme-muted;
 }
 
 @media (max-width: 760px) {

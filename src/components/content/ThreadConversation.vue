@@ -950,22 +950,22 @@ function turnReceiptDetails(message: UiMessage): TurnReceiptDetail[] {
 </script>
 
 <style scoped>
-@reference "tailwindcss";
+@reference "../../style.css";
 
 .conversation-root {
   @apply relative h-full min-h-0 p-0 flex flex-col overflow-y-hidden overflow-x-visible bg-transparent border-none rounded-none;
 }
 
 .conversation-loading {
-  @apply m-0 px-6 text-sm text-slate-500;
+  @apply m-0 px-6 text-sm theme-muted;
 }
 
 .conversation-empty {
-  @apply m-0 px-6 text-sm text-slate-500;
+  @apply m-0 px-6 text-sm theme-muted;
 }
 
 .conversation-load-error {
-  @apply mx-6 max-w-2xl rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800 shadow-sm;
+  @apply mx-6 max-w-2xl rounded-lg border theme-border-danger theme-bg-danger-soft px-4 py-3 text-sm theme-text-danger shadow-sm;
   background: color-mix(in srgb, var(--color-danger) 10%, var(--color-panel));
   border-color: color-mix(in srgb, var(--color-danger) 36%, var(--color-border));
   color: var(--color-text);
@@ -980,12 +980,12 @@ function turnReceiptDetails(message: UiMessage): TurnReceiptDetail[] {
 }
 
 .conversation-load-error-message {
-  @apply m-0 mt-1 break-words text-xs leading-5 text-rose-700;
+  @apply m-0 mt-1 break-words text-xs leading-5 theme-text-danger;
   color: color-mix(in srgb, var(--color-danger) 34%, var(--color-text-muted));
 }
 
 .conversation-load-error-retry {
-  @apply mt-3 inline-flex h-8 items-center rounded-md border border-rose-200 bg-white px-3 text-xs font-semibold text-rose-700 transition hover:bg-rose-100 focus:outline-none focus:ring-2 focus:ring-rose-200;
+  @apply mt-3 inline-flex h-8 items-center rounded-md border theme-border-danger theme-bg-panel px-3 text-xs font-semibold theme-text-danger transition hover:theme-bg-danger-soft focus:outline-none focus:ring-2 focus:ring-rose-200;
   background: var(--color-surface);
   border-color: color-mix(in srgb, var(--color-danger) 42%, var(--color-border));
   color: color-mix(in srgb, var(--color-danger) 34%, var(--color-text));
@@ -1020,19 +1020,19 @@ function turnReceiptDetails(message: UiMessage): TurnReceiptDetail[] {
 }
 
 .conversation-refresh-status {
-  @apply m-0 rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-500 shadow-sm;
+  @apply m-0 rounded-full border theme-border theme-bg-panel px-3 py-1 text-xs font-medium theme-muted shadow-sm;
 }
 
 .conversation-history-button {
-  @apply mx-auto flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 shadow-sm transition hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-300;
+  @apply mx-auto flex items-center gap-2 rounded-full border theme-border theme-bg-panel px-3 py-1.5 text-xs font-medium theme-muted shadow-sm transition hover:theme-border hover:theme-bg-subtle hover:theme-text focus:outline-none focus:ring-2 focus:ring-slate-300;
 }
 
 .conversation-history-button span {
-  @apply text-slate-400;
+  @apply theme-muted;
 }
 
 .conversation-history-window {
-  @apply m-0 text-[0.68rem] leading-4 text-slate-400;
+  @apply m-0 text-[0.68rem] leading-4 theme-muted;
 }
 
 .message-row {
@@ -1053,7 +1053,7 @@ function turnReceiptDetails(message: UiMessage): TurnReceiptDetail[] {
 }
 
 .conversation-scroll-bottom {
-  @apply absolute bottom-3 right-8 z-20 flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 shadow-lg transition hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-300;
+  @apply absolute bottom-3 right-8 z-20 flex h-9 w-9 items-center justify-center rounded-full border theme-border theme-bg-panel theme-muted shadow-lg transition hover:theme-border hover:theme-bg-subtle hover:theme-text focus:outline-none focus:ring-2 focus:ring-slate-300;
 }
 
 .conversation-scroll-bottom-icon {
@@ -1065,19 +1065,19 @@ function turnReceiptDetails(message: UiMessage): TurnReceiptDetail[] {
 }
 
 .request-card {
-  @apply w-full max-w-180 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 flex flex-col gap-2;
+  @apply w-full max-w-180 rounded-xl border theme-border-warning theme-bg-warning-soft px-4 py-3 flex flex-col gap-2;
 }
 
 .request-title {
-  @apply m-0 text-sm leading-5 font-semibold text-amber-900;
+  @apply m-0 text-sm leading-5 font-semibold theme-text-warning;
 }
 
 .request-meta {
-  @apply m-0 text-xs leading-4 text-amber-700;
+  @apply m-0 text-xs leading-4 theme-text-warning;
 }
 
 .request-subject {
-  @apply m-0 max-w-full whitespace-pre-wrap break-words font-mono text-xs leading-5 text-amber-950;
+  @apply m-0 max-w-full whitespace-pre-wrap break-words font-mono text-xs leading-5 theme-text-warning;
 }
 
 .request-risk-line {
@@ -1089,27 +1089,27 @@ function turnReceiptDetails(message: UiMessage): TurnReceiptDetail[] {
 }
 
 .request-risk-badge[data-level='low'] {
-  @apply border-emerald-300 bg-emerald-50 text-emerald-800;
+  @apply theme-border-success theme-bg-success-soft theme-text-success;
 }
 
 .request-risk-badge[data-level='medium'] {
-  @apply border-amber-300 bg-amber-100 text-amber-900;
+  @apply theme-border-warning theme-bg-warning-soft theme-text-warning;
 }
 
 .request-risk-badge[data-level='high'] {
-  @apply border-rose-300 bg-rose-100 text-rose-800;
+  @apply theme-border-danger theme-bg-danger-soft theme-text-danger;
 }
 
 .request-risk-label {
-  @apply rounded-full border border-amber-200 bg-white px-2 py-0.5 text-[0.68rem] leading-4 text-amber-900;
+  @apply rounded-full border theme-border-warning theme-bg-panel px-2 py-0.5 text-[0.68rem] leading-4 theme-text-warning;
 }
 
 .request-reason {
-  @apply m-0 text-sm leading-5 text-amber-900 whitespace-pre-wrap;
+  @apply m-0 text-sm leading-5 theme-text-warning whitespace-pre-wrap;
 }
 
 .request-impact-list {
-  @apply m-0 list-disc space-y-1 pl-4 text-xs leading-4 text-amber-900;
+  @apply m-0 list-disc space-y-1 pl-4 text-xs leading-4 theme-text-warning;
 }
 
 .request-scope-line {
@@ -1117,15 +1117,15 @@ function turnReceiptDetails(message: UiMessage): TurnReceiptDetail[] {
 }
 
 .request-scope {
-  @apply rounded-md border border-blue-200 bg-blue-50 px-1.5 py-0.5 text-[0.68rem] font-semibold uppercase tracking-normal text-blue-700;
+  @apply rounded-md border theme-border-info theme-bg-info-soft px-1.5 py-0.5 text-[0.68rem] font-semibold uppercase tracking-normal theme-text-info;
 }
 
 .request-scope[data-enabled='false'] {
-  @apply border-amber-200 bg-amber-100 text-amber-800;
+  @apply theme-border-warning theme-bg-warning-soft theme-text-warning;
 }
 
 .request-recommendation {
-  @apply m-0 rounded-md border border-amber-200 bg-white/70 px-2 py-1.5 text-xs leading-4 text-amber-950;
+  @apply m-0 rounded-md border theme-border-warning bg-white/70 px-2 py-1.5 text-xs leading-4 theme-text-warning;
 }
 
 .request-actions {
@@ -1133,15 +1133,15 @@ function turnReceiptDetails(message: UiMessage): TurnReceiptDetail[] {
 }
 
 .request-button {
-  @apply rounded-md border border-amber-300 bg-white px-3 py-1.5 text-xs text-amber-900 hover:bg-amber-100 transition;
+  @apply rounded-md border theme-border-warning theme-bg-panel px-3 py-1.5 text-xs theme-text-warning hover:theme-bg-warning-soft transition;
 }
 
 .request-button-primary {
-  @apply border-amber-500 bg-amber-500 text-white hover:bg-amber-600;
+  @apply theme-border-warning theme-bg-warning theme-on-warning;
 }
 
 .request-button-danger {
-  @apply border-rose-300 bg-rose-50 text-rose-800 hover:bg-rose-100;
+  @apply theme-border-danger theme-bg-danger-soft theme-text-danger hover:theme-bg-danger-soft;
 }
 
 .request-user-input {
@@ -1153,19 +1153,19 @@ function turnReceiptDetails(message: UiMessage): TurnReceiptDetail[] {
 }
 
 .request-question-title {
-  @apply m-0 text-sm leading-5 font-medium text-amber-900;
+  @apply m-0 text-sm leading-5 font-medium theme-text-warning;
 }
 
 .request-question-text {
-  @apply m-0 text-xs leading-4 text-amber-800;
+  @apply m-0 text-xs leading-4 theme-text-warning;
 }
 
 .request-select {
-  @apply h-8 rounded-md border border-amber-300 bg-white px-2 text-sm text-amber-900;
+  @apply h-8 rounded-md border theme-border-warning theme-bg-panel px-2 text-sm theme-text-warning;
 }
 
 .request-input {
-  @apply h-8 rounded-md border border-amber-300 bg-white px-2 text-sm text-amber-900 placeholder:text-amber-500;
+  @apply h-8 rounded-md border theme-border-warning theme-bg-panel px-2 text-sm theme-text-warning placeholder:text-amber-500;
 }
 
 .live-overlay-inline {
@@ -1173,11 +1173,11 @@ function turnReceiptDetails(message: UiMessage): TurnReceiptDetail[] {
 }
 
 .live-overlay-toggle {
-  @apply flex w-fit max-w-full items-center gap-1.5 rounded-md border border-transparent bg-transparent px-1.5 py-1 text-left transition hover:border-zinc-200 hover:bg-zinc-50 disabled:cursor-default disabled:hover:border-transparent disabled:hover:bg-transparent;
+  @apply flex w-fit max-w-full items-center gap-1.5 rounded-md border border-transparent bg-transparent px-1.5 py-1 text-left transition hover:theme-border hover:theme-bg-subtle disabled:cursor-default disabled:hover:border-transparent disabled:hover:bg-transparent;
 }
 
 .live-overlay-chevron {
-  @apply h-3.5 w-3.5 shrink-0 text-zinc-400 transition-transform;
+  @apply h-3.5 w-3.5 shrink-0 theme-muted transition-transform;
 }
 
 .live-overlay-chevron[data-expanded='true'] {
@@ -1185,15 +1185,15 @@ function turnReceiptDetails(message: UiMessage): TurnReceiptDetail[] {
 }
 
 .live-overlay-label {
-  @apply min-w-0 truncate text-sm leading-5 font-medium text-zinc-600;
+  @apply min-w-0 truncate text-sm leading-5 font-medium theme-muted;
 }
 
 .live-overlay-hint {
-  @apply shrink-0 text-xs leading-5 text-zinc-400;
+  @apply shrink-0 text-xs leading-5 theme-muted;
 }
 
 .live-overlay-details {
-  @apply ml-6 flex max-w-170 flex-col gap-2 border-l border-zinc-200 pl-3;
+  @apply ml-6 flex max-w-170 flex-col gap-2 border-l theme-border pl-3;
 }
 
 .live-overlay-detail-list {
@@ -1201,11 +1201,11 @@ function turnReceiptDetails(message: UiMessage): TurnReceiptDetail[] {
 }
 
 .live-overlay-detail-item {
-  @apply m-0 text-sm leading-5 text-zinc-500;
+  @apply m-0 text-sm leading-5 theme-muted;
 }
 
 .live-overlay-reasoning {
-  @apply m-0 text-sm leading-5 text-zinc-500 whitespace-pre-wrap;
+  @apply m-0 text-sm leading-5 theme-muted whitespace-pre-wrap;
 }
 
 .live-overlay-error {
@@ -1235,7 +1235,7 @@ function turnReceiptDetails(message: UiMessage): TurnReceiptDetail[] {
 }
 
 .message-skill-item {
-  @apply m-0 rounded-md border border-slate-300 bg-slate-100 px-2 py-1 font-mono text-xs text-slate-800;
+  @apply m-0 rounded-md border theme-border theme-bg-control px-2 py-1 font-mono text-xs theme-text;
 }
 
 .message-image-list[data-role='user'] {
@@ -1247,7 +1247,7 @@ function turnReceiptDetails(message: UiMessage): TurnReceiptDetail[] {
 }
 
 .message-image-button {
-  @apply block rounded-xl overflow-hidden border border-slate-300 bg-white p-0 transition hover:border-slate-400;
+  @apply block rounded-xl overflow-hidden border theme-border theme-bg-panel p-0 transition hover:border-slate-400;
 }
 
 .message-image-preview {
@@ -1255,7 +1255,7 @@ function turnReceiptDetails(message: UiMessage): TurnReceiptDetail[] {
 }
 
 .tool-timeline-card {
-  @apply w-full max-w-[min(760px,100%)] rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-slate-800;
+  @apply w-full max-w-[min(760px,100%)] rounded-lg border theme-border theme-bg-subtle px-3 py-2.5 theme-text;
 }
 
 .tool-timeline-card summary::-webkit-details-marker {
@@ -1263,15 +1263,15 @@ function turnReceiptDetails(message: UiMessage): TurnReceiptDetail[] {
 }
 
 .tool-timeline-card[data-tone='success'] {
-  @apply border-emerald-200 bg-emerald-50;
+  @apply theme-border-success theme-bg-success-soft;
 }
 
 .tool-timeline-card[data-tone='danger'] {
-  @apply border-rose-200 bg-rose-50;
+  @apply theme-border-danger theme-bg-danger-soft;
 }
 
 .tool-timeline-card[data-tone='working'] {
-  @apply border-blue-200 bg-blue-50;
+  @apply theme-border-info theme-bg-info-soft;
 }
 
 .tool-timeline-summary-row {
@@ -1279,7 +1279,7 @@ function turnReceiptDetails(message: UiMessage): TurnReceiptDetail[] {
 }
 
 .tool-timeline-chevron {
-  @apply mt-0.5 select-none text-base leading-4 text-slate-500 transition-transform;
+  @apply mt-0.5 select-none text-base leading-4 theme-muted transition-transform;
 }
 
 .tool-timeline-card[open] .tool-timeline-chevron {
@@ -1295,27 +1295,27 @@ function turnReceiptDetails(message: UiMessage): TurnReceiptDetail[] {
 }
 
 .tool-timeline-title {
-  @apply min-w-0 flex-1 truncate text-xs font-semibold uppercase tracking-normal text-slate-600;
+  @apply min-w-0 flex-1 truncate text-xs font-semibold uppercase tracking-normal theme-muted;
 }
 
 .tool-timeline-status {
-  @apply shrink-0 rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[0.68rem] leading-4 font-medium text-slate-600;
+  @apply shrink-0 rounded-full border theme-border theme-bg-panel px-2 py-0.5 text-[0.68rem] leading-4 font-medium theme-muted;
 }
 
 .tool-timeline-card[data-tone='success'] .tool-timeline-status {
-  @apply border-emerald-200 bg-emerald-100 text-emerald-800;
+  @apply theme-border-success theme-bg-success-soft theme-text-success;
 }
 
 .tool-timeline-card[data-tone='danger'] .tool-timeline-status {
-  @apply border-rose-200 bg-rose-100 text-rose-800;
+  @apply theme-border-danger theme-bg-danger-soft theme-text-danger;
 }
 
 .tool-timeline-card[data-tone='working'] .tool-timeline-status {
-  @apply border-blue-200 bg-blue-100 text-blue-800;
+  @apply theme-border-info theme-bg-info-soft theme-text-info;
 }
 
 .tool-timeline-summary {
-  @apply mt-1 block max-w-full whitespace-pre-wrap break-words font-mono text-xs leading-5 text-slate-900;
+  @apply mt-1 block max-w-full whitespace-pre-wrap break-words font-mono text-xs leading-5 theme-text;
 }
 
 .tool-timeline-body {
@@ -1327,11 +1327,11 @@ function turnReceiptDetails(message: UiMessage): TurnReceiptDetail[] {
 }
 
 .tool-timeline-detail {
-  @apply m-0 min-w-0 truncate font-mono text-xs leading-4 text-slate-600;
+  @apply m-0 min-w-0 truncate font-mono text-xs leading-4 theme-muted;
 }
 
 .tool-timeline-output {
-  @apply mt-2 border-t border-slate-200 pt-2;
+  @apply mt-2 border-t theme-border pt-2;
 }
 
 .tool-timeline-output-header {
@@ -1339,15 +1339,15 @@ function turnReceiptDetails(message: UiMessage): TurnReceiptDetail[] {
 }
 
 .tool-timeline-output-label {
-  @apply m-0 text-xs font-medium text-slate-500;
+  @apply m-0 text-xs font-medium theme-muted;
 }
 
 .tool-timeline-output-toggle {
-  @apply shrink-0 rounded-md border border-slate-200 bg-white px-2 py-1 text-xs font-medium text-slate-600 transition hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-300;
+  @apply shrink-0 rounded-md border theme-border theme-bg-panel px-2 py-1 text-xs font-medium theme-muted transition hover:theme-border hover:theme-bg-subtle hover:theme-text focus:outline-none focus:ring-2 focus:ring-slate-300;
 }
 
 .tool-timeline-output-block {
-  @apply m-0 max-h-80 overflow-auto rounded-md border border-slate-200 bg-white px-2 py-1.5 text-xs leading-5 text-slate-800;
+  @apply m-0 max-h-80 overflow-auto rounded-md border theme-border theme-bg-panel px-2 py-1.5 text-xs leading-5 theme-text;
 }
 
 .tool-timeline-output-block code {
@@ -1359,7 +1359,7 @@ function turnReceiptDetails(message: UiMessage): TurnReceiptDetail[] {
 }
 
 .message-copy-button {
-  @apply mt-1 flex h-7 w-7 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-500 opacity-45 shadow-sm transition hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900 hover:opacity-100 focus:opacity-100 focus:outline-none focus:ring-2 focus:ring-slate-300;
+  @apply mt-1 flex h-7 w-7 items-center justify-center rounded-md border theme-border theme-bg-panel theme-muted opacity-45 shadow-sm transition hover:theme-border hover:theme-bg-subtle hover:theme-text hover:opacity-100 focus:opacity-100 focus:outline-none focus:ring-2 focus:ring-slate-300;
 }
 
 .message-body[data-role='user'] .message-copy-button {
@@ -1372,7 +1372,7 @@ function turnReceiptDetails(message: UiMessage): TurnReceiptDetail[] {
 }
 
 .message-copy-button[data-copied='true'] {
-  @apply border-emerald-300 bg-emerald-50 text-emerald-700 opacity-100;
+  @apply theme-border-success theme-bg-success-soft theme-text-success opacity-100;
 }
 
 .message-copy-icon {
@@ -1401,11 +1401,11 @@ function turnReceiptDetails(message: UiMessage): TurnReceiptDetail[] {
 }
 
 .plan-message {
-  @apply border-l-2 border-slate-300 pl-3;
+  @apply border-l-2 theme-border pl-3;
 }
 
 .plan-message-title {
-  @apply mb-2 mt-0 text-xs font-semibold uppercase tracking-normal text-slate-500;
+  @apply mb-2 mt-0 text-xs font-semibold uppercase tracking-normal theme-muted;
 }
 
 .conversation-item[data-message-type='worked'] .message-stack,
@@ -1423,7 +1423,7 @@ function turnReceiptDetails(message: UiMessage): TurnReceiptDetail[] {
 }
 
 .worked-separator-text {
-  @apply m-0 text-sm leading-relaxed font-normal text-slate-800;
+  @apply m-0 text-sm leading-relaxed font-normal theme-text;
 }
 
 .turn-receipt {
@@ -1471,11 +1471,11 @@ function turnReceiptDetails(message: UiMessage): TurnReceiptDetail[] {
 }
 
 .image-modal-close {
-  @apply absolute top-2 right-2 z-10 w-10 h-10 rounded-full bg-white/90 text-slate-900 border border-slate-300 flex items-center justify-center;
+  @apply absolute top-2 right-2 z-10 w-10 h-10 rounded-full bg-white/90 theme-text border theme-border flex items-center justify-center;
 }
 
 .image-modal-image {
-  @apply block max-w-full max-h-[90vh] rounded-2xl shadow-2xl bg-white;
+  @apply block max-w-full max-h-[90vh] rounded-2xl shadow-2xl theme-bg-panel;
 }
 
 .icon-svg {

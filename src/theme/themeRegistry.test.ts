@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { BUILT_IN_SKINS } from './skins'
 import {
+  contrastingTextColor,
+  contrastRatio,
   getBuiltInSkin,
   getLayoutPreset,
   normalizeThemePreferences,
@@ -99,7 +101,25 @@ describe('theme registry', () => {
     expect(tokens.color.accent).toBe('#123456')
     expect(tokens.density).toBe('spacious')
     expect(variables['--color-accent']).toBe('#123456')
+    expect(variables['--color-on-accent']).toBe('#ffffff')
     expect(variables['--density-scale']).toBe('1.12')
+  })
+
+  it('chooses readable foregrounds for bright and dark semantic colors', () => {
+    expect(contrastingTextColor('#facc15')).toBe('#0b0e13')
+    expect(contrastingTextColor('#1d4ed8')).toBe('#ffffff')
+  })
+
+  it('keeps every built-in skin readable across core and action surfaces', () => {
+    for (const skin of BUILT_IN_SKINS) {
+      const { color } = skin.tokens
+      expect(contrastRatio(color.text, color.background), `${skin.id}: text/background`).toBeGreaterThanOrEqual(4.5)
+      expect(contrastRatio(color.text, color.panel), `${skin.id}: text/panel`).toBeGreaterThanOrEqual(4.5)
+
+      for (const semanticColor of [color.accent, color.danger, color.warning, color.success, color.info]) {
+        expect(contrastRatio(contrastingTextColor(semanticColor), semanticColor), `${skin.id}: action foreground`).toBeGreaterThanOrEqual(4.5)
+      }
+    }
   })
 
   it('keeps dark skin CSS variable palettes distinct', () => {

@@ -116,10 +116,10 @@ watch(
 </script>
 
 <style scoped>
-@reference "tailwindcss";
+@reference "../../style.css";
 
 .workspace-audit-panel {
-  @apply rounded-lg border border-zinc-200 bg-white p-3;
+  @apply rounded-lg border theme-border theme-bg-panel p-3;
 }
 
 .workspace-audit-panel-header {
@@ -127,15 +127,15 @@ watch(
 }
 
 .workspace-audit-panel-title {
-  @apply m-0 text-xs font-semibold uppercase tracking-normal text-zinc-500;
+  @apply m-0 text-xs font-semibold uppercase tracking-normal theme-muted;
 }
 
 .workspace-audit-panel-subtitle {
-  @apply m-0 mt-1 text-xs text-zinc-600;
+  @apply m-0 mt-1 text-xs theme-muted;
 }
 
 .workspace-audit-panel-refresh {
-  @apply inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md border border-zinc-200 bg-white px-2.5 text-xs font-medium text-zinc-700 transition hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-60;
+  @apply inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md border theme-border theme-bg-panel px-2.5 text-xs font-medium theme-muted transition hover:theme-bg-subtle disabled:cursor-not-allowed disabled:opacity-60;
 }
 
 .workspace-audit-panel-refresh-icon {
@@ -143,7 +143,7 @@ watch(
 }
 
 .workspace-audit-panel-error {
-  @apply m-0 mt-2 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700;
+  @apply m-0 mt-2 rounded-md border theme-border-danger theme-bg-danger-soft px-3 py-2 text-xs theme-text-danger;
 }
 
 .workspace-audit-panel-list {
@@ -151,19 +151,19 @@ watch(
 }
 
 .workspace-audit-panel-event {
-  @apply rounded-md border border-zinc-200 bg-zinc-50 px-2.5 py-2;
+  @apply rounded-md border theme-border theme-bg-subtle px-2.5 py-2;
 }
 
 .workspace-audit-panel-event[data-severity='success'] {
-  @apply border-emerald-200 bg-emerald-50;
+  @apply theme-border-success theme-bg-success-soft;
 }
 
 .workspace-audit-panel-event[data-severity='warning'] {
-  @apply border-amber-200 bg-amber-50;
+  @apply theme-border-warning theme-bg-warning-soft;
 }
 
 .workspace-audit-panel-event[data-severity='danger'] {
-  @apply border-rose-200 bg-rose-50;
+  @apply theme-border-danger theme-bg-danger-soft;
 }
 
 .workspace-audit-panel-event-main {
@@ -171,24 +171,24 @@ watch(
 }
 
 .workspace-audit-panel-event-kind {
-  @apply min-w-0 truncate font-mono text-[0.68rem] uppercase tracking-normal text-zinc-500;
+  @apply min-w-0 truncate font-mono text-[0.68rem] uppercase tracking-normal theme-muted;
 }
 
 .workspace-audit-panel-event-time {
-  @apply shrink-0 text-[0.68rem] text-zinc-500;
+  @apply shrink-0 text-[0.68rem] theme-muted;
 }
 
 .workspace-audit-panel-event-title {
-  @apply m-0 mt-1 text-xs font-semibold text-zinc-800;
+  @apply m-0 mt-1 text-xs font-semibold theme-text;
 }
 
 .workspace-audit-panel-event-summary,
 .workspace-audit-panel-event-meta,
 .workspace-audit-panel-empty {
-  @apply m-0 mt-1 break-words text-xs leading-4 text-zinc-600;
+  @apply m-0 mt-1 break-words text-xs leading-4 theme-muted;
 }
 
 .workspace-audit-panel-event-meta {
-  @apply font-mono text-[0.68rem] text-zinc-500;
+  @apply font-mono text-[0.68rem] theme-muted;
 }
 </style>

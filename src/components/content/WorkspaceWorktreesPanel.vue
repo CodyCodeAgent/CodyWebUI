@@ -211,10 +211,10 @@ watch(
 </script>
 
 <style scoped>
-@reference "tailwindcss";
+@reference "../../style.css";
 
 .workspace-worktrees-panel {
-  @apply rounded-lg border border-zinc-200 bg-white p-3;
+  @apply rounded-lg border theme-border theme-bg-panel p-3;
 }
 
 .workspace-worktrees-panel-header {
@@ -222,15 +222,15 @@ watch(
 }
 
 .workspace-worktrees-panel-title {
-  @apply m-0 text-xs font-semibold uppercase tracking-normal text-zinc-500;
+  @apply m-0 text-xs font-semibold uppercase tracking-normal theme-muted;
 }
 
 .workspace-worktrees-panel-subtitle {
-  @apply m-0 mt-1 text-xs text-zinc-600;
+  @apply m-0 mt-1 text-xs theme-muted;
 }
 
 .workspace-worktrees-panel-refresh {
-  @apply inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md border border-zinc-200 bg-white px-2.5 text-xs font-medium text-zinc-700 transition hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-60;
+  @apply inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md border theme-border theme-bg-panel px-2.5 text-xs font-medium theme-muted transition hover:theme-bg-subtle disabled:cursor-not-allowed disabled:opacity-60;
 }
 
 .workspace-worktrees-panel-refresh-icon {
@@ -238,11 +238,11 @@ watch(
 }
 
 .workspace-worktrees-panel-error {
-  @apply m-0 mt-2 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700;
+  @apply m-0 mt-2 rounded-md border theme-border-danger theme-bg-danger-soft px-3 py-2 text-xs theme-text-danger;
 }
 
 .workspace-worktrees-panel-message {
-  @apply m-0 mt-2 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-700;
+  @apply m-0 mt-2 rounded-md border theme-border-success theme-bg-success-soft px-3 py-2 text-xs theme-text-success;
 }
 
 .workspace-worktrees-panel-form {
@@ -254,16 +254,16 @@ watch(
 }
 
 .workspace-worktrees-panel-form span {
-  @apply mb-1 block text-[0.65rem] font-semibold uppercase tracking-normal text-zinc-500;
+  @apply mb-1 block text-[0.65rem] font-semibold uppercase tracking-normal theme-muted;
 }
 
 .workspace-worktrees-panel-form input {
-  @apply h-8 w-full rounded-md border border-zinc-200 bg-white px-2 font-mono text-xs text-zinc-900 outline-none transition focus:border-zinc-400 disabled:cursor-not-allowed disabled:opacity-60;
+  @apply h-8 w-full rounded-md border theme-border theme-bg-panel px-2 font-mono text-xs theme-text outline-none transition focus:border-zinc-400 disabled:cursor-not-allowed disabled:opacity-60;
 }
 
 .workspace-worktrees-panel-form button,
 .workspace-worktrees-panel-list button {
-  @apply inline-flex h-8 shrink-0 items-center justify-center rounded-md border border-zinc-300 bg-white px-2.5 text-xs font-semibold text-zinc-700 transition hover:bg-zinc-100 disabled:cursor-wait disabled:opacity-60;
+  @apply inline-flex h-8 shrink-0 items-center justify-center rounded-md border theme-border theme-bg-panel px-2.5 text-xs font-semibold theme-muted transition hover:theme-bg-control disabled:cursor-wait disabled:opacity-60;
 }
 
 .workspace-worktrees-panel-form button {
@@ -275,7 +275,7 @@ watch(
 }
 
 .workspace-worktrees-panel-warning-list li {
-  @apply rounded-md border border-amber-200 bg-amber-50 px-2 py-1.5 text-xs leading-4 text-amber-800;
+  @apply rounded-md border theme-border-warning theme-bg-warning-soft px-2 py-1.5 text-xs leading-4 theme-text-warning;
 }
 
 .workspace-worktrees-panel-list {
@@ -283,15 +283,15 @@ watch(
 }
 
 .workspace-worktrees-panel-list li {
-  @apply grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-2 rounded-md border border-zinc-200 bg-zinc-50 px-2 py-1.5;
+  @apply grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-2 rounded-md border theme-border theme-bg-subtle px-2 py-1.5;
 }
 
 .workspace-worktrees-panel-list li[data-current='true'] {
-  @apply border-blue-200 bg-blue-50;
+  @apply theme-border-info theme-bg-info-soft;
 }
 
 .workspace-worktrees-panel-list li[data-prunable='true'] {
-  @apply border-amber-200 bg-amber-50;
+  @apply theme-border-warning theme-bg-warning-soft;
 }
 
 .workspace-worktrees-panel-worktree-main {
@@ -299,11 +299,11 @@ watch(
 }
 
 .workspace-worktrees-panel-branch {
-  @apply block truncate font-mono text-xs font-semibold text-zinc-900;
+  @apply block truncate font-mono text-xs font-semibold theme-text;
 }
 
 .workspace-worktrees-panel-path {
-  @apply mt-0.5 block truncate font-mono text-[0.68rem] text-zinc-500;
+  @apply mt-0.5 block truncate font-mono text-[0.68rem] theme-muted;
 }
 
 .workspace-worktrees-panel-flags {
@@ -311,7 +311,7 @@ watch(
 }
 
 .workspace-worktrees-panel-flags span {
-  @apply rounded-full border border-zinc-200 bg-white px-1.5 py-0.5 text-[0.65rem] font-semibold uppercase tracking-normal text-zinc-500;
+  @apply rounded-full border theme-border theme-bg-panel px-1.5 py-0.5 text-[0.65rem] font-semibold uppercase tracking-normal theme-muted;
 }
 
 .workspace-worktrees-panel-actions {
@@ -319,7 +319,7 @@ watch(
 }
 
 .workspace-worktrees-panel-empty {
-  @apply m-0 mt-2 rounded-md border border-dashed border-zinc-200 px-3 py-2 text-xs text-zinc-500;
+  @apply m-0 mt-2 rounded-md border border-dashed theme-border px-3 py-2 text-xs theme-muted;
 }
 
 @media (max-width: 760px) {

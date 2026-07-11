@@ -186,10 +186,10 @@ onUnmounted(stopPolling)
 </script>
 
 <style scoped>
-@reference "tailwindcss";
+@reference "../../style.css";
 
 .workspace-commands-panel {
-  @apply rounded-lg border border-zinc-200 bg-white p-3;
+  @apply rounded-lg border theme-border theme-bg-panel p-3;
 }
 
 .workspace-commands-panel-header {
@@ -197,15 +197,15 @@ onUnmounted(stopPolling)
 }
 
 .workspace-commands-panel-title {
-  @apply m-0 text-xs font-semibold uppercase tracking-normal text-zinc-500;
+  @apply m-0 text-xs font-semibold uppercase tracking-normal theme-muted;
 }
 
 .workspace-commands-panel-subtitle {
-  @apply m-0 mt-1 text-xs text-zinc-600;
+  @apply m-0 mt-1 text-xs theme-muted;
 }
 
 .workspace-commands-panel-refresh {
-  @apply inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md border border-zinc-200 bg-white px-2.5 text-xs font-medium text-zinc-700 transition hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-60;
+  @apply inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md border theme-border theme-bg-panel px-2.5 text-xs font-medium theme-muted transition hover:theme-bg-subtle disabled:cursor-not-allowed disabled:opacity-60;
 }
 
 .workspace-commands-panel-refresh-icon {
@@ -213,7 +213,7 @@ onUnmounted(stopPolling)
 }
 
 .workspace-commands-panel-error {
-  @apply m-0 mt-2 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700;
+  @apply m-0 mt-2 rounded-md border theme-border-danger theme-bg-danger-soft px-3 py-2 text-xs theme-text-danger;
 }
 
 .workspace-commands-panel-script-list {
@@ -221,20 +221,20 @@ onUnmounted(stopPolling)
 }
 
 .workspace-commands-panel-script-list li {
-  @apply grid grid-cols-[minmax(0,1fr)_auto] items-start gap-2 rounded-md border border-zinc-200 bg-zinc-50 px-2 py-1.5;
+  @apply grid grid-cols-[minmax(0,1fr)_auto] items-start gap-2 rounded-md border theme-border theme-bg-subtle px-2 py-1.5;
 }
 
 .workspace-commands-panel-script-list span {
-  @apply mr-2 font-mono text-xs font-semibold text-zinc-900;
+  @apply mr-2 font-mono text-xs font-semibold theme-text;
 }
 
 .workspace-commands-panel-script-list code {
-  @apply break-words font-mono text-[0.68rem] leading-4 text-zinc-600;
+  @apply break-words font-mono text-[0.68rem] leading-4 theme-muted;
 }
 
 .workspace-commands-panel-script-list button,
 .workspace-commands-panel-session header button {
-  @apply inline-flex h-6 shrink-0 items-center rounded-md border border-zinc-300 bg-white px-2 text-[0.68rem] font-semibold text-zinc-700 transition hover:bg-zinc-100 disabled:cursor-wait disabled:opacity-60;
+  @apply inline-flex h-6 shrink-0 items-center rounded-md border theme-border theme-bg-panel px-2 text-[0.68rem] font-semibold theme-muted transition hover:theme-bg-control disabled:cursor-wait disabled:opacity-60;
 }
 
 .workspace-commands-panel-session-list {
@@ -242,15 +242,15 @@ onUnmounted(stopPolling)
 }
 
 .workspace-commands-panel-session {
-  @apply rounded-md border border-zinc-200 bg-zinc-50 p-2;
+  @apply rounded-md border theme-border theme-bg-subtle p-2;
 }
 
 .workspace-commands-panel-session[data-session-status='running'] {
-  @apply border-blue-200 bg-blue-50;
+  @apply theme-border-info theme-bg-info-soft;
 }
 
 .workspace-commands-panel-session[data-session-status='failed'] {
-  @apply border-rose-200 bg-rose-50;
+  @apply theme-border-danger theme-bg-danger-soft;
 }
 
 .workspace-commands-panel-session header {
@@ -258,11 +258,11 @@ onUnmounted(stopPolling)
 }
 
 .workspace-commands-panel-session h4 {
-  @apply m-0 font-mono text-xs font-semibold text-zinc-900;
+  @apply m-0 font-mono text-xs font-semibold theme-text;
 }
 
 .workspace-commands-panel-session p {
-  @apply m-0 mt-0.5 text-[0.68rem] leading-4 text-zinc-600;
+  @apply m-0 mt-0.5 text-[0.68rem] leading-4 theme-muted;
 }
 
 .workspace-commands-panel-session pre {
@@ -270,6 +270,6 @@ onUnmounted(stopPolling)
 }
 
 .workspace-commands-panel-empty {
-  @apply m-0 mt-2 rounded-md border border-dashed border-zinc-200 px-3 py-2 text-xs text-zinc-500;
+  @apply m-0 mt-2 rounded-md border border-dashed theme-border px-3 py-2 text-xs theme-muted;
 }
 </style>

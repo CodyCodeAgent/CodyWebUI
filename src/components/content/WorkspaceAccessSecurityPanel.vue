@@ -241,10 +241,10 @@ onMounted(() => {
 </script>
 
 <style scoped>
-@reference "tailwindcss";
+@reference "../../style.css";
 
 .workspace-access-security-panel {
-  @apply rounded-lg border border-zinc-200 bg-white p-3;
+  @apply rounded-lg border theme-border theme-bg-panel p-3;
 }
 
 .workspace-access-security-header {
@@ -252,19 +252,19 @@ onMounted(() => {
 }
 
 .workspace-access-security-title {
-  @apply m-0 text-xs font-semibold uppercase tracking-normal text-zinc-500;
+  @apply m-0 text-xs font-semibold uppercase tracking-normal theme-muted;
 }
 
 .workspace-access-security-subtitle {
-  @apply m-0 mt-1 text-xs text-zinc-600;
+  @apply m-0 mt-1 text-xs theme-muted;
 }
 
 .workspace-access-security-refresh {
-  @apply inline-flex h-7 shrink-0 items-center rounded-md border border-zinc-200 bg-white px-2 text-[0.68rem] font-semibold text-zinc-700 transition hover:bg-zinc-50 disabled:cursor-wait disabled:opacity-60;
+  @apply inline-flex h-7 shrink-0 items-center rounded-md border theme-border theme-bg-panel px-2 text-[0.68rem] font-semibold theme-muted transition hover:theme-bg-subtle disabled:cursor-wait disabled:opacity-60;
 }
 
 .workspace-access-security-error {
-  @apply m-0 mt-2 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700;
+  @apply m-0 mt-2 rounded-md border theme-border-danger theme-bg-danger-soft px-3 py-2 text-xs theme-text-danger;
 }
 
 .workspace-access-security-metrics {
@@ -272,19 +272,19 @@ onMounted(() => {
 }
 
 .workspace-access-security-metrics span {
-  @apply rounded-md border border-zinc-200 bg-zinc-50 px-2 py-1 text-xs font-semibold text-zinc-600;
+  @apply rounded-md border theme-border theme-bg-subtle px-2 py-1 text-xs font-semibold theme-muted;
 }
 
 .workspace-access-security-metrics span[data-tone='success'] {
-  @apply border-emerald-200 bg-emerald-50 text-emerald-700;
+  @apply theme-border-success theme-bg-success-soft theme-text-success;
 }
 
 .workspace-access-security-metrics span[data-tone='warning'] {
-  @apply border-amber-200 bg-amber-50 text-amber-800;
+  @apply theme-border-warning theme-bg-warning-soft theme-text-warning;
 }
 
 .workspace-access-security-metrics span[data-tone='danger'] {
-  @apply border-rose-200 bg-rose-50 text-rose-700;
+  @apply theme-border-danger theme-bg-danger-soft theme-text-danger;
 }
 
 .workspace-access-security-details {
@@ -296,11 +296,11 @@ onMounted(() => {
 }
 
 .workspace-access-security-details dt {
-  @apply text-[0.68rem] font-semibold uppercase leading-4 text-zinc-500;
+  @apply text-[0.68rem] font-semibold uppercase leading-4 theme-muted;
 }
 
 .workspace-access-security-details dd {
-  @apply m-0 min-w-0 truncate font-mono text-[0.68rem] leading-4 text-zinc-600;
+  @apply m-0 min-w-0 truncate font-mono text-[0.68rem] leading-4 theme-muted;
 }
 
 .workspace-access-security-actions {
@@ -308,15 +308,15 @@ onMounted(() => {
 }
 
 .workspace-access-security-actions button {
-  @apply inline-flex h-7 items-center rounded-md border border-zinc-200 bg-white px-2 text-[0.68rem] font-semibold text-zinc-700 transition hover:bg-zinc-50 disabled:cursor-wait disabled:opacity-60;
+  @apply inline-flex h-7 items-center rounded-md border theme-border theme-bg-panel px-2 text-[0.68rem] font-semibold theme-muted transition hover:theme-bg-subtle disabled:cursor-wait disabled:opacity-60;
 }
 
 .workspace-access-security-actions button[data-tone='primary'] {
-  @apply border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100;
+  @apply theme-border-success theme-bg-success-soft theme-text-success hover:theme-bg-success-soft;
 }
 
 .workspace-access-security-actions button[data-tone='danger'] {
-  @apply border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100;
+  @apply theme-border-danger theme-bg-danger-soft theme-text-danger hover:theme-bg-danger-soft;
 }
 
 .workspace-access-security-device-list {
@@ -324,11 +324,11 @@ onMounted(() => {
 }
 
 .workspace-access-security-device-list li {
-  @apply grid gap-0.5 rounded-md border border-zinc-200 bg-zinc-50 px-2 py-1.5 text-xs text-zinc-700;
+  @apply grid gap-0.5 rounded-md border theme-border theme-bg-subtle px-2 py-1.5 text-xs theme-muted;
 }
 
 .workspace-access-security-device-list li[data-current='true'] {
-  @apply border-emerald-200 bg-emerald-50 text-emerald-800;
+  @apply theme-border-success theme-bg-success-soft theme-text-success;
 }
 
 .workspace-access-security-device-list span {
@@ -337,7 +337,7 @@ onMounted(() => {
 
 .workspace-access-security-device-list code,
 .workspace-access-security-device-list small {
-  @apply min-w-0 truncate font-mono text-[0.68rem] leading-4 text-zinc-500;
+  @apply min-w-0 truncate font-mono text-[0.68rem] leading-4 theme-muted;
 }
 
 .workspace-access-security-risk-list {
@@ -345,15 +345,15 @@ onMounted(() => {
 }
 
 .workspace-access-security-risk-list li {
-  @apply rounded-md border border-zinc-200 bg-zinc-50 px-2 py-1.5 text-xs text-zinc-700;
+  @apply rounded-md border theme-border theme-bg-subtle px-2 py-1.5 text-xs theme-muted;
 }
 
 .workspace-access-security-risk-list li[data-level='warning'] {
-  @apply border-amber-200 bg-amber-50 text-amber-800;
+  @apply theme-border-warning theme-bg-warning-soft theme-text-warning;
 }
 
 .workspace-access-security-risk-list li[data-level='danger'] {
-  @apply border-rose-200 bg-rose-50 text-rose-700;
+  @apply theme-border-danger theme-bg-danger-soft theme-text-danger;
 }
 
 .workspace-access-security-risk-list span,
@@ -367,7 +367,7 @@ onMounted(() => {
 }
 
 .workspace-access-security-guide {
-  @apply mt-2 border-t border-zinc-200 pt-2 text-xs text-zinc-600;
+  @apply mt-2 border-t theme-border pt-2 text-xs theme-muted;
 }
 
 .workspace-access-security-guide summary {

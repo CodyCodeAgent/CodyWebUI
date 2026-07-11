@@ -135,10 +135,10 @@ watch(
 </script>
 
 <style scoped>
-@reference "tailwindcss";
+@reference "../../style.css";
 
 .thread-session-replay-panel {
-  @apply rounded-lg border border-slate-200 bg-white p-3;
+  @apply rounded-lg border theme-border theme-bg-panel p-3;
 }
 
 .thread-session-replay-header {
@@ -146,15 +146,15 @@ watch(
 }
 
 .thread-session-replay-title {
-  @apply m-0 text-xs font-semibold uppercase tracking-normal text-slate-500;
+  @apply m-0 text-xs font-semibold uppercase tracking-normal theme-muted;
 }
 
 .thread-session-replay-subtitle {
-  @apply m-0 mt-1 text-xs text-slate-600;
+  @apply m-0 mt-1 text-xs theme-muted;
 }
 
 .thread-session-replay-refresh {
-  @apply inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md border border-slate-200 bg-white px-2.5 text-xs font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60;
+  @apply inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md border theme-border theme-bg-panel px-2.5 text-xs font-medium theme-muted transition hover:theme-bg-subtle disabled:cursor-not-allowed disabled:opacity-60;
 }
 
 .thread-session-replay-refresh-icon {
@@ -162,7 +162,7 @@ watch(
 }
 
 .thread-session-replay-error {
-  @apply mt-2 rounded-md border border-rose-200 bg-rose-50 px-2 py-1.5 text-xs text-rose-700;
+  @apply mt-2 rounded-md border theme-border-danger theme-bg-danger-soft px-2 py-1.5 text-xs theme-text-danger;
 }
 
 .thread-session-replay-list {
@@ -171,19 +171,19 @@ watch(
 }
 
 .thread-session-replay-event {
-  @apply rounded-md border border-slate-200 bg-slate-50 p-2;
+  @apply rounded-md border theme-border theme-bg-subtle p-2;
 }
 
 .thread-session-replay-event[data-severity='success'] {
-  @apply border-emerald-200 bg-emerald-50;
+  @apply theme-border-success theme-bg-success-soft;
 }
 
 .thread-session-replay-event[data-severity='warning'] {
-  @apply border-amber-200 bg-amber-50;
+  @apply theme-border-warning theme-bg-warning-soft;
 }
 
 .thread-session-replay-event[data-severity='danger'] {
-  @apply border-rose-200 bg-rose-50;
+  @apply theme-border-danger theme-bg-danger-soft;
 }
 
 .thread-session-replay-event-main {
@@ -191,24 +191,24 @@ watch(
 }
 
 .thread-session-replay-event-kind {
-  @apply truncate text-[0.68rem] font-semibold uppercase tracking-normal text-slate-500;
+  @apply truncate text-[0.68rem] font-semibold uppercase tracking-normal theme-muted;
 }
 
 .thread-session-replay-event-time {
-  @apply shrink-0 text-[0.68rem] text-slate-500;
+  @apply shrink-0 text-[0.68rem] theme-muted;
 }
 
 .thread-session-replay-event-title {
-  @apply m-0 mt-1 text-xs font-semibold text-slate-800;
+  @apply m-0 mt-1 text-xs font-semibold theme-text;
 }
 
 .thread-session-replay-event-summary,
 .thread-session-replay-event-meta,
 .thread-session-replay-empty {
-  @apply m-0 mt-1 break-words text-xs leading-4 text-slate-600;
+  @apply m-0 mt-1 break-words text-xs leading-4 theme-muted;
 }
 
 .thread-session-replay-event-meta {
-  @apply font-mono text-[0.68rem] text-slate-500;
+  @apply font-mono text-[0.68rem] theme-muted;
 }
 </style>

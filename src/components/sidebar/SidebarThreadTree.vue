@@ -1155,7 +1155,7 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
-@reference "tailwindcss";
+@reference "../../style.css";
 
 .thread-tree-root {
   @apply flex flex-col;
@@ -1170,19 +1170,19 @@ onBeforeUnmount(() => {
 }
 
 .thread-tree-header {
-  @apply text-sm font-normal text-zinc-500 select-none;
+  @apply text-sm font-normal theme-muted select-none;
 }
 
 .thread-hidden-view-toggle {
-  @apply rounded px-1.5 py-0.5 text-xs text-zinc-500 transition hover:bg-zinc-200 hover:text-zinc-800;
+  @apply rounded px-1.5 py-0.5 text-xs theme-muted transition hover:bg-zinc-200 hover:theme-text;
 }
 
 .thread-start-button {
-  @apply h-5 w-5 rounded text-zinc-500 flex items-center justify-center transition hover:bg-zinc-200 hover:text-zinc-700;
+  @apply h-5 w-5 rounded theme-muted flex items-center justify-center transition hover:bg-zinc-200 hover:theme-muted;
 }
 
 .thread-tree-loading {
-  @apply px-3 py-2 text-sm text-zinc-500;
+  @apply px-3 py-2 text-sm theme-muted;
 }
 
 .thread-status-legend {
@@ -1221,7 +1221,7 @@ onBeforeUnmount(() => {
 .thread-status-legend i[data-state='attention'] { background: var(--color-warning); }
 
 .thread-tree-no-results {
-  @apply px-3 py-2 text-sm text-zinc-400;
+  @apply px-3 py-2 text-sm theme-muted;
 }
 
 .thread-tree-projects {
@@ -1253,7 +1253,7 @@ onBeforeUnmount(() => {
 }
 
 .project-icon-stack {
-  @apply w-8 h-4 flex items-center justify-start gap-0.5 text-zinc-500;
+  @apply w-8 h-4 flex items-center justify-start gap-0.5 theme-muted;
 }
 
 .project-icon-folder,
@@ -1266,11 +1266,11 @@ onBeforeUnmount(() => {
 }
 
 .project-title-name {
-  @apply min-w-0 shrink-0 max-w-[45%] truncate text-zinc-700 align-baseline;
+  @apply min-w-0 shrink-0 max-w-[45%] truncate theme-muted align-baseline;
 }
 
 .project-title-path {
-  @apply min-w-0 truncate text-xs text-zinc-500 align-baseline;
+  @apply min-w-0 truncate text-xs theme-muted align-baseline;
 }
 
 .project-menu-wrap {
@@ -1282,27 +1282,27 @@ onBeforeUnmount(() => {
 }
 
 .project-menu-trigger {
-  @apply h-4 w-4 rounded p-0 text-zinc-600 flex items-center justify-center;
+  @apply h-4 w-4 rounded p-0 theme-muted flex items-center justify-center;
 }
 
 .project-menu-panel {
-  @apply absolute right-0 top-full mt-1 z-50 min-w-36 rounded-md border border-zinc-200 bg-white p-1 shadow-md flex flex-col gap-0.5;
+  @apply absolute right-0 top-full mt-1 z-50 min-w-36 rounded-md border theme-border theme-bg-panel p-1 shadow-md flex flex-col gap-0.5;
 }
 
 .project-menu-item {
-  @apply rounded px-2 py-1 text-left text-sm text-zinc-700 hover:bg-zinc-100;
+  @apply rounded px-2 py-1 text-left text-sm theme-muted hover:theme-bg-control;
 }
 
 .project-menu-item-danger {
-  @apply text-rose-700 hover:bg-rose-50;
+  @apply theme-text-danger hover:theme-bg-danger-soft;
 }
 
 .project-menu-label {
-  @apply px-2 pt-1 text-xs text-zinc-500;
+  @apply px-2 pt-1 text-xs theme-muted;
 }
 
 .project-menu-input {
-  @apply px-2 py-1 text-sm text-zinc-800 bg-transparent border-none outline-none;
+  @apply px-2 py-1 text-sm theme-text bg-transparent border-none outline-none;
 }
 
 .thread-list {
@@ -1326,7 +1326,7 @@ onBeforeUnmount(() => {
 }
 
 .thread-pin-button {
-  @apply absolute inset-0 w-4 h-4 rounded text-zinc-500 opacity-0 pointer-events-none transition flex items-center justify-center;
+  @apply absolute inset-0 w-4 h-4 rounded theme-muted opacity-0 pointer-events-none transition flex items-center justify-center;
 }
 
 .thread-main-button {
@@ -1334,11 +1334,11 @@ onBeforeUnmount(() => {
 }
 
 .thread-row-title {
-  @apply block text-sm leading-5 font-normal text-zinc-800 truncate whitespace-nowrap;
+  @apply block text-sm leading-5 font-normal theme-text truncate whitespace-nowrap;
 }
 
 .thread-rename-input {
-  @apply block h-5 w-full min-w-0 rounded border border-zinc-300 bg-white px-1 text-sm leading-5 text-zinc-900 outline-none focus:border-zinc-500;
+  @apply block h-5 w-full min-w-0 rounded border theme-border theme-bg-panel px-1 text-sm leading-5 theme-text outline-none focus:border-zinc-500;
 }
 
 .thread-status-indicator {
@@ -1346,11 +1346,11 @@ onBeforeUnmount(() => {
 }
 
 .thread-row-time {
-  @apply block text-sm font-normal text-zinc-500;
+  @apply block text-sm font-normal theme-muted;
 }
 
 .thread-action-button {
-  @apply h-4 w-4 rounded p-0 text-xs text-zinc-600 flex items-center justify-center hover:text-zinc-900;
+  @apply h-4 w-4 rounded p-0 text-xs theme-muted flex items-center justify-center hover:theme-text;
 }
 
 .thread-menu-wrap {
@@ -1358,19 +1358,19 @@ onBeforeUnmount(() => {
 }
 
 .thread-menu-trigger {
-  @apply h-4 w-4 rounded p-0 text-zinc-600 flex items-center justify-center hover:text-zinc-900;
+  @apply h-4 w-4 rounded p-0 theme-muted flex items-center justify-center hover:theme-text;
 }
 
 .thread-menu-panel {
-  @apply absolute right-0 top-full mt-1 z-50 min-w-32 rounded-md border border-zinc-200 bg-white p-1 shadow-md flex flex-col gap-0.5;
+  @apply absolute right-0 top-full mt-1 z-50 min-w-32 rounded-md border theme-border theme-bg-panel p-1 shadow-md flex flex-col gap-0.5;
 }
 
 .thread-menu-item {
-  @apply rounded px-2 py-1 text-left text-sm text-zinc-700 hover:bg-zinc-100;
+  @apply rounded px-2 py-1 text-left text-sm theme-muted hover:theme-bg-control;
 }
 
 .thread-menu-item-danger {
-  @apply text-rose-700 hover:bg-rose-50;
+  @apply theme-text-danger hover:theme-bg-danger-soft;
 }
 
 .thread-icon {
@@ -1378,7 +1378,7 @@ onBeforeUnmount(() => {
 }
 
 .thread-show-more-row {
-  @apply mt-1 border-0 bg-transparent text-zinc-500 cursor-pointer hover:bg-zinc-100 hover:text-zinc-700 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-zinc-300;
+  @apply mt-1 border-0 bg-transparent theme-muted cursor-pointer hover:theme-bg-control hover:theme-muted focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-zinc-300;
 }
 
 .thread-show-more-chevron {

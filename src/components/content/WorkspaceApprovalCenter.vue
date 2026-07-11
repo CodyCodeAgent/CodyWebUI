@@ -241,10 +241,10 @@ watch(() => props.cwd, () => {
 </script>
 
 <style scoped>
-@reference "tailwindcss";
+@reference "../../style.css";
 
 .workspace-approval-center {
-  @apply rounded-lg border border-zinc-200 bg-white p-3;
+  @apply rounded-lg border theme-border theme-bg-panel p-3;
 }
 
 .workspace-approval-center-header {
@@ -252,23 +252,23 @@ watch(() => props.cwd, () => {
 }
 
 .workspace-approval-center-title {
-  @apply m-0 text-xs font-semibold uppercase tracking-normal text-zinc-500;
+  @apply m-0 text-xs font-semibold uppercase tracking-normal theme-muted;
 }
 
 .workspace-approval-center-subtitle {
-  @apply m-0 mt-1 text-xs text-zinc-600;
+  @apply m-0 mt-1 text-xs theme-muted;
 }
 
 .workspace-approval-center-badge {
-  @apply inline-flex h-8 min-w-8 shrink-0 items-center justify-center rounded-md border border-emerald-200 bg-emerald-50 px-2 text-sm font-semibold text-emerald-700;
+  @apply inline-flex h-8 min-w-8 shrink-0 items-center justify-center rounded-md border theme-border-success theme-bg-success-soft px-2 text-sm font-semibold theme-text-success;
 }
 
 .workspace-approval-center-badge[data-tone='medium'] {
-  @apply border-amber-200 bg-amber-50 text-amber-700;
+  @apply theme-border-warning theme-bg-warning-soft theme-text-warning;
 }
 
 .workspace-approval-center-badge[data-tone='high'] {
-  @apply border-rose-200 bg-rose-50 text-rose-700;
+  @apply theme-border-danger theme-bg-danger-soft theme-text-danger;
 }
 
 .workspace-approval-center-list {
@@ -276,15 +276,15 @@ watch(() => props.cwd, () => {
 }
 
 .workspace-approval-center-card {
-  @apply grid grid-cols-[minmax(0,1fr)_auto] gap-3 rounded-md border border-zinc-200 bg-zinc-50 p-2;
+  @apply grid grid-cols-[minmax(0,1fr)_auto] gap-3 rounded-md border theme-border theme-bg-subtle p-2;
 }
 
 .workspace-approval-center-card[data-risk='medium'] {
-  @apply border-amber-200 bg-amber-50;
+  @apply theme-border-warning theme-bg-warning-soft;
 }
 
 .workspace-approval-center-card[data-risk='high'] {
-  @apply border-rose-200 bg-rose-50;
+  @apply theme-border-danger theme-bg-danger-soft;
 }
 
 .workspace-approval-center-main {
@@ -300,15 +300,15 @@ watch(() => props.cwd, () => {
 }
 
 .workspace-approval-center-card-title {
-  @apply text-xs font-semibold text-zinc-900;
+  @apply text-xs font-semibold theme-text;
 }
 
 .workspace-approval-center-meta {
-  @apply mt-0.5 truncate font-mono text-[0.68rem] text-zinc-500;
+  @apply mt-0.5 truncate font-mono text-[0.68rem] theme-muted;
 }
 
 .workspace-approval-center-subject {
-  @apply mt-1 break-words font-mono text-xs text-zinc-800;
+  @apply mt-1 break-words font-mono text-xs theme-text;
 }
 
 .workspace-approval-center-risk-line {
@@ -317,42 +317,42 @@ watch(() => props.cwd, () => {
 
 .workspace-approval-center-risk-badge,
 .workspace-approval-center-risk-label {
-  @apply rounded-full border border-zinc-200 bg-white px-1.5 py-0.5 text-[0.68rem] font-semibold uppercase tracking-normal text-zinc-500;
+  @apply rounded-full border theme-border theme-bg-panel px-1.5 py-0.5 text-[0.68rem] font-semibold uppercase tracking-normal theme-muted;
 }
 
 .workspace-approval-center-risk-badge[data-level='medium'] {
-  @apply border-amber-200 bg-amber-100 text-amber-800;
+  @apply theme-border-warning theme-bg-warning-soft theme-text-warning;
 }
 
 .workspace-approval-center-risk-badge[data-level='high'] {
-  @apply border-rose-200 bg-rose-100 text-rose-800;
+  @apply theme-border-danger theme-bg-danger-soft theme-text-danger;
 }
 
 .workspace-approval-center-description,
 .workspace-approval-center-policy,
 .workspace-approval-center-recommendation {
-  @apply mt-1 text-xs leading-4 text-zinc-700;
+  @apply mt-1 text-xs leading-4 theme-muted;
 }
 
 .workspace-approval-center-policy {
-  @apply rounded-md border border-zinc-200 bg-white px-2 py-1 font-mono text-[0.68rem] text-zinc-600;
+  @apply rounded-md border theme-border theme-bg-panel px-2 py-1 font-mono text-[0.68rem] theme-muted;
 }
 
 .workspace-approval-center-policy[data-status='allowed'] {
-  @apply border-emerald-200 bg-emerald-50 text-emerald-800;
+  @apply theme-border-success theme-bg-success-soft theme-text-success;
 }
 
 .workspace-approval-center-policy[data-status='denied'] {
-  @apply border-rose-200 bg-rose-50 text-rose-800;
+  @apply theme-border-danger theme-bg-danger-soft theme-text-danger;
 }
 
 .workspace-approval-center-policy[data-status='not_configured'],
 .workspace-approval-center-policy[data-status='not_git_workspace'] {
-  @apply border-amber-200 bg-amber-50 text-amber-800;
+  @apply theme-border-warning theme-bg-warning-soft theme-text-warning;
 }
 
 .workspace-approval-center-impact-list {
-  @apply m-0 mt-1 grid list-disc gap-0.5 pl-4 text-xs leading-4 text-zinc-700;
+  @apply m-0 mt-1 grid list-disc gap-0.5 pl-4 text-xs leading-4 theme-muted;
 }
 
 .workspace-approval-center-scope-line {
@@ -360,11 +360,11 @@ watch(() => props.cwd, () => {
 }
 
 .workspace-approval-center-scope {
-  @apply rounded-md border border-blue-200 bg-blue-50 px-1.5 py-0.5 text-[0.68rem] font-semibold uppercase tracking-normal text-blue-700;
+  @apply rounded-md border theme-border-info theme-bg-info-soft px-1.5 py-0.5 text-[0.68rem] font-semibold uppercase tracking-normal theme-text-info;
 }
 
 .workspace-approval-center-scope[data-enabled='false'] {
-  @apply border-zinc-200 bg-zinc-100 text-zinc-500;
+  @apply theme-border theme-bg-control theme-muted;
 }
 
 .workspace-approval-center-actions {
@@ -372,23 +372,23 @@ watch(() => props.cwd, () => {
 }
 
 .workspace-approval-center-actions button {
-  @apply inline-flex h-7 items-center justify-center rounded-md border border-zinc-300 bg-white px-2 text-[0.68rem] font-semibold text-zinc-700 transition hover:bg-zinc-100;
+  @apply inline-flex h-7 items-center justify-center rounded-md border theme-border theme-bg-panel px-2 text-[0.68rem] font-semibold theme-muted transition hover:theme-bg-control;
 }
 
 .workspace-approval-center-actions button[data-tone='primary'] {
-  @apply border-blue-300 bg-blue-600 text-white hover:bg-blue-700;
+  @apply theme-border-info theme-bg-accent theme-on-accent hover:bg-blue-700;
 }
 
 .workspace-approval-center-actions button[data-tone='danger'] {
-  @apply border-rose-300 bg-white text-rose-700 hover:bg-rose-50;
+  @apply theme-border-danger theme-bg-panel theme-text-danger hover:theme-bg-danger-soft;
 }
 
 .workspace-approval-center-actions button[data-tone='danger-soft'] {
-  @apply border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100;
+  @apply theme-border-danger theme-bg-danger-soft theme-text-danger hover:theme-bg-danger-soft;
 }
 
 .workspace-approval-center-grants {
-  @apply mt-3 border-t border-zinc-100 pt-3;
+  @apply mt-3 border-t theme-border pt-3;
 }
 
 .workspace-approval-center-grants-header {
@@ -401,20 +401,20 @@ watch(() => props.cwd, () => {
 }
 
 .workspace-approval-center-grants-header h4 {
-  @apply text-xs font-semibold uppercase tracking-normal text-zinc-500;
+  @apply text-xs font-semibold uppercase tracking-normal theme-muted;
 }
 
 .workspace-approval-center-grants-header p {
-  @apply mt-1 text-xs text-zinc-600;
+  @apply mt-1 text-xs theme-muted;
 }
 
 .workspace-approval-center-grants-header button,
 .workspace-approval-center-grant button {
-  @apply inline-flex h-7 items-center justify-center rounded-md border border-zinc-300 bg-white px-2 text-[0.68rem] font-semibold text-zinc-700 transition hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-60;
+  @apply inline-flex h-7 items-center justify-center rounded-md border theme-border theme-bg-panel px-2 text-[0.68rem] font-semibold theme-muted transition hover:theme-bg-control disabled:cursor-not-allowed disabled:opacity-60;
 }
 
 .workspace-approval-center-error {
-  @apply m-0 mt-2 rounded-md border border-rose-200 bg-rose-50 px-2 py-1.5 text-xs text-rose-700;
+  @apply m-0 mt-2 rounded-md border theme-border-danger theme-bg-danger-soft px-2 py-1.5 text-xs theme-text-danger;
 }
 
 .workspace-approval-center-grant-list {
@@ -422,11 +422,11 @@ watch(() => props.cwd, () => {
 }
 
 .workspace-approval-center-grant {
-  @apply flex items-start justify-between gap-2 rounded-md border border-zinc-200 bg-zinc-50 p-2;
+  @apply flex items-start justify-between gap-2 rounded-md border theme-border theme-bg-subtle p-2;
 }
 
 .workspace-approval-center-grant[data-scope='permanent'] {
-  @apply border-rose-200 bg-rose-50;
+  @apply theme-border-danger theme-bg-danger-soft;
 }
 
 .workspace-approval-center-grant div {
@@ -434,23 +434,23 @@ watch(() => props.cwd, () => {
 }
 
 .workspace-approval-center-grant span {
-  @apply inline-flex rounded-full border border-blue-200 bg-blue-50 px-1.5 py-0.5 text-[0.68rem] font-semibold uppercase text-blue-700;
+  @apply inline-flex rounded-full border theme-border-info theme-bg-info-soft px-1.5 py-0.5 text-[0.68rem] font-semibold uppercase theme-text-info;
 }
 
 .workspace-approval-center-grant[data-scope='permanent'] span {
-  @apply border-rose-200 bg-white text-rose-700;
+  @apply theme-border-danger theme-bg-panel theme-text-danger;
 }
 
 .workspace-approval-center-grant code {
-  @apply mt-1 block truncate font-mono text-xs text-zinc-800;
+  @apply mt-1 block truncate font-mono text-xs theme-text;
 }
 
 .workspace-approval-center-grant small {
-  @apply mt-0.5 block truncate text-[0.68rem] text-zinc-500;
+  @apply mt-0.5 block truncate text-[0.68rem] theme-muted;
 }
 
 .workspace-approval-center-empty {
-  @apply m-0 mt-2 rounded-md border border-dashed border-zinc-200 px-3 py-2 text-xs text-zinc-500;
+  @apply m-0 mt-2 rounded-md border border-dashed theme-border px-3 py-2 text-xs theme-muted;
 }
 
 @media (max-width: 760px) {

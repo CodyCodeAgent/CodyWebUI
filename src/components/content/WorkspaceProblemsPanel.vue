@@ -75,10 +75,10 @@ function problemLocation(problem: UiWorkspaceProblem): string {
 </script>
 
 <style scoped>
-@reference "tailwindcss";
+@reference "../../style.css";
 
 .workspace-problems-panel {
-  @apply rounded-lg border border-zinc-200 bg-white p-3;
+  @apply rounded-lg border theme-border theme-bg-panel p-3;
 }
 
 .workspace-problems-panel-header {
@@ -86,11 +86,11 @@ function problemLocation(problem: UiWorkspaceProblem): string {
 }
 
 .workspace-problems-panel-title {
-  @apply m-0 text-xs font-semibold uppercase tracking-normal text-zinc-500;
+  @apply m-0 text-xs font-semibold uppercase tracking-normal theme-muted;
 }
 
 .workspace-problems-panel-subtitle {
-  @apply m-0 mt-1 text-xs text-zinc-600;
+  @apply m-0 mt-1 text-xs theme-muted;
 }
 
 .workspace-problems-panel-metrics {
@@ -98,15 +98,15 @@ function problemLocation(problem: UiWorkspaceProblem): string {
 }
 
 .workspace-problems-panel-metrics span {
-  @apply rounded-md border border-zinc-200 bg-zinc-50 px-2 py-1 text-xs font-medium text-zinc-600;
+  @apply rounded-md border theme-border theme-bg-subtle px-2 py-1 text-xs font-medium theme-muted;
 }
 
 .workspace-problems-panel-metrics span[data-tone='danger'] {
-  @apply border-rose-200 bg-rose-50 text-rose-700;
+  @apply theme-border-danger theme-bg-danger-soft theme-text-danger;
 }
 
 .workspace-problems-panel-metrics span[data-tone='warning'] {
-  @apply border-amber-200 bg-amber-50 text-amber-700;
+  @apply theme-border-warning theme-bg-warning-soft theme-text-warning;
 }
 
 .workspace-problems-panel-list {
@@ -114,15 +114,15 @@ function problemLocation(problem: UiWorkspaceProblem): string {
 }
 
 .workspace-problems-panel-item {
-  @apply rounded-md border border-zinc-200 bg-zinc-50 px-2.5 py-2;
+  @apply rounded-md border theme-border theme-bg-subtle px-2.5 py-2;
 }
 
 .workspace-problems-panel-item[data-severity='error'] {
-  @apply border-rose-200 bg-rose-50;
+  @apply theme-border-danger theme-bg-danger-soft;
 }
 
 .workspace-problems-panel-item[data-severity='warning'] {
-  @apply border-amber-200 bg-amber-50;
+  @apply theme-border-warning theme-bg-warning-soft;
 }
 
 .workspace-problems-panel-item-main {
@@ -130,20 +130,20 @@ function problemLocation(problem: UiWorkspaceProblem): string {
 }
 
 .workspace-problems-panel-location {
-  @apply min-w-0 truncate font-mono text-xs font-semibold text-zinc-800;
+  @apply min-w-0 truncate font-mono text-xs font-semibold theme-text;
 }
 
 .workspace-problems-panel-source {
-  @apply shrink-0 rounded-full border border-zinc-200 bg-white px-2 py-0.5 text-[0.68rem] font-medium uppercase tracking-normal text-zinc-500;
+  @apply shrink-0 rounded-full border theme-border theme-bg-panel px-2 py-0.5 text-[0.68rem] font-medium uppercase tracking-normal theme-muted;
 }
 
 .workspace-problems-panel-message {
-  @apply m-0 mt-1 break-words text-xs leading-4 text-zinc-700;
+  @apply m-0 mt-1 break-words text-xs leading-4 theme-muted;
 }
 
 .workspace-problems-panel-command,
 .workspace-problems-panel-empty {
-  @apply m-0 mt-1 break-words text-xs leading-4 text-zinc-500;
+  @apply m-0 mt-1 break-words text-xs leading-4 theme-muted;
 }
 
 .workspace-problems-panel-command {

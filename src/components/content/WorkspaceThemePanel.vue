@@ -226,10 +226,10 @@ watch(() => props.workspaceTheme, (theme) => {
 </script>
 
 <style scoped>
-@reference "tailwindcss";
+@reference "../../style.css";
 
 .workspace-theme-panel {
-  @apply rounded-lg border border-zinc-200 bg-white p-3;
+  @apply rounded-lg border theme-border theme-bg-panel p-3;
   background: var(--color-surface);
   border-color: var(--color-border);
   box-shadow: var(--shadow-panel);
@@ -241,17 +241,17 @@ watch(() => props.workspaceTheme, (theme) => {
 }
 
 .workspace-theme-panel-title {
-  @apply m-0 text-xs font-semibold uppercase tracking-normal text-zinc-500;
+  @apply m-0 text-xs font-semibold uppercase tracking-normal theme-muted;
   color: var(--color-text-muted);
 }
 
 .workspace-theme-panel-subtitle {
-  @apply m-0 mt-1 text-xs text-zinc-600;
+  @apply m-0 mt-1 text-xs theme-muted;
   color: var(--color-text);
 }
 
 .workspace-theme-panel-detail {
-  @apply m-0 mt-1 text-xs text-zinc-500;
+  @apply m-0 mt-1 text-xs theme-muted;
   color: var(--color-text-muted);
 }
 
@@ -263,7 +263,7 @@ watch(() => props.workspaceTheme, (theme) => {
 }
 
 .workspace-theme-panel-persistence-error {
-  @apply m-0 mt-3 rounded-md border border-rose-200 bg-rose-50 px-2 py-1 text-xs font-medium text-rose-700;
+  @apply m-0 mt-3 rounded-md border theme-border-danger theme-bg-danger-soft px-2 py-1 text-xs font-medium theme-text-danger;
   background: color-mix(in srgb, var(--color-danger) 12%, var(--color-panel));
   border-color: color-mix(in srgb, var(--color-danger) 32%, var(--color-border));
   color: color-mix(in srgb, var(--color-danger) 42%, var(--color-text));
@@ -271,7 +271,7 @@ watch(() => props.workspaceTheme, (theme) => {
 
 .workspace-theme-panel-reset,
 .workspace-theme-panel-json-actions button {
-  @apply inline-flex h-7 shrink-0 items-center rounded-md border border-zinc-200 bg-white px-2 text-xs font-medium text-zinc-700 transition hover:bg-zinc-50;
+  @apply inline-flex h-7 shrink-0 items-center rounded-md border theme-border theme-bg-panel px-2 text-xs font-medium theme-muted transition hover:theme-bg-subtle;
   background: var(--color-surface);
   border-color: var(--color-border);
   color: var(--color-text);
@@ -287,13 +287,13 @@ watch(() => props.workspaceTheme, (theme) => {
 
 .workspace-theme-panel-grid span,
 .workspace-theme-panel-follow span {
-  @apply text-[0.68rem] font-semibold uppercase leading-4 text-zinc-500;
+  @apply text-[0.68rem] font-semibold uppercase leading-4 theme-muted;
   color: var(--color-text-muted);
 }
 
 .workspace-theme-panel-grid select,
 .workspace-theme-panel-grid input {
-  @apply h-8 min-w-0 rounded-md border border-zinc-200 bg-white px-2 text-xs text-zinc-900 outline-none transition focus:border-blue-300;
+  @apply h-8 min-w-0 rounded-md border theme-border theme-bg-panel px-2 text-xs theme-text outline-none transition focus:theme-border-info;
   background: var(--color-surface);
   border-color: var(--color-border);
   color: var(--color-text);
@@ -314,12 +314,12 @@ watch(() => props.workspaceTheme, (theme) => {
 }
 
 .workspace-theme-panel-advanced {
-  @apply mt-3 border-t border-zinc-200 pt-2;
+  @apply mt-3 border-t theme-border pt-2;
   border-color: var(--color-border);
 }
 
 .workspace-theme-panel-advanced summary {
-  @apply cursor-pointer text-xs font-medium text-zinc-700;
+  @apply cursor-pointer text-xs font-medium theme-muted;
   color: var(--color-text);
 }
 
@@ -328,7 +328,7 @@ watch(() => props.workspaceTheme, (theme) => {
 }
 
 .workspace-theme-panel-advanced textarea {
-  @apply mt-2 h-36 w-full resize-y rounded-md border border-zinc-200 bg-zinc-950 p-2 font-mono text-[0.68rem] leading-4 text-zinc-100 outline-none;
+  @apply mt-2 h-36 w-full resize-y rounded-md border theme-border bg-zinc-950 p-2 font-mono text-[0.68rem] leading-4 text-zinc-100 outline-none;
   background: var(--color-code-background);
   border-color: var(--color-border);
 }
@@ -338,11 +338,11 @@ watch(() => props.workspaceTheme, (theme) => {
 }
 
 .workspace-theme-panel-message[data-tone='success'] {
-  @apply border-emerald-200 bg-emerald-50 text-emerald-700;
+  @apply theme-border-success theme-bg-success-soft theme-text-success;
 }
 
 .workspace-theme-panel-message[data-tone='danger'] {
-  @apply border-rose-200 bg-rose-50 text-rose-700;
+  @apply theme-border-danger theme-bg-danger-soft theme-text-danger;
 }
 
 @media (max-width: 920px) {

@@ -457,10 +457,10 @@ watch(
 </script>
 
 <style scoped>
-@reference "tailwindcss";
+@reference "../../style.css";
 
 .workspace-git-panel {
-  @apply rounded-lg border border-zinc-200 bg-white p-3;
+  @apply rounded-lg border theme-border theme-bg-panel p-3;
 }
 
 .workspace-git-panel-header {
@@ -468,15 +468,15 @@ watch(
 }
 
 .workspace-git-panel-title {
-  @apply m-0 text-xs font-semibold uppercase tracking-normal text-zinc-500;
+  @apply m-0 text-xs font-semibold uppercase tracking-normal theme-muted;
 }
 
 .workspace-git-panel-subtitle {
-  @apply m-0 mt-1 truncate font-mono text-xs text-zinc-600;
+  @apply m-0 mt-1 truncate font-mono text-xs theme-muted;
 }
 
 .workspace-git-panel-refresh {
-  @apply inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md border border-zinc-200 bg-white px-2.5 text-xs font-medium text-zinc-700 transition hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-60;
+  @apply inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md border theme-border theme-bg-panel px-2.5 text-xs font-medium theme-muted transition hover:theme-bg-subtle disabled:cursor-not-allowed disabled:opacity-60;
 }
 
 .workspace-git-panel-refresh-icon {
@@ -484,11 +484,11 @@ watch(
 }
 
 .workspace-git-panel-error {
-  @apply m-0 mt-2 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700;
+  @apply m-0 mt-2 rounded-md border theme-border-danger theme-bg-danger-soft px-3 py-2 text-xs theme-text-danger;
 }
 
 .workspace-git-panel-success {
-  @apply m-0 mt-2 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-700;
+  @apply m-0 mt-2 rounded-md border theme-border-success theme-bg-success-soft px-3 py-2 text-xs theme-text-success;
 }
 
 .workspace-git-panel-metrics {
@@ -496,27 +496,27 @@ watch(
 }
 
 .workspace-git-panel-metric {
-  @apply min-w-0 rounded-md border border-zinc-200 bg-zinc-50 px-2 py-1.5;
+  @apply min-w-0 rounded-md border theme-border theme-bg-subtle px-2 py-1.5;
 }
 
 .workspace-git-panel-metric[data-tone='working'] {
-  @apply border-blue-200 bg-blue-50;
+  @apply theme-border-info theme-bg-info-soft;
 }
 
 .workspace-git-panel-metric[data-tone='warning'] {
-  @apply border-amber-200 bg-amber-50;
+  @apply theme-border-warning theme-bg-warning-soft;
 }
 
 .workspace-git-panel-metric[data-tone='danger'] {
-  @apply border-rose-200 bg-rose-50;
+  @apply theme-border-danger theme-bg-danger-soft;
 }
 
 .workspace-git-panel-metric span {
-  @apply block truncate text-sm font-semibold leading-5 text-zinc-950;
+  @apply block truncate text-sm font-semibold leading-5 theme-text;
 }
 
 .workspace-git-panel-metric small {
-  @apply block truncate text-[0.68rem] leading-4 text-zinc-500;
+  @apply block truncate text-[0.68rem] leading-4 theme-muted;
 }
 
 .workspace-git-panel-columns {
@@ -528,7 +528,7 @@ watch(
 }
 
 .workspace-git-panel-column h4 {
-  @apply m-0 text-[0.68rem] font-semibold uppercase tracking-normal text-zinc-500;
+  @apply m-0 text-[0.68rem] font-semibold uppercase tracking-normal theme-muted;
 }
 
 .workspace-git-panel-file-list {
@@ -536,31 +536,31 @@ watch(
 }
 
 .workspace-git-panel-file-list li {
-  @apply grid grid-cols-[2rem_minmax(0,1fr)_auto] items-center gap-2 rounded-md border border-zinc-200 bg-zinc-50 px-2 py-1;
+  @apply grid grid-cols-[2rem_minmax(0,1fr)_auto] items-center gap-2 rounded-md border theme-border theme-bg-subtle px-2 py-1;
 }
 
 .workspace-git-panel-file-status {
-  @apply font-mono text-[0.68rem] leading-4 text-zinc-500;
+  @apply font-mono text-[0.68rem] leading-4 theme-muted;
 }
 
 .workspace-git-panel-file-path {
-  @apply truncate font-mono text-[0.68rem] leading-4 text-zinc-700;
+  @apply truncate font-mono text-[0.68rem] leading-4 theme-muted;
 }
 
 .workspace-git-panel-file-list button {
-  @apply inline-flex h-6 shrink-0 items-center rounded-md border border-zinc-300 bg-white px-2 text-[0.68rem] font-semibold text-zinc-700 transition hover:bg-zinc-100 disabled:cursor-wait disabled:opacity-60;
+  @apply inline-flex h-6 shrink-0 items-center rounded-md border theme-border theme-bg-panel px-2 text-[0.68rem] font-semibold theme-muted transition hover:theme-bg-control disabled:cursor-wait disabled:opacity-60;
 }
 
 .workspace-git-panel-empty {
-  @apply m-0 mt-1.5 rounded-md border border-dashed border-zinc-200 px-3 py-2 text-xs text-zinc-500;
+  @apply m-0 mt-1.5 rounded-md border border-dashed theme-border px-3 py-2 text-xs theme-muted;
 }
 
 .workspace-git-panel-delivery {
-  @apply mt-3 rounded-md border border-zinc-200 bg-zinc-50 p-2;
+  @apply mt-3 rounded-md border theme-border theme-bg-subtle p-2;
 }
 
 .workspace-git-panel-pr {
-  @apply mt-3 rounded-md border border-blue-200 bg-blue-50 p-2;
+  @apply mt-3 rounded-md border theme-border-info theme-bg-info-soft p-2;
 }
 
 .workspace-git-panel-delivery-header {
@@ -569,17 +569,17 @@ watch(
 
 .workspace-git-panel-delivery h4,
 .workspace-git-panel-pr h4 {
-  @apply m-0 text-[0.68rem] font-semibold uppercase tracking-normal text-zinc-500;
+  @apply m-0 text-[0.68rem] font-semibold uppercase tracking-normal theme-muted;
 }
 
 .workspace-git-panel-delivery p,
 .workspace-git-panel-pr p {
-  @apply m-0 mt-0.5 text-xs text-zinc-600;
+  @apply m-0 mt-0.5 text-xs theme-muted;
 }
 
 .workspace-git-panel-delivery .workspace-git-panel-success,
 .workspace-git-panel-pr .workspace-git-panel-success {
-  @apply mt-2 text-emerald-700;
+  @apply mt-2 theme-text-success;
 }
 
 .workspace-git-panel-pr .workspace-git-panel-success {
@@ -591,11 +591,11 @@ watch(
 }
 
 .workspace-git-panel-draft-button {
-  @apply inline-flex h-7 shrink-0 items-center rounded-md border border-zinc-300 bg-white px-2 text-[0.68rem] font-semibold text-zinc-700 transition hover:bg-zinc-100 disabled:cursor-wait disabled:opacity-60;
+  @apply inline-flex h-7 shrink-0 items-center rounded-md border theme-border theme-bg-panel px-2 text-[0.68rem] font-semibold theme-muted transition hover:theme-bg-control disabled:cursor-wait disabled:opacity-60;
 }
 
 .workspace-git-panel-commit-button {
-  @apply inline-flex h-8 w-fit items-center rounded-md border border-emerald-300 bg-emerald-600 px-3 text-xs font-semibold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:border-zinc-300 disabled:bg-zinc-200 disabled:text-zinc-500;
+  @apply inline-flex h-8 w-fit items-center rounded-md border theme-border-success bg-emerald-600 px-3 text-xs font-semibold theme-on-success transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:theme-border disabled:theme-bg-disabled disabled:theme-muted;
 }
 
 .workspace-git-panel-draft {
@@ -608,15 +608,15 @@ watch(
 
 .workspace-git-panel-draft label span,
 .workspace-git-panel-draft h5 {
-  @apply m-0 text-[0.68rem] font-semibold uppercase tracking-normal text-zinc-500;
+  @apply m-0 text-[0.68rem] font-semibold uppercase tracking-normal theme-muted;
 }
 
 .workspace-git-panel-draft textarea {
-  @apply min-h-24 resize-y rounded-md border border-zinc-200 bg-white p-2 font-mono text-[0.68rem] leading-4 text-zinc-800 outline-none;
+  @apply min-h-24 resize-y rounded-md border theme-border theme-bg-panel p-2 font-mono text-[0.68rem] leading-4 theme-text outline-none;
 }
 
 .workspace-git-panel-draft input {
-  @apply h-8 min-w-0 rounded-md border border-zinc-200 bg-white px-2 font-mono text-xs text-zinc-800 outline-none;
+  @apply h-8 min-w-0 rounded-md border theme-border theme-bg-panel px-2 font-mono text-xs theme-text outline-none;
 }
 
 .workspace-git-panel-draft label:nth-of-type(2) textarea {
@@ -632,11 +632,11 @@ watch(
 }
 
 .workspace-git-panel-pr-actions button {
-  @apply inline-flex h-8 items-center rounded-md border border-zinc-300 bg-white px-3 text-xs font-semibold text-zinc-700 transition hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-60;
+  @apply inline-flex h-8 items-center rounded-md border theme-border theme-bg-panel px-3 text-xs font-semibold theme-muted transition hover:theme-bg-control disabled:cursor-not-allowed disabled:opacity-60;
 }
 
 .workspace-git-panel-pr-actions button[data-tone='primary'] {
-  @apply border-blue-300 bg-blue-600 text-white hover:bg-blue-700 disabled:border-zinc-300 disabled:bg-zinc-200 disabled:text-zinc-500;
+  @apply theme-border-info theme-bg-accent theme-on-accent hover:bg-blue-700 disabled:theme-border disabled:theme-bg-disabled disabled:theme-muted;
 }
 
 .workspace-git-panel-draft-grid {
@@ -644,7 +644,7 @@ watch(
 }
 
 .workspace-git-panel-draft-grid > div {
-  @apply rounded-md border border-zinc-200 bg-white p-2;
+  @apply rounded-md border theme-border theme-bg-panel p-2;
 }
 
 .workspace-git-panel-draft-grid ul {
@@ -652,7 +652,7 @@ watch(
 }
 
 .workspace-git-panel-draft-grid li {
-  @apply text-xs leading-4 text-zinc-700;
+  @apply text-xs leading-4 theme-muted;
 }
 
 @media (max-width: 760px) {

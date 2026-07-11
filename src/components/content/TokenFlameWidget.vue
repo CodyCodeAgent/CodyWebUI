@@ -405,7 +405,7 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-@reference "tailwindcss";
+@reference "../../style.css";
 
 .token-flame-widget {
   @apply fixed z-40;
@@ -518,7 +518,7 @@ onUnmounted(() => {
 }
 
 .token-flame-popover {
-  @apply absolute bottom-[calc(100%+0.75rem)] right-0 w-72 rounded-lg border border-zinc-200 bg-white p-3 text-zinc-900 shadow-2xl;
+  @apply absolute bottom-[calc(100%+0.75rem)] right-0 w-72 rounded-lg border theme-border theme-bg-panel p-3 theme-text shadow-2xl;
 }
 
 .token-flame-widget-bottom-left .token-flame-popover,
@@ -540,11 +540,11 @@ onUnmounted(() => {
 }
 
 .token-flame-popover-header p {
-  @apply m-0 mt-0.5 text-xs text-zinc-500;
+  @apply m-0 mt-0.5 text-xs theme-muted;
 }
 
 .token-flame-popover-header button {
-  @apply inline-flex h-7 w-7 items-center justify-center rounded-md border border-zinc-200 bg-white text-sm text-zinc-600 transition hover:bg-zinc-50;
+  @apply inline-flex h-7 w-7 items-center justify-center rounded-md border theme-border theme-bg-panel text-sm theme-muted transition hover:theme-bg-subtle;
 }
 
 .token-flame-stats {
@@ -552,19 +552,19 @@ onUnmounted(() => {
 }
 
 .token-flame-stats div {
-  @apply rounded-md border border-zinc-200 bg-zinc-50 px-2 py-1.5;
+  @apply rounded-md border theme-border theme-bg-subtle px-2 py-1.5;
 }
 
 .token-flame-stats dt {
-  @apply text-[0.65rem] font-semibold uppercase text-zinc-500;
+  @apply text-[0.65rem] font-semibold uppercase theme-muted;
 }
 
 .token-flame-stats dd {
-  @apply m-0 text-sm font-semibold text-zinc-950;
+  @apply m-0 text-sm font-semibold theme-text;
 }
 
 .token-flame-error {
-  @apply m-0 mt-2 rounded-md border border-rose-200 bg-rose-50 px-2 py-1 text-xs text-rose-700;
+  @apply m-0 mt-2 rounded-md border theme-border-danger theme-bg-danger-soft px-2 py-1 text-xs theme-text-danger;
 }
 
 @keyframes token-flame-outer-sway {

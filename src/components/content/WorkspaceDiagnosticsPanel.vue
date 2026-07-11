@@ -273,10 +273,10 @@ watch(
 </script>
 
 <style scoped>
-@reference "tailwindcss";
+@reference "../../style.css";
 
 .workspace-diagnostics-panel {
-  @apply rounded-lg border border-zinc-200 bg-white p-3;
+  @apply rounded-lg border theme-border theme-bg-panel p-3;
 }
 
 .workspace-diagnostics-header {
@@ -288,15 +288,15 @@ watch(
 }
 
 .workspace-diagnostics-title {
-  @apply m-0 text-xs font-semibold uppercase tracking-normal text-zinc-500;
+  @apply m-0 text-xs font-semibold uppercase tracking-normal theme-muted;
 }
 
 .workspace-diagnostics-subtitle {
-  @apply m-0 mt-1 text-xs text-zinc-600;
+  @apply m-0 mt-1 text-xs theme-muted;
 }
 
 .workspace-diagnostics-refresh {
-  @apply inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md border border-zinc-200 bg-white px-2.5 text-xs font-medium text-zinc-700 transition hover:bg-zinc-50 disabled:cursor-wait disabled:opacity-60;
+  @apply inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md border theme-border theme-bg-panel px-2.5 text-xs font-medium theme-muted transition hover:theme-bg-subtle disabled:cursor-wait disabled:opacity-60;
 }
 
 .workspace-diagnostics-refresh-icon {
@@ -305,11 +305,11 @@ watch(
 
 .workspace-diagnostics-error,
 .workspace-diagnostics-warning {
-  @apply m-0 mt-2 rounded-md border border-rose-200 bg-rose-50 px-2 py-1.5 text-xs text-rose-700;
+  @apply m-0 mt-2 rounded-md border theme-border-danger theme-bg-danger-soft px-2 py-1.5 text-xs theme-text-danger;
 }
 
 .workspace-diagnostics-success {
-  @apply m-0 mt-2 rounded-md border border-emerald-200 bg-emerald-50 px-2 py-1.5 text-xs text-emerald-700;
+  @apply m-0 mt-2 rounded-md border theme-border-success theme-bg-success-soft px-2 py-1.5 text-xs theme-text-success;
 }
 
 .workspace-diagnostics-metrics {
@@ -317,27 +317,27 @@ watch(
 }
 
 .workspace-diagnostics-metric {
-  @apply min-w-0 rounded-md border border-zinc-200 bg-zinc-50 px-2 py-1.5;
+  @apply min-w-0 rounded-md border theme-border theme-bg-subtle px-2 py-1.5;
 }
 
 .workspace-diagnostics-metric[data-tone='success'] {
-  @apply border-emerald-200 bg-emerald-50;
+  @apply theme-border-success theme-bg-success-soft;
 }
 
 .workspace-diagnostics-metric[data-tone='warning'] {
-  @apply border-amber-200 bg-amber-50;
+  @apply theme-border-warning theme-bg-warning-soft;
 }
 
 .workspace-diagnostics-metric[data-tone='danger'] {
-  @apply border-rose-200 bg-rose-50;
+  @apply theme-border-danger theme-bg-danger-soft;
 }
 
 .workspace-diagnostics-metric-value {
-  @apply block truncate text-sm font-semibold leading-5 text-zinc-950;
+  @apply block truncate text-sm font-semibold leading-5 theme-text;
 }
 
 .workspace-diagnostics-metric-label {
-  @apply block truncate text-[0.68rem] leading-4 text-zinc-500;
+  @apply block truncate text-[0.68rem] leading-4 theme-muted;
 }
 
 .workspace-diagnostics-columns {
@@ -353,7 +353,7 @@ watch(
 }
 
 .workspace-diagnostics-block h4 {
-  @apply m-0 text-[0.68rem] font-semibold uppercase tracking-normal text-zinc-500;
+  @apply m-0 text-[0.68rem] font-semibold uppercase tracking-normal theme-muted;
 }
 
 .workspace-diagnostics-list {
@@ -361,15 +361,15 @@ watch(
 }
 
 .workspace-diagnostics-list div {
-  @apply min-w-0 rounded-md border border-zinc-200 bg-zinc-50 px-2 py-1.5;
+  @apply min-w-0 rounded-md border theme-border theme-bg-subtle px-2 py-1.5;
 }
 
 .workspace-diagnostics-list dt {
-  @apply text-[0.65rem] font-semibold uppercase tracking-normal text-zinc-500;
+  @apply text-[0.65rem] font-semibold uppercase tracking-normal theme-muted;
 }
 
 .workspace-diagnostics-list dd {
-  @apply m-0 truncate text-xs font-semibold text-zinc-900;
+  @apply m-0 truncate text-xs font-semibold theme-text;
 }
 
 .workspace-diagnostics-count-list,
@@ -381,24 +381,24 @@ watch(
 
 .workspace-diagnostics-count-list li,
 .workspace-diagnostics-request-list li {
-  @apply grid min-w-0 grid-cols-[minmax(0,1fr)_auto] gap-2 rounded-md border border-zinc-200 bg-zinc-50 px-2 py-1.5;
+  @apply grid min-w-0 grid-cols-[minmax(0,1fr)_auto] gap-2 rounded-md border theme-border theme-bg-subtle px-2 py-1.5;
 }
 
 .workspace-diagnostics-mcp-list li {
-  @apply min-w-0 rounded-md border border-zinc-200 bg-zinc-50 px-2 py-1.5;
+  @apply min-w-0 rounded-md border theme-border theme-bg-subtle px-2 py-1.5;
 }
 
 .workspace-diagnostics-mcp-list li[data-status='ready'] {
-  @apply border-emerald-200 bg-emerald-50;
+  @apply theme-border-success theme-bg-success-soft;
 }
 
 .workspace-diagnostics-mcp-list li[data-status='starting'] {
-  @apply border-blue-200 bg-blue-50;
+  @apply theme-border-info theme-bg-info-soft;
 }
 
 .workspace-diagnostics-mcp-list li[data-status='failed'],
 .workspace-diagnostics-mcp-list li[data-status='cancelled'] {
-  @apply border-rose-200 bg-rose-50;
+  @apply theme-border-danger theme-bg-danger-soft;
 }
 
 .workspace-diagnostics-mcp-list div {
@@ -408,21 +408,21 @@ watch(
 .workspace-diagnostics-count-list span,
 .workspace-diagnostics-mcp-list span,
 .workspace-diagnostics-request-list span {
-  @apply truncate text-xs font-semibold text-zinc-900;
+  @apply truncate text-xs font-semibold theme-text;
 }
 
 .workspace-diagnostics-count-list code,
 .workspace-diagnostics-mcp-list code,
 .workspace-diagnostics-request-list code {
-  @apply truncate font-mono text-[0.68rem] text-zinc-500;
+  @apply truncate font-mono text-[0.68rem] theme-muted;
 }
 
 .workspace-diagnostics-mcp-list p {
-  @apply m-0 mt-1 break-words text-[0.68rem] leading-4 text-zinc-600;
+  @apply m-0 mt-1 break-words text-[0.68rem] leading-4 theme-muted;
 }
 
 .workspace-diagnostics-mcp-list .workspace-diagnostics-mcp-capabilities {
-  @apply font-mono text-zinc-500;
+  @apply font-mono theme-muted;
 }
 
 .workspace-diagnostics-catalog {
@@ -430,19 +430,19 @@ watch(
 }
 
 .workspace-diagnostics-catalog span {
-  @apply rounded-md border border-zinc-200 bg-zinc-50 px-2 py-1 font-mono text-[0.68rem] text-zinc-600;
+  @apply rounded-md border theme-border theme-bg-subtle px-2 py-1 font-mono text-[0.68rem] theme-muted;
 }
 
 .workspace-diagnostics-log-list li {
-  @apply rounded-md border border-zinc-200 bg-zinc-50 p-2;
+  @apply rounded-md border theme-border theme-bg-subtle p-2;
 }
 
 .workspace-diagnostics-log-list li[data-level='warning'] {
-  @apply border-amber-200 bg-amber-50;
+  @apply theme-border-warning theme-bg-warning-soft;
 }
 
 .workspace-diagnostics-log-list li[data-level='error'] {
-  @apply border-rose-200 bg-rose-50;
+  @apply theme-border-danger theme-bg-danger-soft;
 }
 
 .workspace-diagnostics-log-list div {
@@ -450,16 +450,16 @@ watch(
 }
 
 .workspace-diagnostics-log-list span {
-  @apply text-[0.68rem] font-semibold uppercase tracking-normal text-zinc-500;
+  @apply text-[0.68rem] font-semibold uppercase tracking-normal theme-muted;
 }
 
 .workspace-diagnostics-log-list time {
-  @apply shrink-0 text-[0.68rem] text-zinc-500;
+  @apply shrink-0 text-[0.68rem] theme-muted;
 }
 
 .workspace-diagnostics-log-list p,
 .workspace-diagnostics-empty {
-  @apply m-0 mt-1 break-words text-xs leading-4 text-zinc-600;
+  @apply m-0 mt-1 break-words text-xs leading-4 theme-muted;
 }
 
 @media (max-width: 900px) {

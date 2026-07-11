@@ -204,10 +204,10 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
-@reference "tailwindcss";
+@reference "../../style.css";
 
 .workspace-monaco-editor {
-  @apply min-h-0 flex-1 overflow-hidden bg-white;
+  @apply min-h-0 flex-1 overflow-hidden theme-bg-panel;
 }
 
 .workspace-monaco-editor[data-read-only='true'] {

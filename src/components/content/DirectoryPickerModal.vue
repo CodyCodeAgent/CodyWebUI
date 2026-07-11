@@ -124,26 +124,26 @@ onMounted(() => {
 </script>
 
 <style scoped>
-@reference "tailwindcss";
+@reference "../../style.css";
 
 .directory-picker-backdrop {
   @apply fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4;
 }
 
 .directory-picker {
-  @apply w-full max-w-160 rounded-xl border border-zinc-200 bg-white shadow-xl;
+  @apply w-full max-w-160 rounded-xl border theme-border theme-bg-panel shadow-xl;
 }
 
 .directory-picker-header {
-  @apply flex items-center justify-between border-b border-zinc-100 px-4 py-3;
+  @apply flex items-center justify-between border-b theme-border px-4 py-3;
 }
 
 .directory-picker-title {
-  @apply m-0 text-sm font-semibold text-zinc-900;
+  @apply m-0 text-sm font-semibold theme-text;
 }
 
 .directory-picker-close {
-  @apply h-7 w-7 rounded-md text-zinc-500 flex items-center justify-center hover:bg-zinc-100 hover:text-zinc-900;
+  @apply h-7 w-7 rounded-md theme-muted flex items-center justify-center hover:theme-bg-control hover:theme-text;
 }
 
 .directory-picker-icon {
@@ -155,39 +155,39 @@ onMounted(() => {
 }
 
 .directory-picker-nav-button {
-  @apply h-8 w-8 rounded-md border border-zinc-200 text-zinc-600 flex items-center justify-center hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50;
+  @apply h-8 w-8 rounded-md border theme-border theme-muted flex items-center justify-center hover:theme-bg-subtle disabled:cursor-not-allowed disabled:opacity-50;
 }
 
 .directory-picker-path-input {
-  @apply h-8 min-w-0 flex-1 rounded-md border border-zinc-300 px-2 text-sm text-zinc-900 outline-none focus:border-zinc-600;
+  @apply h-8 min-w-0 flex-1 rounded-md border theme-border px-2 text-sm theme-text outline-none focus:border-zinc-600;
 }
 
 .directory-picker-go-button {
-  @apply h-8 rounded-md border border-zinc-300 px-3 text-sm text-zinc-700 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50;
+  @apply h-8 rounded-md border theme-border px-3 text-sm theme-muted hover:theme-bg-subtle disabled:cursor-not-allowed disabled:opacity-50;
 }
 
 .directory-picker-error {
-  @apply mx-4 mt-0 mb-3 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700;
+  @apply mx-4 mt-0 mb-3 rounded-md border theme-border-danger theme-bg-danger-soft px-3 py-2 text-sm theme-text-danger;
 }
 
 .directory-picker-list {
-  @apply mx-4 h-80 overflow-y-auto rounded-lg border border-zinc-200 bg-zinc-50 p-1;
+  @apply mx-4 h-80 overflow-y-auto rounded-lg border theme-border theme-bg-subtle p-1;
 }
 
 .directory-picker-empty {
-  @apply m-0 px-3 py-2 text-sm text-zinc-500;
+  @apply m-0 px-3 py-2 text-sm theme-muted;
 }
 
 .directory-picker-row {
-  @apply flex w-full items-center gap-2 rounded-md border-0 bg-transparent px-2 py-1.5 text-left text-sm text-zinc-800 hover:bg-white;
+  @apply flex w-full items-center gap-2 rounded-md border-0 bg-transparent px-2 py-1.5 text-left text-sm theme-text hover:theme-bg-panel;
 }
 
 .directory-picker-row.is-selected {
-  @apply bg-white shadow-sm;
+  @apply theme-bg-panel shadow-sm;
 }
 
 .directory-picker-folder-icon {
-  @apply h-4 w-4 shrink-0 text-zinc-500;
+  @apply h-4 w-4 shrink-0 theme-muted;
 }
 
 .directory-picker-row-name {
@@ -195,18 +195,18 @@ onMounted(() => {
 }
 
 .directory-picker-footer {
-  @apply flex items-center gap-2 border-t border-zinc-100 px-4 py-3;
+  @apply flex items-center gap-2 border-t theme-border px-4 py-3;
 }
 
 .directory-picker-selected {
-  @apply m-0 min-w-0 flex-1 truncate text-xs text-zinc-500;
+  @apply m-0 min-w-0 flex-1 truncate text-xs theme-muted;
 }
 
 .directory-picker-cancel {
-  @apply rounded-md border border-zinc-200 px-3 py-1.5 text-sm text-zinc-700 hover:bg-zinc-50;
+  @apply rounded-md border theme-border px-3 py-1.5 text-sm theme-muted hover:theme-bg-subtle;
 }
 
 .directory-picker-confirm {
-  @apply rounded-md border border-zinc-900 bg-zinc-900 px-3 py-1.5 text-sm text-white hover:bg-black disabled:cursor-not-allowed disabled:border-zinc-200 disabled:bg-zinc-200 disabled:text-zinc-500;
+  @apply rounded-md border theme-border theme-bg-accent px-3 py-1.5 text-sm theme-on-accent hover:theme-bg-accent-hover disabled:cursor-not-allowed disabled:theme-border disabled:theme-bg-disabled disabled:theme-muted;
 }
 </style>

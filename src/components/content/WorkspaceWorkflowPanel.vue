@@ -912,10 +912,10 @@ watch(
 </script>
 
 <style scoped>
-@reference "tailwindcss";
+@reference "../../style.css";
 
 .workspace-workflow-panel {
-  @apply rounded-lg border border-zinc-200 bg-white p-3;
+  @apply rounded-lg border theme-border theme-bg-panel p-3;
 }
 
 .workspace-workflow-header {
@@ -923,15 +923,15 @@ watch(
 }
 
 .workspace-workflow-title {
-  @apply m-0 text-xs font-semibold uppercase tracking-normal text-zinc-500;
+  @apply m-0 text-xs font-semibold uppercase tracking-normal theme-muted;
 }
 
 .workspace-workflow-subtitle {
-  @apply m-0 mt-1 text-xs text-zinc-600;
+  @apply m-0 mt-1 text-xs theme-muted;
 }
 
 .workspace-workflow-refresh {
-  @apply inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-zinc-200 bg-white text-zinc-700 transition hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-60;
+  @apply inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border theme-border theme-bg-panel theme-muted transition hover:theme-bg-subtle disabled:cursor-not-allowed disabled:opacity-60;
 }
 
 .workspace-workflow-refresh-icon {
@@ -939,7 +939,7 @@ watch(
 }
 
 .workspace-workflow-error {
-  @apply m-0 mt-3 rounded-md border border-rose-200 bg-rose-50 px-2 py-1 text-xs text-rose-700;
+  @apply m-0 mt-3 rounded-md border theme-border-danger theme-bg-danger-soft px-2 py-1 text-xs theme-text-danger;
 }
 
 .workspace-workflow-form {
@@ -951,12 +951,12 @@ watch(
 }
 
 .workspace-workflow-form span {
-  @apply text-[0.68rem] font-semibold uppercase leading-4 text-zinc-500;
+  @apply text-[0.68rem] font-semibold uppercase leading-4 theme-muted;
 }
 
 .workspace-workflow-form select,
 .workspace-workflow-form textarea {
-  @apply min-w-0 rounded-md border border-zinc-200 bg-white px-2 text-xs text-zinc-900 outline-none transition focus:border-blue-300;
+  @apply min-w-0 rounded-md border theme-border theme-bg-panel px-2 text-xs theme-text outline-none transition focus:theme-border-info;
 }
 
 .workspace-workflow-form select {
@@ -968,11 +968,11 @@ watch(
 }
 
 .workspace-workflow-create {
-  @apply inline-flex h-8 shrink-0 items-center rounded-md border border-zinc-900 bg-zinc-900 px-3 text-xs font-medium text-white transition hover:bg-zinc-700 disabled:cursor-not-allowed disabled:opacity-60;
+  @apply inline-flex h-8 shrink-0 items-center rounded-md border theme-border theme-bg-accent px-3 text-xs font-medium theme-on-accent transition hover:theme-bg-accent-hover disabled:cursor-not-allowed disabled:opacity-60;
 }
 
 .workspace-workflow-template {
-  @apply mt-3 flex items-start justify-between gap-3 rounded-md border border-zinc-200 bg-zinc-50 p-2;
+  @apply mt-3 flex items-start justify-between gap-3 rounded-md border theme-border theme-bg-subtle p-2;
 }
 
 .workspace-workflow-template-copy {
@@ -982,13 +982,13 @@ watch(
 .workspace-workflow-template h4,
 .workspace-workflow-run h4,
 .workspace-workflow-agent h5 {
-  @apply m-0 text-sm font-semibold text-zinc-950;
+  @apply m-0 text-sm font-semibold theme-text;
 }
 
 .workspace-workflow-template p,
 .workspace-workflow-run p,
 .workspace-workflow-agent p {
-  @apply m-0 mt-1 text-xs leading-5 text-zinc-600;
+  @apply m-0 mt-1 text-xs leading-5 theme-muted;
 }
 
 .workspace-workflow-template-meta,
@@ -1000,7 +1000,7 @@ watch(
 .workspace-workflow-template-meta span,
 .workspace-workflow-run-meta span,
 .workspace-workflow-risk-list span {
-  @apply rounded-md border border-zinc-200 bg-white px-1.5 py-0.5 text-[0.68rem] font-medium text-zinc-600;
+  @apply rounded-md border theme-border theme-bg-panel px-1.5 py-0.5 text-[0.68rem] font-medium theme-muted;
 }
 
 .workspace-workflow-list {
@@ -1008,22 +1008,22 @@ watch(
 }
 
 .workspace-workflow-run {
-  @apply rounded-md border border-zinc-200 bg-white p-3;
+  @apply rounded-md border theme-border theme-bg-panel p-3;
 }
 
 .workspace-workflow-run[data-status='blocked'],
 .workspace-workflow-run[data-status='failed'] {
-  @apply border-rose-200 bg-rose-50;
+  @apply theme-border-danger theme-bg-danger-soft;
 }
 
 .workspace-workflow-run[data-status='ready_for_execution'],
 .workspace-workflow-run[data-status='ready_for_review'] {
-  @apply border-blue-200 bg-blue-50;
+  @apply theme-border-info theme-bg-info-soft;
 }
 
 .workspace-workflow-run[data-status='ready_to_merge'],
 .workspace-workflow-run[data-status='merged'] {
-  @apply border-emerald-200 bg-emerald-50;
+  @apply theme-border-success theme-bg-success-soft;
 }
 
 .workspace-workflow-run-header {
@@ -1040,16 +1040,16 @@ watch(
 
 .workspace-workflow-run-template,
 .workspace-workflow-agent-role {
-  @apply text-[0.68rem] font-semibold uppercase leading-4 text-zinc-500;
+  @apply text-[0.68rem] font-semibold uppercase leading-4 theme-muted;
 }
 
 .workspace-workflow-run-status,
 .workspace-workflow-agent-status {
-  @apply shrink-0 rounded-md border border-zinc-200 bg-white px-1.5 py-0.5 text-[0.68rem] font-medium text-zinc-700;
+  @apply shrink-0 rounded-md border theme-border theme-bg-panel px-1.5 py-0.5 text-[0.68rem] font-medium theme-muted;
 }
 
 .workspace-workflow-run-actions button {
-  @apply inline-flex h-7 items-center rounded-md border border-zinc-200 bg-white px-2 text-[0.68rem] font-medium text-zinc-700 transition hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50;
+  @apply inline-flex h-7 items-center rounded-md border theme-border theme-bg-panel px-2 text-[0.68rem] font-medium theme-muted transition hover:theme-bg-subtle disabled:cursor-not-allowed disabled:opacity-50;
 }
 
 .workspace-workflow-run-meta,
@@ -1059,27 +1059,27 @@ watch(
 }
 
 .workspace-workflow-warning-list {
-  @apply grid gap-1 rounded-md border border-amber-200 bg-amber-50 px-2 py-1 text-xs text-amber-800;
+  @apply grid gap-1 rounded-md border theme-border-warning theme-bg-warning-soft px-2 py-1 text-xs theme-text-warning;
 }
 
 .workspace-workflow-acceptance {
-  @apply mt-3 rounded-md border border-zinc-200 bg-zinc-50 p-2;
+  @apply mt-3 rounded-md border theme-border theme-bg-subtle p-2;
 }
 
 .workspace-workflow-acceptance[data-status='accepted'],
 .workspace-workflow-acceptance[data-status='ready_for_review'] {
-  @apply border-emerald-200 bg-emerald-50;
+  @apply theme-border-success theme-bg-success-soft;
 }
 
 .workspace-workflow-acceptance[data-status='pending_worktree'],
 .workspace-workflow-acceptance[data-status='waiting_for_agents'],
 .workspace-workflow-acceptance[data-status='waiting_for_validation'] {
-  @apply border-amber-200 bg-amber-50;
+  @apply theme-border-warning theme-bg-warning-soft;
 }
 
 .workspace-workflow-acceptance[data-status='validation_failed'],
 .workspace-workflow-acceptance[data-status='blocked'] {
-  @apply border-rose-200 bg-rose-50;
+  @apply theme-border-danger theme-bg-danger-soft;
 }
 
 .workspace-workflow-acceptance header {
@@ -1087,15 +1087,15 @@ watch(
 }
 
 .workspace-workflow-acceptance h5 {
-  @apply m-0 text-xs font-semibold uppercase tracking-normal text-zinc-500;
+  @apply m-0 text-xs font-semibold uppercase tracking-normal theme-muted;
 }
 
 .workspace-workflow-acceptance header strong {
-  @apply shrink-0 rounded-md border border-zinc-200 bg-white px-1.5 py-0.5 text-[0.68rem] font-medium text-zinc-700;
+  @apply shrink-0 rounded-md border theme-border theme-bg-panel px-1.5 py-0.5 text-[0.68rem] font-medium theme-muted;
 }
 
 .workspace-workflow-acceptance p {
-  @apply m-0 mt-1 text-xs leading-5 text-zinc-600;
+  @apply m-0 mt-1 text-xs leading-5 theme-muted;
 }
 
 .workspace-workflow-acceptance dl {
@@ -1103,35 +1103,35 @@ watch(
 }
 
 .workspace-workflow-acceptance dl div {
-  @apply min-w-0 rounded-md border border-zinc-200 bg-white px-1.5 py-1;
+  @apply min-w-0 rounded-md border theme-border theme-bg-panel px-1.5 py-1;
 }
 
 .workspace-workflow-acceptance dt {
-  @apply text-[0.64rem] font-semibold uppercase text-zinc-500;
+  @apply text-[0.64rem] font-semibold uppercase theme-muted;
 }
 
 .workspace-workflow-acceptance dd {
-  @apply m-0 truncate text-xs text-zinc-800;
+  @apply m-0 truncate text-xs theme-text;
 }
 
 .workspace-workflow-acceptance code {
-  @apply mt-2 block truncate rounded-md border border-zinc-200 bg-white px-1.5 py-1 font-mono text-[0.68rem] leading-4 text-zinc-600;
+  @apply mt-2 block truncate rounded-md border theme-border theme-bg-panel px-1.5 py-1 font-mono text-[0.68rem] leading-4 theme-muted;
 }
 
 .workspace-workflow-acceptance ul {
-  @apply m-0 mt-2 grid gap-1 p-0 text-xs leading-5 text-zinc-700;
+  @apply m-0 mt-2 grid gap-1 p-0 text-xs leading-5 theme-muted;
 }
 
 .workspace-workflow-applied {
-  @apply mt-2 rounded-md border border-emerald-200 bg-emerald-50 px-2 py-1 font-mono text-[0.68rem] leading-4 text-emerald-800;
+  @apply mt-2 rounded-md border theme-border-success theme-bg-success-soft px-2 py-1 font-mono text-[0.68rem] leading-4 theme-text-success;
 }
 
 .workspace-workflow-delivery-state {
-  @apply mt-2 rounded-md border border-emerald-200 bg-white px-2 py-1 font-mono text-[0.68rem] leading-4 text-emerald-800;
+  @apply mt-2 rounded-md border theme-border-success theme-bg-panel px-2 py-1 font-mono text-[0.68rem] leading-4 theme-text-success;
 }
 
 .workspace-workflow-options {
-  @apply mt-3 rounded-md border border-zinc-200 bg-zinc-50 p-2;
+  @apply mt-3 rounded-md border theme-border theme-bg-subtle p-2;
 }
 
 .workspace-workflow-options-header {
@@ -1139,11 +1139,11 @@ watch(
 }
 
 .workspace-workflow-options-header h5 {
-  @apply m-0 text-xs font-semibold uppercase tracking-normal text-zinc-500;
+  @apply m-0 text-xs font-semibold uppercase tracking-normal theme-muted;
 }
 
 .workspace-workflow-options-header span {
-  @apply text-[0.68rem] font-medium text-zinc-500;
+  @apply text-[0.68rem] font-medium theme-muted;
 }
 
 .workspace-workflow-options-grid {
@@ -1151,24 +1151,24 @@ watch(
 }
 
 .workspace-workflow-option {
-  @apply min-w-0 rounded-md border border-zinc-200 bg-white p-2;
+  @apply min-w-0 rounded-md border theme-border theme-bg-panel p-2;
 }
 
 .workspace-workflow-option[data-status='ready_to_merge'] {
-  @apply border-emerald-200 bg-emerald-50;
+  @apply theme-border-success theme-bg-success-soft;
 }
 
 .workspace-workflow-option[data-status='validation_missing'],
 .workspace-workflow-option[data-status='pending_worktree'] {
-  @apply border-amber-200 bg-amber-50;
+  @apply theme-border-warning theme-bg-warning-soft;
 }
 
 .workspace-workflow-option[data-status='validation_failed'] {
-  @apply border-rose-200 bg-rose-50;
+  @apply theme-border-danger theme-bg-danger-soft;
 }
 
 .workspace-workflow-option[data-status='discarded'] {
-  @apply border-zinc-300 bg-zinc-100 opacity-80;
+  @apply theme-border theme-bg-control opacity-80;
 }
 
 .workspace-workflow-option header {
@@ -1176,15 +1176,15 @@ watch(
 }
 
 .workspace-workflow-option header span {
-  @apply min-w-0 truncate text-xs font-semibold text-zinc-900;
+  @apply min-w-0 truncate text-xs font-semibold theme-text;
 }
 
 .workspace-workflow-option header strong {
-  @apply shrink-0 rounded-md border border-zinc-200 bg-white px-1.5 py-0.5 text-[0.68rem] font-medium text-zinc-700;
+  @apply shrink-0 rounded-md border theme-border theme-bg-panel px-1.5 py-0.5 text-[0.68rem] font-medium theme-muted;
 }
 
 .workspace-workflow-option p {
-  @apply m-0 mt-1 text-xs leading-5 text-zinc-600;
+  @apply m-0 mt-1 text-xs leading-5 theme-muted;
 }
 
 .workspace-workflow-option dl {
@@ -1192,19 +1192,19 @@ watch(
 }
 
 .workspace-workflow-option dl div {
-  @apply min-w-0 rounded-md border border-zinc-200 bg-white px-1.5 py-1;
+  @apply min-w-0 rounded-md border theme-border theme-bg-panel px-1.5 py-1;
 }
 
 .workspace-workflow-option dt {
-  @apply text-[0.64rem] font-semibold uppercase text-zinc-500;
+  @apply text-[0.64rem] font-semibold uppercase theme-muted;
 }
 
 .workspace-workflow-option dd {
-  @apply m-0 truncate text-xs text-zinc-800;
+  @apply m-0 truncate text-xs theme-text;
 }
 
 .workspace-workflow-option code {
-  @apply mt-2 block truncate rounded-md border border-zinc-200 bg-white px-1.5 py-1 font-mono text-[0.68rem] leading-4 text-zinc-600;
+  @apply mt-2 block truncate rounded-md border theme-border theme-bg-panel px-1.5 py-1 font-mono text-[0.68rem] leading-4 theme-muted;
 }
 
 .workspace-workflow-option-actions {
@@ -1212,15 +1212,15 @@ watch(
 }
 
 .workspace-workflow-option-actions button {
-  @apply inline-flex h-7 items-center rounded-md border border-emerald-200 bg-white px-2 text-[0.68rem] font-medium text-emerald-700 transition hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-60;
+  @apply inline-flex h-7 items-center rounded-md border theme-border-success theme-bg-panel px-2 text-[0.68rem] font-medium theme-text-success transition hover:theme-bg-success-soft disabled:cursor-not-allowed disabled:opacity-60;
 }
 
 .workspace-workflow-option-actions button[data-tone='danger'] {
-  @apply border-rose-200 text-rose-700 hover:bg-rose-50;
+  @apply theme-border-danger theme-text-danger hover:theme-bg-danger-soft;
 }
 
 .workspace-workflow-option ul {
-  @apply m-0 mt-2 grid gap-1 p-0 text-xs leading-5 text-zinc-700;
+  @apply m-0 mt-2 grid gap-1 p-0 text-xs leading-5 theme-muted;
 }
 
 .workspace-workflow-agent-grid {
@@ -1228,11 +1228,11 @@ watch(
 }
 
 .workspace-workflow-agent {
-  @apply min-w-0 rounded-md border border-zinc-200 bg-white p-2;
+  @apply min-w-0 rounded-md border theme-border theme-bg-panel p-2;
 }
 
 .workspace-workflow-agent[data-status='ready'] {
-  @apply border-emerald-200 bg-emerald-50;
+  @apply theme-border-success theme-bg-success-soft;
 }
 
 .workspace-workflow-agent-header {
@@ -1244,15 +1244,15 @@ watch(
 }
 
 .workspace-workflow-agent dl div {
-  @apply min-w-0 rounded-md border border-zinc-200 bg-white px-1.5 py-1;
+  @apply min-w-0 rounded-md border theme-border theme-bg-panel px-1.5 py-1;
 }
 
 .workspace-workflow-agent dt {
-  @apply text-[0.64rem] font-semibold uppercase text-zinc-500;
+  @apply text-[0.64rem] font-semibold uppercase theme-muted;
 }
 
 .workspace-workflow-agent dd {
-  @apply m-0 truncate text-xs text-zinc-800;
+  @apply m-0 truncate text-xs theme-text;
 }
 
 .workspace-workflow-agent-actions {
@@ -1260,42 +1260,42 @@ watch(
 }
 
 .workspace-workflow-agent-actions button {
-  @apply inline-flex h-7 items-center rounded-md border border-zinc-200 bg-white px-2 text-[0.68rem] font-medium text-zinc-700 transition hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50;
+  @apply inline-flex h-7 items-center rounded-md border theme-border theme-bg-panel px-2 text-[0.68rem] font-medium theme-muted transition hover:theme-bg-subtle disabled:cursor-not-allowed disabled:opacity-50;
 }
 
 .workspace-workflow-agent-actions button[data-testid='workflow-agent-complete'] {
-  @apply border-emerald-200 text-emerald-700;
+  @apply theme-border-success theme-text-success;
 }
 
 .workspace-workflow-agent-actions button[data-testid='workflow-agent-block'] {
-  @apply border-amber-200 text-amber-700;
+  @apply theme-border-warning theme-text-warning;
 }
 
 .workspace-workflow-agent-actions button[data-testid='workflow-agent-provision-worktree'] {
-  @apply border-blue-200 text-blue-700;
+  @apply theme-border-info theme-text-info;
 }
 
 .workspace-workflow-agent-branch,
 .workspace-workflow-agent-path {
-  @apply m-0 mt-2 truncate font-mono text-[0.68rem] leading-4 text-zinc-500;
+  @apply m-0 mt-2 truncate font-mono text-[0.68rem] leading-4 theme-muted;
 }
 
 .workspace-workflow-briefing,
 .workspace-workflow-validation {
-  @apply mt-2 border-t border-zinc-200 pt-2;
+  @apply mt-2 border-t theme-border pt-2;
 }
 
 .workspace-workflow-briefing summary,
 .workspace-workflow-validation summary {
-  @apply cursor-pointer text-xs font-medium text-zinc-700;
+  @apply cursor-pointer text-xs font-medium theme-muted;
 }
 
 .workspace-workflow-briefing pre {
-  @apply mt-2 max-h-56 overflow-auto whitespace-pre-wrap rounded-md border border-zinc-200 bg-zinc-950 p-2 font-mono text-[0.68rem] leading-4 text-zinc-100;
+  @apply mt-2 max-h-56 overflow-auto whitespace-pre-wrap rounded-md border theme-border bg-zinc-950 p-2 font-mono text-[0.68rem] leading-4 text-zinc-100;
 }
 
 .workspace-workflow-validation ul {
-  @apply m-0 mt-2 grid gap-1 p-0 text-xs text-zinc-700;
+  @apply m-0 mt-2 grid gap-1 p-0 text-xs theme-muted;
 }
 
 .workspace-workflow-validation-actions {
@@ -1303,7 +1303,7 @@ watch(
 }
 
 .workspace-workflow-validation-actions button {
-  @apply inline-flex h-7 items-center rounded-md border border-emerald-200 bg-white px-2 text-[0.68rem] font-medium text-emerald-700 transition hover:bg-emerald-50 disabled:cursor-wait disabled:opacity-60;
+  @apply inline-flex h-7 items-center rounded-md border theme-border-success theme-bg-panel px-2 text-[0.68rem] font-medium theme-text-success transition hover:theme-bg-success-soft disabled:cursor-wait disabled:opacity-60;
 }
 
 .workspace-workflow-validation-result {
@@ -1311,16 +1311,16 @@ watch(
 }
 
 .workspace-workflow-validation-result[data-status='passed'] {
-  @apply border-emerald-200 bg-emerald-50 text-emerald-800;
+  @apply theme-border-success theme-bg-success-soft theme-text-success;
 }
 
 .workspace-workflow-validation-result[data-status='failed'],
 .workspace-workflow-validation-result[data-status='timed_out'] {
-  @apply border-rose-200 bg-rose-50 text-rose-800;
+  @apply theme-border-danger theme-bg-danger-soft theme-text-danger;
 }
 
 .workspace-workflow-delivery {
-  @apply mt-3 rounded-md border border-zinc-200 bg-zinc-50 p-2;
+  @apply mt-3 rounded-md border theme-border theme-bg-subtle p-2;
 }
 
 .workspace-workflow-delivery header {
@@ -1328,11 +1328,11 @@ watch(
 }
 
 .workspace-workflow-delivery h5 {
-  @apply m-0 text-xs font-semibold uppercase tracking-normal text-zinc-500;
+  @apply m-0 text-xs font-semibold uppercase tracking-normal theme-muted;
 }
 
 .workspace-workflow-delivery header span {
-  @apply text-[0.68rem] font-medium text-zinc-500;
+  @apply text-[0.68rem] font-medium theme-muted;
 }
 
 .workspace-workflow-delivery label {
@@ -1340,12 +1340,12 @@ watch(
 }
 
 .workspace-workflow-delivery label span {
-  @apply text-[0.68rem] font-semibold uppercase leading-4 text-zinc-500;
+  @apply text-[0.68rem] font-semibold uppercase leading-4 theme-muted;
 }
 
 .workspace-workflow-delivery input,
 .workspace-workflow-delivery textarea {
-  @apply w-full rounded-md border border-zinc-200 bg-white px-2 py-1.5 font-mono text-[0.68rem] leading-4 text-zinc-800 outline-none;
+  @apply w-full rounded-md border theme-border theme-bg-panel px-2 py-1.5 font-mono text-[0.68rem] leading-4 theme-text outline-none;
 }
 
 .workspace-workflow-delivery textarea {
@@ -1357,15 +1357,15 @@ watch(
 }
 
 .workspace-workflow-delivery ul {
-  @apply m-0 mt-2 grid gap-1 p-0 text-xs leading-5 text-zinc-700;
+  @apply m-0 mt-2 grid gap-1 p-0 text-xs leading-5 theme-muted;
 }
 
 .workspace-workflow-delivery-error {
-  @apply mt-2 rounded-md border border-rose-200 bg-rose-50 px-2 py-1 text-xs text-rose-700;
+  @apply mt-2 rounded-md border theme-border-danger theme-bg-danger-soft px-2 py-1 text-xs theme-text-danger;
 }
 
 .workspace-workflow-replay {
-  @apply mt-3 border-t border-zinc-200 pt-3;
+  @apply mt-3 border-t theme-border pt-3;
 }
 
 .workspace-workflow-replay-summary,
@@ -1375,7 +1375,7 @@ watch(
 
 .workspace-workflow-replay-summary span,
 .workspace-workflow-replay-agents span {
-  @apply rounded-md border border-zinc-200 bg-white px-1.5 py-1 text-[0.68rem] leading-4 text-zinc-600;
+  @apply rounded-md border theme-border theme-bg-panel px-1.5 py-1 text-[0.68rem] leading-4 theme-muted;
 }
 
 .workspace-workflow-replay-agents {
@@ -1391,7 +1391,7 @@ watch(
 }
 
 .workspace-workflow-replay-events li {
-  @apply relative rounded-md border border-zinc-200 bg-white px-2 py-1.5;
+  @apply relative rounded-md border theme-border theme-bg-panel px-2 py-1.5;
 }
 
 .workspace-workflow-replay-events li::before {
@@ -1399,28 +1399,28 @@ watch(
 }
 
 .workspace-workflow-replay-events li[data-severity='success']::before {
-  @apply bg-emerald-500;
+  @apply theme-bg-success;
 }
 
 .workspace-workflow-replay-events li[data-severity='warning']::before {
-  @apply bg-amber-500;
+  @apply theme-bg-warning;
 }
 
 .workspace-workflow-replay-events li[data-severity='danger']::before {
-  @apply bg-rose-500;
+  @apply theme-bg-danger;
 }
 
 .workspace-workflow-replay-events time,
 .workspace-workflow-replay-events span {
-  @apply block text-[0.68rem] leading-4 text-zinc-500;
+  @apply block text-[0.68rem] leading-4 theme-muted;
 }
 
 .workspace-workflow-replay-events strong {
-  @apply block text-xs font-semibold text-zinc-900;
+  @apply block text-xs font-semibold theme-text;
 }
 
 .workspace-workflow-replay-events p {
-  @apply m-0 mt-1 text-xs leading-5 text-zinc-600;
+  @apply m-0 mt-1 text-xs leading-5 theme-muted;
 }
 
 .workspace-workflow-replay-empty,
@@ -1429,15 +1429,15 @@ watch(
 }
 
 .workspace-workflow-replay-empty {
-  @apply border-dashed border-zinc-200 text-zinc-500;
+  @apply border-dashed theme-border theme-muted;
 }
 
 .workspace-workflow-replay-error {
-  @apply border-rose-200 bg-rose-50 text-rose-700;
+  @apply theme-border-danger theme-bg-danger-soft theme-text-danger;
 }
 
 .workspace-workflow-empty {
-  @apply m-0 mt-3 rounded-md border border-dashed border-zinc-200 px-3 py-2 text-xs text-zinc-500;
+  @apply m-0 mt-3 rounded-md border border-dashed theme-border px-3 py-2 text-xs theme-muted;
 }
 
 @media (max-width: 920px) {

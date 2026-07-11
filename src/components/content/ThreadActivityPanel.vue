@@ -673,14 +673,14 @@ watch(() => props.threadId, () => {
 </script>
 
 <style scoped>
-@reference "tailwindcss";
+@reference "../../style.css";
 
 .thread-activity-host {
   @apply relative z-40 flex items-center;
 }
 
 .thread-work-log-trigger {
-  @apply relative inline-flex h-9 w-9 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-200;
+  @apply relative inline-flex h-9 w-9 items-center justify-center rounded-md border theme-border theme-bg-panel theme-muted shadow-sm transition hover:theme-border-info hover:theme-bg-info-soft hover:theme-text-info focus:outline-none focus:ring-2 focus:ring-blue-200;
 }
 
 .thread-work-log-trigger-icon {
@@ -688,11 +688,11 @@ watch(() => props.threadId, () => {
 }
 
 .thread-work-log-trigger-badge {
-  @apply absolute -right-2 -top-2 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-red-600 px-1 text-[0.68rem] font-semibold leading-none text-white ring-2 ring-white;
+  @apply absolute -right-2 -top-2 inline-flex h-5 min-w-5 items-center justify-center rounded-full theme-bg-danger px-1 text-[0.68rem] font-semibold leading-none theme-on-danger ring-2 theme-border;
 }
 
 .thread-activity-panel {
-  @apply absolute right-0 top-[calc(100%+0.5rem)] z-50 flex max-h-[min(72vh,48rem)] min-h-0 w-[min(34rem,calc(100vw-3rem))] flex-col gap-3 overflow-hidden rounded-lg border border-slate-200 bg-white p-3 shadow-2xl;
+  @apply absolute right-0 top-[calc(100%+0.5rem)] z-50 flex max-h-[min(72vh,48rem)] min-h-0 w-[min(34rem,calc(100vw-3rem))] flex-col gap-3 overflow-hidden rounded-lg border theme-border theme-bg-panel p-3 shadow-2xl;
 }
 
 .thread-activity-header {
@@ -704,27 +704,27 @@ watch(() => props.threadId, () => {
 }
 
 .thread-activity-close {
-  @apply inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-slate-200 bg-white text-lg leading-none text-slate-600 transition hover:bg-slate-100 hover:text-slate-950;
+  @apply inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border theme-border theme-bg-panel text-lg leading-none theme-muted transition hover:theme-bg-control hover:theme-text;
 }
 
 .thread-activity-title {
-  @apply m-0 text-sm font-semibold text-slate-900;
+  @apply m-0 text-sm font-semibold theme-text;
 }
 
 .thread-activity-subtitle {
-  @apply m-0 mt-0.5 text-xs text-slate-500;
+  @apply m-0 mt-0.5 text-xs theme-muted;
 }
 
 .thread-activity-view-toggle {
-  @apply mt-2 inline-flex rounded-md border border-slate-200 bg-slate-100 p-0.5;
+  @apply mt-2 inline-flex rounded-md border theme-border theme-bg-control p-0.5;
 }
 
 .thread-activity-view-button {
-  @apply rounded px-2 py-1 text-[0.68rem] font-semibold leading-4 text-slate-600 transition hover:bg-white hover:text-slate-950;
+  @apply rounded px-2 py-1 text-[0.68rem] font-semibold leading-4 theme-muted transition hover:theme-bg-panel hover:theme-text;
 }
 
 .thread-activity-view-button[data-active='true'] {
-  @apply bg-white text-blue-700 shadow-sm;
+  @apply theme-bg-panel theme-text-info shadow-sm;
 }
 
 .thread-activity-metrics {
@@ -732,19 +732,19 @@ watch(() => props.threadId, () => {
 }
 
 .thread-activity-metric {
-  @apply min-w-0 rounded-md border border-slate-200 bg-slate-50 px-2 py-1.5;
+  @apply min-w-0 rounded-md border theme-border theme-bg-subtle px-2 py-1.5;
 }
 
 .thread-activity-metric[data-alert='true'] {
-  @apply border-rose-200 bg-rose-50;
+  @apply theme-border-danger theme-bg-danger-soft;
 }
 
 .thread-activity-metric-value {
-  @apply block text-sm font-semibold leading-5 text-slate-900;
+  @apply block text-sm font-semibold leading-5 theme-text;
 }
 
 .thread-activity-metric-label {
-  @apply block truncate text-[0.68rem] leading-4 text-slate-500;
+  @apply block truncate text-[0.68rem] leading-4 theme-muted;
 }
 
 .thread-activity-section {
@@ -756,7 +756,7 @@ watch(() => props.threadId, () => {
 }
 
 .thread-activity-section-title {
-  @apply m-0 text-xs font-semibold uppercase tracking-normal text-slate-500;
+  @apply m-0 text-xs font-semibold uppercase tracking-normal theme-muted;
 }
 
 .thread-activity-section-heading {
@@ -764,7 +764,7 @@ watch(() => props.threadId, () => {
 }
 
 .thread-activity-section-count {
-  @apply shrink-0 text-[0.68rem] font-medium leading-4 text-slate-500;
+  @apply shrink-0 text-[0.68rem] font-medium leading-4 theme-muted;
 }
 
 .thread-activity-section-title-spaced {
@@ -772,35 +772,35 @@ watch(() => props.threadId, () => {
 }
 
 .thread-activity-empty {
-  @apply m-0 rounded-md border border-dashed border-slate-200 px-3 py-2 text-xs text-slate-500;
+  @apply m-0 rounded-md border border-dashed theme-border px-3 py-2 text-xs theme-muted;
 }
 
 .work-log-file-filter {
-  @apply grid gap-1 rounded-md border border-slate-200 bg-white px-2 py-1.5;
+  @apply grid gap-1 rounded-md border theme-border theme-bg-panel px-2 py-1.5;
 }
 
 .work-log-file-filter span {
-  @apply text-[0.68rem] font-semibold uppercase leading-4 text-slate-500;
+  @apply text-[0.68rem] font-semibold uppercase leading-4 theme-muted;
 }
 
 .work-log-file-filter input {
-  @apply min-w-0 border-0 bg-transparent p-0 text-xs text-slate-900 outline-none placeholder:text-slate-400;
+  @apply min-w-0 border-0 bg-transparent p-0 text-xs theme-text outline-none placeholder:theme-muted;
 }
 
 .thread-action-required-float {
-  @apply fixed bottom-4 right-4 z-50 flex max-h-[min(72vh,42rem)] w-[min(28rem,calc(100vw-2rem))] flex-col gap-2 overflow-hidden rounded-lg border border-amber-300 bg-amber-50 p-3 shadow-2xl;
+  @apply fixed bottom-4 right-4 z-50 flex max-h-[min(72vh,42rem)] w-[min(28rem,calc(100vw-2rem))] flex-col gap-2 overflow-hidden rounded-lg border theme-border-warning theme-bg-warning-soft p-3 shadow-2xl;
 }
 
 .thread-action-required-header {
-  @apply flex shrink-0 items-start justify-between gap-3 border-b border-amber-200 pb-2;
+  @apply flex shrink-0 items-start justify-between gap-3 border-b theme-border-warning pb-2;
 }
 
 .thread-action-required-title {
-  @apply m-0 text-xs font-semibold uppercase tracking-normal text-amber-900;
+  @apply m-0 text-xs font-semibold uppercase tracking-normal theme-text-warning;
 }
 
 .thread-action-required-subtitle {
-  @apply m-0 mt-0.5 text-xs text-amber-800;
+  @apply m-0 mt-0.5 text-xs theme-text-warning;
 }
 
 .thread-action-required-list {
@@ -812,7 +812,7 @@ watch(() => props.threadId, () => {
 }
 
 .work-log-card {
-  @apply rounded-lg border border-slate-200 bg-slate-50 px-3 py-2;
+  @apply rounded-lg border theme-border theme-bg-subtle px-3 py-2;
 }
 
 .work-log-card + .work-log-card {
@@ -820,15 +820,15 @@ watch(() => props.threadId, () => {
 }
 
 .work-log-card[data-tone='success'] {
-  @apply border-emerald-200 bg-emerald-50;
+  @apply theme-border-success theme-bg-success-soft;
 }
 
 .work-log-card[data-tone='danger'] {
-  @apply border-rose-200 bg-rose-50;
+  @apply theme-border-danger theme-bg-danger-soft;
 }
 
 .work-log-card[data-tone='working'] {
-  @apply border-blue-200 bg-blue-50;
+  @apply theme-border-info theme-bg-info-soft;
 }
 
 .work-log-file-card {
@@ -848,7 +848,7 @@ watch(() => props.threadId, () => {
 }
 
 .work-log-primary {
-  @apply min-w-0 truncate font-mono font-semibold text-slate-900;
+  @apply min-w-0 truncate font-mono font-semibold theme-text;
 }
 
 .work-log-primary-stack {
@@ -856,32 +856,32 @@ watch(() => props.threadId, () => {
 }
 
 .work-log-directory {
-  @apply min-w-0 truncate font-mono text-[0.68rem] leading-4 text-slate-500;
+  @apply min-w-0 truncate font-mono text-[0.68rem] leading-4 theme-muted;
 }
 
 .work-log-status,
 .work-log-stat {
-  @apply shrink-0 rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[0.68rem] font-medium leading-4 text-slate-600;
+  @apply shrink-0 rounded-full border theme-border theme-bg-panel px-2 py-0.5 text-[0.68rem] font-medium leading-4 theme-muted;
 }
 
 .work-log-fullscreen-button {
-  @apply absolute right-3 top-2 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-slate-200 bg-white text-sm leading-none text-slate-600 transition hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700;
+  @apply absolute right-3 top-2 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border theme-border theme-bg-panel text-sm leading-none theme-muted transition hover:theme-border-info hover:theme-bg-info-soft hover:theme-text-info;
 }
 
 .work-log-card[data-tone='success'] .work-log-status {
-  @apply border-emerald-200 bg-emerald-100 text-emerald-800;
+  @apply theme-border-success theme-bg-success-soft theme-text-success;
 }
 
 .work-log-card[data-tone='danger'] .work-log-status {
-  @apply border-rose-200 bg-rose-100 text-rose-800;
+  @apply theme-border-danger theme-bg-danger-soft theme-text-danger;
 }
 
 .work-log-card[data-tone='working'] .work-log-status {
-  @apply border-blue-200 bg-blue-100 text-blue-800;
+  @apply theme-border-info theme-bg-info-soft theme-text-info;
 }
 
 .work-log-meta {
-  @apply m-0 mt-2 break-words text-xs leading-4 text-slate-600;
+  @apply m-0 mt-2 break-words text-xs leading-4 theme-muted;
 }
 
 .work-log-details {
@@ -893,15 +893,15 @@ watch(() => props.threadId, () => {
 }
 
 .work-log-details dt {
-  @apply text-[0.68rem] font-semibold uppercase leading-4 text-slate-500;
+  @apply text-[0.68rem] font-semibold uppercase leading-4 theme-muted;
 }
 
 .work-log-details dd {
-  @apply m-0 min-w-0 truncate font-mono text-[0.68rem] leading-4 text-slate-600;
+  @apply m-0 min-w-0 truncate font-mono text-[0.68rem] leading-4 theme-muted;
 }
 
 .work-log-output {
-  @apply m-0 mt-2 max-h-80 overflow-auto rounded-md border border-slate-200 bg-white px-2 py-1.5 text-xs leading-5 text-slate-800;
+  @apply m-0 mt-2 max-h-80 overflow-auto rounded-md border theme-border theme-bg-panel px-2 py-1.5 text-xs leading-5 theme-text;
 }
 
 .work-log-output code {
@@ -909,7 +909,7 @@ watch(() => props.threadId, () => {
 }
 
 .work-log-diff {
-  @apply mt-2 overflow-auto rounded-md border border-slate-200 bg-white;
+  @apply mt-2 overflow-auto rounded-md border theme-border theme-bg-panel;
 }
 
 .work-log-diff-fullscreen {
@@ -917,11 +917,11 @@ watch(() => props.threadId, () => {
 }
 
 .work-log-hunk + .work-log-hunk {
-  @apply border-t border-slate-200;
+  @apply border-t theme-border;
 }
 
 .work-log-diff-row {
-  @apply grid min-w-max grid-cols-[3.25rem_3.25rem_1.5rem_minmax(34rem,1fr)] border-b border-slate-100 font-mono text-xs leading-5;
+  @apply grid min-w-max grid-cols-[3.25rem_3.25rem_1.5rem_minmax(34rem,1fr)] border-b theme-border font-mono text-xs leading-5;
 }
 
 .work-log-diff-row:last-child {
@@ -942,7 +942,7 @@ watch(() => props.threadId, () => {
 }
 
 .work-log-line-number {
-  @apply select-none border-r border-slate-200 px-2 text-right text-[0.68rem] text-slate-500;
+  @apply select-none border-r theme-border px-2 text-right text-[0.68rem] theme-muted;
   background: rgb(248 250 252 / 0.82);
 }
 
@@ -960,27 +960,27 @@ watch(() => props.threadId, () => {
 }
 
 .work-log-line-prefix {
-  @apply select-none px-2 text-slate-600;
+  @apply select-none px-2 theme-muted;
 }
 
 .work-log-diff-row[data-kind='add'] .work-log-line-prefix {
-  @apply text-emerald-800;
+  @apply theme-text-success;
 }
 
 .work-log-diff-row[data-kind='remove'] .work-log-line-prefix {
-  @apply text-rose-800;
+  @apply theme-text-danger;
 }
 
 .work-log-line-code {
-  @apply whitespace-pre px-2 text-slate-900;
+  @apply whitespace-pre px-2 theme-text;
 }
 
 .work-log-diff-row-hunk .work-log-line-code {
-  @apply text-blue-900;
+  @apply theme-text-info;
 }
 
 .work-log-split-row {
-  @apply grid min-w-[54rem] grid-cols-[3.25rem_minmax(22rem,1fr)_3.25rem_minmax(22rem,1fr)] border-b border-slate-100 font-mono text-xs leading-5;
+  @apply grid min-w-[54rem] grid-cols-[3.25rem_minmax(22rem,1fr)_3.25rem_minmax(22rem,1fr)] border-b theme-border font-mono text-xs leading-5;
 }
 
 .work-log-split-row:last-child {
@@ -988,7 +988,7 @@ watch(() => props.threadId, () => {
 }
 
 .work-log-split-line-number {
-  @apply select-none border-r border-slate-200 px-2 text-right text-[0.68rem] text-slate-500;
+  @apply select-none border-r theme-border px-2 text-right text-[0.68rem] theme-muted;
   background: rgb(248 250 252 / 0.82);
 }
 
@@ -997,7 +997,7 @@ watch(() => props.threadId, () => {
 }
 
 .work-log-split-code {
-  @apply whitespace-pre px-2 text-slate-900;
+  @apply whitespace-pre px-2 theme-text;
 }
 
 .work-log-split-line-number[data-kind='add'],
@@ -1021,11 +1021,11 @@ watch(() => props.threadId, () => {
 }
 
 .work-log-diff-truncation {
-  @apply flex min-w-max items-center justify-between gap-3 border-t border-slate-200 bg-slate-50 px-3 py-2 text-xs leading-4 text-slate-500;
+  @apply flex min-w-max items-center justify-between gap-3 border-t theme-border theme-bg-subtle px-3 py-2 text-xs leading-4 theme-muted;
 }
 
 .work-log-diff-truncation button {
-  @apply shrink-0 rounded-md border border-slate-200 bg-white px-2 py-1 text-xs font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-slate-300;
+  @apply shrink-0 rounded-md border theme-border theme-bg-panel px-2 py-1 text-xs font-semibold theme-muted transition hover:theme-border hover:theme-bg-control focus:outline-none focus:ring-2 focus:ring-slate-300;
 }
 
 .work-log-fullscreen-backdrop {
@@ -1033,11 +1033,11 @@ watch(() => props.threadId, () => {
 }
 
 .work-log-fullscreen-panel {
-  @apply flex min-h-0 w-full flex-col overflow-hidden rounded-lg border border-slate-300 bg-white shadow-2xl;
+  @apply flex min-h-0 w-full flex-col overflow-hidden rounded-lg border theme-border theme-bg-panel shadow-2xl;
 }
 
 .work-log-fullscreen-header {
-  @apply flex shrink-0 items-start justify-between gap-3 border-b border-slate-200 bg-slate-50 px-4 py-3;
+  @apply flex shrink-0 items-start justify-between gap-3 border-b theme-border theme-bg-subtle px-4 py-3;
 }
 
 .work-log-fullscreen-copy {
@@ -1049,13 +1049,13 @@ watch(() => props.threadId, () => {
 }
 
 .work-log-fullscreen-copy h3 {
-  @apply m-0 truncate font-mono text-sm font-semibold text-slate-950;
+  @apply m-0 truncate font-mono text-sm font-semibold theme-text;
 }
 
 .work-log-fullscreen-copy p,
 .work-log-fullscreen-meta,
 .work-log-fullscreen-empty {
-  @apply m-0 mt-1 text-xs text-slate-600;
+  @apply m-0 mt-1 text-xs theme-muted;
 }
 
 .work-log-fullscreen-path {
@@ -1063,11 +1063,11 @@ watch(() => props.threadId, () => {
 }
 
 .work-log-fullscreen-close {
-  @apply inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-slate-200 bg-white text-lg leading-none text-slate-600 transition hover:bg-slate-100 hover:text-slate-950;
+  @apply inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border theme-border theme-bg-panel text-lg leading-none theme-muted transition hover:theme-bg-control hover:theme-text;
 }
 
 .work-log-fullscreen-meta {
-  @apply mt-0 shrink-0 border-b border-slate-200 bg-white px-4 py-2 font-mono;
+  @apply mt-0 shrink-0 border-b theme-border theme-bg-panel px-4 py-2 font-mono;
 }
 
 .work-log-output-fullscreen {
@@ -1080,11 +1080,11 @@ watch(() => props.threadId, () => {
 
 .activity-request-card,
 .activity-entry-card {
-  @apply rounded-lg border border-slate-200 bg-slate-50 px-3 py-2;
+  @apply rounded-lg border theme-border theme-bg-subtle px-3 py-2;
 }
 
 .thread-action-required-list .activity-request-card {
-  @apply border-amber-200 bg-white;
+  @apply theme-border-warning theme-bg-panel;
 }
 
 :global(.app-dark) .thread-action-required-float {
@@ -1227,15 +1227,15 @@ watch(() => props.threadId, () => {
 }
 
 .activity-request-method {
-  @apply m-0 truncate font-mono text-xs font-semibold text-slate-900;
+  @apply m-0 truncate font-mono text-xs font-semibold theme-text;
 }
 
 .activity-request-meta {
-  @apply m-0 mt-0.5 text-xs text-slate-500;
+  @apply m-0 mt-0.5 text-xs theme-muted;
 }
 
 .activity-request-subject {
-  @apply m-0 mt-1 max-w-full whitespace-pre-wrap break-words font-mono text-xs leading-5 text-slate-900;
+  @apply m-0 mt-1 max-w-full whitespace-pre-wrap break-words font-mono text-xs leading-5 theme-text;
 }
 
 .approval-risk-line {
@@ -1247,27 +1247,27 @@ watch(() => props.threadId, () => {
 }
 
 .approval-risk-badge[data-level='low'] {
-  @apply border-emerald-300 bg-emerald-50 text-emerald-800;
+  @apply theme-border-success theme-bg-success-soft theme-text-success;
 }
 
 .approval-risk-badge[data-level='medium'] {
-  @apply border-amber-300 bg-amber-100 text-amber-900;
+  @apply theme-border-warning theme-bg-warning-soft theme-text-warning;
 }
 
 .approval-risk-badge[data-level='high'] {
-  @apply border-rose-300 bg-rose-100 text-rose-800;
+  @apply theme-border-danger theme-bg-danger-soft theme-text-danger;
 }
 
 .approval-risk-label {
-  @apply rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[0.68rem] leading-4 text-slate-700;
+  @apply rounded-full border theme-border theme-bg-panel px-2 py-0.5 text-[0.68rem] leading-4 theme-muted;
 }
 
 .activity-request-reason {
-  @apply m-0 mt-2 whitespace-pre-wrap text-xs leading-4 text-slate-700;
+  @apply m-0 mt-2 whitespace-pre-wrap text-xs leading-4 theme-muted;
 }
 
 .approval-impact-list {
-  @apply m-0 mt-2 list-disc space-y-1 pl-4 text-xs leading-4 text-slate-700;
+  @apply m-0 mt-2 list-disc space-y-1 pl-4 text-xs leading-4 theme-muted;
 }
 
 .approval-scope-line {
@@ -1275,15 +1275,15 @@ watch(() => props.threadId, () => {
 }
 
 .approval-scope {
-  @apply rounded-md border border-blue-200 bg-blue-50 px-1.5 py-0.5 text-[0.68rem] font-semibold uppercase tracking-normal text-blue-700;
+  @apply rounded-md border theme-border-info theme-bg-info-soft px-1.5 py-0.5 text-[0.68rem] font-semibold uppercase tracking-normal theme-text-info;
 }
 
 .approval-scope[data-enabled='false'] {
-  @apply border-slate-200 bg-slate-100 text-slate-500;
+  @apply theme-border theme-bg-control theme-muted;
 }
 
 .approval-recommendation {
-  @apply m-0 mt-2 rounded-md border border-slate-200 bg-white/70 px-2 py-1.5 text-xs leading-4 text-slate-800;
+  @apply m-0 mt-2 rounded-md border theme-border bg-white/70 px-2 py-1.5 text-xs leading-4 theme-text;
 }
 
 .activity-request-actions {
@@ -1291,15 +1291,15 @@ watch(() => props.threadId, () => {
 }
 
 .activity-request-button {
-  @apply rounded-md border border-amber-300 bg-white px-2 py-1 text-xs text-amber-900 transition hover:bg-amber-100;
+  @apply rounded-md border theme-border-warning theme-bg-panel px-2 py-1 text-xs theme-text-warning transition hover:theme-bg-warning-soft;
 }
 
 .activity-request-button-primary {
-  @apply border-amber-500 bg-amber-500 text-white hover:bg-amber-600;
+  @apply theme-border-warning theme-bg-warning theme-on-warning;
 }
 
 .activity-request-button-danger {
-  @apply border-rose-300 bg-rose-50 text-rose-800 hover:bg-rose-100;
+  @apply theme-border-danger theme-bg-danger-soft theme-text-danger hover:theme-bg-danger-soft;
 }
 
 .activity-entry-card {
@@ -1307,15 +1307,15 @@ watch(() => props.threadId, () => {
 }
 
 .activity-entry-card[data-tone='success'] {
-  @apply border-emerald-200 bg-emerald-50;
+  @apply theme-border-success theme-bg-success-soft;
 }
 
 .activity-entry-card[data-tone='danger'] {
-  @apply border-rose-200 bg-rose-50;
+  @apply theme-border-danger theme-bg-danger-soft;
 }
 
 .activity-entry-card[data-tone='working'] {
-  @apply border-blue-200 bg-blue-50;
+  @apply theme-border-info theme-bg-info-soft;
 }
 
 .activity-entry-header {
@@ -1323,27 +1323,27 @@ watch(() => props.threadId, () => {
 }
 
 .activity-entry-kind {
-  @apply min-w-0 flex-1 truncate text-xs font-semibold uppercase tracking-normal text-slate-600;
+  @apply min-w-0 flex-1 truncate text-xs font-semibold uppercase tracking-normal theme-muted;
 }
 
 .activity-entry-status {
-  @apply shrink-0 rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[0.68rem] leading-4 font-medium text-slate-600;
+  @apply shrink-0 rounded-full border theme-border theme-bg-panel px-2 py-0.5 text-[0.68rem] leading-4 font-medium theme-muted;
 }
 
 .activity-entry-card[data-tone='success'] .activity-entry-status {
-  @apply border-emerald-200 bg-emerald-100 text-emerald-800;
+  @apply theme-border-success theme-bg-success-soft theme-text-success;
 }
 
 .activity-entry-card[data-tone='danger'] .activity-entry-status {
-  @apply border-rose-200 bg-rose-100 text-rose-800;
+  @apply theme-border-danger theme-bg-danger-soft theme-text-danger;
 }
 
 .activity-entry-card[data-tone='working'] .activity-entry-status {
-  @apply border-blue-200 bg-blue-100 text-blue-800;
+  @apply theme-border-info theme-bg-info-soft theme-text-info;
 }
 
 .activity-entry-summary {
-  @apply m-0 mt-1 whitespace-pre-wrap break-words font-mono text-xs leading-5 text-slate-900;
+  @apply m-0 mt-1 whitespace-pre-wrap break-words font-mono text-xs leading-5 theme-text;
 }
 
 .activity-entry-detail-list {
@@ -1351,11 +1351,11 @@ watch(() => props.threadId, () => {
 }
 
 .activity-entry-detail {
-  @apply m-0 truncate font-mono text-xs leading-4 text-slate-600;
+  @apply m-0 truncate font-mono text-xs leading-4 theme-muted;
 }
 
 .activity-entry-output {
-  @apply mt-2 border-t border-slate-200 pt-2 text-xs text-slate-600;
+  @apply mt-2 border-t theme-border pt-2 text-xs theme-muted;
 }
 
 .activity-entry-output summary {
@@ -1363,7 +1363,7 @@ watch(() => props.threadId, () => {
 }
 
 .activity-entry-output pre {
-  @apply m-0 mt-1 max-h-56 overflow-auto rounded-md border border-slate-200 bg-white px-2 py-1.5 text-xs leading-5 text-slate-800;
+  @apply m-0 mt-1 max-h-56 overflow-auto rounded-md border theme-border theme-bg-panel px-2 py-1.5 text-xs leading-5 theme-text;
 }
 
 .activity-entry-output code {
