@@ -26,6 +26,7 @@ export type CodexSessionEventKind =
   | 'plan_updated'
   | 'thread_compacted'
   | 'rate_limit'
+  | 'token_usage'
 
 export type CodexSessionEvent = {
   id: string
@@ -104,7 +105,8 @@ export type CodexDailyTokenUsage = {
   turnCount: number
   costUsd: number | null
   costEventCount: number
-  source: 'codex-events' | 'none'
+  source: 'reconciled-rollouts' | 'realtime-events' | 'none'
+  lastReconciledAtIso: string | null
 }
 
 type SessionWorkspace = {
@@ -349,6 +351,7 @@ function emptyDailyTokenUsage(input: {
     costUsd: null,
     costEventCount: 0,
     source: 'none',
+    lastReconciledAtIso: null,
   }
 }
 
@@ -374,6 +377,26 @@ export function codexSessionEventFromNotification(
   const threadId = readThreadId(params)
   const turnId = readTurnId(params)
   const id = sessionEventId(notification.method, threadId, turnId, createdAtIso)
+
+  if (notification.method === 'thread/tokenUsage/updated') {
+    const tokenUsage = asRecord(asRecord(params)?.tokenUsage)
+    const usage = readTokenUsage({ tokenUsage: tokenUsage?.last })
+    if (!usage.hasUsage) return null
+    return {
+      id,
+      cwd: workspace.cwd,
+      repoRoot: workspace.repoRoot,
+      createdAtIso,
+      threadId,
+      turnId,
+      method: notification.method,
+      kind: 'token_usage',
+      severity: 'info',
+      title: 'Token usage updated',
+      summary: `${usage.totalTokens.toLocaleString()} tokens used.`,
+      metadata: compactMetadata({ threadId, turnId, ...usage, usageSource: 'realtime' }),
+    }
+  }
 
   if (notification.method === 'turn/started') {
     return {
@@ -544,6 +567,44 @@ export async function appendCodexSessionEvent(cwd: string, notification: CodexRa
   const event = codexSessionEventFromNotification(workspace, notification)
   if (!event) return null
 
+  await mkdir(sessionEventRoot(workspace), { recursive: true })
+  await appendFile(sessionEventPath(workspace), `${JSON.stringify(event)}\n`, 'utf8')
+  return event
+}
+
+export async function appendReconciledTokenUsageSnapshot(input: {
+  cwd: string
+  sessionId: string
+  date: string
+  inputTokens: number
+  outputTokens: number
+  totalTokens: number
+  eventCount: number
+  reconciledAtIso: string
+}): Promise<CodexSessionEvent> {
+  const workspace = await getSessionWorkspace(input.cwd)
+  const event: CodexSessionEvent = {
+    id: sessionEventId('rollout/tokenUsage/reconciled', input.sessionId, input.date, input.reconciledAtIso),
+    cwd: workspace.cwd,
+    repoRoot: workspace.repoRoot,
+    createdAtIso: input.reconciledAtIso,
+    threadId: input.sessionId,
+    turnId: input.date,
+    method: 'rollout/tokenUsage/reconciled',
+    kind: 'token_usage',
+    severity: 'info',
+    title: 'Token usage reconciled',
+    summary: `${input.totalTokens.toLocaleString()} tokens reconciled from the local Codex session.`,
+    metadata: compactMetadata({
+      inputTokens: input.inputTokens,
+      outputTokens: input.outputTokens,
+      totalTokens: input.totalTokens,
+      tokenUsageEventCount: input.eventCount,
+      usageDate: input.date,
+      usageSource: 'rollout',
+      reconciledAtIso: input.reconciledAtIso,
+    }),
+  }
   await mkdir(sessionEventRoot(workspace), { recursive: true })
   await appendFile(sessionEventPath(workspace), `${JSON.stringify(event)}\n`, 'utf8')
   return event
@@ -770,20 +831,24 @@ export async function summarizeDailyTokenUsage(params: {
     })
   }
 
-  const usageEventsByTurn = new Map<string, CodexSessionEvent>()
+  const reconciledEvents = new Map<string, CodexSessionEvent>()
+  const realtimeEvents = new Map<string, CodexSessionEvent>()
   for (const row of raw.split(/\r?\n/u).filter(Boolean)) {
     try {
       const event = JSON.parse(row) as CodexSessionEvent
-      if (localDateStringFromIso(event.createdAtIso, timezoneOffsetMinutes) !== date) continue
+      const isReconciled = event.method === 'rollout/tokenUsage/reconciled'
+      const eventDate = isReconciled ? String(event.metadata.usageDate ?? '') : localDateStringFromIso(event.createdAtIso, timezoneOffsetMinutes)
+      if (eventDate !== date) continue
       const inputTokens = metadataNumber(event.metadata, 'inputTokens')
       const outputTokens = metadataNumber(event.metadata, 'outputTokens')
       const totalTokens = metadataNumber(event.metadata, 'totalTokens')
       if (inputTokens <= 0 && outputTokens <= 0 && totalTokens <= 0) continue
 
+      const target = isReconciled ? reconciledEvents : realtimeEvents
       const key = tokenUsageDedupKey(event)
-      const existing = usageEventsByTurn.get(key)
+      const existing = target.get(key)
       if (!existing || event.createdAtIso >= existing.createdAtIso) {
-        usageEventsByTurn.set(key, event)
+        target.set(key, event)
       }
     } catch {
       // Ignore malformed rows while preserving usage from valid rows.
@@ -798,7 +863,9 @@ export async function summarizeDailyTokenUsage(params: {
   let costUsd: number | null = null
   let costEventCount = 0
 
-  for (const event of usageEventsByTurn.values()) {
+  const usageEvents = reconciledEvents.size > 0 ? reconciledEvents : realtimeEvents
+  let lastReconciledAtIso: string | null = null
+  for (const event of usageEvents.values()) {
     const eventInputTokens = metadataNumber(event.metadata, 'inputTokens')
     const eventOutputTokens = metadataNumber(event.metadata, 'outputTokens')
     const eventTotalTokens = metadataNumber(event.metadata, 'totalTokens')
@@ -812,9 +879,12 @@ export async function summarizeDailyTokenUsage(params: {
       costUsd = (costUsd ?? 0) + eventCostUsd
       costEventCount += 1
     }
+    if (event.method === 'rollout/tokenUsage/reconciled' && (!lastReconciledAtIso || event.createdAtIso > lastReconciledAtIso)) {
+      lastReconciledAtIso = event.createdAtIso
+    }
   }
 
-  const tokenUsageEventCount = usageEventsByTurn.size
+  const tokenUsageEventCount = usageEvents.size
   return {
     cwd: workspace.cwd,
     repoRoot: workspace.repoRoot,
@@ -829,7 +899,8 @@ export async function summarizeDailyTokenUsage(params: {
     turnCount: turns.size || tokenUsageEventCount,
     costUsd,
     costEventCount,
-    source: tokenUsageEventCount > 0 ? 'codex-events' : 'none',
+    source: reconciledEvents.size > 0 ? 'reconciled-rollouts' : tokenUsageEventCount > 0 ? 'realtime-events' : 'none',
+    lastReconciledAtIso,
   }
 }
 

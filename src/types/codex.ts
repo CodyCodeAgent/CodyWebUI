@@ -455,7 +455,8 @@ export type UiDailyTokenUsage = {
   turnCount: number
   costUsd: number | null
   costEventCount: number
-  source: 'codex-events' | 'none'
+  source: 'reconciled-rollouts' | 'realtime-events' | 'none'
+  lastReconciledAtIso: string | null
 }
 
 export type UiGatewayDiagnosticLog = {

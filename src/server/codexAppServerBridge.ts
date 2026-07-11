@@ -25,6 +25,7 @@ import { handleImageUpload, handleLocalImage } from './imageUploads.js'
 import { NotificationDispatcher, type NotificationDispatchEvent } from './notificationDispatchService.js'
 import { buildSecurityAccessSnapshot } from './securityAccess.js'
 import { appendCodexSessionEvent, handleDailyTokenUsage, handleListCodexSessionEvents, handleListCodexWorkspaceSessions } from './sessionEventStore.js'
+import { TokenUsageReconciliationService } from './tokenUsageReconciliationService.js'
 import { handleListUserSettings, handleReadUserSetting, handleWriteUserSetting } from './settingsStore.js'
 import {
   handleApplyPatchToWorkspaceWorktree,
@@ -1622,6 +1623,7 @@ type CodexBridgeMiddleware = ((req: IncomingMessage, res: ServerResponse, next: 
 type SharedBridgeState = {
   appServer: AppServerProcess
   catalogSync: CatalogSyncService
+  tokenUsageReconciliation?: TokenUsageReconciliationService
   methodCatalog: MethodCatalog
   stopNotificationDispatch: () => void
   productEventHub: ProductEventHub
@@ -1713,6 +1715,7 @@ function getSharedBridgeState(): SharedBridgeState {
 
   const appServer = new AppServerProcess()
   const catalogSync = new CatalogSyncService((method, params) => appServer.rpc(method, params))
+  const tokenUsageReconciliation = new TokenUsageReconciliationService()
   const productEventHub = new ProductEventHub()
   const notificationDispatcher = new NotificationDispatcher({
     workspaceCwd: getProcessCwd(),
@@ -1746,12 +1749,16 @@ function getSharedBridgeState(): SharedBridgeState {
   const created: SharedBridgeState = {
     appServer,
     catalogSync,
+    tokenUsageReconciliation,
     methodCatalog: new MethodCatalog(),
     stopNotificationDispatch,
     productEventHub,
   }
   globalScope[SHARED_BRIDGE_KEY] = created
-  if (process.env.NODE_ENV !== 'test') catalogSync.start()
+  if (process.env.NODE_ENV !== 'test') {
+    catalogSync.start()
+    tokenUsageReconciliation.start()
+  }
   return created
 }
 
@@ -1785,7 +1792,7 @@ async function buildGatewayDiagnostics(
 }
 
 export function createCodexBridgeMiddleware(): CodexBridgeMiddleware {
-  const { appServer, catalogSync, methodCatalog, stopNotificationDispatch, productEventHub } = getSharedBridgeState()
+  const { appServer, catalogSync, tokenUsageReconciliation, methodCatalog, stopNotificationDispatch, productEventHub } = getSharedBridgeState()
 
   const middleware = async (req: IncomingMessage, res: ServerResponse, next: () => void) => {
     try {
@@ -2267,6 +2274,7 @@ export function createCodexBridgeMiddleware(): CodexBridgeMiddleware {
 
   middleware.dispose = () => {
     catalogSync.stop()
+    tokenUsageReconciliation?.stop()
     stopNotificationDispatch()
     productEventHub.clear()
     appServer.dispose()
