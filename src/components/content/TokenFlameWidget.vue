@@ -418,6 +418,8 @@ onUnmounted(() => {
 .token-flame-button {
   --flame-size: 32px;
   --flame-motion: 2.8s;
+  --flame-aura-size: 72px;
+  --flame-aura-opacity: 0.24;
   @apply relative flex h-[92px] w-[84px] cursor-move flex-col items-center justify-end border-0 bg-transparent pb-1 text-white transition duration-200 hover:scale-[1.04] focus-visible:outline-2 focus-visible:outline-offset-2;
   touch-action: none;
 }
@@ -426,7 +428,25 @@ onUnmounted(() => {
   @apply absolute bottom-7 left-1/2 flex items-end justify-center;
   width: 72px;
   height: 70px;
+  isolation: isolate;
   transform: translateX(-50%);
+}
+
+.token-flame-stage::before {
+  position: absolute;
+  z-index: -1;
+  bottom: -8px;
+  left: 50%;
+  width: var(--flame-aura-size);
+  height: var(--flame-aura-size);
+  border-radius: 50%;
+  background: radial-gradient(circle, rgb(255 196 82 / 0.78) 0%, rgb(255 101 35 / 0.48) 28%, rgb(255 61 36 / 0.2) 52%, transparent 74%);
+  content: '';
+  opacity: var(--flame-aura-opacity);
+  filter: blur(5px);
+  pointer-events: none;
+  transform: translateX(-50%) scale(0.94);
+  animation: token-flame-aura-breathe calc(var(--flame-motion) * 1.55) ease-in-out infinite alternate;
 }
 
 .token-flame-graphic {
@@ -488,12 +508,12 @@ onUnmounted(() => {
   box-shadow: 0 4px 14px rgb(0 0 0 / 0.34), inset 0 1px 0 rgb(255 255 255 / 0.08);
 }
 
-.token-flame-widget[data-level='spark'] .token-flame-button { --flame-size: 30px; --flame-motion: 3.4s; }
-.token-flame-widget[data-level='campfire'] .token-flame-button { --flame-size: 36px; --flame-motion: 3s; }
-.token-flame-widget[data-level='steady'] .token-flame-button { --flame-size: 43px; --flame-motion: 2.7s; }
-.token-flame-widget[data-level='bonfire'] .token-flame-button { --flame-size: 50px; --flame-motion: 2.35s; }
-.token-flame-widget[data-level='blaze'] .token-flame-button { --flame-size: 58px; --flame-motion: 2.05s; }
-.token-flame-widget[data-level='inferno'] .token-flame-button { --flame-size: 67px; --flame-motion: 1.8s; }
+.token-flame-widget[data-level='spark'] .token-flame-button { --flame-size: 30px; --flame-motion: 3.4s; --flame-aura-size: 62px; --flame-aura-opacity: 0.16; }
+.token-flame-widget[data-level='campfire'] .token-flame-button { --flame-size: 36px; --flame-motion: 3s; --flame-aura-size: 72px; --flame-aura-opacity: 0.22; }
+.token-flame-widget[data-level='steady'] .token-flame-button { --flame-size: 43px; --flame-motion: 2.7s; --flame-aura-size: 82px; --flame-aura-opacity: 0.3; }
+.token-flame-widget[data-level='bonfire'] .token-flame-button { --flame-size: 50px; --flame-motion: 2.35s; --flame-aura-size: 94px; --flame-aura-opacity: 0.38; }
+.token-flame-widget[data-level='blaze'] .token-flame-button { --flame-size: 58px; --flame-motion: 2.05s; --flame-aura-size: 108px; --flame-aura-opacity: 0.48; }
+.token-flame-widget[data-level='inferno'] .token-flame-button { --flame-size: 67px; --flame-motion: 1.8s; --flame-aura-size: 124px; --flame-aura-opacity: 0.58; }
 
 .token-flame-widget[data-level='spark'] .token-flame-glow { opacity: 0.08; }
 .token-flame-widget[data-level='campfire'] .token-flame-glow { opacity: 0.13; }
@@ -514,6 +534,10 @@ onUnmounted(() => {
 }
 
 .token-flame-widget[data-calm='true'] :is(.token-flame-outer, .token-flame-middle, .token-flame-core, .token-flame-glow, .token-flame-spark) {
+  animation: none;
+}
+
+.token-flame-widget[data-calm='true'] .token-flame-stage::before {
   animation: none;
 }
 
@@ -565,6 +589,11 @@ onUnmounted(() => {
 
 .token-flame-error {
   @apply m-0 mt-2 rounded-md border theme-border-danger theme-bg-danger-soft px-2 py-1 text-xs theme-text-danger;
+}
+
+@keyframes token-flame-aura-breathe {
+  from { opacity: calc(var(--flame-aura-opacity) * 0.72); transform: translateX(-50%) scale(0.88); }
+  to { opacity: var(--flame-aura-opacity); transform: translateX(-50%) scale(1.04); }
 }
 
 @keyframes token-flame-outer-sway {
