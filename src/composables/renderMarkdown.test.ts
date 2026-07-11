@@ -64,4 +64,14 @@ describe('renderMarkdown', () => {
     expect(html).toContain('data-markdown-action="save-code"')
     expect(html).toContain('class="footnotes"')
   })
+
+  it('routes explicit Mermaid and PlantUML fences to diagram containers', () => {
+    const mermaid = renderMarkdown('```mermaid\nflowchart LR\nA --> B\n```')
+    const plantuml = renderMarkdown('```puml\n@startuml\nA -> B\n@enduml\n```')
+
+    expect(mermaid).toContain('aria-label="mermaid technical diagram"')
+    expect(plantuml).toContain('aria-label="plantuml technical diagram"')
+    expect(mermaid).toContain('data-markdown-action="diagram-fullscreen"')
+    expect(plantuml).toContain('data-markdown-action="diagram-export-svg"')
+  })
 })

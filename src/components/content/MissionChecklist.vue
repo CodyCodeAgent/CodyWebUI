@@ -98,9 +98,33 @@ function parsePlanItems(text: string): MissionItem[] {
   return items
 }
 
-const latestPlanMessage = computed(() => [...props.messages].reverse().find((message) => (
+const activePlanMessage = ref<UiMessage | null>(null)
+const planTextById = new Map<string, string>()
+const planMessages = computed(() => props.messages.filter((message) => (
   (message.messageType === 'plan.live' || message.messageType === 'plan') && parsePlanItems(message.text).length >= 2
-)) ?? null)
+)))
+const planRevisionSignature = computed(() => planMessages.value.map((message) => `${message.id}\u0000${message.text}`).join('\u0001'))
+
+watch(() => props.threadId, () => {
+  planTextById.clear()
+  activePlanMessage.value = null
+}, { immediate: true })
+
+watch(planRevisionSignature, () => {
+  const candidates = planMessages.value
+  const changed = candidates.filter((message) => planTextById.get(message.id) !== message.text)
+  const current = activePlanMessage.value
+    ? candidates.find((message) => message.id === activePlanMessage.value?.id)
+    : null
+
+  // A plan update replaces its existing message in-place, so array position is not
+  // a reliable revision clock. Follow the message whose text actually changed.
+  activePlanMessage.value = changed.at(-1) ?? current ?? candidates.at(-1) ?? null
+  planTextById.clear()
+  for (const message of candidates) planTextById.set(message.id, message.text)
+}, { immediate: true })
+
+const latestPlanMessage = computed(() => activePlanMessage.value)
 const items = computed(() => latestPlanMessage.value ? parsePlanItems(latestPlanMessage.value.text) : [])
 const completedCount = computed(() => items.value.filter((item) => item.status === 'done').length)
 const isComplete = computed(() => items.value.length > 0 && completedCount.value === items.value.length)
