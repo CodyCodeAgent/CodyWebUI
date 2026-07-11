@@ -863,7 +863,16 @@ export async function summarizeDailyTokenUsage(params: {
   let costUsd: number | null = null
   let costEventCount = 0
 
-  const usageEvents = reconciledEvents.size > 0 ? reconciledEvents : realtimeEvents
+  // Reconciliation is incremental: during a scan only some sessions may have a
+  // rollout snapshot. Replace realtime data per reconciled session instead of
+  // replacing the whole workspace total, otherwise usage can temporarily drop.
+  const usageEvents = new Map(realtimeEvents)
+  for (const reconciledEvent of reconciledEvents.values()) {
+    for (const [key, realtimeEvent] of usageEvents) {
+      if (realtimeEvent.threadId === reconciledEvent.threadId) usageEvents.delete(key)
+    }
+    usageEvents.set(tokenUsageDedupKey(reconciledEvent), reconciledEvent)
+  }
   let lastReconciledAtIso: string | null = null
   for (const event of usageEvents.values()) {
     const eventInputTokens = metadataNumber(event.metadata, 'inputTokens')

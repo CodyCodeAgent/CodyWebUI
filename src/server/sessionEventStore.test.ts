@@ -6,6 +6,7 @@ import { promisify } from 'node:util'
 import { afterEach, describe, expect, it } from 'vitest'
 import {
   appendCodexSessionEvent,
+  appendReconciledTokenUsageSnapshot,
   codexSessionEventFromNotification,
   listCodexSessionEvents,
   listCodexWorkspaceSessions,
@@ -350,6 +351,48 @@ describe('session event store', () => {
       costUsd: 0.02,
       costEventCount: 1,
       source: 'realtime-events',
+    })
+  })
+
+  it('keeps realtime sessions that have not been reconciled yet', async () => {
+    const repo = await createRepo()
+
+    await appendCodexSessionEvent(repo, {
+      method: 'turn/completed',
+      atIso: '2026-07-11T02:00:00.000Z',
+      params: {
+        turn: { id: 'turn-a', threadId: 'session-a' },
+        usage: { input_tokens: 15, output_tokens: 5, total_tokens: 20 },
+      },
+    })
+    await appendCodexSessionEvent(repo, {
+      method: 'turn/completed',
+      atIso: '2026-07-11T02:05:00.000Z',
+      params: {
+        turn: { id: 'turn-b', threadId: 'session-b' },
+        usage: { input_tokens: 55, output_tokens: 25, total_tokens: 80 },
+      },
+    })
+    await appendReconciledTokenUsageSnapshot({
+      cwd: repo,
+      sessionId: 'session-a',
+      date: '2026-07-11',
+      inputTokens: 18,
+      outputTokens: 7,
+      totalTokens: 25,
+      eventCount: 2,
+      reconciledAtIso: '2026-07-11T02:10:00.000Z',
+    })
+
+    const usage = await summarizeDailyTokenUsage({ cwd: repo, date: '2026-07-11' })
+
+    expect(usage).toMatchObject({
+      inputTokens: 73,
+      outputTokens: 32,
+      totalTokens: 105,
+      tokenUsageEventCount: 2,
+      threadCount: 2,
+      source: 'reconciled-rollouts',
     })
   })
 
