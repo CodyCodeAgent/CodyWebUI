@@ -4,32 +4,32 @@
       class="browser-notifications-trigger"
       type="button"
       :aria-expanded="isOpen"
-      aria-label="Open notifications"
-      title="Notifications"
+      :aria-label="t('notifications.open')"
+      :title="t('notifications.title')"
       @click="isOpen = !isOpen"
     >
       <IconTablerBell class="browser-notifications-trigger-icon" />
       <span v-if="unreadCount > 0" class="browser-notifications-badge">{{ badgeText }}</span>
     </button>
 
-    <section v-if="isOpen" class="browser-notifications-popover" aria-label="Browser notifications">
+    <section v-if="isOpen" class="browser-notifications-popover" :aria-label="t('notifications.title')">
       <header class="browser-notifications-header">
         <div>
-          <h2>Notifications</h2>
+          <h2>{{ t('notifications.title') }}</h2>
           <p>{{ permissionLabel }}</p>
         </div>
         <button class="browser-notifications-clear" type="button" :disabled="events.length === 0" @click="clearEvents">
-          Clear
+          {{ t('notifications.clear') }}
         </button>
       </header>
 
       <div class="browser-notifications-controls">
         <label>
-          <span>Browser alerts</span>
+          <span>{{ t('notifications.browserAlerts') }}</span>
           <select :value="preference" @change="onPreferenceChange">
-            <option value="off">Off</option>
-            <option value="important">Important</option>
-            <option value="all">All</option>
+            <option value="off">{{ t('notifications.off') }}</option>
+            <option value="important">{{ t('notifications.important') }}</option>
+            <option value="all">{{ t('notifications.all') }}</option>
           </select>
         </label>
         <button
@@ -38,7 +38,7 @@
           type="button"
           @click="requestPermission"
         >
-          Enable
+          {{ t('notifications.enable') }}
         </button>
       </div>
 
@@ -59,7 +59,7 @@
         </li>
       </ol>
 
-      <p v-else class="browser-notifications-empty">No remote supervision events yet.</p>
+      <p v-else class="browser-notifications-empty">{{ t('notifications.empty') }}</p>
     </section>
   </div>
 </template>
@@ -67,6 +67,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import IconTablerBell from '../icons/IconTablerBell.vue'
+import { useLocale } from '../../composables/useLocale'
 import type {
   BrowserNotificationEvent,
   BrowserNotificationPermission,
@@ -89,13 +90,14 @@ const emit = defineEmits<{
 }>()
 
 const isOpen = ref(false)
+const { t } = useLocale()
 
 const badgeText = computed(() => (props.unreadCount > 9 ? '9+' : String(props.unreadCount)))
 const permissionLabel = computed(() => {
-  if (!props.isSupported) return 'Not supported by this browser'
-  if (props.permission === 'granted') return 'Native alerts enabled'
-  if (props.permission === 'denied') return 'Native alerts blocked'
-  return 'Native alerts need permission'
+  if (!props.isSupported) return t('notifications.permission.unsupported')
+  if (props.permission === 'granted') return t('notifications.permission.granted')
+  if (props.permission === 'denied') return t('notifications.permission.denied')
+  return t('notifications.permission.default')
 })
 
 function onPreferenceChange(event: Event): void {

@@ -20,12 +20,12 @@
     <section class="mission-checklist-card">
       <header>
         <div>
-          <span class="mission-checklist-eyebrow">Mission checklist</span>
+          <span class="mission-checklist-eyebrow">{{ t('mission.title') }}</span>
           <h2>{{ headline }}</h2>
         </div>
         <div class="mission-checklist-header-actions">
           <span>{{ completedCount }} / {{ items.length }}</span>
-          <button type="button" :aria-label="isCollapsed ? 'Expand checklist' : 'Collapse checklist'" @click="isCollapsed = !isCollapsed">
+          <button type="button" :aria-label="isCollapsed ? t('mission.expand') : t('mission.collapse')" @click="isCollapsed = !isCollapsed">
             {{ isCollapsed ? '+' : '−' }}
           </button>
         </div>
@@ -43,15 +43,15 @@
           <span class="mission-checklist-copy">{{ item.text }}</span>
         </li>
       </ol>
-      <p v-if="!isCollapsed && hasPendingApproval" class="mission-checklist-attention">Waiting for your approval before the mission can continue.</p>
+      <p v-if="!isCollapsed && hasPendingApproval" class="mission-checklist-attention">{{ t('mission.waitingApproval') }}</p>
     </section>
 
     <Teleport to="body">
       <div v-if="isMobileOpen" class="mission-checklist-mobile-backdrop" @click.self="isMobileOpen = false">
-        <section class="mission-checklist-mobile-sheet" role="dialog" aria-modal="true" aria-label="Mission checklist">
+        <section class="mission-checklist-mobile-sheet" role="dialog" aria-modal="true" :aria-label="t('mission.title')">
           <header>
-            <div><span>Mission progress</span><h2>{{ headline }}</h2></div>
-            <button type="button" @click="isMobileOpen = false">Done</button>
+            <div><span>{{ t('mission.progress') }}</span><h2>{{ headline }}</h2></div>
+            <button type="button" @click="isMobileOpen = false">{{ t('mission.done') }}</button>
           </header>
           <div class="mission-checklist-progress"><span :style="{ width: `${progressPercent}%` }" /></div>
           <ol>
@@ -69,6 +69,7 @@
 <script setup lang="ts">
 import { computed, onUnmounted, ref, watch } from 'vue'
 import type { UiMessage } from '../../types/codex'
+import { useLocale } from '../../composables/useLocale'
 
 type MissionItemStatus = 'todo' | 'doing' | 'done'
 type MissionItem = { id: string; text: string; status: MissionItemStatus }
@@ -79,6 +80,7 @@ const props = defineProps<{
   isTurnInProgress: boolean
   hasPendingApproval: boolean
 }>()
+const { t } = useLocale()
 
 const isCollapsed = ref(false)
 const isMobileOpen = ref(false)
@@ -130,12 +132,12 @@ const completedCount = computed(() => items.value.filter((item) => item.status =
 const isComplete = computed(() => items.value.length > 0 && completedCount.value === items.value.length)
 const progressPercent = computed(() => items.value.length > 0 ? Math.round((completedCount.value / items.value.length) * 100) : 0)
 const headline = computed(() => {
-  if (isComplete.value) return 'Mission complete'
-  if (props.hasPendingApproval) return 'Needs your approval'
+  if (isComplete.value) return t('mission.complete')
+  if (props.hasPendingApproval) return t('mission.needsApproval')
   const active = items.value.find((item) => item.status === 'doing')
   if (active) return active.text
-  if (!props.isTurnInProgress) return 'Mission paused'
-  return 'Preparing next step'
+  if (!props.isTurnInProgress) return t('mission.paused')
+  return t('mission.preparing')
 })
 const shouldRender = computed(() => Boolean(props.threadId && items.value.length >= 2 && !isCompletionDismissed.value))
 

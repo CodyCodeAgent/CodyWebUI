@@ -22,8 +22,8 @@
             type="button"
             data-theme-toggle="true"
             :aria-pressed="isDarkMode"
-            :aria-label="isDarkMode ? 'Switch to light mode' : 'Switch to dark mode'"
-            :title="isDarkMode ? 'Light mode' : 'Dark mode'"
+            :aria-label="isDarkMode ? t('app.theme.light') : t('app.theme.dark')"
+            :title="isDarkMode ? t('app.theme.light') : t('app.theme.dark')"
             @click="toggleDarkMode"
           >
             <IconTablerSun v-if="isDarkMode" class="sidebar-search-toggle-icon" />
@@ -33,8 +33,8 @@
             class="sidebar-search-toggle toolbar-secondary"
             type="button"
             :aria-pressed="isSidebarSearchVisible"
-            aria-label="Search threads"
-            title="Search threads"
+            :aria-label="t('app.searchThreads')"
+            :title="t('app.searchThreads')"
             @click="toggleSidebarSearch"
           >
             <IconTablerSearch class="sidebar-search-toggle-icon" />
@@ -42,8 +42,8 @@
           <button
             class="sidebar-search-toggle toolbar-secondary"
             type="button"
-            aria-label="Add project"
-            title="Add project"
+            :aria-label="t('app.addProject')"
+            :title="t('app.addProject')"
             @click="openDirectoryPicker"
           >
             <IconTablerFolder class="sidebar-search-toggle-icon" />
@@ -67,14 +67,14 @@
             v-model="sidebarSearchQuery"
             class="sidebar-search-input"
             type="text"
-            placeholder="Filter threads..."
+            :placeholder="t('app.filterThreads')"
             @keydown="onSidebarSearchKeydown"
           />
           <button
             v-if="sidebarSearchQuery.length > 0"
             class="sidebar-search-clear"
             type="button"
-            aria-label="Clear search"
+            :aria-label="t('app.clearSearch')"
             @click="clearSidebarSearch"
           >
             <IconTablerX class="sidebar-search-clear-icon" />
@@ -114,8 +114,8 @@
                 type="button"
                 data-theme-toggle="true"
                 :aria-pressed="isDarkMode"
-                :aria-label="isDarkMode ? 'Switch to light mode' : 'Switch to dark mode'"
-                :title="isDarkMode ? 'Light mode' : 'Dark mode'"
+                :aria-label="isDarkMode ? t('app.theme.light') : t('app.theme.dark')"
+                :title="isDarkMode ? t('app.theme.light') : t('app.theme.dark')"
                 @click="toggleDarkMode"
               >
                 <IconTablerSun v-if="isDarkMode" class="sidebar-search-toggle-icon" />
@@ -124,8 +124,8 @@
               <button
                 class="sidebar-search-toggle toolbar-secondary"
                 type="button"
-                aria-label="Add project"
-                title="Add project"
+                :aria-label="t('app.addProject')"
+                :title="t('app.addProject')"
                 @click="openDirectoryPicker"
               >
                 <IconTablerFolder class="sidebar-search-toggle-icon" />
@@ -147,8 +147,8 @@
               v-if="!isSettingsRoute"
               class="content-prompt-trigger"
               type="button"
-              aria-label="Open prompt library"
-              title="Prompt library"
+              :aria-label="t('promptLibrary.open')"
+              :title="t('promptLibrary.aria')"
               :aria-expanded="isPromptLibraryOpen"
               @click="isPromptLibraryOpen = true"
             >
@@ -179,11 +179,11 @@
           </template>
         </ContentHeader>
 
-        <div v-if="!isSettingsRoute" class="workspace-context-bar" aria-label="Current workspace context">
+        <div v-if="!isSettingsRoute" class="workspace-context-bar" :aria-label="t('app.workspaceContext')">
           <span class="workspace-context-live" aria-hidden="true" />
-          <span><small>Workspace</small>{{ newThreadProjectLabel || 'Not selected' }}</span>
-          <span><small>Path</small>{{ tokenFlameCwd || '—' }}</span>
-          <span><small>Permissions</small>{{ selectedPermissionMode }}</span>
+          <span><small>{{ t('app.workspace') }}</small>{{ newThreadProjectLabel || t('app.notSelected') }}</span>
+          <span><small>{{ t('app.path') }}</small>{{ tokenFlameCwd || '—' }}</span>
+          <span><small>{{ t('app.permissions') }}</small>{{ selectedPermissionMode }}</span>
           <button v-if="isHomeRoute" type="button" @click="homeSurface = homeSurface === 'brief' ? 'console' : 'brief'">
             {{ homeSurface === 'brief' ? 'Open workspace console' : 'Back to brief' }}
           </button>
@@ -208,7 +208,7 @@
 
         <div v-if="desktopError" class="content-error" role="alert">
           <span class="content-error-text">{{ desktopError }}</span>
-          <button class="content-error-dismiss" type="button" aria-label="Dismiss error" @click="clearError">
+          <button class="content-error-dismiss" type="button" :aria-label="t('app.dismissError')" @click="clearError">
             <IconTablerX class="content-error-dismiss-icon" />
           </button>
         </div>
@@ -218,7 +218,7 @@
             <AppSettingsPage />
           </template>
           <template v-else-if="isHomeRoute">
-            <nav class="mission-stage-nav" aria-label="Task stages">
+            <nav class="mission-stage-nav" :aria-label="t('app.taskStages')">
               <button v-for="stage in missionStages" :key="stage.id" type="button" :data-active="stage.id === activeMissionStage">
                 <span>{{ stage.label }}</span><small>{{ stage.hint }}</small>
               </button>
@@ -239,10 +239,10 @@
                   <span class="new-thread-kicker-signal" aria-hidden="true" />
                   Agent mission control
                 </div>
-                <p class="new-thread-hero">What are we shipping?</p>
-                <p class="new-thread-subtitle">Choose a workspace, brief the agent, and supervise the work from plan to delivery.</p>
+                <p class="new-thread-hero">{{ t('app.hero') }}</p>
+                <p class="new-thread-subtitle">{{ t('app.heroSubtitle') }}</p>
                 <ComposerDropdown class="new-thread-folder-dropdown" :model-value="newThreadCwd"
-                  :options="newThreadFolderOptions" placeholder="Choose folder"
+                  :options="newThreadFolderOptions" :placeholder="t('app.chooseFolder')"
                   :disabled="newThreadFolderOptions.length === 0" @update:model-value="onSelectNewThreadFolder" />
               </div>
 
@@ -528,14 +528,14 @@ const newThreadWorkspaceGroup = computed(() =>
   findNewThreadWorkspaceGroup(projectGroups.value, newThreadCwd.value)
 )
 const allThreads = computed(() => projectGroups.value.flatMap((group) => group.threads))
-const missionStages = [
-  { id: 'brief', label: 'Brief', hint: 'Define the job' },
-  { id: 'plan', label: 'Plan', hint: 'Review approach' },
-  { id: 'build', label: 'Build', hint: 'Supervise work' },
-  { id: 'validate', label: 'Validate', hint: 'Check evidence' },
-  { id: 'review', label: 'Review', hint: 'Inspect changes' },
-  { id: 'deliver', label: 'Deliver', hint: 'Ship safely' },
-] as const
+const missionStages = computed(() => [
+  { id: 'brief', label: t('app.stage.brief'), hint: t('app.stage.briefHint') },
+  { id: 'plan', label: t('app.stage.plan'), hint: t('app.stage.planHint') },
+  { id: 'build', label: t('app.stage.build'), hint: t('app.stage.buildHint') },
+  { id: 'validate', label: t('app.stage.validate'), hint: t('app.stage.validateHint') },
+  { id: 'review', label: t('app.stage.review'), hint: t('app.stage.reviewHint') },
+  { id: 'deliver', label: t('app.stage.deliver'), hint: t('app.stage.deliverHint') },
+] as const)
 const activeMissionStage = computed(() => {
   if (allPendingServerRequests.value.length > 0) return 'review'
   if (isSendingMessage.value) return 'build'

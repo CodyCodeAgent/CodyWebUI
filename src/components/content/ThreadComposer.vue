@@ -14,7 +14,7 @@
           <button
             class="thread-composer-image-remove"
             type="button"
-            aria-label="Remove image"
+            :aria-label="t('composer.removeImage')"
             :disabled="disabled"
             @click="removeImage(image.id)"
           >
@@ -29,7 +29,7 @@
           <button
             class="thread-composer-skill-remove"
             type="button"
-            aria-label="Remove skill"
+            :aria-label="t('composer.removeSkill')"
             :disabled="disabled"
             @click="removeSkill(skill)"
           >
@@ -44,7 +44,7 @@
           <button
             class="thread-composer-context-remove"
             type="button"
-            aria-label="Remove context"
+            :aria-label="t('composer.removeContext')"
             :disabled="disabled"
             @click="removeContext(context)"
           >
@@ -69,11 +69,11 @@
       />
 
       <div v-if="isSkillMenuOpen" class="thread-composer-skill-menu">
-        <p v-if="isLoadingSkills" class="thread-composer-skill-status">Loading skills...</p>
+        <p v-if="isLoadingSkills" class="thread-composer-skill-status">{{ t('composer.skills.loading') }}</p>
         <p v-else-if="skillError" class="thread-composer-skill-status thread-composer-skill-status-error">
           {{ skillError }}
         </p>
-        <p v-else-if="filteredSkills.length === 0" class="thread-composer-skill-status">No matching skills</p>
+        <p v-else-if="filteredSkills.length === 0" class="thread-composer-skill-status">{{ t('composer.skills.empty') }}</p>
         <template v-else>
           <button
             v-for="skill in filteredSkills"
@@ -91,11 +91,11 @@
       </div>
 
       <div v-if="isContextMenuOpen" class="thread-composer-context-menu">
-        <p v-if="isLoadingContext" class="thread-composer-context-status">Loading context...</p>
+        <p v-if="isLoadingContext" class="thread-composer-context-status">{{ t('composer.context.loading') }}</p>
         <p v-else-if="contextError" class="thread-composer-context-status thread-composer-context-status-error">
           {{ contextError }}
         </p>
-        <p v-else-if="filteredContexts.length === 0" class="thread-composer-context-status">No matching context</p>
+        <p v-else-if="filteredContexts.length === 0" class="thread-composer-context-status">{{ t('composer.context.empty') }}</p>
         <template v-else>
           <button
             v-for="context in filteredContexts"
@@ -123,8 +123,8 @@
         <button
           class="thread-composer-attach"
           type="button"
-          aria-label="Attach images"
-          title="Attach images"
+          :aria-label="t('composer.attachImages')"
+          :title="t('composer.attachImages')"
           :disabled="disabled || !activeThreadId || isUploadingImage"
           @click="openFilePicker"
         >
@@ -138,7 +138,7 @@
           aria-controls="composer-mobile-options"
           @click="isMobileOptionsOpen = true"
         >
-          <span>Run settings</span>
+          <span>{{ t('composer.runSettings') }}</span>
           <small>{{ selectedModel }} · {{ selectedPermissionMode }}</small>
         </button>
 
@@ -146,7 +146,7 @@
           class="thread-composer-control"
           :model-value="selectedCollaborationMode"
           :options="collaborationModeOptions"
-          placeholder="Mode"
+          :placeholder="t('composer.mode')"
           open-direction="up"
           :disabled="disabled || !activeThreadId || collaborationModes.length === 0 || isTurnInProgress"
           @update:model-value="onCollaborationModeSelect"
@@ -156,7 +156,7 @@
           class="thread-composer-control"
           :model-value="selectedModel"
           :options="modelOptions"
-          placeholder="Default"
+          :placeholder="t('composer.default')"
           open-direction="up"
           :disabled="disabled || !activeThreadId || models.length === 0 || isTurnInProgress"
           @update:model-value="onModelSelect"
@@ -166,7 +166,7 @@
           class="thread-composer-control"
           :model-value="selectedReasoningEffort"
           :options="reasoningOptions"
-          placeholder="Thinking"
+          :placeholder="t('composer.thinking')"
           open-direction="up"
           :disabled="disabled || !activeThreadId || isTurnInProgress"
           @update:model-value="onReasoningEffortSelect"
@@ -176,13 +176,13 @@
           class="thread-composer-control thread-composer-permission-control"
           :model-value="selectedPermissionMode"
           :options="permissionModeOptions"
-          placeholder="Normal"
+          :placeholder="t('composer.normal')"
           open-direction="up"
           :disabled="disabled || !activeThreadId || isTurnInProgress"
           @update:model-value="onPermissionModeSelect"
         />
 
-        <span v-if="isUploadingImage" class="thread-composer-uploading">Uploading...</span>
+        <span v-if="isUploadingImage" class="thread-composer-uploading">{{ t('composer.uploading') }}</span>
         <span v-else-if="uploadError" class="thread-composer-upload-error">{{ uploadError }}</span>
         <span v-else-if="busyLabel" class="thread-composer-busy">
           <span class="thread-composer-busy-dot" aria-hidden="true" />
@@ -194,8 +194,8 @@
             v-if="isTurnInProgress"
             class="thread-composer-stop"
             type="button"
-            aria-label="Stop current response"
-            title="Stop current response"
+            :aria-label="t('composer.stop')"
+            :title="t('composer.stop')"
             :disabled="disabled || !activeThreadId || isInterruptingTurn"
             @click="onInterrupt"
           >
@@ -221,39 +221,39 @@
         class="thread-composer-options-backdrop"
         @click.self="isMobileOptionsOpen = false"
       >
-        <section id="composer-mobile-options" class="thread-composer-options-sheet" role="dialog" aria-modal="true" aria-label="Run settings">
+        <section id="composer-mobile-options" class="thread-composer-options-sheet" role="dialog" aria-modal="true" :aria-label="t('composer.runSettings')">
           <header>
             <div>
-              <span>Before this run</span>
-              <h2>Run settings</h2>
+              <span>{{ t('composer.beforeRun') }}</span>
+              <h2>{{ t('composer.runSettings') }}</h2>
             </div>
-            <button type="button" aria-label="Close run settings" @click="isMobileOptionsOpen = false">Done</button>
+            <button type="button" :aria-label="t('composer.closeSettings')" @click="isMobileOptionsOpen = false">{{ t('composer.done') }}</button>
           </header>
           <label>
-            <span>Collaboration</span>
+            <span>{{ t('composer.collaboration') }}</span>
             <select :value="selectedCollaborationMode" :disabled="isTurnInProgress" @change="onMobileCollaborationChange">
               <option v-for="option in collaborationModeOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
             </select>
-            <small>Choose how the agent plans and coordinates the work.</small>
+            <small>{{ t('composer.collaborationHint') }}</small>
           </label>
           <label>
-            <span>Model</span>
+            <span>{{ t('composer.model') }}</span>
             <select :value="selectedModel" :disabled="isTurnInProgress" @change="onMobileModelChange">
               <option v-for="option in modelOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
             </select>
           </label>
           <label>
-            <span>Thinking</span>
+            <span>{{ t('composer.thinking') }}</span>
             <select :value="selectedReasoningEffort" :disabled="isTurnInProgress" @change="onMobileReasoningChange">
               <option v-for="option in reasoningOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
             </select>
           </label>
           <label>
-            <span>Permissions</span>
+            <span>{{ t('composer.permissions') }}</span>
             <select :value="selectedPermissionMode" :disabled="isTurnInProgress" @change="onMobilePermissionChange">
               <option v-for="option in permissionModeOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
             </select>
-            <small>Controls which commands and file changes need approval.</small>
+            <small>{{ t('composer.permissionsHint') }}</small>
           </label>
         </section>
       </div>
@@ -284,6 +284,7 @@ import IconTablerPlayerStopFilled from '../icons/IconTablerPlayerStopFilled.vue'
 import IconTablerX from '../icons/IconTablerX.vue'
 import ComposerDropdown from './ComposerDropdown.vue'
 import { insertPromptIntoDraft, type PromptInsertion } from '../../composables/promptLibraryRules'
+import { useLocale } from '../../composables/useLocale'
 
 const props = defineProps<{
   activeThreadId: string
@@ -309,6 +310,7 @@ const emit = defineEmits<{
   'update:selected-collaboration-mode': [name: string]
   'update:selected-permission-mode': [mode: UiComposerPermissionMode]
 }>()
+const { t } = useLocale()
 
 const draft = ref('')
 const isMobileOptionsOpen = ref(false)
@@ -347,14 +349,14 @@ const {
   closeContextMenu,
   resetContexts,
 } = useComposerContext()
-const reasoningOptions: Array<{ value: ReasoningEffort; label: string }> = [
-  { value: 'none', label: 'None' },
-  { value: 'minimal', label: 'Minimal' },
-  { value: 'low', label: 'Low' },
-  { value: 'medium', label: 'Medium' },
-  { value: 'high', label: 'High' },
-  { value: 'xhigh', label: 'Extra high' },
-]
+const reasoningOptions = computed<Array<{ value: ReasoningEffort; label: string }>>(() => [
+  { value: 'none', label: t('composer.reasoning.none') },
+  { value: 'minimal', label: t('composer.reasoning.minimal') },
+  { value: 'low', label: t('composer.reasoning.low') },
+  { value: 'medium', label: t('composer.reasoning.medium') },
+  { value: 'high', label: t('composer.reasoning.high') },
+  { value: 'xhigh', label: t('composer.reasoning.xhigh') },
+])
 const modelOptions = computed(() =>
   props.models.map((modelId) => ({ value: modelId, label: modelId })),
 )
@@ -378,12 +380,12 @@ const canSubmit = computed(() => {
 const placeholderText = computed(() =>
   props.activeThreadId
     ? props.isTurnInProgress
-      ? 'Guide the current response...'
-      : 'Type a message...'
-    : 'Select a thread to send a message',
+      ? t('composer.placeholder.guide')
+      : t('composer.placeholder.message')
+    : t('composer.placeholder.selectThread'),
 )
 const submitButtonLabel = computed(() =>
-  props.isTurnInProgress ? 'Send guidance with Control Enter' : 'Send message with Control Enter',
+  props.isTurnInProgress ? t('composer.submit.guidance') : t('composer.submit.message'),
 )
 const canAttachImages = computed(() => !props.disabled && Boolean(props.activeThreadId))
 const isDraggingImages = computed(() => canAttachImages.value && dragDepth.value > 0)

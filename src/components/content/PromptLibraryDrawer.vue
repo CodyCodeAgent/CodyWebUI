@@ -1,14 +1,14 @@
 <template>
   <Teleport to="body">
     <div v-if="open" class="prompt-library-layer" @click.self="emit('close')">
-      <aside class="prompt-library" role="dialog" aria-modal="true" aria-label="Prompt library" :data-editing="isEditing">
+      <aside class="prompt-library" role="dialog" aria-modal="true" :aria-label="t('promptLibrary.aria')" :data-editing="isEditing">
         <header class="prompt-library-header">
           <div>
-            <span class="prompt-library-eyebrow">Prompt library</span>
-            <h2>Reusable briefs</h2>
-            <p>Choose a prompt to place it in the composer. Nothing sends automatically.</p>
+            <span class="prompt-library-eyebrow">{{ t('promptLibrary.eyebrow') }}</span>
+            <h2>{{ t('promptLibrary.title') }}</h2>
+            <p>{{ t('promptLibrary.subtitle') }}</p>
           </div>
-          <button class="prompt-library-close" type="button" aria-label="Close prompt library" @click="emit('close')">
+          <button class="prompt-library-close" type="button" :aria-label="t('promptLibrary.close')" @click="emit('close')">
             <IconTablerX />
           </button>
         </header>
@@ -16,62 +16,62 @@
         <div v-if="!isEditing" class="prompt-library-toolbar">
           <label class="prompt-library-search">
             <IconTablerSearch />
-            <input v-model="query" type="search" placeholder="Search prompts" autofocus />
+            <input v-model="query" type="search" :placeholder="t('promptLibrary.search')" autofocus />
           </label>
-          <button class="prompt-library-new" type="button" @click="startCreate">+ New prompt</button>
+          <button class="prompt-library-new" type="button" @click="startCreate">+ {{ t('promptLibrary.new') }}</button>
         </div>
 
         <template v-if="isEditing">
           <form class="prompt-library-editor" @submit.prevent="saveEditor">
             <div class="prompt-library-editor-heading">
-              <div><span>{{ editor.id ? 'Edit prompt' : 'New prompt' }}</span><h3>Shape the reusable brief</h3></div>
-              <button type="button" @click="cancelEditor">Cancel</button>
+              <div><span>{{ editor.id ? t('promptLibrary.edit') : t('promptLibrary.newHeading') }}</span><h3>{{ t('promptLibrary.editorTitle') }}</h3></div>
+              <button type="button" @click="cancelEditor">{{ t('promptLibrary.cancel') }}</button>
             </div>
-            <label>Title<input v-model="editor.title" required maxlength="80" placeholder="Review the API migration" /></label>
-            <label>Description<input v-model="editor.description" maxlength="160" placeholder="What this prompt helps accomplish" /></label>
+            <label>{{ t('promptLibrary.field.title') }}<input v-model="editor.title" required maxlength="80" /></label>
+            <label>{{ t('promptLibrary.field.description') }}<input v-model="editor.description" maxlength="160" /></label>
             <div class="prompt-library-editor-grid">
-              <label>Category<input v-model="editor.category" maxlength="32" placeholder="Review" /></label>
-              <label>Availability
+              <label>{{ t('promptLibrary.field.category') }}<input v-model="editor.category" maxlength="32" /></label>
+              <label>{{ t('promptLibrary.field.availability') }}
                 <select v-model="editor.scope">
-                  <option value="global">All workspaces</option>
-                  <option value="workspace" :disabled="!cwd.trim()">Current workspace</option>
+                  <option value="global">{{ t('promptLibrary.scope.global') }}</option>
+                  <option value="workspace" :disabled="!cwd.trim()">{{ t('promptLibrary.scope.workspace') }}</option>
                 </select>
               </label>
             </div>
-            <label>Prompt<textarea v-model="editor.content" required rows="12" placeholder="Write the complete reusable prompt…" /></label>
+            <label>{{ t('promptLibrary.field.prompt') }}<textarea v-model="editor.content" required rows="12" /></label>
             <p v-if="editorError" class="prompt-library-error">{{ editorError }}</p>
             <div class="prompt-library-editor-actions">
-              <button v-if="editor.id && !editor.id.startsWith('builtin-')" class="prompt-library-delete" type="button" @click="deleteEditor">Delete</button>
-              <button class="prompt-library-save" type="submit" :disabled="isSaving">{{ isSaving ? 'Saving…' : 'Save prompt' }}</button>
+              <button v-if="editor.id && !editor.id.startsWith('builtin-')" class="prompt-library-delete" type="button" @click="deleteEditor">{{ t('promptLibrary.delete') }}</button>
+              <button class="prompt-library-save" type="submit" :disabled="isSaving">{{ isSaving ? t('promptLibrary.saving') : t('promptLibrary.save') }}</button>
             </div>
           </form>
         </template>
 
         <template v-else>
-          <nav class="prompt-library-categories" aria-label="Prompt categories">
-            <button v-for="item in categories" :key="item" type="button" :data-active="category === item" @click="category = item">{{ item }}</button>
+          <nav class="prompt-library-categories" :aria-label="t('promptLibrary.categories')">
+            <button v-for="item in categories" :key="item" type="button" :data-active="category === item" @click="category = item">{{ item === 'All' ? t('promptLibrary.all') : item }}</button>
           </nav>
 
-          <div v-if="isLoading" class="prompt-library-empty">Loading your prompt library…</div>
+          <div v-if="isLoading" class="prompt-library-empty">{{ t('promptLibrary.loading') }}</div>
           <div v-else-if="filteredTemplates.length === 0" class="prompt-library-empty">
-            <strong>No prompts found</strong>
-            <span>Try another search or create a reusable brief.</span>
+            <strong>{{ t('promptLibrary.empty.title') }}</strong>
+            <span>{{ t('promptLibrary.empty.body') }}</span>
           </div>
           <ol v-else class="prompt-library-list">
             <li v-for="template in filteredTemplates" :key="template.id" class="prompt-library-card">
               <button class="prompt-library-card-main" type="button" @click="useTemplate(template, 'insert')">
-                <span class="prompt-library-card-meta"><b>{{ template.category }}</b><i>{{ template.scope === 'workspace' ? 'This workspace' : 'Global' }}</i></span>
+                <span class="prompt-library-card-meta"><b>{{ template.category }}</b><i>{{ template.scope === 'workspace' ? t('promptLibrary.scope.thisWorkspace') : t('promptLibrary.scope.globalShort') }}</i></span>
                 <strong>{{ template.title }}</strong>
                 <span>{{ template.description || template.content }}</span>
               </button>
               <div class="prompt-library-card-actions">
-                <button type="button" :aria-label="template.isFavorite ? 'Remove favorite' : 'Add favorite'" :title="template.isFavorite ? 'Remove favorite' : 'Add favorite'" @click="toggleFavorite(template)">{{ template.isFavorite ? '★' : '☆' }}</button>
-                <button type="button" title="Replace current draft" @click="useTemplate(template, 'replace')">Replace</button>
-                <button type="button" title="Edit prompt" @click="startEdit(template)"><IconTablerFilePencil /></button>
+                <button type="button" :aria-label="template.isFavorite ? t('promptLibrary.favorite.remove') : t('promptLibrary.favorite.add')" :title="template.isFavorite ? t('promptLibrary.favorite.remove') : t('promptLibrary.favorite.add')" @click="toggleFavorite(template)">{{ template.isFavorite ? '★' : '☆' }}</button>
+                <button type="button" :title="t('promptLibrary.replaceTitle')" @click="useTemplate(template, 'replace')">{{ t('promptLibrary.replace') }}</button>
+                <button type="button" :title="t('promptLibrary.editTitle')" @click="startEdit(template)"><IconTablerFilePencil /></button>
               </div>
             </li>
           </ol>
-          <footer class="prompt-library-footer"><span>{{ filteredTemplates.length }} prompts</span><span>Click a card to insert at the cursor</span></footer>
+          <footer class="prompt-library-footer"><span>{{ t('promptLibrary.count', { count: String(filteredTemplates.length) }) }}</span><span>{{ t('promptLibrary.hint') }}</span></footer>
         </template>
       </aside>
     </div>
@@ -82,6 +82,7 @@
 import { computed, onUnmounted, reactive, ref, watch } from 'vue'
 import { fetchUserSetting, writeUserSetting } from '../../api/codexSettingsClient'
 import { DESKTOP_SETTING_KEYS } from '../../composables/desktopSettingsKeys'
+import { useLocale } from '../../composables/useLocale'
 import {
   normalizePromptTemplates,
   visiblePromptTemplates,
@@ -95,6 +96,7 @@ import IconTablerX from '../icons/IconTablerX.vue'
 
 const props = defineProps<{ open: boolean; cwd: string }>()
 const emit = defineEmits<{ close: []; insert: [insertion: PromptInsertion] }>()
+const { t } = useLocale()
 
 const templates = ref<PromptTemplate[]>([])
 const query = ref('')
@@ -141,7 +143,7 @@ function cancelEditor(): void { isEditing.value = false; resetEditor() }
 async function saveEditor(): Promise<void> {
   if (!editor.title.trim() || !editor.content.trim()) return
   if (editor.scope === 'workspace' && !props.cwd.trim()) {
-    editorError.value = 'Choose a workspace before saving a workspace prompt.'
+    editorError.value = t('promptLibrary.workspaceRequired')
     return
   }
   isSaving.value = true
@@ -166,14 +168,14 @@ async function saveEditor(): Promise<void> {
     await persistTemplates()
     cancelEditor()
   } catch {
-    editorError.value = 'The prompt could not be saved. Try again.'
+    editorError.value = t('promptLibrary.saveFailed')
   } finally {
     isSaving.value = false
   }
 }
 
 async function deleteEditor(): Promise<void> {
-  if (!editor.id || !window.confirm('Delete this prompt?')) return
+  if (!editor.id || !window.confirm(t('promptLibrary.deleteConfirm'))) return
   templates.value = templates.value.filter((template) => template.id !== editor.id)
   await persistTemplates()
   cancelEditor()

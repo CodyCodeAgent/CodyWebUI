@@ -7,7 +7,7 @@
     :style="widgetStyle"
     :data-level="fireLevel"
     :data-calm="settings.reducedMotion"
-    aria-label="Daily token flame"
+    :aria-label="t('tokenFlame.aria')"
   >
     <button
       class="token-flame-button"
@@ -57,28 +57,28 @@
     <section v-if="isOpen" class="token-flame-popover">
       <header class="token-flame-popover-header">
         <div>
-          <h3>Token Flame</h3>
+          <h3>{{ t('tokenFlame.title') }}</h3>
           <p>{{ usageSourceLabel }}</p>
         </div>
-        <button type="button" aria-label="Refresh token usage" title="Refresh" @click="loadUsage">
+        <button type="button" :aria-label="t('tokenFlame.refresh')" :title="t('tokenFlame.refresh')" @click="loadUsage">
           ↻
         </button>
       </header>
       <dl class="token-flame-stats">
         <div>
-          <dt>today</dt>
+          <dt>{{ t('tokenFlame.today') }}</dt>
           <dd>{{ formattedTotalTokens }}</dd>
         </div>
         <div>
-          <dt>level</dt>
+          <dt>{{ t('tokenFlame.level') }}</dt>
           <dd>{{ fireLevelLabel }}</dd>
         </div>
         <div>
-          <dt>input</dt>
+          <dt>{{ t('tokenFlame.input') }}</dt>
           <dd>{{ formatNumber(displayInputTokens) }}</dd>
         </div>
         <div>
-          <dt>output</dt>
+          <dt>{{ t('tokenFlame.output') }}</dt>
           <dd>{{ formatNumber(displayOutputTokens) }}</dd>
         </div>
       </dl>
@@ -92,6 +92,7 @@ import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { fetchUserSetting, writeUserSetting } from '../../api/codexSettingsClient'
 import { fetchDailyTokenUsage } from '../../api/codexTokenUsageClient'
 import { DESKTOP_SETTING_KEYS } from '../../composables/desktopSettingsKeys'
+import { useLocale } from '../../composables/useLocale'
 import {
   clampFloatingPosition,
   floatingKeyboardDelta,
@@ -124,6 +125,7 @@ type DragState = {
 const props = defineProps<{
   cwd: string
 }>()
+const { t } = useLocale()
 
 const DEFAULT_SETTINGS: FlameSettings = {
   enabled: true,
@@ -335,7 +337,7 @@ async function loadUsage(): Promise<void> {
     usage.value = await fetchDailyTokenUsage(cwd)
     errorMessage.value = ''
   } catch (error) {
-    errorMessage.value = error instanceof Error ? error.message : 'Token usage unavailable.'
+    errorMessage.value = error instanceof Error ? error.message : t('tokenFlame.error')
   }
 }
 
@@ -354,27 +356,27 @@ const outerFlamePath = computed(() => {
   return 'M50 114C19 105 12 79 26 55C33 43 36 31 33 15C44 23 50 34 51 44C60 31 64 19 61 4C78 18 85 39 79 56C92 66 95 82 88 96C81 108 66 114 50 114Z'
 })
 const compactTokenCount = computed(() => hasUsage.value ? compactNumber(displayTotalTokens.value) : '—')
-const formattedTotalTokens = computed(() => hasUsage.value ? formatNumber(displayTotalTokens.value) : 'Unavailable')
+const formattedTotalTokens = computed(() => hasUsage.value ? formatNumber(displayTotalTokens.value) : t('tokenFlame.unavailable'))
 const fireLevelLabel = computed(() => ({
-  spark: 'Spark',
-  campfire: 'Campfire',
-  steady: 'Steady burn',
-  bonfire: 'Bonfire',
-  blaze: 'Blaze',
-  inferno: 'Inferno',
+  spark: t('settings.tokenFlame.level.spark'),
+  campfire: t('settings.tokenFlame.level.campfire'),
+  steady: t('settings.tokenFlame.level.steady'),
+  bonfire: t('settings.tokenFlame.level.bonfire'),
+  blaze: t('settings.tokenFlame.level.blaze'),
+  inferno: t('settings.tokenFlame.level.inferno'),
 })[fireLevel.value])
 const usageSourceLabel = computed(() => {
   if (usage.value?.source === 'reconciled-rollouts') {
     const timestamp = usage.value.lastReconciledAtIso
     const reconciled = timestamp ? new Intl.DateTimeFormat([], { hour: '2-digit', minute: '2-digit' }).format(new Date(timestamp)) : 'recently'
-    return `Local Codex sessions · checked ${reconciled}`
+    return t('tokenFlame.source.local', { time: reconciled })
   }
-  if (usage.value?.source === 'realtime-events') return 'Live Codex events · awaiting cross-check'
-  return 'No local token usage found today'
+  if (usage.value?.source === 'realtime-events') return t('tokenFlame.source.live')
+  return t('tokenFlame.source.none')
 })
 const summaryTitle = computed(() => hasUsage.value
-  ? `Today: ${formattedTotalTokens.value} tokens · ${fireLevelLabel.value}`
-  : 'Today’s token usage is unavailable')
+  ? t('tokenFlame.summary', { tokens: formattedTotalTokens.value, level: fireLevelLabel.value })
+  : t('tokenFlame.summaryUnavailable'))
 const widgetStyle = computed(() => {
   const position = settings.value.position ?? defaultPosition(settings.value.defaultCorner)
   return {
