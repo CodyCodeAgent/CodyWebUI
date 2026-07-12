@@ -7,6 +7,7 @@ import { join } from 'node:path'
 import { cwd as getProcessCwd } from 'node:process'
 import { WebSocket, WebSocketServer } from 'ws'
 import {
+  findCatalogThreadCwd,
   listCatalog,
   setCatalogProjectDisplayName,
   setCatalogProjectHidden,
@@ -258,6 +259,30 @@ function readNotificationThreadId(params: unknown): string {
     readNestedString(params, ['turn', 'threadId']) ||
     readNestedString(params, ['request', 'threadId'])
   )
+}
+
+function readNotificationCwd(params: unknown): string {
+  return (
+    readNestedString(params, ['cwd']) ||
+    readNestedString(params, ['thread', 'cwd']) ||
+    readNestedString(params, ['turn', 'cwd']) ||
+    readNestedString(params, ['request', 'cwd'])
+  )
+}
+
+export async function resolveNotificationWorkspaceCwd(params: unknown, fallbackCwd = getProcessCwd()): Promise<string> {
+  const notificationCwd = readNotificationCwd(params)
+  if (notificationCwd) return notificationCwd
+  const threadId = readNotificationThreadId(params)
+  if (threadId) {
+    try {
+      const catalogCwd = await findCatalogThreadCwd(threadId)
+      if (catalogCwd) return catalogCwd
+    } catch {
+      // Catalog lookup is best effort; rollout reconciliation remains the durable fallback.
+    }
+  }
+  return fallbackCwd
 }
 
 function readNotificationTurnId(params: unknown): string {
@@ -1725,7 +1750,6 @@ function getSharedBridgeState(): SharedBridgeState {
   })
   const stopNotificationDispatch = appServer.onNotification((notification) => {
     catalogSync.onNotification(notification.method)
-    const workspaceCwd = getProcessCwd()
     const payload = {
       ...notification,
       atIso: new Date().toISOString(),
@@ -1733,6 +1757,7 @@ function getSharedBridgeState(): SharedBridgeState {
     }
     void notificationDispatcher.handleCodexNotification(payload)
     void (async () => {
+      const workspaceCwd = await resolveNotificationWorkspaceCwd(notification.params)
       try {
         payload.metadata = await createAutomaticTurnCheckpoint(workspaceCwd, notification)
       } catch (error: unknown) {

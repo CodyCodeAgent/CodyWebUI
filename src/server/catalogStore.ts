@@ -310,6 +310,16 @@ export async function setCatalogThreadHidden(threadId: string, hidden: boolean):
   })
 }
 
+export async function findCatalogThreadCwd(threadId: string): Promise<string> {
+  const normalizedThreadId = threadId.trim()
+  if (!normalizedThreadId) return ''
+  return withLocalDatabase((db) => {
+    ensureCatalogTables(db)
+    const row = db.prepare('SELECT cwd FROM ui_threads WHERE thread_id = ? LIMIT 1').get(normalizedThreadId) as { cwd?: unknown } | undefined
+    return typeof row?.cwd === 'string' ? row.cwd.trim() : ''
+  })
+}
+
 export async function setCatalogProjectDisplayName(projectKey: string, displayName: string): Promise<void> {
   const normalizedKey = normalizeProjectKey(projectKey)
   const normalizedDisplayName = displayName.trim()
