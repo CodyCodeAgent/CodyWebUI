@@ -13,8 +13,8 @@
 
 <script setup lang="ts">
 import { nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import DOMPurify from 'dompurify'
 import { renderMarkdown, type MarkdownUiLabels } from '../../composables/renderMarkdown'
+import { sanitizeDiagramSvg } from '../../composables/diagramSvgSanitizer'
 import { useLocale } from '../../composables/useLocale'
 
 const props = defineProps<{
@@ -140,7 +140,7 @@ async function renderDiagrams(): Promise<void> {
         if (!response.ok || !payload.result?.svg) throw new Error(payload.error || 'PlantUML rendering failed')
         svg = payload.result.svg
       }
-      stage.innerHTML = DOMPurify.sanitize(svg, { USE_PROFILES: { svg: true, svgFilters: true } })
+      stage.innerHTML = sanitizeDiagramSvg(svg)
       enableDiagramPan(stage)
       shell.dataset.rendered = 'yes'
       shell.style.setProperty('--diagram-scale', '1')
