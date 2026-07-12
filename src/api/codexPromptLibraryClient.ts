@@ -2,6 +2,15 @@ import { CodexApiError } from './codexErrors'
 import { asRecord, fetchCodexResultRecord, jsonPostInit } from './codexHttpClient'
 import type { PromptTemplate } from '../composables/promptLibraryRules'
 
+const PROMPT_MUTATION_TIMEOUT_MS = 12_000
+
+function promptMutationInit(body: unknown): RequestInit {
+  return {
+    ...jsonPostInit(body),
+    signal: AbortSignal.timeout(PROMPT_MUTATION_TIMEOUT_MS),
+  }
+}
+
 function normalizeTemplates(value: unknown, status: number): PromptTemplate[] {
   if (!Array.isArray(value)) throw new CodexApiError('Prompt library returned malformed response', { code: 'invalid_response', method: 'prompt-templates', status })
   return value as PromptTemplate[]
@@ -33,7 +42,7 @@ function normalizeTemplateResult(value: unknown, status: number): PromptTemplate
 
 export async function savePromptTemplate(template: PromptTemplate, expectedUpdatedAt = ''): Promise<PromptTemplate> {
   const { result, status } = await fetchCodexResultRecord('/codex-api/prompt-templates/item', {
-    init: jsonPostInit({ template, expectedUpdatedAt }), method: 'prompt-templates/save',
+    init: promptMutationInit({ template, expectedUpdatedAt }), method: 'prompt-templates/save',
     networkErrorMessage: 'Prompt save failed before it was sent', httpErrorMessage: 'Prompt save failed', malformedMessage: 'Prompt save returned malformed response',
   })
   return normalizeTemplateResult(result.template, status)
@@ -41,14 +50,14 @@ export async function savePromptTemplate(template: PromptTemplate, expectedUpdat
 
 export async function deletePromptTemplate(id: string, expectedUpdatedAt = ''): Promise<void> {
   await fetchCodexResultRecord(`/codex-api/prompt-templates/item?id=${encodeURIComponent(id)}&expectedUpdatedAt=${encodeURIComponent(expectedUpdatedAt)}`, {
-    init: { method: 'DELETE' }, method: 'prompt-templates/delete', networkErrorMessage: 'Prompt delete failed before it was sent',
+    init: { method: 'DELETE', signal: AbortSignal.timeout(PROMPT_MUTATION_TIMEOUT_MS) }, method: 'prompt-templates/delete', networkErrorMessage: 'Prompt delete failed before it was sent',
     httpErrorMessage: 'Prompt delete failed', malformedMessage: 'Prompt delete returned malformed response',
   })
 }
 
 export async function recordPromptTemplateUse(id: string, usedAtIso: string): Promise<PromptTemplate> {
   const { result, status } = await fetchCodexResultRecord('/codex-api/prompt-templates/use', {
-    init: jsonPostInit({ id, usedAtIso }), method: 'prompt-templates/use', networkErrorMessage: 'Prompt usage update failed before it was sent',
+    init: promptMutationInit({ id, usedAtIso }), method: 'prompt-templates/use', networkErrorMessage: 'Prompt usage update failed before it was sent',
     httpErrorMessage: 'Prompt usage update failed', malformedMessage: 'Prompt usage update returned malformed response',
   })
   return normalizeTemplateResult(result.template, status)
@@ -56,7 +65,7 @@ export async function recordPromptTemplateUse(id: string, usedAtIso: string): Pr
 
 export async function setPromptTemplateFavorite(id: string, isFavorite: boolean): Promise<PromptTemplate> {
   const { result, status } = await fetchCodexResultRecord('/codex-api/prompt-templates/favorite', {
-    init: jsonPostInit({ id, isFavorite }), method: 'prompt-templates/favorite', networkErrorMessage: 'Prompt favorite update failed before it was sent',
+    init: promptMutationInit({ id, isFavorite }), method: 'prompt-templates/favorite', networkErrorMessage: 'Prompt favorite update failed before it was sent',
     httpErrorMessage: 'Prompt favorite update failed', malformedMessage: 'Prompt favorite update returned malformed response',
   })
   return normalizeTemplateResult(result.template, status)
