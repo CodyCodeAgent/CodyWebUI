@@ -531,7 +531,7 @@ describe('useDesktopState realtime messages', () => {
       params: { threadId: 'thread-b', turnId: 'turn-b', item: { id: 'change-1', type: 'fileChange' } },
       atIso: '2026-07-07T00:00:05.000Z',
     })
-    expect(state.selectedStructuredPlan.value).toMatchObject({ revision: 1, possiblyStale: true })
+    expect(state.selectedStructuredPlan.value).toMatchObject({ revision: 1, possiblyStale: false })
 
     listener?.({
       method: 'turn/plan/updated',

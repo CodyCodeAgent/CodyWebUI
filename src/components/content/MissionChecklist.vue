@@ -44,7 +44,7 @@
         </li>
       </ol>
       <p v-if="!isCollapsed && hasPendingApproval" class="mission-checklist-attention">{{ t('mission.waitingApproval') }}</p>
-      <p v-else-if="!isCollapsed && plan?.possiblyStale" class="mission-checklist-attention">{{ plan.lifecycle === 'ended' ? t('mission.unsyncedFinal') : t('mission.stale') }}</p>
+      <p v-else-if="!isCollapsed && plan?.lifecycle === 'ended' && plan.possiblyStale" class="mission-checklist-attention">{{ t('mission.unsyncedFinal') }}</p>
     </section>
 
     <Teleport to="body">

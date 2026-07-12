@@ -17,12 +17,6 @@ export function applyStructuredPlanUpdate(
   }
 }
 
-export function markPlanPossiblyStale(state: Record<string, DesktopPlanState>, threadId: string): Record<string, DesktopPlanState> {
-  const current = state[threadId]
-  if (!current || current.lifecycle !== 'active' || current.possiblyStale) return state
-  return { ...state, [threadId]: { ...current, possiblyStale: true } }
-}
-
 export function endStructuredPlan(state: Record<string, DesktopPlanState>, threadId: string, turnId: string): Record<string, DesktopPlanState> {
   const current = state[threadId]
   if (!current || current.turnId !== turnId || current.lifecycle === 'ended') return state

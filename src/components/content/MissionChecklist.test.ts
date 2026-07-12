@@ -73,10 +73,10 @@ describe('MissionChecklist', () => {
     expect(wrapper.text()).toContain('1 / 2')
   })
 
-  it('warns when execution continued after the last structured update', () => {
+  it('does not warn during active execution even if a stale flag is present', () => {
     const wrapper = mount(MissionChecklist, { props: {
       threadId: 'thread-1', plan: plan({ possiblyStale: true }), isTurnInProgress: true, hasPendingApproval: false,
     } })
-    expect(wrapper.text()).toContain('Progress may be out of date')
+    expect(wrapper.text()).not.toContain('Progress may be out of date')
   })
 })
