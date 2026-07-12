@@ -104,6 +104,60 @@ export async function replacePromptTemplates(values: unknown): Promise<StoredPro
   return listPromptTemplates()
 }
 
+export async function savePromptTemplate(value: unknown, expectedUpdatedAt = ''): Promise<StoredPromptTemplate> {
+  const template = normalizeTemplate(value)
+  if (!template) throw new Error('Prompt template is invalid')
+  return withLocalDatabase((db) => {
+    ensurePromptTable(db); migrateLegacyTemplates(db)
+    const existing = db.prepare('SELECT updated_at_iso AS updatedAtIso FROM prompt_templates WHERE id = ?').get(template.id) as { updatedAtIso?: string } | undefined
+    if (existing && expectedUpdatedAt && existing.updatedAtIso !== expectedUpdatedAt) {
+      throw new Error('Prompt template changed in another session')
+    }
+    upsertTemplate(db, template)
+    return template
+  })
+}
+
+export async function deletePromptTemplate(idValue: unknown, expectedUpdatedAt = ''): Promise<void> {
+  const id = text(idValue)
+  if (!id) throw new Error('Prompt template id is required')
+  await withLocalDatabase((db) => {
+    ensurePromptTable(db)
+    const existing = db.prepare('SELECT updated_at_iso AS updatedAtIso FROM prompt_templates WHERE id = ?').get(id) as { updatedAtIso?: string } | undefined
+    if (existing && expectedUpdatedAt && existing.updatedAtIso !== expectedUpdatedAt) throw new Error('Prompt template changed in another session')
+    db.prepare('DELETE FROM prompt_templates WHERE id = ?').run(id)
+  })
+}
+
+export async function updatePromptTemplateUsage(idValue: unknown, usedAtValue: unknown): Promise<StoredPromptTemplate> {
+  const id = text(idValue); const usedAtIso = text(usedAtValue) || new Date().toISOString()
+  if (!id) throw new Error('Prompt template id is required')
+  return withLocalDatabase((db) => {
+    ensurePromptTable(db)
+    db.prepare('UPDATE prompt_templates SET use_count = use_count + 1, last_used_at_iso = ?, updated_at_iso = ? WHERE id = ?').run(usedAtIso, usedAtIso, id)
+    const row = db.prepare(`SELECT id, title, description, content, category, scope, workspace_cwd AS workspaceCwd,
+      is_favorite AS isFavorite, use_count AS useCount, last_used_at_iso AS lastUsedAtIso,
+      created_at_iso AS createdAtIso, updated_at_iso AS updatedAtIso FROM prompt_templates WHERE id = ?`).get(id) as Record<string, unknown> | undefined
+    if (!row) throw new Error('Prompt template was not found')
+    return { ...row, isFavorite: row.isFavorite === 1 } as StoredPromptTemplate
+  })
+}
+
+export async function updatePromptTemplateFavorite(idValue: unknown, favorite: unknown): Promise<StoredPromptTemplate> {
+  const id = text(idValue)
+  if (!id || typeof favorite !== 'boolean') throw new Error('Prompt template favorite update is invalid')
+  return withLocalDatabase((db) => {
+    ensurePromptTable(db)
+    const updatedAtIso = new Date().toISOString()
+    db.prepare('UPDATE prompt_templates SET is_favorite = ?, updated_at_iso = ? WHERE id = ?').run(favorite ? 1 : 0, updatedAtIso, id)
+    const row = db.prepare(`SELECT id, title, description, content, category, scope, workspace_cwd AS workspaceCwd,
+      is_favorite AS isFavorite, use_count AS useCount, last_used_at_iso AS lastUsedAtIso,
+      created_at_iso AS createdAtIso, updated_at_iso AS updatedAtIso FROM prompt_templates WHERE id = ?`).get(id) as Record<string, unknown> | undefined
+    if (!row) throw new Error('Prompt template was not found')
+    return { ...row, isFavorite: row.isFavorite === 1 } as StoredPromptTemplate
+  })
+}
+
 async function readBody(req: IncomingMessage): Promise<unknown> {
   const chunks: Uint8Array[] = []; let size = 0
   for await (const chunk of req) { const value = typeof chunk === 'string' ? Buffer.from(chunk) : chunk; size += value.byteLength; if (size > MAX_BODY_BYTES) throw new Error('Request body is too large'); chunks.push(value) }
@@ -119,4 +173,24 @@ export async function handleListPromptTemplates(_url: URL, res: ServerResponse):
 export async function handleReplacePromptTemplates(req: IncomingMessage, res: ServerResponse): Promise<void> {
   const body = await readBody(req) as { templates?: unknown }
   send(res, 200, { result: { templates: await replacePromptTemplates(body.templates) } })
+}
+
+export async function handleSavePromptTemplate(req: IncomingMessage, res: ServerResponse): Promise<void> {
+  const body = await readBody(req) as { template?: unknown; expectedUpdatedAt?: unknown }
+  send(res, 200, { result: { template: await savePromptTemplate(body.template, text(body.expectedUpdatedAt)) } })
+}
+
+export async function handleDeletePromptTemplate(url: URL, res: ServerResponse): Promise<void> {
+  await deletePromptTemplate(url.searchParams.get('id'), url.searchParams.get('expectedUpdatedAt') ?? '')
+  send(res, 200, { result: { ok: true } })
+}
+
+export async function handleUsePromptTemplate(req: IncomingMessage, res: ServerResponse): Promise<void> {
+  const body = await readBody(req) as { id?: unknown; usedAtIso?: unknown }
+  send(res, 200, { result: { template: await updatePromptTemplateUsage(body.id, body.usedAtIso) } })
+}
+
+export async function handleFavoritePromptTemplate(req: IncomingMessage, res: ServerResponse): Promise<void> {
+  const body = await readBody(req) as { id?: unknown; isFavorite?: unknown }
+  send(res, 200, { result: { template: await updatePromptTemplateFavorite(body.id, body.isFavorite) } })
 }

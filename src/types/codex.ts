@@ -335,6 +335,9 @@ export type UiToolingCheckpoint = {
   patchPath: string
   patchBytes: number
   hasPatch: boolean
+  untrackedBytes?: number
+  skippedUntrackedPaths?: string[]
+  partial?: boolean
 }
 
 export type UiToolingCheckpointPatch = {

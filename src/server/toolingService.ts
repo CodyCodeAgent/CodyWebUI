@@ -1,6 +1,6 @@
 import { execFile, spawn, type ChildProcessWithoutNullStreams, type ExecFileException } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
-import { access, appendFile, cp, mkdir, mkdtemp, open, readFile, readdir, realpath, rm, stat, writeFile } from 'node:fs/promises'
+import { access, appendFile, cp, lstat, mkdir, mkdtemp, open, readFile, readdir, realpath, rm, stat, statfs, writeFile } from 'node:fs/promises'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import { isIP } from 'node:net'
 import { homedir, tmpdir } from 'node:os'
@@ -25,6 +25,17 @@ const PREVIEW_SCREENSHOT_TIMEOUT_MS = 20_000
 const WORKSPACE_SCRIPT_TIMEOUT_MS = 120_000
 const MAX_LISTENING_PORTS = 80
 const MAX_TERMINAL_SESSION_OUTPUT_BYTES = 128 * 1024
+const MAX_CHECKPOINT_UNTRACKED_FILE_BYTES = 32 * 1024 * 1024
+const MAX_CHECKPOINT_UNTRACKED_BYTES = 512 * 1024 * 1024
+const MAX_CHECKPOINT_REPOSITORY_BYTES = 2 * 1024 * 1024 * 1024
+const MIN_CHECKPOINT_FREE_BYTES = 1024 * 1024 * 1024
+const MAX_RETAINED_CHECKPOINTS = 20
+const MAX_CHECKPOINT_AGE_MS = 7 * 24 * 60 * 60 * 1000
+const DEFAULT_CHECKPOINT_EXCLUDED_NAMES = new Set([
+  '.git', '.tmp-go', '.tmp-go-mod', '.tmp-go-cache', '.cache', '.gradle', '.m2',
+  'node_modules', 'dist', 'dist-cli', 'build', 'coverage', 'target', 'vendor',
+  '__pycache__', '.venv', 'venv',
+])
 const HIDDEN_WORKSPACE_DIRS = new Set([
   '.git',
   'node_modules',
@@ -98,6 +109,9 @@ export type ToolingCheckpoint = {
   patchPath: string
   patchBytes: number
   hasPatch: boolean
+  untrackedBytes?: number
+  skippedUntrackedPaths?: string[]
+  partial?: boolean
 }
 
 export type ToolingDiffSnapshot = {
@@ -4947,24 +4961,112 @@ async function readStatusForPaths(workspace: GitWorkspace, paths: string[]): Pro
   return runGit(['status', '--porcelain=v1', '-z', '--', ...paths], workspace.repoRoot)
 }
 
-async function backupUntrackedPaths(workspace: GitWorkspace, paths: string[], checkpointDir: string): Promise<void> {
+type CheckpointUntrackedPolicy = 'all' | 'files-only' | 'none'
+
+type CheckpointBackupResult = {
+  copiedBytes: number
+  skippedPaths: string[]
+}
+
+async function pathSizeWithinLimit(path: string, limit: number): Promise<number | null> {
+  const info = await lstat(path)
+  if (info.isSymbolicLink()) return null
+  if (info.isFile()) return info.size <= limit ? info.size : null
+  if (!info.isDirectory()) return 0
+  if (DEFAULT_CHECKPOINT_EXCLUDED_NAMES.has(basename(path))) return null
+  let total = 0
+  for (const entry of await readdir(path, { withFileTypes: true })) {
+    if (DEFAULT_CHECKPOINT_EXCLUDED_NAMES.has(entry.name)) return null
+    const childSize = await pathSizeWithinLimit(join(path, entry.name), limit - total)
+    if (childSize === null) return null
+    total += childSize
+    if (total > limit) return null
+  }
+  return total
+}
+
+async function backupUntrackedPaths(
+  workspace: GitWorkspace,
+  paths: string[],
+  checkpointDir: string,
+  policy: CheckpointUntrackedPolicy,
+): Promise<CheckpointBackupResult> {
+  if (policy === 'none') return { copiedBytes: 0, skippedPaths: [] }
   const status = await readStatusForPaths(workspace, paths)
   const untrackedPaths = parsePorcelainZ(status)
     .filter((entry) => entry.status === '??')
     .map((entry) => entry.path)
 
-  if (untrackedPaths.length === 0) return
+  if (untrackedPaths.length === 0) return { copiedBytes: 0, skippedPaths: [] }
 
   const untrackedRoot = join(checkpointDir, 'untracked')
-  await mkdir(untrackedRoot, { recursive: true })
+  let copiedBytes = 0
+  const skippedPaths: string[] = []
 
   for (const untrackedPath of untrackedPaths) {
     const sourcePath = resolve(workspace.repoRoot, untrackedPath)
     if (!isInside(workspace.repoRoot, sourcePath)) continue
+    const info = await lstat(sourcePath)
+    if (info.isSymbolicLink() || (info.isDirectory() && policy === 'files-only')) {
+      skippedPaths.push(untrackedPath)
+      continue
+    }
+    const remainingBytes = MAX_CHECKPOINT_UNTRACKED_BYTES - copiedBytes
+    const itemLimit = info.isFile()
+      ? Math.min(MAX_CHECKPOINT_UNTRACKED_FILE_BYTES, remainingBytes)
+      : remainingBytes
+    const itemBytes = await pathSizeWithinLimit(sourcePath, itemLimit)
+    if (itemBytes === null || itemBytes > remainingBytes) {
+      skippedPaths.push(untrackedPath)
+      continue
+    }
 
     const targetPath = resolve(untrackedRoot, untrackedPath)
     await mkdir(dirname(targetPath), { recursive: true })
     await cp(sourcePath, targetPath, { recursive: true, force: true, errorOnExist: false })
+    copiedBytes += itemBytes
+  }
+  return { copiedBytes, skippedPaths }
+}
+
+async function directorySize(path: string): Promise<number> {
+  try {
+    const info = await lstat(path)
+    if (info.isSymbolicLink()) return 0
+    if (info.isFile()) return info.size
+    if (!info.isDirectory()) return 0
+    let total = 0
+    for (const entry of await readdir(path)) total += await directorySize(join(path, entry))
+    return total
+  } catch {
+    return 0
+  }
+}
+
+async function pruneToolingCheckpoints(workspace: GitWorkspace, preserveId: string): Promise<void> {
+  const root = checkpointRoot(workspace)
+  let rows: string[]
+  try { rows = await readdir(root) } catch { return }
+  const entries = await Promise.all(rows.map(async (id) => {
+    const path = join(root, id)
+    try {
+      const info = await stat(path)
+      return { id, path, createdAtMs: info.mtimeMs, bytes: await directorySize(path) }
+    } catch { return null }
+  }))
+  const checkpoints = entries.filter((entry): entry is NonNullable<typeof entry> => entry !== null)
+    .sort((a, b) => b.createdAtMs - a.createdAtMs)
+  let totalBytes = checkpoints.reduce((sum, entry) => sum + entry.bytes, 0)
+  const now = Date.now()
+  for (let index = 0; index < checkpoints.length; index += 1) {
+    const entry = checkpoints[index]
+    if (!entry || entry.id === preserveId) continue
+    const expired = now - entry.createdAtMs > MAX_CHECKPOINT_AGE_MS
+    const overCount = index >= MAX_RETAINED_CHECKPOINTS
+    const overBytes = totalBytes > MAX_CHECKPOINT_REPOSITORY_BYTES
+    if (!expired && !overCount && !overBytes) continue
+    await rm(entry.path, { recursive: true, force: true })
+    totalBytes -= entry.bytes
   }
 }
 
@@ -4972,6 +5074,7 @@ export async function createToolingCheckpoint(params: {
   cwd: string
   label?: string
   paths?: string[]
+  untrackedPolicy?: CheckpointUntrackedPolicy
 }): Promise<ToolingCheckpoint> {
   const workspace = await getGitWorkspace(params.cwd)
   const paths = (params.paths ?? [])
@@ -4985,31 +5088,41 @@ export async function createToolingCheckpoint(params: {
   const checkpointDir = join(root, id)
   const patchPath = join(checkpointDir, 'workspace.patch')
 
-  await mkdir(checkpointDir, { recursive: true })
-  const unstagedPatch = await runGit(['diff', '--binary', ...pathArgs], workspace.repoRoot)
-  const stagedPatch = await runGit(['diff', '--cached', '--binary', ...pathArgs], workspace.repoRoot)
-  const patch = [
-    unstagedPatch.trimEnd(),
-    stagedPatch.trimEnd(),
-  ].filter(Boolean).join('\n\n')
-
-  await writeFile(patchPath, patch, 'utf8')
-  await backupUntrackedPaths(workspace, paths, checkpointDir)
-
-  const checkpoint: ToolingCheckpoint = {
-    id,
-    label,
-    cwd: workspace.cwd,
-    repoRoot: workspace.repoRoot,
-    createdAtIso,
-    paths,
-    patchPath,
-    patchBytes: Buffer.byteLength(patch),
-    hasPatch: patch.trim().length > 0,
+  const filesystem = await statfs(root).catch(() => statfs(workspace.gitCommonDir))
+  const freeBytes = filesystem.bavail * filesystem.bsize
+  if (freeBytes < MIN_CHECKPOINT_FREE_BYTES) {
+    throw new Error(`Checkpoint skipped: only ${String(freeBytes)} bytes are free`)
   }
 
-  await writeFile(join(checkpointDir, 'metadata.json'), `${JSON.stringify(checkpoint, null, 2)}\n`, 'utf8')
-  await appendWorkspaceAuditEvent(workspace, {
+  await mkdir(checkpointDir, { recursive: true })
+  try {
+    const unstagedPatch = await runGit(['diff', '--binary', ...pathArgs], workspace.repoRoot)
+    const stagedPatch = await runGit(['diff', '--cached', '--binary', ...pathArgs], workspace.repoRoot)
+    const patch = [
+      unstagedPatch.trimEnd(),
+      stagedPatch.trimEnd(),
+    ].filter(Boolean).join('\n\n')
+
+    await writeFile(patchPath, patch, 'utf8')
+    const backup = await backupUntrackedPaths(workspace, paths, checkpointDir, params.untrackedPolicy ?? 'all')
+
+    const checkpoint: ToolingCheckpoint = {
+      id,
+      label,
+      cwd: workspace.cwd,
+      repoRoot: workspace.repoRoot,
+      createdAtIso,
+      paths,
+      patchPath,
+      patchBytes: Buffer.byteLength(patch),
+      hasPatch: patch.trim().length > 0,
+      untrackedBytes: backup.copiedBytes,
+      skippedUntrackedPaths: backup.skippedPaths,
+      partial: backup.skippedPaths.length > 0,
+    }
+
+    await writeFile(join(checkpointDir, 'metadata.json'), `${JSON.stringify(checkpoint, null, 2)}\n`, 'utf8')
+    await appendWorkspaceAuditEvent(workspace, {
     kind: 'checkpoint.created',
     severity: checkpoint.hasPatch ? 'success' : 'info',
     title: 'Checkpoint created',
@@ -5020,9 +5133,17 @@ export async function createToolingCheckpoint(params: {
       paths,
       patchBytes: checkpoint.patchBytes,
       hasPatch: checkpoint.hasPatch,
+      untrackedBytes: checkpoint.untrackedBytes,
+      skippedUntrackedPaths: checkpoint.skippedUntrackedPaths,
+      partial: checkpoint.partial,
     },
   })
-  return checkpoint
+    await pruneToolingCheckpoints(workspace, id)
+    return checkpoint
+  } catch (error) {
+    await rm(checkpointDir, { recursive: true, force: true })
+    throw error
+  }
 }
 
 function isToolingCheckpoint(value: unknown): value is ToolingCheckpoint {
@@ -5038,7 +5159,10 @@ function isToolingCheckpoint(value: unknown): value is ToolingCheckpoint {
     row.paths.every((path) => typeof path === 'string') &&
     typeof row.patchPath === 'string' &&
     typeof row.patchBytes === 'number' &&
-    typeof row.hasPatch === 'boolean'
+    typeof row.hasPatch === 'boolean' &&
+    (row.untrackedBytes === undefined || typeof row.untrackedBytes === 'number') &&
+    (row.skippedUntrackedPaths === undefined || (Array.isArray(row.skippedUntrackedPaths) && row.skippedUntrackedPaths.every((path) => typeof path === 'string'))) &&
+    (row.partial === undefined || typeof row.partial === 'boolean')
   )
 }
 

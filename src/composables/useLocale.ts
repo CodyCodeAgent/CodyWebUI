@@ -117,6 +117,7 @@ const MESSAGES = {
 
     'tokenFlame.aria': 'Daily token flame',
     'tokenFlame.title': 'Token Flame',
+    'tokenFlame.scope.global': 'All projects today',
     'tokenFlame.refresh': 'Refresh token usage',
     'tokenFlame.today': 'today',
     'tokenFlame.level': 'level',
@@ -521,6 +522,7 @@ const MESSAGES = {
 
     'tokenFlame.aria': '今日 Token 火焰',
     'tokenFlame.title': 'Token 火焰',
+    'tokenFlame.scope.global': '全部项目今日用量',
     'tokenFlame.refresh': '刷新 Token 用量',
     'tokenFlame.today': '今日',
     'tokenFlame.level': '等级',

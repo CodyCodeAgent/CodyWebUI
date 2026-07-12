@@ -58,6 +58,7 @@
       <header class="token-flame-popover-header">
         <div>
           <h3>{{ t('tokenFlame.title') }}</h3>
+          <strong class="token-flame-scope">{{ t('tokenFlame.scope.global') }}</strong>
           <p>{{ usageSourceLabel }}</p>
         </div>
         <button type="button" :aria-label="t('tokenFlame.refresh')" :title="t('tokenFlame.refresh')" @click="loadUsage">
@@ -563,6 +564,10 @@ onUnmounted(() => {
 
 .token-flame-popover-header h3 {
   @apply m-0 text-sm font-semibold;
+}
+
+.token-flame-scope {
+  @apply mt-0.5 block text-[0.68rem] font-semibold text-[var(--color-accent)];
 }
 
 .token-flame-popover-header p {

@@ -4,6 +4,7 @@ import {
   normalizeListenHost,
   parseListenPort,
   startupSecurityWarning,
+  validateRemotePassword,
 } from './cliStartup'
 
 describe('cli startup rules', () => {
@@ -34,5 +35,12 @@ describe('cli startup rules', () => {
       host: '127.0.0.1',
       port: 3000,
     })).toContain('Password: disabled')
+  })
+
+  it('requires password protection outside loopback', () => {
+    expect(() => validateRemotePassword('0.0.0.0', undefined)).toThrow('cannot be disabled')
+    expect(() => validateRemotePassword('10.0.0.10', undefined)).toThrow('cannot be disabled')
+    expect(() => validateRemotePassword('10.0.0.10', 'strong-password')).not.toThrow()
+    expect(() => validateRemotePassword('127.0.0.1', undefined)).not.toThrow()
   })
 })

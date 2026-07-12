@@ -11,6 +11,7 @@ import {
   listCodexSessionEvents,
   listCodexWorkspaceSessions,
   summarizeDailyTokenUsage,
+  summarizeGlobalDailyTokenUsage,
 } from './sessionEventStore'
 
 const execFileAsync = promisify(execFile)
@@ -352,6 +353,22 @@ describe('session event store', () => {
       costEventCount: 1,
       source: 'realtime-events',
     })
+  })
+
+  it('aggregates today usage across catalog workspaces', async () => {
+    const firstRepo = await createRepo()
+    const secondRepo = await createRepo()
+    await appendCodexSessionEvent(firstRepo, {
+      method: 'turn/completed', atIso: '2026-07-12T03:00:00.000Z',
+      params: { turn: { id: 'turn-a', threadId: 'thread-a' }, usage: { input_tokens: 100, output_tokens: 20, total_tokens: 120 } },
+    })
+    await appendCodexSessionEvent(secondRepo, {
+      method: 'turn/completed', atIso: '2026-07-12T04:00:00.000Z',
+      params: { turn: { id: 'turn-b', threadId: 'thread-b' }, usage: { input_tokens: 200, output_tokens: 40, total_tokens: 240 } },
+    })
+
+    const usage = await summarizeGlobalDailyTokenUsage({ cwds: [firstRepo, secondRepo, firstRepo], date: '2026-07-12' })
+    expect(usage).toMatchObject({ inputTokens: 300, outputTokens: 60, totalTokens: 360, threadCount: 2, turnCount: 2, source: 'realtime-events' })
   })
 
   it('keeps realtime sessions that have not been reconciled yet', async () => {

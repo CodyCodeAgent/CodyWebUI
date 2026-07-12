@@ -1,6 +1,6 @@
 import { execFile } from 'node:child_process'
 import { createServer, type Server } from 'node:http'
-import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { promisify } from 'node:util'
@@ -571,4 +571,29 @@ describe('automatic turn checkpoints', () => {
       'Before turn turn-123 (thread-a)',
     ].sort())
   }, 20_000)
+
+  it('does not recursively copy untracked directories for automatic checkpoints', async () => {
+    const repo = await createRepo()
+    await mkdir(join(repo, '.tmp-go-cache', 'nested'), { recursive: true })
+    await writeFile(join(repo, '.tmp-go-cache', 'nested', 'cache.bin'), 'large-cache-placeholder')
+    await writeFile(join(repo, 'draft.txt'), 'source draft\n')
+
+    const result = await createAutomaticTurnCheckpoint(repo, {
+      method: 'turn/started',
+      params: { turn: { id: 'turn-safe', threadId: 'thread-safe' } },
+    })
+    const checkpointId = String(result.beforeCheckpointId)
+    const checkpointRoot = join(repo, '.git/cody-web-ui-checkpoints', checkpointId)
+    const metadata = JSON.parse(await readFile(join(checkpointRoot, 'metadata.json'), 'utf8')) as {
+      untrackedBytes: number
+      skippedUntrackedPaths: string[]
+      partial: boolean
+    }
+
+    expect(await readFile(join(checkpointRoot, 'untracked/draft.txt'), 'utf8')).toBe('source draft\n')
+    await expect(readFile(join(checkpointRoot, 'untracked/.tmp-go-cache/nested/cache.bin'), 'utf8')).rejects.toThrow()
+    expect(metadata.untrackedBytes).toBe(Buffer.byteLength('source draft\n'))
+    expect(metadata.skippedUntrackedPaths).toContain('.tmp-go-cache/')
+    expect(metadata.partial).toBe(true)
+  })
 })

@@ -5,7 +5,7 @@ import {
 } from './codexHttpClient'
 import type { UiDailyTokenUsage } from '../types/codex'
 
-export async function fetchDailyTokenUsage(cwd: string, date = new Date()): Promise<UiDailyTokenUsage> {
+export async function fetchDailyTokenUsage(cwd: string, date = new Date(), scope: 'global' | 'workspace' = 'global'): Promise<UiDailyTokenUsage> {
   const normalizedCwd = cwd.trim()
   if (!normalizedCwd) {
     throw new CodexApiError('cwd is required', {
@@ -18,6 +18,7 @@ export async function fetchDailyTokenUsage(cwd: string, date = new Date()): Prom
   const localDate = new Date(date.getTime() - timezoneOffsetMinutes * 60_000).toISOString().slice(0, 10)
   const { result, status } = await fetchCodexResultRecord(queryPath('/codex-api/token-usage/today', {
     cwd: normalizedCwd,
+    scope,
     date: localDate,
     timezoneOffsetMinutes,
   }), {

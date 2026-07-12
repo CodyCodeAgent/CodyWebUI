@@ -80,7 +80,7 @@
 
 <script setup lang="ts">
 import { computed, onUnmounted, reactive, ref, watch } from 'vue'
-import { fetchPromptTemplates, replacePromptTemplates } from '../../api/codexPromptLibraryClient'
+import { deletePromptTemplate, fetchPromptTemplates, recordPromptTemplateUse, replacePromptTemplates, savePromptTemplate, setPromptTemplateFavorite } from '../../api/codexPromptLibraryClient'
 import { useLocale } from '../../composables/useLocale'
 import {
   normalizePromptTemplates,
@@ -162,9 +162,9 @@ async function saveEditor(): Promise<void> {
     createdAtIso: existing?.createdAtIso ?? now,
     updatedAtIso: now,
   }
-  templates.value = existing ? templates.value.map((template) => template.id === existing.id ? next : template) : [next, ...templates.value]
   try {
-    await persistTemplates()
+    const saved = await savePromptTemplate(next, existing?.updatedAtIso ?? '')
+    templates.value = existing ? templates.value.map((template) => template.id === existing.id ? saved : template) : [saved, ...templates.value]
     cancelEditor()
   } catch {
     editorError.value = t('promptLibrary.saveFailed')
@@ -175,22 +175,28 @@ async function saveEditor(): Promise<void> {
 
 async function deleteEditor(): Promise<void> {
   if (!editor.id || !window.confirm(t('promptLibrary.deleteConfirm'))) return
+  const existing = templates.value.find((template) => template.id === editor.id)
+  await deletePromptTemplate(editor.id, existing?.updatedAtIso ?? '')
   templates.value = templates.value.filter((template) => template.id !== editor.id)
-  await persistTemplates()
   cancelEditor()
 }
 
 function useTemplate(template: PromptTemplate, mode: PromptInsertion['mode']): void {
   const now = new Date().toISOString()
   templates.value = templates.value.map((item) => item.id === template.id ? { ...item, useCount: item.useCount + 1, lastUsedAtIso: now } : item)
-  void persistTemplates()
+  void recordPromptTemplateUse(template.id, now).then((saved) => {
+    templates.value = templates.value.map((item) => item.id === saved.id ? saved : item)
+  })
   emit('insert', { id: ++insertionId, text: template.content, mode })
   emit('close')
 }
 
 function toggleFavorite(template: PromptTemplate): void {
-  templates.value = templates.value.map((item) => item.id === template.id ? { ...item, isFavorite: !item.isFavorite } : item)
-  void persistTemplates()
+  const isFavorite = !template.isFavorite
+  templates.value = templates.value.map((item) => item.id === template.id ? { ...item, isFavorite } : item)
+  void setPromptTemplateFavorite(template.id, isFavorite).then((saved) => {
+    templates.value = templates.value.map((item) => item.id === saved.id ? saved : item)
+  })
 }
 
 function onWindowKeydown(event: KeyboardEvent): void {

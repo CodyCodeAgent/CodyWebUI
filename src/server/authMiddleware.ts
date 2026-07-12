@@ -63,10 +63,9 @@ function parseCookies(header: string | undefined): Record<string, string> {
 }
 
 function requestIp(req: Request): string {
-  const forwarded = req.headers['x-forwarded-for']
-  if (typeof forwarded === 'string' && forwarded.trim()) {
-    return forwarded.split(',')[0]?.trim() || req.ip || req.socket.remoteAddress || 'unknown'
-  }
+  // Express only applies X-Forwarded-For to req.ip when an explicit trusted
+  // proxy is configured. Reading it directly lets clients rotate a spoofed
+  // address and bypass login rate limiting.
   return req.ip || req.socket.remoteAddress || 'unknown'
 }
 

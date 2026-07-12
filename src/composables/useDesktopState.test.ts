@@ -551,16 +551,16 @@ describe('useDesktopState realtime messages', () => {
 
     expect(state.messages.value).toEqual([
       {
-        id: 'turn-summary:turn-b',
-        role: 'system',
-        text: 'Worked for 8s',
-        messageType: 'worked',
-      },
-      {
         id: 'msg-b',
         role: 'assistant',
         text: '后台最终输出',
         messageType: 'agentMessage.live',
+      },
+      {
+        id: 'turn-summary:turn-b',
+        role: 'system',
+        text: 'Worked for 8s',
+        messageType: 'worked',
       },
     ])
 
@@ -1063,14 +1063,14 @@ describe('useDesktopState realtime messages', () => {
         messageType: 'userMessage',
       }),
       expect.objectContaining({
-        role: 'system',
-        messageType: 'worked',
-      }),
-      expect.objectContaining({
         id: 'agent-1',
         role: 'assistant',
         text: '正在检查，已经完成。',
         messageType: 'agentMessage',
+      }),
+      expect.objectContaining({
+        role: 'system',
+        messageType: 'worked',
       }),
     ])
     expect(state.messages.value.filter((message) => message.text === '帮我检查实时输出')).toHaveLength(1)
