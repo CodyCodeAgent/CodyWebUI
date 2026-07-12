@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { DESKTOP_SETTING_KEYS, DESKTOP_STORAGE_KEYS } from './desktopSettingsKeys'
 import { buildRollbackAuditMessage, useDesktopState } from './useDesktopState'
 import { buildThreadActivityEntries } from './useThreadActivity'
-import type { UiMessage, UiProjectGroup, UiToolingRollbackFileResult } from '../types/codex'
+import type { UiMessage, UiProjectGroup, UiRateLimitSnapshot, UiToolingRollbackFileResult } from '../types/codex'
 import type { RpcNotification } from '../api/codexRealtimeClient'
 
 const codexApiMock = vi.hoisted(() => {
@@ -13,7 +13,7 @@ const codexApiMock = vi.hoisted(() => {
     getNotificationListener: () => notificationListener,
     compactThread: vi.fn(),
     forkThread: vi.fn(),
-    getAccountRateLimits: vi.fn(async () => null),
+    getAccountRateLimits: vi.fn(async (): Promise<UiRateLimitSnapshot | null> => null),
     getAvailableModelIds: vi.fn(async (): Promise<string[]> => []),
     getCollaborationModes: vi.fn(async () => []),
     getCurrentModelConfig: vi.fn(async () => ({ model: '', reasoningEffort: '' })),
@@ -181,6 +181,51 @@ afterEach(() => {
 })
 
 describe('useDesktopState realtime messages', () => {
+  it('keeps the authoritative rate limit snapshot while a realtime invalidation refreshes it', async () => {
+    installBrowserGlobals()
+    const initialSnapshot = {
+      limitId: 'codex',
+      limitName: 'Codex',
+      planType: 'pro',
+      primary: { usedPercent: 12, windowDurationMins: 300, resetsAt: 1780000000 },
+      secondary: { usedPercent: 28, windowDurationMins: 10080, resetsAt: 1780500000 },
+      credits: null,
+      availableResetCredits: 1,
+    }
+    const refreshedSnapshot = {
+      ...initialSnapshot,
+      primary: { ...initialSnapshot.primary, usedPercent: 13 },
+    }
+    const pendingRefresh = deferred<typeof refreshedSnapshot>()
+    codexApiMock.getAccountRateLimits
+      .mockResolvedValueOnce(initialSnapshot)
+      .mockReturnValueOnce(pendingRefresh.promise)
+    const state = useDesktopState()
+
+    state.startRealtimeSync()
+    await flushPromises()
+    expect(state.rateLimitSnapshot.value?.primary?.usedPercent).toBe(12)
+
+    codexApiMock.getNotificationListener()?.({
+      method: 'account/rateLimits/updated',
+      params: {
+        rateLimits: {
+          limitId: 'codex',
+          primary: { usedPercent: 0, windowDurationMins: 300, resetsAt: 1780000000 },
+          secondary: { usedPercent: 0, windowDurationMins: 10080, resetsAt: 1780500000 },
+        },
+      },
+      atIso: '2026-07-12T12:00:00.000Z',
+    })
+
+    expect(state.rateLimitSnapshot.value?.primary?.usedPercent).toBe(12)
+    expect(codexApiMock.normalizeRateLimitSnapshot).not.toHaveBeenCalled()
+    pendingRefresh.resolve(refreshedSnapshot)
+    await flushPromises()
+    expect(state.rateLimitSnapshot.value?.primary?.usedPercent).toBe(13)
+    state.stopRealtimeSync()
+  })
+
   it('hydrates and persists turn preferences through the settings store', async () => {
     installBrowserGlobals()
     codexApiMock.fetchUserSetting.mockResolvedValueOnce({
