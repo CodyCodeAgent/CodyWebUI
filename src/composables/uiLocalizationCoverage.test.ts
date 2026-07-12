@@ -11,6 +11,7 @@ const localizedSurfaces = [
   'src/components/content/RateLimitFloatingStatus.vue',
   'src/components/content/ThreadComposer.vue',
   'src/components/content/MessageMarkdown.vue',
+  'src/components/content/WorkspaceSkillsPage.vue',
 ]
 
 const forbiddenUiLiterals = [

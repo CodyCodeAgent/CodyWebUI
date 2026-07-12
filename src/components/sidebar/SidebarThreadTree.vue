@@ -71,8 +71,30 @@
                 </span>
               </span>
             </span>
+            <template #right>
+              <button
+                class="project-skills-entry"
+                type="button"
+                :aria-label="t('skills.openProject')"
+                :title="t('skills.openProject')"
+                @click.stop="onOpenProjectSkills(group)"
+              >
+                <span aria-hidden="true">◇</span>
+                <small v-if="projectSkillCount(group) !== null">{{ projectSkillCount(group) }}</small>
+              </button>
+            </template>
             <template #right-hover>
               <div class="project-hover-controls">
+                <button
+                  class="project-skills-entry"
+                  type="button"
+                  :aria-label="t('skills.openProject')"
+                  :title="t('skills.openProject')"
+                  @click.stop="onOpenProjectSkills(group)"
+                >
+                  <span aria-hidden="true">◇</span>
+                  <small v-if="projectSkillCount(group) !== null">{{ projectSkillCount(group) }}</small>
+                </button>
                 <div :ref="(el) => setProjectMenuWrapRef(group.projectName, el)" class="project-menu-wrap">
                   <button
                     class="project-menu-trigger"
@@ -320,6 +342,7 @@ import IconTablerFolder from '../icons/IconTablerFolder.vue'
 import IconTablerFolderOpen from '../icons/IconTablerFolderOpen.vue'
 import IconTablerPin from '../icons/IconTablerPin.vue'
 import SidebarMenuRow from './SidebarMenuRow.vue'
+import { useLocale } from '../../composables/useLocale'
 
 const props = defineProps<{
   groups: UiProjectGroup[]
@@ -329,6 +352,7 @@ const props = defineProps<{
   isLoading: boolean
   searchQuery: string
   isHiddenView: boolean
+  skillCountsByCwd?: Record<string, number>
 }>()
 
 const emit = defineEmits<{
@@ -345,7 +369,10 @@ const emit = defineEmits<{
   'hide-project': [projectName: string]
   'restore-project': [projectName: string]
   'reorder-project': [payload: { projectName: string; toIndex: number }]
+  'open-project-skills': [payload: { cwd: string; projectName: string }]
 }>()
+
+const { t } = useLocale()
 
 type PendingProjectDrag = {
   projectName: string
@@ -509,6 +536,22 @@ function togglePin(threadId: string): void {
 function onSelect(threadId: string): void {
   if (renamingThreadId.value === threadId) return
   emit('select', threadId)
+}
+
+function projectCwd(group: UiProjectGroup): string {
+  return group.cwd?.trim() || group.threads[0]?.cwd?.trim() || ''
+}
+
+function projectSkillCount(group: UiProjectGroup): number | null {
+  const cwd = projectCwd(group)
+  const count = cwd ? props.skillCountsByCwd?.[cwd] : undefined
+  return typeof count === 'number' ? count : null
+}
+
+function onOpenProjectSkills(group: UiProjectGroup): void {
+  const cwd = projectCwd(group)
+  if (!cwd) return
+  emit('open-project-skills', { cwd, projectName: group.projectName })
 }
 
 function onHideClick(threadId: string): void {
@@ -1275,6 +1318,21 @@ onBeforeUnmount(() => {
 
 .project-menu-wrap {
   @apply relative;
+}
+
+.project-skills-entry {
+  @apply h-5 min-w-5 px-1 rounded flex items-center justify-center gap-0.5 theme-muted;
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+}
+
+.project-skills-entry:hover {
+  color: var(--color-accent);
+  background: color-mix(in srgb, var(--color-accent) 10%, transparent);
+}
+
+.project-skills-entry small {
+  font-size: 0.58rem;
 }
 
 .project-hover-controls {

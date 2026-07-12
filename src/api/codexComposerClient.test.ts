@@ -1,6 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   getAvailableSkills,
+  getSkillCatalog,
+  setSkillEnabled,
   toComposerSkill,
   uploadComposerImage,
 } from './codexComposerClient'
@@ -123,6 +125,25 @@ describe('codex composer client', () => {
       name: 'CodexApiError',
       message: 'disk full',
       method: 'uploads/images',
+    })
+  })
+
+  it('loads skill catalog entries for unique normalized workspaces', async () => {
+    rpcMock.rpcCall.mockResolvedValue({ data: [{ cwd: '/repo', skills: [], errors: [] }] })
+
+    await expect(getSkillCatalog([' /repo ', '/repo', ''])).resolves.toEqual([
+      { cwd: '/repo', skills: [], errors: [] },
+    ])
+    expect(rpcMock.rpcCall).toHaveBeenCalledWith('skills/list', { cwds: ['/repo'] })
+  })
+
+  it('updates skill enabled state by path', async () => {
+    rpcMock.rpcCall.mockResolvedValue({})
+
+    await expect(setSkillEnabled(' /skills/design/SKILL.md ', false)).resolves.toBeUndefined()
+    expect(rpcMock.rpcCall).toHaveBeenCalledWith('skills/config/write', {
+      path: '/skills/design/SKILL.md',
+      enabled: false,
     })
   })
 })
