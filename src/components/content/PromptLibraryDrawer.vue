@@ -84,6 +84,7 @@ import { deletePromptTemplate, fetchPromptTemplates, recordPromptTemplateUse, re
 import { useLocale } from '../../composables/useLocale'
 import {
   normalizePromptTemplates,
+  createPromptTemplateId,
   visiblePromptTemplates,
   type PromptInsertion,
   type PromptTemplate,
@@ -146,23 +147,23 @@ async function saveEditor(): Promise<void> {
     return
   }
   isSaving.value = true
-  const now = new Date().toISOString()
-  const existing = templates.value.find((template) => template.id === editor.id)
-  const next: PromptTemplate = {
-    id: existing?.id ?? `prompt-${crypto.randomUUID()}`,
-    title: editor.title.trim(),
-    description: editor.description.trim(),
-    category: editor.category.trim() || 'General',
-    content: editor.content.trim(),
-    scope: editor.scope,
-    workspaceCwd: editor.scope === 'workspace' ? props.cwd.trim() : '',
-    isFavorite: existing?.isFavorite ?? false,
-    useCount: existing?.useCount ?? 0,
-    lastUsedAtIso: existing?.lastUsedAtIso ?? '',
-    createdAtIso: existing?.createdAtIso ?? now,
-    updatedAtIso: now,
-  }
   try {
+    const now = new Date().toISOString()
+    const existing = templates.value.find((template) => template.id === editor.id)
+    const next: PromptTemplate = {
+      id: existing?.id ?? createPromptTemplateId(),
+      title: editor.title.trim(),
+      description: editor.description.trim(),
+      category: editor.category.trim() || 'General',
+      content: editor.content.trim(),
+      scope: editor.scope,
+      workspaceCwd: editor.scope === 'workspace' ? props.cwd.trim() : '',
+      isFavorite: existing?.isFavorite ?? false,
+      useCount: existing?.useCount ?? 0,
+      lastUsedAtIso: existing?.lastUsedAtIso ?? '',
+      createdAtIso: existing?.createdAtIso ?? now,
+      updatedAtIso: now,
+    }
     const saved = await savePromptTemplate(next, existing?.updatedAtIso ?? '')
     templates.value = existing ? templates.value.map((template) => template.id === existing.id ? saved : template) : [saved, ...templates.value]
     cancelEditor()

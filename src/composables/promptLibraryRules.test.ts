@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   defaultPromptTemplates,
+  createPromptTemplateId,
   insertPromptIntoDraft,
   normalizePromptTemplates,
   visiblePromptTemplates,
@@ -10,6 +11,11 @@ describe('prompt library rules', () => {
   it('provides useful defaults and rejects malformed stored rows', () => {
     expect(defaultPromptTemplates()).toHaveLength(4)
     expect(normalizePromptTemplates([{ id: '', title: 'Bad', content: '' }])).toHaveLength(4)
+  })
+
+  it('creates prompt ids without requiring secure-context randomUUID', () => {
+    expect(createPromptTemplateId({ randomUUID: () => 'secure-id' })).toBe('prompt-secure-id')
+    expect(createPromptTemplateId(null)).toMatch(/^prompt-[a-z0-9]+-[a-z0-9]+$/u)
   })
 
   it('filters workspace prompts without leaking them into another workspace', () => {
