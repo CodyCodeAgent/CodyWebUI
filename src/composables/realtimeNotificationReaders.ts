@@ -418,14 +418,6 @@ export function readStructuredPlanUpdate(notification: RpcNotification): Structu
   }
 }
 
-export function isPlanProgressActivity(notification: RpcNotification): boolean {
-  if (notification.method !== 'item/completed') return false
-  const params = asRecord(notification.params)
-  const item = asRecord(params?.item)
-  const type = readString(item?.type)
-  return type === 'commandExecution' || type === 'fileChange' || type === 'mcpToolCall' || type === 'webSearch'
-}
-
 export function isAgentContentEvent(notification: RpcNotification): boolean {
   if (notification.method === 'item/agentMessage/delta' || notification.method === 'item/plan/delta') {
     return true

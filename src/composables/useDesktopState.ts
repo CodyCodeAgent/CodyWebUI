@@ -49,7 +49,6 @@ import {
   readPlanMessageDelta,
   readPlanUpdatedMessage,
   readStructuredPlanUpdate,
-  isPlanProgressActivity,
   readRateLimitSnapshotPayload,
   readReasoningCompletedId,
   readReasoningDelta,
@@ -66,7 +65,7 @@ import {
   type TurnCompletedInfo,
   type TurnStartedInfo,
 } from './realtimeNotificationReaders'
-import { applyStructuredPlanUpdate, clearStructuredPlan, endStructuredPlan, markPlanPossiblyStale, type DesktopPlanState } from './desktopPlanState'
+import { applyStructuredPlanUpdate, clearStructuredPlan, endStructuredPlan, type DesktopPlanState } from './desktopPlanState'
 import { shouldQueueEventDrivenSyncForMethod } from './realtimeSyncPolicy'
 import {
   clearDesktopRealtimeSyncQueue,
@@ -961,8 +960,6 @@ export function useDesktopState() {
         structuredPlanUpdate,
         (structuredPlanByThreadId.value[structuredPlanUpdate.threadId]?.revision ?? 0) + 1,
       )
-    } else if (isPlanProgressActivity(notification)) {
-      structuredPlanByThreadId.value = markPlanPossiblyStale(structuredPlanByThreadId.value, notificationThreadId)
     }
 
     const completedPlanMessage = readPlanMessageCompleted(notification)

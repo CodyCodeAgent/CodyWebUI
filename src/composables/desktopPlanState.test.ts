@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { applyStructuredPlanUpdate, clearStructuredPlan, endStructuredPlan, markPlanPossiblyStale } from './desktopPlanState'
+import { applyStructuredPlanUpdate, clearStructuredPlan, endStructuredPlan } from './desktopPlanState'
 
 const update = {
   threadId: 'thread-1', turnId: 'turn-1', explanation: '', updatedAtIso: '2026-07-12T00:00:00.000Z',
@@ -9,9 +9,8 @@ const update = {
 describe('desktopPlanState', () => {
   it('replaces the authoritative snapshot and increments revision externally', () => {
     const first = applyStructuredPlanUpdate({}, update, 1)
-    const stale = markPlanPossiblyStale(first, 'thread-1')
-    expect(stale['thread-1']).toMatchObject({ revision: 1, possiblyStale: true, lifecycle: 'active' })
-    const second = applyStructuredPlanUpdate(stale, { ...update, steps: [
+    expect(first['thread-1']).toMatchObject({ revision: 1, possiblyStale: false, lifecycle: 'active' })
+    const second = applyStructuredPlanUpdate(first, { ...update, steps: [
       { status: 'completed', step: 'First' }, { status: 'inProgress', step: 'Second' },
     ] }, 2)
     expect(second['thread-1']).toMatchObject({ revision: 2, possiblyStale: false, steps: [{ status: 'completed' }, { status: 'inProgress' }] })
