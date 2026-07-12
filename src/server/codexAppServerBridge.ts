@@ -2246,7 +2246,11 @@ export function createCodexBridgeMiddleware(): CodexBridgeMiddleware {
         if (url.searchParams.get('scope') === 'global') {
           const [visible, hidden] = await Promise.all([listCatalog('visible'), listCatalog('hidden')])
           const result = await summarizeGlobalDailyTokenUsage({
-            cwds: [...visible.projects, ...hidden.projects].map((project) => project.cwd),
+            cwds: [
+              url.searchParams.get('cwd') ?? '',
+              ...visible.projects.map((project) => project.cwd),
+              ...hidden.projects.map((project) => project.cwd),
+            ],
             date: url.searchParams.get('date') ?? undefined,
             timezoneOffsetMinutes: Number(url.searchParams.get('timezoneOffsetMinutes') ?? '0'),
           })

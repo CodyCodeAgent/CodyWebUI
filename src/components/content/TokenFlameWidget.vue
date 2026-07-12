@@ -60,6 +60,7 @@
           <h3>{{ t('tokenFlame.title') }}</h3>
           <strong class="token-flame-scope">{{ t('tokenFlame.scope.global') }}</strong>
           <p>{{ usageSourceLabel }}</p>
+          <p v-if="usage?.partial" class="token-flame-partial">{{ t('tokenFlame.scope.partial', { count: String(usage.skippedWorkspaceCount ?? 0) }) }}</p>
         </div>
         <button type="button" :aria-label="t('tokenFlame.refresh')" :title="t('tokenFlame.refresh')" @click="loadUsage">
           ↻
@@ -572,6 +573,10 @@ onUnmounted(() => {
 
 .token-flame-popover-header p {
   @apply m-0 mt-0.5 text-xs theme-muted;
+}
+
+.token-flame-popover-header .token-flame-partial {
+  @apply text-[0.65rem] text-amber-600;
 }
 
 .token-flame-popover-header button {

@@ -460,6 +460,8 @@ export type UiDailyTokenUsage = {
   costEventCount: number
   source: 'reconciled-rollouts' | 'realtime-events' | 'none'
   lastReconciledAtIso: string | null
+  partial?: boolean
+  skippedWorkspaceCount?: number
 }
 
 export type UiGatewayDiagnosticLog = {
