@@ -107,6 +107,8 @@ export type CodexDailyTokenUsage = {
   costEventCount: number
   source: 'reconciled-rollouts' | 'realtime-events' | 'none'
   lastReconciledAtIso: string | null
+  partial?: boolean
+  skippedWorkspaceCount?: number
 }
 
 type SessionWorkspace = {
@@ -917,11 +919,25 @@ export async function summarizeGlobalDailyTokenUsage(params: {
   cwds: string[]
   date?: string
   timezoneOffsetMinutes?: number
+  workspaceTimeoutMs?: number
 }): Promise<CodexDailyTokenUsage> {
   const uniqueCwds = [...new Set(params.cwds.map((cwd) => cwd.trim()).filter(Boolean))]
-  const summaries = await Promise.all(uniqueCwds.map((cwd) => summarizeDailyTokenUsage({
-    cwd, date: params.date, timezoneOffsetMinutes: params.timezoneOffsetMinutes,
-  })))
+  const timeoutMs = Math.max(100, params.workspaceTimeoutMs ?? 2_000)
+  const results = await Promise.all(uniqueCwds.map(async (cwd) => {
+    let timer: ReturnType<typeof setTimeout> | undefined
+    try {
+      return await Promise.race([
+        summarizeDailyTokenUsage({ cwd, date: params.date, timezoneOffsetMinutes: params.timezoneOffsetMinutes }),
+        new Promise<null>((resolve) => { timer = setTimeout(() => resolve(null), timeoutMs) }),
+      ])
+    } catch {
+      return null
+    } finally {
+      if (timer) clearTimeout(timer)
+    }
+  }))
+  const summaries = results.filter((value): value is CodexDailyTokenUsage => value !== null)
+  const skippedWorkspaceCount = results.length - summaries.length
   const latestReconciled = summaries.map((row) => row.lastReconciledAtIso).filter((value): value is string => Boolean(value)).sort().at(-1) ?? null
   const hasReconciled = summaries.some((row) => row.source === 'reconciled-rollouts')
   const hasRealtime = summaries.some((row) => row.source === 'realtime-events')
@@ -939,6 +955,8 @@ export async function summarizeGlobalDailyTokenUsage(params: {
     costEventCount: summaries.reduce((sum, row) => sum + row.costEventCount, 0),
     source: hasReconciled ? 'reconciled-rollouts' : hasRealtime ? 'realtime-events' : 'none',
     lastReconciledAtIso: latestReconciled,
+    partial: skippedWorkspaceCount > 0,
+    skippedWorkspaceCount,
   }
 }
 
