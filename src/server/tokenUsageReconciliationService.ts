@@ -83,26 +83,34 @@ export class TokenUsageReconciliationService {
   async reconcileToday(now = new Date()): Promise<void> {
     const timezoneOffsetMinutes = now.getTimezoneOffset()
     const date = localDate(now, timezoneOffsetMinutes)
-    const [year, month, day] = date.split('-')
-    const directory = join(this.sessionsRoot, year, month, day)
-    let names: string[]
-    try {
-      names = await readdir(directory)
-    } catch {
-      return
-    }
     const reconciledAtIso = now.toISOString()
-    for (const name of names.filter((value) => value.startsWith('rollout-') && value.endsWith('.jsonl'))) {
-      const path = join(directory, name)
-      const usage = parseRolloutDailyTokenUsage(await readFile(path, 'utf8'), date, timezoneOffsetMinutes)
-      if (!usage) continue
-      const fingerprint = `${usage.inputTokens}:${usage.outputTokens}:${usage.totalTokens}:${usage.eventCount}`
-      if (this.savedFingerprints.get(path) === fingerprint) continue
+    const directoryDates = [...new Set([
+      date,
+      localDate(new Date(now.getTime() - 86_400_000), timezoneOffsetMinutes),
+    ])]
+
+    for (const directoryDate of directoryDates) {
+      const [year, month, day] = directoryDate.split('-')
+      const directory = join(this.sessionsRoot, year, month, day)
+      let names: string[]
       try {
-        await appendReconciledTokenUsageSnapshot({ ...usage, reconciledAtIso })
-        this.savedFingerprints.set(path, fingerprint)
+        names = await readdir(directory)
       } catch {
-        // Rollouts outside a git workspace are intentionally ignored by this workspace-scoped feature.
+        continue
+      }
+      for (const name of names.filter((value) => value.startsWith('rollout-') && value.endsWith('.jsonl'))) {
+        const path = join(directory, name)
+        const usage = parseRolloutDailyTokenUsage(await readFile(path, 'utf8'), date, timezoneOffsetMinutes)
+        if (!usage) continue
+        const fingerprintKey = `${date}:${path}`
+        const fingerprint = `${usage.inputTokens}:${usage.outputTokens}:${usage.totalTokens}:${usage.eventCount}`
+        if (this.savedFingerprints.get(fingerprintKey) === fingerprint) continue
+        try {
+          await appendReconciledTokenUsageSnapshot({ ...usage, reconciledAtIso })
+          this.savedFingerprints.set(fingerprintKey, fingerprint)
+        } catch {
+          // Rollouts outside a git workspace are intentionally ignored by this workspace-scoped feature.
+        }
       }
     }
   }
