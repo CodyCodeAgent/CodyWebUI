@@ -56,6 +56,11 @@ function string(value: unknown): string {
   return typeof value === 'string' ? value.trim() : ''
 }
 
+export function createPromptTemplateId(cryptoValue: { randomUUID?: () => string } | null | undefined = globalThis.crypto): string {
+  if (typeof cryptoValue?.randomUUID === 'function') return `prompt-${cryptoValue.randomUUID()}`
+  return `prompt-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`
+}
+
 export function defaultPromptTemplates(now = new Date().toISOString()): PromptTemplate[] {
   return DEFAULT_PROMPTS.map((prompt) => ({
     ...prompt,
