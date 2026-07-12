@@ -27,6 +27,16 @@ export type TurnCompletedInfo = {
   startedAtMs?: number
 }
 
+export type StructuredPlanStepStatus = 'pending' | 'inProgress' | 'completed'
+export type StructuredPlanStep = { step: string; status: StructuredPlanStepStatus }
+export type StructuredPlanUpdate = {
+  threadId: string
+  turnId: string
+  explanation: string
+  steps: StructuredPlanStep[]
+  updatedAtIso: string
+}
+
 function formatPlanStepStatus(value: string): string {
   if (value === 'completed') return '[done]'
   if (value === 'inProgress') return '[doing]'
@@ -384,6 +394,36 @@ export function readPlanUpdatedMessage(
     text,
     messageType: 'plan.live',
   }
+}
+
+export function readStructuredPlanUpdate(notification: RpcNotification): StructuredPlanUpdate | null {
+  const params = asRecord(notification.params)
+  if (!params || notification.method !== 'turn/plan/updated') return null
+  const threadId = extractThreadIdFromNotification(notification)
+  const turnId = readProtocolId(params, 'turnId', 'turn_id')
+  if (!threadId || !turnId || !Array.isArray(params.plan)) return null
+  const steps: StructuredPlanStep[] = []
+  for (const value of params.plan) {
+    const row = asRecord(value)
+    const step = readString(row?.step).trim()
+    const status = readString(row?.status)
+    if (!step || (status !== 'pending' && status !== 'inProgress' && status !== 'completed')) continue
+    steps.push({ step, status })
+  }
+  if (steps.length === 0) return null
+  return {
+    threadId, turnId, steps,
+    explanation: readString(params.explanation).trim(),
+    updatedAtIso: readIsoTimestampString(notification.atIso) ?? new Date().toISOString(),
+  }
+}
+
+export function isPlanProgressActivity(notification: RpcNotification): boolean {
+  if (notification.method !== 'item/completed') return false
+  const params = asRecord(notification.params)
+  const item = asRecord(params?.item)
+  const type = readString(item?.type)
+  return type === 'commandExecution' || type === 'fileChange' || type === 'mcpToolCall' || type === 'webSearch'
 }
 
 export function isAgentContentEvent(notification: RpcNotification): boolean {

@@ -2,6 +2,20 @@
 import { mount } from '@vue/test-utils'
 import { describe, expect, it, vi } from 'vitest'
 import MissionChecklist from './MissionChecklist.vue'
+import type { DesktopPlanState } from '../../composables/desktopPlanState'
+
+function plan(overrides: Partial<DesktopPlanState> = {}): DesktopPlanState {
+  return {
+    threadId: 'thread-1', turnId: 'turn-1', explanation: '', updatedAtIso: '2026-07-12T00:00:00.000Z',
+    revision: 1, lifecycle: 'active', possiblyStale: false,
+    steps: [
+      { status: 'completed', step: 'Read code' },
+      { status: 'inProgress', step: 'Build checklist' },
+      { status: 'pending', step: 'Run tests' },
+    ],
+    ...overrides,
+  }
+}
 
 describe('MissionChecklist', () => {
   it('renders structured plan progress and marks completed steps', () => {
@@ -10,12 +24,7 @@ describe('MissionChecklist', () => {
         threadId: 'thread-1',
         isTurnInProgress: true,
         hasPendingApproval: false,
-        messages: [{
-          id: 'plan-1',
-          role: 'assistant',
-          messageType: 'plan.live',
-          text: 'Plan updated\n\n1. [done] Read code\n2. [doing] Build checklist\n3. [todo] Run tests',
-        }],
+        plan: plan(),
       },
     })
 
@@ -32,12 +41,9 @@ describe('MissionChecklist', () => {
         threadId: 'thread-1',
         isTurnInProgress: false,
         hasPendingApproval: false,
-        messages: [{
-          id: 'plan-2',
-          role: 'assistant',
-          messageType: 'plan.live',
-          text: '1. [done] Read code\n2. [done] Ship result',
-        }],
+        plan: plan({ lifecycle: 'ended', revision: 2, steps: [
+          { status: 'completed', step: 'Read code' }, { status: 'completed', step: 'Ship result' },
+        ] }),
       },
     })
 
@@ -47,49 +53,30 @@ describe('MissionChecklist', () => {
     vi.useRealTimers()
   })
 
-  it('follows an in-place plan revision instead of a later stale plan message', async () => {
+  it('follows the latest structured revision without consulting plan messages', async () => {
     const wrapper = mount(MissionChecklist, {
       props: {
         threadId: 'thread-1',
-        messages: [
-          {
-            id: 'active-plan',
-            role: 'assistant',
-            messageType: 'plan.live',
-            text: '1. [doing] First step\n2. [todo] Second step',
-          },
-          {
-            id: 'stale-plan',
-            role: 'assistant',
-            messageType: 'plan',
-            text: '1. [doing] Old first step\n2. [todo] Old second step',
-          },
-        ],
+        plan: plan({ steps: [{ status: 'inProgress', step: 'First step' }, { status: 'pending', step: 'Second step' }] }),
         isTurnInProgress: true,
         hasPendingApproval: false,
       },
     })
 
-    expect(wrapper.find('h2').text()).toBe('Old first step')
+    expect(wrapper.find('h2').text()).toBe('First step')
 
     await wrapper.setProps({
-      messages: [
-        {
-          id: 'active-plan',
-          role: 'assistant',
-          messageType: 'plan.live',
-          text: '1. [done] First step\n2. [doing] Second step',
-        },
-        {
-          id: 'stale-plan',
-          role: 'assistant',
-          messageType: 'plan',
-          text: '1. [doing] Old first step\n2. [todo] Old second step',
-        },
-      ],
+      plan: plan({ revision: 2, steps: [{ status: 'completed', step: 'First step' }, { status: 'inProgress', step: 'Second step' }] }),
     })
 
     expect(wrapper.find('h2').text()).toBe('Second step')
     expect(wrapper.text()).toContain('1 / 2')
+  })
+
+  it('warns when execution continued after the last structured update', () => {
+    const wrapper = mount(MissionChecklist, { props: {
+      threadId: 'thread-1', plan: plan({ possiblyStale: true }), isTurnInProgress: true, hasPendingApproval: false,
+    } })
+    expect(wrapper.text()).toContain('Progress may be out of date')
   })
 })

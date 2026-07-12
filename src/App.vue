@@ -201,7 +201,7 @@
         <MissionChecklist
           v-if="!isHomeRoute && !isSettingsRoute"
           :thread-id="selectedThreadId"
-          :messages="filteredMessages"
+          :plan="selectedStructuredPlan"
           :is-turn-in-progress="isSelectedThreadInProgress"
           :has-pending-approval="selectedThreadServerRequests.length > 0"
         />
@@ -393,6 +393,7 @@ const {
   selectedThreadServerRequests,
   allPendingServerRequests,
   selectedLiveOverlay,
+  selectedStructuredPlan,
   selectedMessageLoadError,
   selectedThreadId,
   isHiddenView,
