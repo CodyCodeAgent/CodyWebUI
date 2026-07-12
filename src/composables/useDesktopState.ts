@@ -48,6 +48,8 @@ import {
   readPlanMessageCompleted,
   readPlanMessageDelta,
   readPlanUpdatedMessage,
+  readStructuredPlanUpdate,
+  isPlanProgressActivity,
   readRateLimitSnapshotPayload,
   readReasoningCompletedId,
   readReasoningDelta,
@@ -64,6 +66,7 @@ import {
   type TurnCompletedInfo,
   type TurnStartedInfo,
 } from './realtimeNotificationReaders'
+import { applyStructuredPlanUpdate, clearStructuredPlan, endStructuredPlan, markPlanPossiblyStale, type DesktopPlanState } from './desktopPlanState'
 import { shouldQueueEventDrivenSyncForMethod } from './realtimeSyncPolicy'
 import {
   clearDesktopRealtimeSyncQueue,
@@ -222,6 +225,7 @@ export function useDesktopState() {
   const resumedThreadById = ref<Record<string, boolean>>({})
   const turnSummaryByThreadId = ref<Record<string, TurnSummaryState>>({})
   const turnActivityByThreadId = ref<Record<string, TurnActivityState>>({})
+  const structuredPlanByThreadId = ref<Record<string, DesktopPlanState>>({})
   const turnErrorByThreadId = ref<Record<string, TurnErrorState>>({})
   const activeTurnIdByThreadId = ref<Record<string, string>>({})
   const pendingServerRequestsByThreadId = ref<Record<string, UiServerRequest[]>>({})
@@ -280,6 +284,7 @@ export function useDesktopState() {
       turnErrorByThreadId.value,
     ),
   )
+  const selectedStructuredPlan = computed(() => structuredPlanByThreadId.value[selectedThreadId.value] ?? null)
   const selectedMessageLoadError = computed(() => messageLoadErrorByThreadId.value[selectedThreadId.value] ?? '')
   const messages = computed<UiMessage[]>(() => {
     const threadId = selectedThreadId.value
@@ -831,6 +836,7 @@ export function useDesktopState() {
       setTurnSummaryForThread(startedTurn.threadId, null)
       setTurnErrorForThread(startedTurn.threadId, null)
       setThreadInProgress(startedTurn.threadId, true)
+      structuredPlanByThreadId.value = clearStructuredPlan(structuredPlanByThreadId.value, startedTurn.threadId)
       if (shouldClearUnreadForStartedTurn(eventUnreadByThreadId.value, startedTurn)) {
         eventUnreadByThreadId.value = omitKey(eventUnreadByThreadId.value, startedTurn.threadId)
       }
@@ -866,6 +872,7 @@ export function useDesktopState() {
       setThreadInProgress(completedTurn.threadId, false)
       setTurnActivityForThread(completedTurn.threadId, null)
       markThreadUnreadByEvent(completedTurn.threadId)
+      structuredPlanByThreadId.value = endStructuredPlan(structuredPlanByThreadId.value, completedTurn.threadId, completedTurn.turnId)
     }
 
     const turnErrorMessage = readTurnErrorMessage(notification)
@@ -946,6 +953,16 @@ export function useDesktopState() {
     )
     if (updatedPlanMessage) {
       upsertLiveAgentMessage(notificationThreadId, updatedPlanMessage)
+    }
+    const structuredPlanUpdate = readStructuredPlanUpdate(notification)
+    if (structuredPlanUpdate) {
+      structuredPlanByThreadId.value = applyStructuredPlanUpdate(
+        structuredPlanByThreadId.value,
+        structuredPlanUpdate,
+        (structuredPlanByThreadId.value[structuredPlanUpdate.threadId]?.revision ?? 0) + 1,
+      )
+    } else if (isPlanProgressActivity(notification)) {
+      structuredPlanByThreadId.value = markPlanPossiblyStale(structuredPlanByThreadId.value, notificationThreadId)
     }
 
     const completedPlanMessage = readPlanMessageCompleted(notification)
@@ -1424,6 +1441,11 @@ export function useDesktopState() {
       modelId,
       reasoningEffort,
     )
+    if (collaborationMode) {
+      const existingInstructions = collaborationMode.settings.developer_instructions?.trim() ?? ''
+      const planSyncInstructions = 'When you use a plan, update its structured step statuses before moving to the next step and immediately after completing a step. Keep exactly one step in progress at a time.'
+      collaborationMode.settings.developer_instructions = [existingInstructions, planSyncInstructions].filter(Boolean).join('\n\n')
+    }
     const permissionOverride = buildTurnPermissionOverride(selectedPermissionMode.value)
 
     try {
@@ -1743,6 +1765,7 @@ export function useDesktopState() {
     liveAgentMessagesByThreadId.value = {}
     liveReasoningTextByThreadId.value = {}
     turnActivityByThreadId.value = {}
+    structuredPlanByThreadId.value = {}
     turnSummaryByThreadId.value = {}
     turnErrorByThreadId.value = {}
     messageLoadErrorByThreadId.value = {}
@@ -1757,6 +1780,7 @@ export function useDesktopState() {
     selectedThreadServerRequests,
     allPendingServerRequests,
     selectedLiveOverlay,
+    selectedStructuredPlan,
     selectedMessageLoadError,
     selectedThreadId,
     isHiddenView,

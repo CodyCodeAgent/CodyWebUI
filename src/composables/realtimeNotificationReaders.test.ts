@@ -6,6 +6,7 @@ import {
   readAgentMessageCompleted,
   readAgentMessageDelta,
   readPlanUpdatedMessage,
+  readStructuredPlanUpdate,
   readRateLimitSnapshotPayload,
   readReasoningDelta,
   readStartedThread,
@@ -269,6 +270,13 @@ describe('realtime notification readers', () => {
       role: 'assistant',
       messageType: 'plan.live',
       text: 'Plan changed\n\n1. [done] Read code\n2. [doing] Patch code\n3. [todo] Run tests',
+    })
+    expect(readStructuredPlanUpdate(notification('turn/plan/updated', {
+      threadId: 'thread-1', turnId: 'turn-1', explanation: 'Plan changed',
+      plan: [{ status: 'completed', step: 'Read code' }, { status: 'inProgress', step: 'Patch code' }],
+    }))).toMatchObject({
+      threadId: 'thread-1', turnId: 'turn-1', explanation: 'Plan changed',
+      steps: [{ status: 'completed', step: 'Read code' }, { status: 'inProgress', step: 'Patch code' }],
     })
 
     expect(isAgentContentEvent(notification('turn/plan/updated', { turnId: 'turn-1' }))).toBe(true)

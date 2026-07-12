@@ -521,6 +521,31 @@ describe('useDesktopState realtime messages', () => {
       atIso: '2026-07-07T00:00:04.000Z',
     })
 
+    expect(state.selectedStructuredPlan.value).toMatchObject({
+      threadId: 'thread-b', turnId: 'turn-b', revision: 1, lifecycle: 'active', possiblyStale: false,
+      steps: [{ status: 'inProgress', step: '检查实时输出' }],
+    })
+
+    listener?.({
+      method: 'item/completed',
+      params: { threadId: 'thread-b', turnId: 'turn-b', item: { id: 'change-1', type: 'fileChange' } },
+      atIso: '2026-07-07T00:00:05.000Z',
+    })
+    expect(state.selectedStructuredPlan.value).toMatchObject({ revision: 1, possiblyStale: true })
+
+    listener?.({
+      method: 'turn/plan/updated',
+      params: {
+        threadId: 'thread-b', turnId: 'turn-b',
+        plan: [{ step: '检查实时输出', status: 'completed' }, { step: '运行测试', status: 'inProgress' }],
+      },
+      atIso: '2026-07-07T00:00:06.000Z',
+    })
+    expect(state.selectedStructuredPlan.value).toMatchObject({
+      revision: 2, possiblyStale: false,
+      steps: [{ status: 'completed' }, { status: 'inProgress' }],
+    })
+
     expect(state.messages.value).toEqual([
       {
         id: 'msg-b',
@@ -531,7 +556,7 @@ describe('useDesktopState realtime messages', () => {
       {
         id: 'plan-b',
         role: 'assistant',
-        text: '计划更新\n\n1. [doing] 检查实时输出',
+        text: '1. [done] 检查实时输出\n2. [doing] 运行测试',
         messageType: 'plan.live',
       },
     ])
@@ -548,6 +573,8 @@ describe('useDesktopState realtime messages', () => {
       },
       atIso: '2026-07-07T00:00:08.000Z',
     })
+
+    expect(state.selectedStructuredPlan.value).toMatchObject({ lifecycle: 'ended', possiblyStale: true })
 
     expect(state.messages.value).toEqual([
       {
@@ -835,7 +862,7 @@ describe('useDesktopState realtime messages', () => {
         settings: {
           model: '',
           reasoning_effort: 'medium',
-          developer_instructions: null,
+          developer_instructions: 'When you use a plan, update its structured step statuses before moving to the next step and immediately after completing a step. Keep exactly one step in progress at a time.',
         },
       },
     )
@@ -866,7 +893,7 @@ describe('useDesktopState realtime messages', () => {
         settings: {
           model: '',
           reasoning_effort: 'medium',
-          developer_instructions: null,
+          developer_instructions: 'When you use a plan, update its structured step statuses before moving to the next step and immediately after completing a step. Keep exactly one step in progress at a time.',
         },
       },
       {
@@ -905,7 +932,7 @@ describe('useDesktopState realtime messages', () => {
         settings: {
           model: '',
           reasoning_effort: 'medium',
-          developer_instructions: null,
+          developer_instructions: 'When you use a plan, update its structured step statuses before moving to the next step and immediately after completing a step. Keep exactly one step in progress at a time.',
         },
       },
     )

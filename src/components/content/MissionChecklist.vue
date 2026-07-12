@@ -44,6 +44,7 @@
         </li>
       </ol>
       <p v-if="!isCollapsed && hasPendingApproval" class="mission-checklist-attention">{{ t('mission.waitingApproval') }}</p>
+      <p v-else-if="!isCollapsed && plan?.possiblyStale" class="mission-checklist-attention">{{ plan.lifecycle === 'ended' ? t('mission.unsyncedFinal') : t('mission.stale') }}</p>
     </section>
 
     <Teleport to="body">
@@ -68,7 +69,7 @@
 
 <script setup lang="ts">
 import { computed, onUnmounted, ref, watch } from 'vue'
-import type { UiMessage } from '../../types/codex'
+import type { DesktopPlanState } from '../../composables/desktopPlanState'
 import { useLocale } from '../../composables/useLocale'
 
 type MissionItemStatus = 'todo' | 'doing' | 'done'
@@ -76,7 +77,7 @@ type MissionItem = { id: string; text: string; status: MissionItemStatus }
 
 const props = defineProps<{
   threadId: string
-  messages: UiMessage[]
+  plan: DesktopPlanState | null
   isTurnInProgress: boolean
   hasPendingApproval: boolean
 }>()
@@ -87,47 +88,11 @@ const isMobileOpen = ref(false)
 const isCompletionDismissed = ref(false)
 let completionTimer = 0
 
-function parsePlanItems(text: string): MissionItem[] {
-  const items: MissionItem[] = []
-  for (const line of text.split('\n')) {
-    const match = line.trim().match(/^\d+[.)]\s+\[(done|doing|todo)\]\s+(.+)$/iu)
-    if (!match) continue
-    const status = match[1]?.toLowerCase() as MissionItemStatus
-    const itemText = match[2]?.trim() ?? ''
-    if (!itemText) continue
-    items.push({ id: `${String(items.length)}:${itemText}`, text: itemText, status })
-  }
-  return items
-}
-
-const activePlanMessage = ref<UiMessage | null>(null)
-const planTextById = new Map<string, string>()
-const planMessages = computed(() => props.messages.filter((message) => (
-  (message.messageType === 'plan.live' || message.messageType === 'plan') && parsePlanItems(message.text).length >= 2
-)))
-const planRevisionSignature = computed(() => planMessages.value.map((message) => `${message.id}\u0000${message.text}`).join('\u0001'))
-
-watch(() => props.threadId, () => {
-  planTextById.clear()
-  activePlanMessage.value = null
-}, { immediate: true })
-
-watch(planRevisionSignature, () => {
-  const candidates = planMessages.value
-  const changed = candidates.filter((message) => planTextById.get(message.id) !== message.text)
-  const current = activePlanMessage.value
-    ? candidates.find((message) => message.id === activePlanMessage.value?.id)
-    : null
-
-  // A plan update replaces its existing message in-place, so array position is not
-  // a reliable revision clock. Follow the message whose text actually changed.
-  activePlanMessage.value = changed.at(-1) ?? current ?? candidates.at(-1) ?? null
-  planTextById.clear()
-  for (const message of candidates) planTextById.set(message.id, message.text)
-}, { immediate: true })
-
-const latestPlanMessage = computed(() => activePlanMessage.value)
-const items = computed(() => latestPlanMessage.value ? parsePlanItems(latestPlanMessage.value.text) : [])
+const items = computed<MissionItem[]>(() => (props.plan?.steps ?? []).map((item, index) => ({
+  id: `${String(index)}:${item.step}`,
+  text: item.step,
+  status: item.status === 'completed' ? 'done' : item.status === 'inProgress' ? 'doing' : 'todo',
+})))
 const completedCount = computed(() => items.value.filter((item) => item.status === 'done').length)
 const isComplete = computed(() => items.value.length > 0 && completedCount.value === items.value.length)
 const progressPercent = computed(() => items.value.length > 0 ? Math.round((completedCount.value / items.value.length) * 100) : 0)
@@ -141,7 +106,7 @@ const headline = computed(() => {
 })
 const shouldRender = computed(() => Boolean(props.threadId && items.value.length >= 2 && !isCompletionDismissed.value))
 
-watch(() => `${props.threadId}:${latestPlanMessage.value?.id ?? ''}:${latestPlanMessage.value?.text ?? ''}`, () => {
+watch(() => `${props.threadId}:${props.plan?.turnId ?? ''}:${String(props.plan?.revision ?? 0)}:${props.plan?.lifecycle ?? ''}`, () => {
   window.clearTimeout(completionTimer)
   isCompletionDismissed.value = false
   if (isComplete.value && !props.hasPendingApproval) {
