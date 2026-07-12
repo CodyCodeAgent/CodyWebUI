@@ -29,6 +29,16 @@ export function createServer(options: ServerOptions = {}): ServerInstance {
   const authEnabled = Boolean(options.password)
   let authMiddleware: AuthMiddleware | null = null
 
+  app.disable('x-powered-by')
+  app.use((_req, res, next) => {
+    res.setHeader('X-Content-Type-Options', 'nosniff')
+    res.setHeader('X-Frame-Options', 'DENY')
+    res.setHeader('Referrer-Policy', 'no-referrer')
+    res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=(), payment=()')
+    res.setHeader('Cross-Origin-Opener-Policy', 'same-origin')
+    next()
+  })
+
   // 1. Auth middleware (if password is set)
   if (options.password) {
     authMiddleware = createAuthMiddleware(options.password)

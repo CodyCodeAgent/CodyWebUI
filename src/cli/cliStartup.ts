@@ -21,11 +21,21 @@ export function normalizeListenHost(value: string): string {
   return value.trim() || '127.0.0.1'
 }
 
+export function isLoopbackHost(host: string): boolean {
+  return host === '127.0.0.1' || host === 'localhost' || host === '::1'
+}
+
+export function validateRemotePassword(host: string, password: string | undefined): void {
+  if (!isLoopbackHost(host) && !password) {
+    throw new Error('Password protection cannot be disabled on a non-loopback host')
+  }
+}
+
 export function startupSecurityWarning(host: string): string {
   if (host === '0.0.0.0' || host === '::' || host === '*') {
     return '  Warning: listening on all interfaces. Use HTTPS and a strong password for remote access.'
   }
-  if (host !== '127.0.0.1' && host !== 'localhost' && host !== '::1') {
+  if (!isLoopbackHost(host)) {
     return '  Warning: listening on a non-loopback host. Review firewall, HTTPS, and authentication settings.'
   }
   return ''

@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import { nextTick } from 'vue'
 import type { UiRateLimitSnapshot } from '../../types/codex'
 import RateLimitFloatingStatus from './RateLimitFloatingStatus.vue'
+import { installTestLocalStorage } from '../../test/localStorage'
 
 const POSITION_STORAGE_KEY = 'cody-web-ui.rate-limit-position.v1'
 
@@ -24,6 +25,7 @@ const snapshot: UiRateLimitSnapshot = {
 
 describe('RateLimitFloatingStatus', () => {
   beforeEach(() => {
+    installTestLocalStorage()
     window.localStorage.clear()
     Object.defineProperty(window, 'innerWidth', { configurable: true, value: 1200 })
     Object.defineProperty(window, 'innerHeight', { configurable: true, value: 800 })

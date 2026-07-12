@@ -6,6 +6,7 @@ import {
   buildStartupBanner,
   normalizeListenHost,
   parseListenPort,
+  validateRemotePassword,
 } from './cliStartup.js'
 
 const program = new Command()
@@ -33,6 +34,11 @@ if (opts.password === false) {
   password = opts.password
 } else {
   password = generatePassword()
+}
+try {
+  validateRemotePassword(host, password)
+} catch (error) {
+  program.error(error instanceof Error ? error.message : 'Unsafe remote access configuration')
 }
 
 const { app, attachWebSocketServer, dispose } = createApp({ password, host, port })

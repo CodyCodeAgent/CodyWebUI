@@ -4,6 +4,7 @@ import { mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it } from 'vitest'
 import type { UiProjectGroup } from '../../types/codex'
 import SidebarThreadTree from './SidebarThreadTree.vue'
+import { installTestLocalStorage } from '../../test/localStorage'
 
 const groups: UiProjectGroup[] = [
   {
@@ -31,7 +32,7 @@ const groups: UiProjectGroup[] = [
 ]
 
 describe('SidebarThreadTree', () => {
-  beforeEach(() => window.localStorage.clear())
+  beforeEach(() => { installTestLocalStorage(); window.localStorage.clear() })
 
   it('raises the owning project while a thread menu is open', async () => {
     const wrapper = mount(SidebarThreadTree, {

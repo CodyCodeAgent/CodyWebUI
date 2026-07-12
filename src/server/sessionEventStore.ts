@@ -913,6 +913,35 @@ export async function summarizeDailyTokenUsage(params: {
   }
 }
 
+export async function summarizeGlobalDailyTokenUsage(params: {
+  cwds: string[]
+  date?: string
+  timezoneOffsetMinutes?: number
+}): Promise<CodexDailyTokenUsage> {
+  const uniqueCwds = [...new Set(params.cwds.map((cwd) => cwd.trim()).filter(Boolean))]
+  const summaries = await Promise.all(uniqueCwds.map((cwd) => summarizeDailyTokenUsage({
+    cwd, date: params.date, timezoneOffsetMinutes: params.timezoneOffsetMinutes,
+  })))
+  const latestReconciled = summaries.map((row) => row.lastReconciledAtIso).filter((value): value is string => Boolean(value)).sort().at(-1) ?? null
+  const hasReconciled = summaries.some((row) => row.source === 'reconciled-rollouts')
+  const hasRealtime = summaries.some((row) => row.source === 'realtime-events')
+  const offset = Number.isFinite(params.timezoneOffsetMinutes) ? Number(params.timezoneOffsetMinutes) : 0
+  return {
+    cwd: '', repoRoot: '', generatedAtIso: new Date().toISOString(),
+    date: summaries[0]?.date ?? params.date ?? todayDateString(offset), timezoneOffsetMinutes: offset,
+    inputTokens: summaries.reduce((sum, row) => sum + row.inputTokens, 0),
+    outputTokens: summaries.reduce((sum, row) => sum + row.outputTokens, 0),
+    totalTokens: summaries.reduce((sum, row) => sum + row.totalTokens, 0),
+    tokenUsageEventCount: summaries.reduce((sum, row) => sum + row.tokenUsageEventCount, 0),
+    threadCount: summaries.reduce((sum, row) => sum + row.threadCount, 0),
+    turnCount: summaries.reduce((sum, row) => sum + row.turnCount, 0),
+    costUsd: summaries.some((row) => row.costUsd !== null) ? summaries.reduce((sum, row) => sum + (row.costUsd ?? 0), 0) : null,
+    costEventCount: summaries.reduce((sum, row) => sum + row.costEventCount, 0),
+    source: hasReconciled ? 'reconciled-rollouts' : hasRealtime ? 'realtime-events' : 'none',
+    lastReconciledAtIso: latestReconciled,
+  }
+}
+
 function setJson(res: ServerResponse, statusCode: number, payload: unknown): void {
   res.statusCode = statusCode
   res.setHeader('Content-Type', 'application/json; charset=utf-8')

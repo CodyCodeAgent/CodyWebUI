@@ -25,11 +25,11 @@ import {
 import { handleImageUpload, handleLocalImage } from './imageUploads.js'
 import { NotificationDispatcher, type NotificationDispatchEvent } from './notificationDispatchService.js'
 import { buildSecurityAccessSnapshot } from './securityAccess.js'
-import { appendCodexSessionEvent, handleDailyTokenUsage, handleListCodexSessionEvents, handleListCodexWorkspaceSessions } from './sessionEventStore.js'
+import { appendCodexSessionEvent, handleDailyTokenUsage, handleListCodexSessionEvents, handleListCodexWorkspaceSessions, summarizeGlobalDailyTokenUsage } from './sessionEventStore.js'
 import { TokenUsageReconciliationService } from './tokenUsageReconciliationService.js'
 import { renderPlantUmlSvg } from './diagramRenderService.js'
 import { handleListUserSettings, handleReadUserSetting, handleWriteUserSetting } from './settingsStore.js'
-import { handleListPromptTemplates, handleReplacePromptTemplates } from './promptLibraryStore.js'
+import { handleDeletePromptTemplate, handleFavoritePromptTemplate, handleListPromptTemplates, handleReplacePromptTemplates, handleSavePromptTemplate, handleUsePromptTemplate } from './promptLibraryStore.js'
 import {
   handleApplyPatchToWorkspaceWorktree,
   handleApplyWorkspaceWorkflowImplementation,
@@ -1724,6 +1724,7 @@ export async function createAutomaticTurnCheckpoint(
   const checkpoint = await createToolingCheckpoint({
     cwd,
     label,
+    untrackedPolicy: 'files-only',
   })
   const prefix = phase === 'before' ? 'beforeCheckpoint' : 'afterCheckpoint'
   return {
@@ -1955,6 +1956,26 @@ export function createCodexBridgeMiddleware(): CodexBridgeMiddleware {
 
       if (req.method === 'POST' && url.pathname === '/codex-api/prompt-templates') {
         await handleReplacePromptTemplates(req, res)
+        return
+      }
+
+      if (req.method === 'POST' && url.pathname === '/codex-api/prompt-templates/item') {
+        await handleSavePromptTemplate(req, res)
+        return
+      }
+
+      if (req.method === 'DELETE' && url.pathname === '/codex-api/prompt-templates/item') {
+        await handleDeletePromptTemplate(url, res)
+        return
+      }
+
+      if (req.method === 'POST' && url.pathname === '/codex-api/prompt-templates/use') {
+        await handleUsePromptTemplate(req, res)
+        return
+      }
+
+      if (req.method === 'POST' && url.pathname === '/codex-api/prompt-templates/favorite') {
+        await handleFavoritePromptTemplate(req, res)
         return
       }
 
@@ -2222,6 +2243,16 @@ export function createCodexBridgeMiddleware(): CodexBridgeMiddleware {
       }
 
       if (req.method === 'GET' && url.pathname === '/codex-api/token-usage/today') {
+        if (url.searchParams.get('scope') === 'global') {
+          const [visible, hidden] = await Promise.all([listCatalog('visible'), listCatalog('hidden')])
+          const result = await summarizeGlobalDailyTokenUsage({
+            cwds: [...visible.projects, ...hidden.projects].map((project) => project.cwd),
+            date: url.searchParams.get('date') ?? undefined,
+            timezoneOffsetMinutes: Number(url.searchParams.get('timezoneOffsetMinutes') ?? '0'),
+          })
+          setJson(res, 200, { result })
+          return
+        }
         await handleDailyTokenUsage(url, res)
         return
       }
