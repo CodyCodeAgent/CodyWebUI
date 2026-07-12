@@ -297,6 +297,26 @@ async function runGit(args: string[], cwd: string): Promise<string> {
   return String(result.stdout ?? '')
 }
 
+async function runGitForCatalogWorkspace(args: string[], cwd: string, timeoutMs: number): Promise<string> {
+  const result = await execFileAsync('git', ['-C', cwd, ...args], {
+    encoding: 'utf8',
+    windowsHide: true,
+    timeout: timeoutMs,
+    killSignal: 'SIGKILL',
+  })
+  return String(result.stdout ?? '')
+}
+
+async function getCatalogSessionWorkspace(cwd: string, timeoutMs: number): Promise<SessionWorkspace> {
+  const requestedCwd = resolve(cwd.trim())
+  if (!cwd.trim()) throw new Error('cwd is required')
+  const repoRoot = (await runGitForCatalogWorkspace(['rev-parse', '--show-toplevel'], requestedCwd, timeoutMs)).trim()
+  const gitCommonDirRaw = (await runGitForCatalogWorkspace(['rev-parse', '--git-common-dir'], requestedCwd, timeoutMs)).trim()
+  if (!repoRoot || !gitCommonDirRaw) throw new Error('cwd is not a git workspace')
+  const gitCommonDir = isAbsolute(gitCommonDirRaw) ? gitCommonDirRaw : resolve(repoRoot, gitCommonDirRaw)
+  return { cwd: requestedCwd, repoRoot, gitCommonDir }
+}
+
 async function getSessionWorkspace(cwd: string): Promise<SessionWorkspace> {
   const requestedCwd = cwd.trim()
   if (!requestedCwd) throw new Error('cwd is required')
@@ -801,6 +821,7 @@ export async function summarizeDailyTokenUsage(params: {
   cwd: string
   date?: string
   timezoneOffsetMinutes?: number
+  catalogLookupTimeoutMs?: number
 }): Promise<CodexDailyTokenUsage> {
   const timezoneOffsetMinutes = Number.isFinite(params.timezoneOffsetMinutes)
     ? Number(params.timezoneOffsetMinutes)
@@ -808,10 +829,13 @@ export async function summarizeDailyTokenUsage(params: {
   const date = /^\d{4}-\d{2}-\d{2}$/u.test(params.date ?? '')
     ? params.date!
     : todayDateString(timezoneOffsetMinutes)
-  const fallbackCwd = await resolveExistingDirectory(params.cwd)
+  const catalogLookupTimeoutMs = params.catalogLookupTimeoutMs
+  const fallbackCwd = catalogLookupTimeoutMs ? resolve(params.cwd.trim()) : await resolveExistingDirectory(params.cwd)
   let workspace: SessionWorkspace
   try {
-    workspace = await getSessionWorkspace(params.cwd)
+    workspace = catalogLookupTimeoutMs
+      ? await getCatalogSessionWorkspace(params.cwd, catalogLookupTimeoutMs)
+      : await getSessionWorkspace(params.cwd)
   } catch {
     return emptyDailyTokenUsage({
       cwd: fallbackCwd,
@@ -924,17 +948,12 @@ export async function summarizeGlobalDailyTokenUsage(params: {
   const uniqueCwds = [...new Set(params.cwds.map((cwd) => cwd.trim()).filter(Boolean))]
   const timeoutMs = Math.max(100, params.workspaceTimeoutMs ?? 2_000)
   const results = await Promise.all(uniqueCwds.map(async (cwd) => {
-    let timer: ReturnType<typeof setTimeout> | undefined
     try {
-      return await Promise.race([
-        summarizeDailyTokenUsage({ cwd, date: params.date, timezoneOffsetMinutes: params.timezoneOffsetMinutes }),
-        new Promise<null>((resolve) => { timer = setTimeout(() => resolve(null), timeoutMs) }),
-      ])
-    } catch {
-      return null
-    } finally {
-      if (timer) clearTimeout(timer)
-    }
+      return await summarizeDailyTokenUsage({
+        cwd, date: params.date, timezoneOffsetMinutes: params.timezoneOffsetMinutes,
+        catalogLookupTimeoutMs: timeoutMs,
+      })
+    } catch { return null }
   }))
   const summaries = results.filter((value): value is CodexDailyTokenUsage => value !== null)
   const skippedWorkspaceCount = results.length - summaries.length
