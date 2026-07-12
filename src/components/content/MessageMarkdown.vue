@@ -15,6 +15,7 @@
 import { nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { renderMarkdown, type MarkdownUiLabels } from '../../composables/renderMarkdown'
 import { sanitizeDiagramSvg } from '../../composables/diagramSvgSanitizer'
+import { mermaidRenderConfig } from '../../composables/mermaidRenderConfig'
 import { useLocale } from '../../composables/useLocale'
 
 const props = defineProps<{
@@ -131,7 +132,7 @@ async function renderDiagrams(): Promise<void> {
       let svg = ''
       if (engine === 'mermaid') {
         const { default: mermaid } = await import('mermaid')
-        mermaid.initialize({ startOnLoad: false, securityLevel: 'strict', theme: document.querySelector('.app-dark') ? 'dark' : 'default' })
+        mermaid.initialize(mermaidRenderConfig(Boolean(document.querySelector('.app-dark'))))
         const result = await mermaid.render(`cody-diagram-${String(++diagramSequence)}`, source)
         svg = result.svg
       } else {
