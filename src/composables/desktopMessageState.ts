@@ -216,7 +216,13 @@ export function mergeMessages(
   })
 
   const previousIdSet = new Set(optimisticReplacements.messages.map((message) => message.id))
-  const lastTurnBoundaryIndex = optimisticReplacements.messages.findLastIndex((message) => message.messageType === WORKED_MESSAGE_TYPE)
+  let lastTurnBoundaryIndex = -1
+  for (let index = optimisticReplacements.messages.length - 1; index >= 0; index -= 1) {
+    if (optimisticReplacements.messages[index]?.messageType === WORKED_MESSAGE_TYPE) {
+      lastTurnBoundaryIndex = index
+      break
+    }
+  }
   const currentTurnUsers = optimisticReplacements.messages
     .slice(lastTurnBoundaryIndex + 1)
     .filter(isPersistedUserMessage)
