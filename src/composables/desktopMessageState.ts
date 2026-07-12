@@ -216,8 +216,21 @@ export function mergeMessages(
   })
 
   const previousIdSet = new Set(optimisticReplacements.messages.map((message) => message.id))
+  const lastTurnBoundaryIndex = optimisticReplacements.messages.findLastIndex((message) => message.messageType === WORKED_MESSAGE_TYPE)
+  const currentTurnUsers = optimisticReplacements.messages
+    .slice(lastTurnBoundaryIndex + 1)
+    .filter(isPersistedUserMessage)
   const appended = mergedIncoming.filter((message) => {
-    return !previousIdSet.has(message.id) && !optimisticReplacements.consumedIncomingIds.has(message.id)
+    if (previousIdSet.has(message.id) || optimisticReplacements.consumedIncomingIds.has(message.id)) return false
+    // Silent history refreshes and item/completed notifications can deliver
+    // the same user item with different transient ids. Do not append it below
+    // an already-streaming assistant response. A Worked receipt is the turn
+    // boundary, so intentionally repeating the same prompt on a later turn is
+    // still preserved.
+    if (isPersistedUserMessage(message) && currentTurnUsers.some((existing) => isMatchingUserMessage(existing, message))) {
+      return false
+    }
+    return true
   })
   const merged = removeDuplicateAdjacentUserMessages(removeDuplicateMessageIds([...mergedFromPrevious, ...appended]))
 

@@ -416,6 +416,25 @@ describe('desktopMessageState', () => {
     expect(next[3].text).toBe('Worked for 1m 5s')
   })
 
+  it('does not append a refreshed copy of the current user message below a streaming answer', () => {
+    const user = message({ id: 'user-live', role: 'user', text: 'Explain the account flow', messageType: 'userMessage' })
+    const assistant = message({ id: 'agent-live', role: 'assistant', text: 'I am checking it.', messageType: 'agentMessage.live' })
+    const refreshedUser = message({ id: 'user-server', role: 'user', text: 'Explain the account flow', messageType: 'userMessage' })
+
+    expect(mergeMessages([user, assistant], [refreshedUser], { preserveMissing: true }).map((row) => row.id))
+      .toEqual(['user-live', 'agent-live'])
+  })
+
+  it('keeps an intentionally repeated prompt after a completed turn boundary', () => {
+    const user = message({ id: 'user-first', role: 'user', text: 'Try again', messageType: 'userMessage' })
+    const assistant = message({ id: 'agent-first', role: 'assistant', text: 'Done', messageType: 'agentMessage' })
+    const receipt = buildTurnSummaryMessage({ turnId: 'turn-first', durationMs: 1000 })
+    const repeatedUser = message({ id: 'user-second', role: 'user', text: 'Try again', messageType: 'userMessage' })
+
+    expect(mergeMessages([user, assistant, receipt], [repeatedUser], { preserveMissing: true }).map((row) => row.id))
+      .toEqual(['user-first', 'agent-first', receipt.id, 'user-second'])
+  })
+
   it('compares turn activities by label and details', () => {
     expect(areTurnActivitiesEqual(
       { label: 'Thinking', details: ['model'] },
