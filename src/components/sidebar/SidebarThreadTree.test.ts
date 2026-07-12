@@ -54,4 +54,22 @@ describe('SidebarThreadTree', () => {
     expect(wrapper.get('.thread-menu-panel').text()).not.toContain('Archive')
     wrapper.unmount()
   })
+
+  it('opens the skill console for the selected project without toggling it', async () => {
+    const wrapper = mount(SidebarThreadTree, {
+      props: {
+        groups,
+        projectDisplayNameById: {},
+        selectedThreadId: '',
+        isLoading: false,
+        searchQuery: '',
+        isHiddenView: false,
+        skillCountsByCwd: { '/repo/app': 12 },
+      },
+    })
+
+    expect(wrapper.findAll('.project-skills-entry')[0]?.text()).toContain('12')
+    await wrapper.findAll('.project-skills-entry')[0]?.trigger('click')
+    expect(wrapper.emitted('open-project-skills')?.[0]).toEqual([{ cwd: '/repo/app', projectName: '/repo/app' }])
+  })
 })

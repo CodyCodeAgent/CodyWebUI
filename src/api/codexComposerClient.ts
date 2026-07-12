@@ -7,6 +7,8 @@ import { normalizeCodexApiError } from './codexErrors'
 import { rpcCall } from './codexRpcClient'
 import type { UiComposerSkill } from '../types/codex'
 
+export type SkillCatalogEntry = SkillsListResponse['data'][number]
+
 async function callRpc<T>(method: string, params?: unknown): Promise<T> {
   try {
     return await rpcCall<T>(method, params)
@@ -55,6 +57,29 @@ export async function getAvailableSkills(cwd?: string): Promise<UiComposerSkill[
     return Array.from(byKey.values()).sort((a, b) => a.name.localeCompare(b.name))
   } catch (error) {
     throw normalizeCodexApiError(error, 'Failed to load skills', 'skills/list')
+  }
+}
+
+export async function getSkillCatalog(cwds: string[]): Promise<SkillCatalogEntry[]> {
+  const normalizedCwds = Array.from(new Set(cwds.map((cwd) => cwd.trim()).filter(Boolean)))
+  if (normalizedCwds.length === 0) return []
+
+  try {
+    const payload = await callRpc<SkillsListResponse>('skills/list', { cwds: normalizedCwds })
+    return payload.data
+  } catch (error) {
+    throw normalizeCodexApiError(error, 'Failed to load skill catalog', 'skills/list')
+  }
+}
+
+export async function setSkillEnabled(path: string, enabled: boolean): Promise<void> {
+  const normalizedPath = path.trim()
+  if (!normalizedPath) throw new Error('Skill path is required')
+
+  try {
+    await callRpc<unknown>('skills/config/write', { path: normalizedPath, enabled })
+  } catch (error) {
+    throw normalizeCodexApiError(error, 'Failed to update skill', 'skills/config/write')
   }
 }
 

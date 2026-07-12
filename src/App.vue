@@ -83,6 +83,7 @@
 
         <SidebarThreadTree :groups="projectGroups" :project-display-name-by-id="projectDisplayNameById"
           v-if="!isEffectiveSidebarCollapsed"
+          :skill-counts-by-cwd="skillCountsByCwd"
           :selected-thread-id="selectedThreadId" :is-loading="isLoadingThreads"
           :selected-project-name="selectedSidebarProjectName"
           :search-query="sidebarSearchQuery" :is-hidden-view="isHiddenView"
@@ -90,7 +91,8 @@
           @hide="onHideThread" @restore="onRestoreThread" @fork="onForkThread"
           @compact="onCompactThread" @toggle-hidden-view="onToggleHiddenView"
           @rename-thread="onRenameThread" @select-project="onSelectProject" @start-new-thread="onStartNewThread" @rename-project="onRenameProject"
-          @hide-project="onHideProject" @restore-project="onRestoreProject" @reorder-project="onReorderProject" />
+          @hide-project="onHideProject" @restore-project="onRestoreProject" @reorder-project="onReorderProject"
+          @open-project-skills="onOpenProjectSkills" />
       </section>
     </template>
 
@@ -144,7 +146,7 @@
           </template>
           <template #actions>
             <button
-              v-if="!isSettingsRoute"
+              v-if="!isSettingsRoute && !isSkillsRoute"
               class="content-prompt-trigger"
               type="button"
               :aria-label="t('promptLibrary.open')"
@@ -184,6 +186,14 @@
           <span><small>{{ t('app.workspace') }}</small>{{ newThreadProjectLabel || t('app.notSelected') }}</span>
           <span><small>{{ t('app.path') }}</small>{{ tokenFlameCwd || '—' }}</span>
           <span><small>{{ t('app.permissions') }}</small>{{ selectedPermissionMode }}</span>
+          <button
+            v-if="tokenFlameCwd"
+            type="button"
+            :aria-label="t('skills.openProject')"
+            @click="openCurrentWorkspaceSkills"
+          >
+            ◇ {{ activeWorkspaceSkillCount === null ? t('skills.title') : t('skills.count', { count: String(activeWorkspaceSkillCount) }) }}
+          </button>
           <button v-if="isHomeRoute" type="button" @click="homeSurface = homeSurface === 'brief' ? 'console' : 'brief'">
             {{ homeSurface === 'brief' ? 'Open workspace console' : 'Back to brief' }}
           </button>
@@ -195,11 +205,11 @@
           @refresh="refreshRateLimits"
         />
         <TokenFlameWidget
-          v-if="!isSettingsRoute && (!isHomeRoute || homeSurface === 'brief')"
+          v-if="!isSettingsRoute && !isSkillsRoute && (!isHomeRoute || homeSurface === 'brief')"
           :cwd="tokenFlameCwd"
         />
         <MissionChecklist
-          v-if="!isHomeRoute && !isSettingsRoute"
+          v-if="!isHomeRoute && !isSettingsRoute && !isSkillsRoute"
           :thread-id="selectedThreadId"
           :plan="selectedStructuredPlan"
           :is-turn-in-progress="isSelectedThreadInProgress"
@@ -216,6 +226,9 @@
         <section class="content-body">
           <template v-if="isSettingsRoute">
             <AppSettingsPage />
+          </template>
+          <template v-else-if="isSkillsRoute">
+            <WorkspaceSkillsPage :cwd="skillsCwd" :project-label="skillsProjectLabel" />
           </template>
           <template v-else-if="isHomeRoute">
             <nav class="mission-stage-nav" :aria-label="t('app.taskStages')">
@@ -335,6 +348,7 @@ import DirectoryPickerModal from './components/content/DirectoryPickerModal.vue'
 import NewThreadSetupModal, { type NewThreadProjectOption } from './components/content/NewThreadSetupModal.vue'
 import RateLimitFloatingStatus from './components/content/RateLimitFloatingStatus.vue'
 import AppSettingsPage from './components/content/AppSettingsPage.vue'
+import WorkspaceSkillsPage from './components/content/WorkspaceSkillsPage.vue'
 import TokenFlameWidget from './components/content/TokenFlameWidget.vue'
 import MissionChecklist from './components/content/MissionChecklist.vue'
 import BrowserNotificationsPanel from './components/content/BrowserNotificationsPanel.vue'
@@ -371,6 +385,7 @@ import { useBrowserNotifications } from './composables/useBrowserNotifications'
 import { useDesktopState } from './composables/useDesktopState'
 import { useLocale } from './composables/useLocale'
 import { fetchUserSetting, writeUserSetting } from './api/codexSettingsClient'
+import { getSkillCatalog } from './api/codexComposerClient'
 import { useTheme } from './theme/useTheme'
 import type {
   ReasoningEffort,
@@ -468,6 +483,7 @@ const isMobileViewport = ref(false)
 const sidebarSearchQuery = ref('')
 const isSidebarSearchVisible = ref(false)
 const homeSurface = ref<'brief' | 'console'>('brief')
+const skillCountsByCwd = ref<Record<string, number>>({})
 const sidebarSearchInputRef = ref<HTMLInputElement | null>(null)
 
 function onInsertPrompt(insertion: PromptInsertion): void {
@@ -483,9 +499,20 @@ const knownThreadIdSet = computed(() => knownThreadIds(projectGroups.value))
 
 const isHomeRoute = computed(() => route.name === 'home')
 const isSettingsRoute = computed(() => route.name === 'settings')
+const isSkillsRoute = computed(() => route.name === 'skills')
+const skillsCwd = computed(() => typeof route.query.cwd === 'string' ? route.query.cwd.trim() : newThreadCwd.value)
+const skillsProjectLabel = computed(() => {
+  const group = projectGroups.value.find((item) => {
+    const cwd = item.cwd?.trim() || item.threads[0]?.cwd?.trim() || ''
+    return cwd === skillsCwd.value
+  })
+  if (!group) return skillsCwd.value
+  return projectDisplayNameById.value[group.projectName]?.trim() || group.projectName
+})
 const isEffectiveSidebarCollapsed = computed(() => isSidebarCollapsed.value || isMobileViewport.value)
 const contentTitle = computed(() => {
   if (isSettingsRoute.value) return t('app.title.settings')
+  if (isSkillsRoute.value) return t('skills.title')
   if (isHomeRoute.value) return t('app.title.newThread')
   return selectedThread.value?.title ?? t('app.title.chooseThread')
 })
@@ -551,6 +578,10 @@ const newThreadProjectLabel = computed(() => buildNewThreadProjectLabel({
   projectDisplayNameById: projectDisplayNameById.value,
 }))
 const tokenFlameCwd = computed(() => selectedThread.value?.cwd?.trim() || newThreadCwd.value)
+const activeWorkspaceSkillCount = computed(() => {
+  const count = skillCountsByCwd.value[tokenFlameCwd.value]
+  return typeof count === 'number' ? count : null
+})
 let hasHydratedDefaultNewThreadCwd = false
 
 onMounted(() => {
@@ -601,6 +632,20 @@ function openDirectoryPicker(): void {
 function openSettings(): void {
   if (route.name === 'settings') return
   void router.push({ name: 'settings' })
+}
+
+function onOpenProjectSkills(payload: { cwd: string; projectName: string }): void {
+  const cwd = payload.cwd.trim()
+  if (!cwd) return
+  setNewThreadCwd(cwd)
+  void router.push({ name: 'skills', query: { cwd } })
+}
+
+function openCurrentWorkspaceSkills(): void {
+  const cwd = tokenFlameCwd.value.trim()
+  if (!cwd) return
+  setNewThreadCwd(cwd)
+  void router.push({ name: 'skills', query: { cwd } })
 }
 
 function onSelectProjectDirectory(path: string): void {
@@ -866,7 +911,7 @@ async function syncThreadSelectionWithRoute(): Promise<void> {
   isRouteSyncInProgress.value = true
 
   try {
-    if (route.name === 'home' || route.name === 'settings') {
+    if (route.name === 'home' || route.name === 'settings' || route.name === 'skills') {
       if (selectedThreadId.value !== '') {
         await selectThread('')
       }
@@ -911,7 +956,7 @@ watch(
   async (threadId) => {
     if (!hasInitialized.value) return
     if (isRouteSyncInProgress.value) return
-    if (isHomeRoute.value || isSettingsRoute.value) return
+    if (isHomeRoute.value || isSettingsRoute.value || isSkillsRoute.value) return
 
     if (!threadId) {
       if (route.name !== 'home') {
@@ -937,6 +982,23 @@ watch(
     const hasSelected = options.some((option) => option.value === newThreadCwd.value)
     if (!hasSelected) {
       setNewThreadCwd(options[0].value)
+    }
+  },
+  { immediate: true },
+)
+
+watch(
+  () => projectGroups.value.map((group) => group.cwd?.trim() || group.threads[0]?.cwd?.trim() || '').filter(Boolean),
+  async (cwds) => {
+    if (cwds.length === 0) {
+      skillCountsByCwd.value = {}
+      return
+    }
+    try {
+      const entries = await getSkillCatalog(cwds)
+      skillCountsByCwd.value = Object.fromEntries(entries.map((entry) => [entry.cwd, entry.skills.length]))
+    } catch {
+      // Skill counts are a progressive enhancement; the entry remains available without them.
     }
   },
   { immediate: true },
