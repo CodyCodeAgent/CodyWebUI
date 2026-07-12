@@ -6,7 +6,6 @@ import {
 } from '../api/codexModelClient'
 import {
   getAccountRateLimits,
-  normalizeRateLimitSnapshot,
 } from '../api/codexRateLimitClient'
 import {
   fetchUserSetting,
@@ -245,6 +244,7 @@ export function useDesktopState() {
   let eventSyncTimer: number | null = null
   let autoRefreshIntervalTimer: number | null = null
   let autoRefreshCountdownTimer: number | null = null
+  let latestRateLimitRefreshId = 0
   const realtimeSyncQueue = createDesktopRealtimeSyncQueue()
   const activeReasoningItemIdByThreadId = new Map<string, string>()
   let shouldAutoScrollOnNextAgentEvent = false
@@ -449,13 +449,19 @@ export function useDesktopState() {
   }
 
   async function refreshRateLimits(): Promise<void> {
+    const requestId = ++latestRateLimitRefreshId
     isLoadingRateLimits.value = true
     try {
-      rateLimitSnapshot.value = await getAccountRateLimits()
+      const snapshot = await getAccountRateLimits()
+      if (requestId === latestRateLimitRefreshId) {
+        rateLimitSnapshot.value = snapshot
+      }
     } catch {
       // Rate limit status is advisory; keep the rest of the app usable if it is unavailable.
     } finally {
-      isLoadingRateLimits.value = false
+      if (requestId === latestRateLimitRefreshId) {
+        isLoadingRateLimits.value = false
+      }
     }
   }
 
@@ -795,13 +801,10 @@ export function useDesktopState() {
     const rateLimits = readRateLimitSnapshotPayload(notification)
     if (!rateLimits) return false
 
-    const nextSnapshot = normalizeRateLimitSnapshot(
-      rateLimits as Parameters<typeof normalizeRateLimitSnapshot>[0],
-      rateLimitSnapshot.value?.availableResetCredits ?? null,
-    )
-    if (nextSnapshot) {
-      rateLimitSnapshot.value = nextSnapshot
-    }
+    // Treat realtime rate-limit payloads as invalidation signals. Some app-server
+    // versions emit transient zero-filled snapshots; the explicit read endpoint is
+    // authoritative and also includes reset-credit metadata.
+    void refreshRateLimits()
     return true
   }
 
