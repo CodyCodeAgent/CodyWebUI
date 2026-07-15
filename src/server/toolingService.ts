@@ -1,5 +1,5 @@
 import { execFile, spawn, type ChildProcessWithoutNullStreams, type ExecFileException } from 'node:child_process'
-import { randomUUID } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 import { access, appendFile, cp, lstat, mkdir, mkdtemp, open, readFile, readdir, realpath, rm, stat, statfs, writeFile } from 'node:fs/promises'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import { isIP } from 'node:net'
@@ -9,6 +9,7 @@ import { cwd as getProcessCwd } from 'node:process'
 import { promisify } from 'node:util'
 import { parse as parseYaml } from 'yaml'
 import { parseValidationOutputSummary, type ValidationCoverageSummary, type ValidationTestSummary } from '../utils/validationSummary.js'
+import { runControlledProcess } from './controlledProcess.js'
 
 const execFileAsync = promisify(execFile)
 const MAX_GIT_OUTPUT_BYTES = 25 * 1024 * 1024
@@ -31,6 +32,9 @@ const MAX_CHECKPOINT_REPOSITORY_BYTES = 2 * 1024 * 1024 * 1024
 const MIN_CHECKPOINT_FREE_BYTES = 1024 * 1024 * 1024
 const MAX_RETAINED_CHECKPOINTS = 20
 const MAX_CHECKPOINT_AGE_MS = 7 * 24 * 60 * 60 * 1000
+const CHECKPOINT_SCAN_TIMEOUT_MS = 20_000
+const checkpointQueueByRepository = new Map<string, Promise<void>>()
+const CHECKPOINT_PRUNE_SCAN_MAX_ENTRIES = 10_000
 const DEFAULT_CHECKPOINT_EXCLUDED_NAMES = new Set([
   '.git', '.tmp-go', '.tmp-go-mod', '.tmp-go-cache', '.cache', '.gradle', '.m2',
   'node_modules', 'dist', 'dist-cli', 'build', 'coverage', 'target', 'vendor',
@@ -1351,22 +1355,24 @@ function assertPackageScriptName(value: string): string {
 }
 
 async function runGit(args: string[], cwd: string): Promise<string> {
-  const result = await execFileAsync('git', args, {
+  const result = await runControlledProcess({
+    command: 'git',
+    args,
     cwd,
-    encoding: 'utf8',
-    maxBuffer: MAX_GIT_OUTPUT_BYTES,
-    windowsHide: true,
+    timeoutMs: 15_000,
+    maxOutputBytes: MAX_GIT_OUTPUT_BYTES,
   })
   return result.stdout
 }
 
 async function runCommandOptional(command: string, args: string[], cwd: string): Promise<string> {
   try {
-    const result = await execFileAsync(command, args, {
+    const result = await runControlledProcess({
+      command,
+      args,
       cwd,
-      encoding: 'utf8',
-      maxBuffer: MAX_GIT_OUTPUT_BYTES,
-      windowsHide: true,
+      timeoutMs: 15_000,
+      maxOutputBytes: MAX_GIT_OUTPUT_BYTES,
     })
     return result.stdout
   } catch {
@@ -1388,31 +1394,14 @@ function runCommandWithInput(
   cwd: string,
   input: string,
 ): Promise<{ stdout: string; stderr: string }> {
-  return new Promise((resolveCommand, rejectCommand) => {
-    const child = execFile(command, args, {
-      cwd,
-      encoding: 'utf8',
-      maxBuffer: MAX_GIT_OUTPUT_BYTES,
-      windowsHide: true,
-    }, (error: ExecFileException | null, stdout: string | Buffer, stderr: string | Buffer) => {
-      if (error) {
-        const errorWithOutput = error as ExecFileException & {
-          stdout?: string | Buffer
-          stderr?: string | Buffer
-        }
-        const detail = String(errorWithOutput.stderr ?? stderr ?? error.message).trim()
-        rejectCommand(new Error(detail || error.message))
-        return
-      }
-
-      resolveCommand({
-        stdout: String(stdout ?? ''),
-        stderr: String(stderr ?? ''),
-      })
-    })
-
-    child.stdin?.end(input)
-  })
+  return runControlledProcess({
+    command,
+    args,
+    cwd,
+    input,
+    timeoutMs: 20_000,
+    maxOutputBytes: MAX_GIT_OUTPUT_BYTES,
+  }).then(({ stdout, stderr }) => ({ stdout, stderr }))
 }
 
 function isInside(parent: string, child: string): boolean {
@@ -4963,12 +4952,34 @@ async function readStatusForPaths(workspace: GitWorkspace, paths: string[]): Pro
 
 type CheckpointUntrackedPolicy = 'all' | 'files-only' | 'none'
 
+export async function readToolingCheckpointFingerprint(cwd: string): Promise<{ repositoryKey: string; fingerprint: string; dirty: boolean }> {
+  const workspace = await getGitWorkspace(cwd)
+  const [status, unstaged, staged] = await Promise.all([
+    runGit(['status', '--porcelain=v1', '-z'], workspace.repoRoot),
+    runGit(['diff', '--binary'], workspace.repoRoot),
+    runGit(['diff', '--cached', '--binary'], workspace.repoRoot),
+  ])
+  const untrackedMetadata: string[] = []
+  for (const entry of parsePorcelainZ(status).filter((row) => row.status === '??')) {
+    const path = resolve(workspace.repoRoot, entry.path)
+    if (!isInside(workspace.repoRoot, path)) continue
+    const info = await lstat(path).catch(() => null)
+    if (info?.isFile()) untrackedMetadata.push(`${entry.path}:${String(info.size)}:${String(info.mtimeMs)}`)
+  }
+  return {
+    repositoryKey: workspace.gitCommonDir,
+    fingerprint: createHash('sha256').update(status).update('\0').update(unstaged).update('\0').update(staged).update('\0').update(untrackedMetadata.join('\0')).digest('hex'),
+    dirty: status.length > 0,
+  }
+}
+
 type CheckpointBackupResult = {
   copiedBytes: number
   skippedPaths: string[]
 }
 
-async function pathSizeWithinLimit(path: string, limit: number): Promise<number | null> {
+async function pathSizeWithinLimit(path: string, limit: number, deadlineMs: number): Promise<number | null> {
+  if (Date.now() > deadlineMs) return null
   const info = await lstat(path)
   if (info.isSymbolicLink()) return null
   if (info.isFile()) return info.size <= limit ? info.size : null
@@ -4977,7 +4988,7 @@ async function pathSizeWithinLimit(path: string, limit: number): Promise<number 
   let total = 0
   for (const entry of await readdir(path, { withFileTypes: true })) {
     if (DEFAULT_CHECKPOINT_EXCLUDED_NAMES.has(entry.name)) return null
-    const childSize = await pathSizeWithinLimit(join(path, entry.name), limit - total)
+    const childSize = await pathSizeWithinLimit(join(path, entry.name), limit - total, deadlineMs)
     if (childSize === null) return null
     total += childSize
     if (total > limit) return null
@@ -5002,6 +5013,7 @@ async function backupUntrackedPaths(
   const untrackedRoot = join(checkpointDir, 'untracked')
   let copiedBytes = 0
   const skippedPaths: string[] = []
+  const deadlineMs = Date.now() + CHECKPOINT_SCAN_TIMEOUT_MS
 
   for (const untrackedPath of untrackedPaths) {
     const sourcePath = resolve(workspace.repoRoot, untrackedPath)
@@ -5015,7 +5027,7 @@ async function backupUntrackedPaths(
     const itemLimit = info.isFile()
       ? Math.min(MAX_CHECKPOINT_UNTRACKED_FILE_BYTES, remainingBytes)
       : remainingBytes
-    const itemBytes = await pathSizeWithinLimit(sourcePath, itemLimit)
+    const itemBytes = await pathSizeWithinLimit(sourcePath, itemLimit, deadlineMs)
     if (itemBytes === null || itemBytes > remainingBytes) {
       skippedPaths.push(untrackedPath)
       continue
@@ -5029,8 +5041,9 @@ async function backupUntrackedPaths(
   return { copiedBytes, skippedPaths }
 }
 
-async function directorySize(path: string): Promise<number> {
+async function directorySize(path: string, budget = { remaining: CHECKPOINT_PRUNE_SCAN_MAX_ENTRIES, deadlineMs: Date.now() + CHECKPOINT_SCAN_TIMEOUT_MS }): Promise<number> {
   try {
+    if (Date.now() > budget.deadlineMs || budget.remaining-- <= 0) return 0
     const info = await lstat(path)
     if (info.isSymbolicLink()) return 0
     if (info.isFile()) return info.size
@@ -5051,7 +5064,11 @@ async function pruneToolingCheckpoints(workspace: GitWorkspace, preserveId: stri
     const path = join(root, id)
     try {
       const info = await stat(path)
-      return { id, path, createdAtMs: info.mtimeMs, bytes: await directorySize(path) }
+      const metadata = await readFile(join(path, 'metadata.json'), 'utf8').then((raw) => JSON.parse(raw) as Partial<ToolingCheckpoint>).catch(() => null)
+      const recordedBytes = metadata
+        ? Math.max(0, Number(metadata.patchBytes ?? 0)) + Math.max(0, Number(metadata.untrackedBytes ?? 0))
+        : null
+      return { id, path, createdAtMs: info.mtimeMs, bytes: recordedBytes ?? await directorySize(path) }
     } catch { return null }
   }))
   const checkpoints = entries.filter((entry): entry is NonNullable<typeof entry> => entry !== null)
@@ -5070,7 +5087,7 @@ async function pruneToolingCheckpoints(workspace: GitWorkspace, preserveId: stri
   }
 }
 
-export async function createToolingCheckpoint(params: {
+async function createToolingCheckpointUnlocked(params: {
   cwd: string
   label?: string
   paths?: string[]
@@ -5143,6 +5160,28 @@ export async function createToolingCheckpoint(params: {
   } catch (error) {
     await rm(checkpointDir, { recursive: true, force: true })
     throw error
+  }
+}
+
+export async function createToolingCheckpoint(params: {
+  cwd: string
+  label?: string
+  paths?: string[]
+  untrackedPolicy?: CheckpointUntrackedPolicy
+}): Promise<ToolingCheckpoint> {
+  const workspace = await getGitWorkspace(params.cwd)
+  const queueKey = workspace.gitCommonDir
+  const previous = checkpointQueueByRepository.get(queueKey) ?? Promise.resolve()
+  let releaseQueue: () => void = () => undefined
+  const current = new Promise<void>((resolveQueue) => { releaseQueue = resolveQueue })
+  const queueTail = previous.catch(() => undefined).then(() => current)
+  checkpointQueueByRepository.set(queueKey, queueTail)
+  await previous.catch(() => undefined)
+  try {
+    return await createToolingCheckpointUnlocked(params)
+  } finally {
+    releaseQueue()
+    if (checkpointQueueByRepository.get(queueKey) === queueTail) checkpointQueueByRepository.delete(queueKey)
   }
 }
 

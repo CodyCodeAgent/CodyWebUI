@@ -1,10 +1,9 @@
-import { execFile } from 'node:child_process'
 import { appendFile, mkdir, readFile, realpath, stat } from 'node:fs/promises'
 import type { ServerResponse } from 'node:http'
 import { isAbsolute, join, relative, resolve } from 'node:path'
-import { promisify } from 'node:util'
+import { runControlledProcess } from './controlledProcess.js'
+import { dataAuthorityPolicy } from '../composables/dataAuthorityPolicy.js'
 
-const execFileAsync = promisify(execFile)
 const MAX_SESSION_EVENT_METADATA_CHARS = 800
 
 export type CodexRawNotification = {
@@ -289,22 +288,25 @@ function isInside(parent: string, child: string): boolean {
 }
 
 async function runGit(args: string[], cwd: string): Promise<string> {
-  const result = await execFileAsync('git', args, {
+  const result = await runControlledProcess({
+    command: 'git',
+    args,
     cwd,
-    encoding: 'utf8',
-    windowsHide: true,
+    timeoutMs: 10_000,
+    maxOutputBytes: 2 * 1024 * 1024,
   })
-  return String(result.stdout ?? '')
+  return result.stdout
 }
 
 async function runGitForCatalogWorkspace(args: string[], cwd: string, timeoutMs: number): Promise<string> {
-  const result = await execFileAsync('git', ['-C', cwd, ...args], {
-    encoding: 'utf8',
-    windowsHide: true,
-    timeout: timeoutMs,
-    killSignal: 'SIGKILL',
+  const result = await runControlledProcess({
+    command: 'git',
+    args: ['-C', cwd, ...args],
+    cwd,
+    timeoutMs,
+    maxOutputBytes: 2 * 1024 * 1024,
   })
-  return String(result.stdout ?? '')
+  return result.stdout
 }
 
 async function getCatalogSessionWorkspace(cwd: string, timeoutMs: number): Promise<SessionWorkspace> {
@@ -401,6 +403,7 @@ export function codexSessionEventFromNotification(
   const id = sessionEventId(notification.method, threadId, turnId, createdAtIso)
 
   if (notification.method === 'thread/tokenUsage/updated') {
+    if (dataAuthorityPolicy(notification.method)?.realtimeMode !== 'apply-delta-then-reconcile') return null
     const tokenUsage = asRecord(asRecord(params)?.tokenUsage)
     const usage = readTokenUsage({ tokenUsage: tokenUsage?.last })
     if (!usage.hasUsage) return null
@@ -530,6 +533,7 @@ export function codexSessionEventFromNotification(
   }
 
   if (notification.method === 'turn/plan/updated') {
+    if (dataAuthorityPolicy(notification.method)?.realtimeMode !== 'replace-snapshot') return null
     return {
       id,
       cwd: workspace.cwd,

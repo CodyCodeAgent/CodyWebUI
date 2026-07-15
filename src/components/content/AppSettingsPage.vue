@@ -2,8 +2,8 @@
   <main class="app-settings-page" :aria-label="t('settings.aria')">
     <aside class="app-settings-nav" aria-label="Settings sections">
       <label class="app-settings-search">
-        <span>Find a setting</span>
-        <input v-model="settingsQuery" type="search" placeholder="Theme, language, usage…" />
+        <span>{{ t('settings.search.label') }}</span>
+        <input v-model="settingsQuery" type="search" :placeholder="t('settings.search.placeholder')" />
       </label>
       <nav>
         <a v-for="item in visibleNavItems" :key="item.id" :href="`#${item.id}`">{{ item.label }}</a>
@@ -53,6 +53,16 @@
           <dd>{{ formatCatalogTime(catalogStatus?.nextRunAtIso) }}</dd>
         </div>
       </dl>
+    </section>
+
+    <section v-show="matchesSettings('tasks')" id="settings-tasks" class="app-settings-section">
+      <header class="app-settings-section-header">
+        <div>
+          <h2 class="app-settings-title">{{ t('settings.tasks.title') }}</h2>
+          <p class="app-settings-subtitle">{{ t('settings.tasks.subtitle') }}</p>
+        </div>
+      </header>
+      <BackgroundTasksPanel />
     </section>
 
     <section v-show="matchesSettings('appearance')" id="settings-appearance" class="app-settings-section">
@@ -117,18 +127,19 @@
         </li>
       </ol>
     </section>
-    <p v-if="visibleNavItems.length === 0" class="app-settings-no-results">No settings match “{{ settingsQuery }}”.</p>
+    <p v-if="visibleNavItems.length === 0" class="app-settings-no-results">{{ t('settings.search.noResults', { query: settingsQuery }) }}</p>
     </div>
   </main>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, defineAsyncComponent, onMounted, ref, watch } from 'vue'
 import { fetchUserSetting, writeUserSetting } from '../../api/codexSettingsClient'
 import { fetchCatalogStatus, syncCatalogNow, type CatalogSyncStatus } from '../../api/codexCatalogClient'
 import { DESKTOP_SETTING_KEYS } from '../../composables/desktopSettingsKeys'
 import { useLocale, type AppLocale } from '../../composables/useLocale'
-import WorkspaceThemePanel from './WorkspaceThemePanel.vue'
+const WorkspaceThemePanel = defineAsyncComponent(() => import('./WorkspaceThemePanel.vue'))
+const BackgroundTasksPanel = defineAsyncComponent(() => import('./BackgroundTasksPanel.vue'))
 
 type FlameCorner = 'bottom-right' | 'bottom-left' | 'top-right' | 'top-left'
 
@@ -159,18 +170,19 @@ const saveMessage = ref('')
 const saveTone = ref<'success' | 'danger'>('success')
 const hasHydrated = ref(false)
 const settingsQuery = ref('')
-const settingsNavItems = [
-  { id: 'settings-language', key: 'language', label: 'Language', terms: 'language locale chinese english' },
-  { id: 'settings-catalog', key: 'catalog', label: 'Catalog', terms: 'catalog sync projects conversations' },
-  { id: 'settings-appearance', key: 'appearance', label: 'Appearance', terms: 'appearance theme skin layout density accent' },
-  { id: 'settings-usage', key: 'usage', label: 'Usage', terms: 'usage token flame position motion' },
-] as const
-const visibleNavItems = computed(() => settingsNavItems.filter((item) => matchesSettings(item.key)))
+const settingsNavItems = computed(() => [
+  { id: 'settings-language', key: 'language', label: t('settings.nav.language'), terms: 'language locale chinese english 语言 中文 英文' },
+  { id: 'settings-catalog', key: 'catalog', label: t('settings.nav.catalog'), terms: 'catalog sync projects conversations 目录 同步 项目 会话' },
+  { id: 'settings-tasks', key: 'tasks', label: t('settings.nav.tasks'), terms: 'background tasks sync token diagnostics jobs 后台 任务 校准' },
+  { id: 'settings-appearance', key: 'appearance', label: t('settings.nav.appearance'), terms: 'appearance theme skin layout density accent 外观 主题' },
+  { id: 'settings-usage', key: 'usage', label: t('settings.nav.usage'), terms: 'usage token flame position motion 用量 火焰' },
+] as const)
+const visibleNavItems = computed(() => settingsNavItems.value.filter((item) => matchesSettings(item.key)))
 const unifiedSaveState = computed(() => {
-  if (!hasHydrated.value) return 'Loading preferences…'
-  if (saveTone.value === 'danger') return 'Some changes could not be saved'
-  if (saveMessage.value) return 'Preferences saved'
-  return 'Changes save automatically'
+  if (!hasHydrated.value) return t('settings.save.loading')
+  if (saveTone.value === 'danger') return t('settings.save.failed')
+  if (saveMessage.value) return t('settings.save.saved')
+  return t('settings.save.auto')
 })
 const previewLevel = computed(() => flameSettings.value.enabled ? 'bonfire' : 'spark')
 const flameLevels = computed(() => [
@@ -195,7 +207,7 @@ const catalogStatusLabel = computed(() => {
 function matchesSettings(key: string): boolean {
   const query = settingsQuery.value.trim().toLowerCase()
   if (!query) return true
-  const item = settingsNavItems.find((candidate) => candidate.key === key)
+  const item = settingsNavItems.value.find((candidate) => candidate.key === key)
   return Boolean(item && `${item.label} ${item.terms}`.toLowerCase().includes(query))
 }
 

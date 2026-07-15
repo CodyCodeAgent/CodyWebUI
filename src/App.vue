@@ -347,8 +347,6 @@ import ComposerDropdown from './components/content/ComposerDropdown.vue'
 import DirectoryPickerModal from './components/content/DirectoryPickerModal.vue'
 import NewThreadSetupModal, { type NewThreadProjectOption } from './components/content/NewThreadSetupModal.vue'
 import RateLimitFloatingStatus from './components/content/RateLimitFloatingStatus.vue'
-import AppSettingsPage from './components/content/AppSettingsPage.vue'
-import WorkspaceSkillsPage from './components/content/WorkspaceSkillsPage.vue'
 import TokenFlameWidget from './components/content/TokenFlameWidget.vue'
 import MissionChecklist from './components/content/MissionChecklist.vue'
 import BrowserNotificationsPanel from './components/content/BrowserNotificationsPanel.vue'
@@ -399,6 +397,8 @@ import type { PromptInsertion } from './composables/promptLibraryRules'
 
 const MOBILE_SIDEBAR_BREAKPOINT = 700
 const WorkspaceDashboard = defineAsyncComponent(() => import('./components/content/WorkspaceDashboard.vue'))
+const AppSettingsPage = defineAsyncComponent(() => import('./components/content/AppSettingsPage.vue'))
+const WorkspaceSkillsPage = defineAsyncComponent(() => import('./components/content/WorkspaceSkillsPage.vue'))
 
 const {
   projectGroups,
