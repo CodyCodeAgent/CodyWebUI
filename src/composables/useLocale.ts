@@ -238,6 +238,9 @@ const MESSAGES = {
     'markdown.copied': 'Copied',
     'markdown.copyFailed': 'Copy failed',
     'markdown.scroll': 'Scroll',
+    'markdown.lineCount': '{count} lines',
+    'markdown.expandCode': 'Show all · {count} lines',
+    'markdown.collapseCode': 'Collapse code',
 
     'workLog.title': 'Work log',
     'workLog.open': 'Open work log',
@@ -720,6 +723,9 @@ const MESSAGES = {
     'markdown.copied': '已复制',
     'markdown.copyFailed': '复制失败',
     'markdown.scroll': '滚动',
+    'markdown.lineCount': '{count} 行',
+    'markdown.expandCode': '展开全部 · 共 {count} 行',
+    'markdown.collapseCode': '收起代码',
 
     'workLog.title': '工作日志',
     'workLog.open': '打开工作日志',

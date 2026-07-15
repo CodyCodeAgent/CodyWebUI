@@ -22,6 +22,7 @@ export type MarkdownUiLabels = {
   rendering: (engine: string) => string; diagramAria: (engine: string) => string
   wrap: string; copy: string; save: string; dataTable: string; copyCsv: string
   openFile: (path: string) => string
+  lineCount: (count: number) => string; expandCode: (count: number) => string; collapseCode: string
 }
 
 const DEFAULT_LABELS: MarkdownUiLabels = {
@@ -29,6 +30,7 @@ const DEFAULT_LABELS: MarkdownUiLabels = {
   rendering: (engine) => `Rendering ${engine}…`, diagramAria: (engine) => `${engine} technical diagram`,
   wrap: 'Wrap', copy: 'Copy', save: 'Save', dataTable: 'Data table', copyCsv: 'Copy CSV',
   openFile: (path) => `Open ${path}`,
+  lineCount: (count) => `${String(count)} lines`, expandCode: (count) => `Show all · ${String(count)} lines`, collapseCode: 'Collapse code',
 }
 
 function codeBlockHtml(content: string, language = '', labels = DEFAULT_LABELS): string {
@@ -39,11 +41,16 @@ function codeBlockHtml(content: string, language = '', labels = DEFAULT_LABELS):
   }
   const lines = content.replace(/\n$/u, '').split('\n')
   const isCompact = lines.length <= 2 && lines.every((line) => line.length <= 96)
+  const isCollapsible = lines.length > 10
   const blockClass = isCompact ? 'markdown-code-block is-compact' : 'markdown-code-block'
   const codeClasses = [isCompact ? 'is-compact-code' : '', /^[A-Za-z0-9_-]+$/u.test(language) ? `language-${language}` : ''].filter(Boolean)
   const codeClass = codeClasses.length > 0 ? ` class="${codeClasses.join(' ')}"` : ''
   const languageLabel = language || 'text'
-  return `<section class="markdown-code-shell${isCompact ? ' is-compact' : ''}" data-language="${languageLabel}"><header class="markdown-code-toolbar"><span>${languageLabel}</span><span class="markdown-code-actions">${toolbarButton('wrap-code', labels.wrap)}${toolbarButton('copy-code', labels.copy)}${toolbarButton('save-code', labels.save)}</span></header><pre class="${blockClass}"><code${codeClass}>${markdown.utils.escapeHtml(content)}</code></pre></section>\n`
+  const shellClasses = [isCompact ? 'is-compact' : '', isCollapsible ? 'is-collapsible is-collapsed' : ''].filter(Boolean).join(' ')
+  const languageMeta = isCollapsible ? `${languageLabel} · ${labels.lineCount(lines.length)}` : languageLabel
+  const collapseButton = isCollapsible ? `<button type="button" class="markdown-tool-button markdown-code-collapse" data-markdown-action="toggle-code" aria-label="${labels.collapseCode}" title="${labels.collapseCode}" aria-expanded="false">${labels.collapseCode}</button>` : ''
+  const expandControl = isCollapsible ? `<div class="markdown-code-expand"><button type="button" data-markdown-action="toggle-code" aria-expanded="false">${labels.expandCode(lines.length)}</button></div>` : ''
+  return `<div class="markdown-code-host"><div class="markdown-code-shell${shellClasses ? ` ${shellClasses}` : ''}" data-language="${languageLabel}" data-code-lines="${String(lines.length)}"><header class="markdown-code-toolbar"><span>${languageMeta}</span><span class="markdown-code-actions">${collapseButton}${toolbarButton('wrap-code', labels.wrap)}${toolbarButton('copy-code', labels.copy)}${toolbarButton('save-code', labels.save)}</span></header><pre class="${blockClass}"><code${codeClass}>${markdown.utils.escapeHtml(content)}</code></pre>${expandControl}</div></div>\n`
 }
 
 markdown.renderer.rules.fence = (tokens, index, _options, env) => {

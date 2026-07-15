@@ -40,6 +40,15 @@ describe('renderMarkdown', () => {
     expect(diagram).toContain('class="language-text"')
   })
 
+  it('collapses code only when it exceeds ten lines', () => {
+    const tenLines = renderMarkdown(`\`\`\`ts\n${Array.from({ length: 10 }, (_, index) => `line ${String(index + 1)}`).join('\n')}\n\`\`\``)
+    const elevenLines = renderMarkdown(`\`\`\`ts\n${Array.from({ length: 11 }, (_, index) => `line ${String(index + 1)}`).join('\n')}\n\`\`\``)
+    expect(tenLines).not.toContain('is-collapsible')
+    expect(elevenLines).toContain('is-collapsible is-collapsed')
+    expect(elevenLines).toContain('data-code-lines="11"')
+    expect(elevenLines).toContain('Show all · 11 lines')
+  })
+
   it('adds usable code, table, file, and footnote controls', () => {
     const html = renderMarkdown([
       '`src/main.ts:42`',
@@ -81,6 +90,7 @@ describe('renderMarkdown', () => {
       rendering: (engine) => `渲染 ${engine}`, diagramAria: (engine) => `${engine} 技术图`,
       wrap: '换行', copy: '复制', save: '保存', dataTable: '数据表', copyCsv: '复制 CSV',
       openFile: (path) => `打开 ${path}`,
+      lineCount: (count) => `${String(count)} 行`, expandCode: (count) => `展开 ${String(count)} 行`, collapseCode: '收起代码',
     })
 
     expect(html).toContain('>换行</button>')
