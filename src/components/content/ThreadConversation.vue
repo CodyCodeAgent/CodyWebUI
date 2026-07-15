@@ -1389,7 +1389,7 @@ function turnReceiptDetails(message: UiMessage): TurnReceiptDetail[] {
 }
 
 .message-card[data-role='user'] {
-  @apply rounded-2xl bg-slate-200 px-4 py-3 max-w-[min(560px,100%)];
+  @apply max-w-[min(560px,100%)];
   width: fit-content;
   margin-left: auto;
   align-self: flex-end;
