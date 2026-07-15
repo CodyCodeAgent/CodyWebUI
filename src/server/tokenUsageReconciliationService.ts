@@ -2,6 +2,7 @@ import { readdir, readFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { BackgroundTaskRunner, type BackgroundTaskStatus } from './backgroundTaskRunner.js'
+import { readBackgroundTaskStatus, writeBackgroundTaskStatus } from './backgroundTaskStore.js'
 import { appendReconciledTokenUsageSnapshot } from './sessionEventStore.js'
 
 const RECONCILIATION_INTERVAL_MS = 60_000
@@ -72,15 +73,28 @@ export class TokenUsageReconciliationService {
     this.runner = new BackgroundTaskRunner({
       name: 'token-usage-reconciliation',
       intervalMs: RECONCILIATION_INTERVAL_MS,
-      task: () => this.reconcileToday(),
+      timeoutMs: 45_000,
+      onStatus: (status) => { void writeBackgroundTaskStatus(status).catch(() => undefined) },
+      task: (context) => this.reconcileToday(new Date(), context),
     })
   }
 
-  start(): void { this.runner.start({ immediate: true }) }
+  start(): void {
+    void readBackgroundTaskStatus('token-usage-reconciliation')
+      .then((status) => this.runner.hydrateStatus(status))
+      .catch(() => undefined)
+      .finally(() => this.runner.start({ immediate: true }))
+  }
   stop(): void { this.runner.stop() }
+  pause(): void { this.runner.pause() }
+  resume(): void { this.runner.resume({ immediate: true }) }
+  async runNow(): Promise<void> { await this.runner.runNow() }
   getStatus(): BackgroundTaskStatus { return this.runner.getStatus() }
 
-  async reconcileToday(now = new Date()): Promise<void> {
+  async reconcileToday(
+    now = new Date(),
+    context?: { signal: AbortSignal; reportProgress: (progress: { completed: number; total?: number | null; message?: string }) => void },
+  ): Promise<void> {
     const timezoneOffsetMinutes = now.getTimezoneOffset()
     const date = localDate(now, timezoneOffsetMinutes)
     const reconciledAtIso = now.toISOString()
@@ -89,7 +103,9 @@ export class TokenUsageReconciliationService {
       localDate(new Date(now.getTime() - 86_400_000), timezoneOffsetMinutes),
     ])]
 
+    const rolloutPaths: string[] = []
     for (const directoryDate of directoryDates) {
+      context?.signal.throwIfAborted()
       const [year, month, day] = directoryDate.split('-')
       const directory = join(this.sessionsRoot, year, month, day)
       let names: string[]
@@ -98,9 +114,20 @@ export class TokenUsageReconciliationService {
       } catch {
         continue
       }
-      for (const name of names.filter((value) => value.startsWith('rollout-') && value.endsWith('.jsonl'))) {
-        const path = join(directory, name)
-        const usage = parseRolloutDailyTokenUsage(await readFile(path, 'utf8'), date, timezoneOffsetMinutes)
+      rolloutPaths.push(...names
+        .filter((value) => value.startsWith('rollout-') && value.endsWith('.jsonl'))
+        .map((name) => join(directory, name)))
+    }
+
+    context?.reportProgress({ completed: 0, total: rolloutPaths.length, message: 'Scanning Codex rollouts' })
+    for (let index = 0; index < rolloutPaths.length; index += 1) {
+        context?.signal.throwIfAborted()
+        const path = rolloutPaths[index]!
+        const usage = parseRolloutDailyTokenUsage(
+          await readFile(path, { encoding: 'utf8', signal: context?.signal }),
+          date,
+          timezoneOffsetMinutes,
+        )
         if (!usage) continue
         const fingerprintKey = `${date}:${path}`
         const fingerprint = `${usage.inputTokens}:${usage.outputTokens}:${usage.totalTokens}:${usage.eventCount}`
@@ -111,7 +138,7 @@ export class TokenUsageReconciliationService {
         } catch {
           // Rollouts outside a git workspace are intentionally ignored by this workspace-scoped feature.
         }
-      }
+        context?.reportProgress({ completed: index + 1, total: rolloutPaths.length, message: 'Reconciling token usage' })
     }
   }
 }

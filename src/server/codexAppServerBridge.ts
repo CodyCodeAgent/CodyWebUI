@@ -82,6 +82,7 @@ import {
   handleWriteWorkspaceFile,
   createWorkspaceWorkflowRun,
   createToolingCheckpoint,
+  readToolingCheckpointFingerprint,
   createPersistentApprovalGrant,
   evaluateWorkspaceFileChangePolicy,
   evaluateWorkspaceCommandPolicy,
@@ -1706,6 +1707,16 @@ function sendBridgeWebSocketMessage(socket: WebSocket, message: BridgeWebSocketM
 }
 
 const SHARED_BRIDGE_KEY = '__codexRemoteSharedBridge__'
+const notificationPersistenceQueueByThread = new Map<string, Promise<void>>()
+const automaticCheckpointFingerprintByTurn = new Map<string, string>()
+
+function enqueueNotificationPersistence(key: string, task: () => Promise<void>): void {
+  const previous = notificationPersistenceQueueByThread.get(key) ?? Promise.resolve()
+  const current = previous.catch(() => undefined).then(task).finally(() => {
+    if (notificationPersistenceQueueByThread.get(key) === current) notificationPersistenceQueueByThread.delete(key)
+  })
+  notificationPersistenceQueueByThread.set(key, current)
+}
 
 export async function createAutomaticTurnCheckpoint(
   cwd: string,
@@ -1720,6 +1731,23 @@ export async function createAutomaticTurnCheckpoint(
 
   const threadId = readNotificationThreadId(notification.params)
   const turnId = readNotificationTurnId(notification.params)
+  const { repositoryKey, fingerprint, dirty } = await readToolingCheckpointFingerprint(cwd)
+  const fingerprintKey = `${repositoryKey}:${threadId}:${turnId}`
+  if (phase === 'after' && automaticCheckpointFingerprintByTurn.get(fingerprintKey) === fingerprint) {
+    automaticCheckpointFingerprintByTurn.delete(fingerprintKey)
+    return { afterCheckpointSkipped: true, afterCheckpointReason: 'workspace-unchanged' }
+  }
+  if (phase === 'before') automaticCheckpointFingerprintByTurn.set(fingerprintKey, fingerprint)
+  else automaticCheckpointFingerprintByTurn.delete(fingerprintKey)
+  while (automaticCheckpointFingerprintByTurn.size > 1_000) {
+    const oldestKey = automaticCheckpointFingerprintByTurn.keys().next().value as string | undefined
+    if (!oldestKey) break
+    automaticCheckpointFingerprintByTurn.delete(oldestKey)
+  }
+  if (!dirty) {
+    const prefix = phase === 'before' ? 'beforeCheckpoint' : 'afterCheckpoint'
+    return { [`${prefix}Skipped`]: true, [`${prefix}Reason`]: 'workspace-clean' }
+  }
   const label = `${phase === 'before' ? 'Before' : 'After'} turn ${shortId(turnId)} (${shortId(threadId)})`
   const checkpoint = await createToolingCheckpoint({
     cwd,
@@ -1757,7 +1785,8 @@ function getSharedBridgeState(): SharedBridgeState {
       metadata: {} as Record<string, unknown>,
     }
     void notificationDispatcher.handleCodexNotification(payload)
-    void (async () => {
+    const queueKey = readNotificationThreadId(notification.params) || 'global'
+    enqueueNotificationPersistence(queueKey, async () => {
       const workspaceCwd = await resolveNotificationWorkspaceCwd(notification.params)
       try {
         payload.metadata = await createAutomaticTurnCheckpoint(workspaceCwd, notification)
@@ -1772,7 +1801,7 @@ function getSharedBridgeState(): SharedBridgeState {
         const message = error instanceof Error ? error.message : String(error)
         console.warn(`Failed to persist Codex session event: ${message}`)
       }
-    })()
+    })
   })
 
   const created: SharedBridgeState = {
@@ -1843,6 +1872,46 @@ export function createCodexBridgeMiddleware(): CodexBridgeMiddleware {
 
         const result = await appServer.rpc(body.method, body.params ?? null)
         setJson(res, 200, { result })
+        return
+      }
+
+      if (url.pathname === '/codex-api/background-tasks' && req.method === 'GET') {
+        setJson(res, 200, {
+          result: {
+            tasks: [catalogSync.getStatus(), tokenUsageReconciliation?.getStatus()].filter(Boolean),
+            generatedAtIso: new Date().toISOString(),
+          },
+        })
+        return
+      }
+
+      if (url.pathname === '/codex-api/background-tasks' && req.method === 'POST') {
+        const body = asRecord(await readJsonBody(req))
+        const name = readString(body?.name)
+        const action = readString(body?.action)
+        const service = name === 'project-thread-catalog-sync'
+          ? catalogSync
+          : name === 'token-usage-reconciliation' && tokenUsageReconciliation
+            ? tokenUsageReconciliation
+            : null
+        if (!service || !['run', 'pause', 'resume'].includes(action)) {
+          setJson(res, 400, { error: 'Invalid body: expected a known task name and run, pause, or resume action' })
+          return
+        }
+        if (action === 'pause') service.pause()
+        else if (action === 'resume') service.resume()
+        else if (name === 'project-thread-catalog-sync') void catalogSync.syncNow().catch((error: unknown) => {
+          console.warn(`Background catalog sync failed: ${error instanceof Error ? error.message : String(error)}`)
+        })
+        else void tokenUsageReconciliation?.runNow().catch((error: unknown) => {
+          console.warn(`Background token reconciliation failed: ${error instanceof Error ? error.message : String(error)}`)
+        })
+        setJson(res, action === 'run' ? 202 : 200, {
+          result: {
+            tasks: [catalogSync.getStatus(), tokenUsageReconciliation?.getStatus()].filter(Boolean),
+            generatedAtIso: new Date().toISOString(),
+          },
+        })
         return
       }
 

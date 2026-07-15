@@ -12,6 +12,7 @@ const localizedSurfaces = [
   'src/components/content/ThreadComposer.vue',
   'src/components/content/MessageMarkdown.vue',
   'src/components/content/WorkspaceSkillsPage.vue',
+  'src/components/content/BackgroundTasksPanel.vue',
 ]
 
 const forbiddenUiLiterals = [

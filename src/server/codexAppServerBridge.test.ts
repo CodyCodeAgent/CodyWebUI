@@ -522,7 +522,7 @@ describe('approval audit helpers', () => {
 })
 
 describe('automatic turn checkpoints', () => {
-  it('creates before and after checkpoints for turn lifecycle notifications', async () => {
+  it('deduplicates an unchanged after-turn checkpoint', async () => {
     const repo = await createRepo()
     await writeFile(join(repo, 'example.txt'), 'two\n', 'utf8')
 
@@ -553,24 +553,36 @@ describe('automatic turn checkpoints', () => {
       beforeCheckpointHasPatch: true,
     })
     expect(typeof before.beforeCheckpointId).toBe('string')
-    expect(after).toMatchObject({
-      afterCheckpointHasPatch: true,
+    expect(after).toEqual({
+      afterCheckpointSkipped: true,
+      afterCheckpointReason: 'workspace-unchanged',
     })
-    expect(typeof after.afterCheckpointId).toBe('string')
     expect(ignored).toEqual({})
 
     const checkpoints = await listToolingCheckpoints({ cwd: repo, limit: 10 })
     const createdCheckpointIds = new Set([
       before.beforeCheckpointId,
-      after.afterCheckpointId,
     ])
     const createdCheckpoints = checkpoints.filter((checkpoint) => createdCheckpointIds.has(checkpoint.id))
-    expect(createdCheckpoints).toHaveLength(2)
-    expect(createdCheckpoints.map((checkpoint) => checkpoint.label).sort()).toEqual([
-      'After turn turn-123 (thread-a)',
-      'Before turn turn-123 (thread-a)',
-    ].sort())
+    expect(createdCheckpoints).toHaveLength(1)
+    expect(createdCheckpoints[0]?.label).toBe('Before turn turn-123 (thread-a)')
   }, 20_000)
+
+  it('creates an after-turn checkpoint when the workspace changed during the turn', async () => {
+    const repo = await createRepo()
+    await writeFile(join(repo, 'example.txt'), 'before\n', 'utf8')
+    await createAutomaticTurnCheckpoint(repo, {
+      method: 'turn/started',
+      params: { turn: { id: 'turn-changed', threadId: 'thread-changed' } },
+    })
+    await writeFile(join(repo, 'example.txt'), 'after\n', 'utf8')
+    const result = await createAutomaticTurnCheckpoint(repo, {
+      method: 'turn/completed',
+      params: { turn: { id: 'turn-changed', threadId: 'thread-changed' } },
+    })
+    expect(result).toMatchObject({ afterCheckpointHasPatch: true })
+    expect(typeof result.afterCheckpointId).toBe('string')
+  })
 
   it('does not recursively copy untracked directories for automatic checkpoints', async () => {
     const repo = await createRepo()

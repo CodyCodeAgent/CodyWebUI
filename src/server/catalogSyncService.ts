@@ -1,5 +1,7 @@
 import { BackgroundTaskRunner, type BackgroundTaskStatus } from './backgroundTaskRunner.js'
+import { readBackgroundTaskStatus, writeBackgroundTaskStatus } from './backgroundTaskStore.js'
 import { syncCatalogThreads, type CatalogSourceThread } from './catalogStore.js'
+import { dataAuthorityPolicy } from '../composables/dataAuthorityPolicy.js'
 
 const CATALOG_SYNC_INTERVAL_MS = 30_000
 const CATALOG_SYNC_EVENT_DELAY_MS = 750
@@ -79,23 +81,35 @@ export class CatalogSyncService {
     this.runner = new BackgroundTaskRunner({
       name: 'project-thread-catalog-sync',
       intervalMs: CATALOG_SYNC_INTERVAL_MS,
-      task: async () => {
+      timeoutMs: 20_000,
+      onStatus: (status) => { void writeBackgroundTaskStatus(status).catch(() => undefined) },
+      task: async ({ signal, reportProgress }) => {
+        reportProgress({ completed: 0, total: 3, message: 'Reading active threads' })
         const [activeThreads, archivedThreads] = await Promise.all([
           listAllThreads(rpc, false),
           listAllThreads(rpc, true),
         ])
+        signal.throwIfAborted()
+        reportProgress({ completed: 2, total: 3, message: 'Writing catalog snapshot' })
         await syncCatalogThreads([...activeThreads, ...archivedThreads])
+        reportProgress({ completed: 3, total: 3, message: 'Catalog synchronized' })
       },
     })
   }
 
   start(): void {
-    this.runner.start({ immediate: true })
+    void readBackgroundTaskStatus('project-thread-catalog-sync')
+      .then((status) => this.runner.hydrateStatus(status))
+      .catch(() => undefined)
+      .finally(() => this.runner.start({ immediate: true }))
   }
 
   stop(): void {
     this.runner.stop()
   }
+
+  pause(): void { this.runner.pause() }
+  resume(): void { this.runner.resume({ immediate: true }) }
 
   async syncNow(): Promise<void> {
     await this.runner.runNow()
@@ -118,6 +132,8 @@ export class CatalogSyncService {
 
   onNotification(method: string): void {
     if (CATALOG_SYNC_NOTIFICATION_METHODS.has(method)) {
+      const policy = dataAuthorityPolicy(method)
+      if (policy && (policy.resource !== 'catalog' || policy.realtimeMode !== 'invalidate')) return
       this.runner.scheduleSoon(CATALOG_SYNC_EVENT_DELAY_MS)
     }
   }

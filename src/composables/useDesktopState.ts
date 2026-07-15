@@ -5,9 +5,6 @@ import {
   getCurrentModelConfig,
 } from '../api/codexModelClient'
 import {
-  getAccountRateLimits,
-} from '../api/codexRateLimitClient'
-import {
   fetchUserSetting,
   writeUserSetting,
 } from '../api/codexSettingsClient'
@@ -48,7 +45,6 @@ import {
   readPlanMessageDelta,
   readPlanUpdatedMessage,
   readStructuredPlanUpdate,
-  readRateLimitSnapshotPayload,
   readReasoningCompletedId,
   readReasoningDelta,
   readReasoningSectionBreakMessageId,
@@ -64,8 +60,11 @@ import {
   type TurnCompletedInfo,
   type TurnStartedInfo,
 } from './realtimeNotificationReaders'
-import { applyStructuredPlanUpdate, clearStructuredPlan, endStructuredPlan, type DesktopPlanState } from './desktopPlanState'
+import { useStructuredPlanState } from './useStructuredPlanState'
+import { useServerRequestState } from './useServerRequestState'
 import { shouldQueueEventDrivenSyncForMethod } from './realtimeSyncPolicy'
+import { useRateLimitState } from './useRateLimitState'
+import { dataAuthorityPolicy } from './dataAuthorityPolicy'
 import {
   clearDesktopRealtimeSyncQueue,
   consumeDesktopRealtimeSyncQueue,
@@ -94,14 +93,7 @@ import {
   type TurnErrorState,
   type TurnSummaryState,
 } from './desktopMessageState'
-import {
-  flattenServerRequests,
-  normalizeServerRequest,
-  readResolvedServerRequestId,
-  removeServerRequestById,
-  selectServerRequestsForThread,
-  upsertServerRequest,
-} from './desktopServerRequests'
+import { normalizeServerRequest } from './desktopServerRequests'
 import {
   markThreadMessagesLoaded,
   markThreadResumed,
@@ -181,7 +173,6 @@ import type {
   ThreadScrollState,
   UiMessage,
   UiProjectGroup,
-  UiRateLimitSnapshot,
   UiServerRequest,
   UiServerRequestReply,
   UiThread,
@@ -223,18 +214,23 @@ export function useDesktopState() {
   const resumedThreadById = ref<Record<string, boolean>>({})
   const turnSummaryByThreadId = ref<Record<string, TurnSummaryState>>({})
   const turnActivityByThreadId = ref<Record<string, TurnActivityState>>({})
-  const structuredPlanByThreadId = ref<Record<string, DesktopPlanState>>({})
+  const structuredPlanState = useStructuredPlanState(selectedThreadId)
   const turnErrorByThreadId = ref<Record<string, TurnErrorState>>({})
   const activeTurnIdByThreadId = ref<Record<string, string>>({})
-  const pendingServerRequestsByThreadId = ref<Record<string, UiServerRequest[]>>({})
-  const rateLimitSnapshot = ref<UiRateLimitSnapshot | null>(null)
+  const serverRequestState = useServerRequestState(selectedThreadId)
+  const pendingServerRequestsByThreadId = serverRequestState.byThreadId
+  const {
+    rateLimitSnapshot,
+    isLoadingRateLimits,
+    refreshRateLimits,
+    handleRateLimitNotification,
+  } = useRateLimitState()
 
   const isLoadingThreads = ref(false)
   const loadingMessagesByThreadId = ref<Record<string, boolean>>({})
   const messageLoadErrorByThreadId = ref<Record<string, string>>({})
   const isSendingMessage = ref(false)
   const isInterruptingTurn = ref(false)
-  const isLoadingRateLimits = ref(false)
   const error = ref('')
   const isPolling = ref(false)
   const hasLoadedThreads = ref(false)
@@ -244,7 +240,6 @@ export function useDesktopState() {
   let eventSyncTimer: number | null = null
   let autoRefreshIntervalTimer: number | null = null
   let autoRefreshCountdownTimer: number | null = null
-  let latestRateLimitRefreshId = 0
   const realtimeSyncQueue = createDesktopRealtimeSyncQueue()
   const activeReasoningItemIdByThreadId = new Map<string, string>()
   let shouldAutoScrollOnNextAgentEvent = false
@@ -252,6 +247,7 @@ export function useDesktopState() {
   const livePlanMessageIdByTurnId = new Map<string, string>()
   const latestMessageLoadRequestIdByThreadId = new Map<string, number>()
   let nextMessageLoadRequestId = 0
+  let latestThreadsRequestId = 0
   let nextOptimisticUserMessageId = 0
   let hasHydratedTurnPreferences = false
 
@@ -262,13 +258,9 @@ export function useDesktopState() {
   const selectedThreadScrollState = computed<ThreadScrollState | null>(
     () => scrollStateByThreadId.value[selectedThreadId.value] ?? null,
   )
-  const selectedThreadServerRequests = computed<UiServerRequest[]>(() => {
-    return selectServerRequestsForThread(pendingServerRequestsByThreadId.value, selectedThreadId.value)
-  })
+  const selectedThreadServerRequests = serverRequestState.selected
   const isLoadingMessages = computed(() => loadingMessagesByThreadId.value[selectedThreadId.value] === true)
-  const allPendingServerRequests = computed<UiServerRequest[]>(() => {
-    return flattenServerRequests(pendingServerRequestsByThreadId.value)
-  })
+  const allPendingServerRequests = serverRequestState.all
   const selectedCollaborationMode = computed<UiCollaborationModeOption>(() => {
     const selected = collaborationModeOptions.value.find(
       (option) => option.name === selectedCollaborationModeName.value,
@@ -283,7 +275,7 @@ export function useDesktopState() {
       turnErrorByThreadId.value,
     ),
   )
-  const selectedStructuredPlan = computed(() => structuredPlanByThreadId.value[selectedThreadId.value] ?? null)
+  const selectedStructuredPlan = structuredPlanState.selected
   const selectedMessageLoadError = computed(() => messageLoadErrorByThreadId.value[selectedThreadId.value] ?? '')
   const messages = computed<UiMessage[]>(() => {
     const threadId = selectedThreadId.value
@@ -446,23 +438,6 @@ export function useDesktopState() {
       currentConfig,
     )
     persistTurnPreferences()
-  }
-
-  async function refreshRateLimits(): Promise<void> {
-    const requestId = ++latestRateLimitRefreshId
-    isLoadingRateLimits.value = true
-    try {
-      const snapshot = await getAccountRateLimits()
-      if (requestId === latestRateLimitRefreshId) {
-        rateLimitSnapshot.value = snapshot
-      }
-    } catch {
-      // Rate limit status is advisory; keep the rest of the app usable if it is unavailable.
-    } finally {
-      if (requestId === latestRateLimitRefreshId) {
-        isLoadingRateLimits.value = false
-      }
-    }
   }
 
   function applyThreadFlags(): void {
@@ -765,51 +740,19 @@ export function useDesktopState() {
   }
 
   function upsertPendingServerRequest(request: UiServerRequest): void {
-    pendingServerRequestsByThreadId.value = upsertServerRequest(
-      pendingServerRequestsByThreadId.value,
-      request,
-    )
+    serverRequestState.upsert(request)
   }
 
   function removePendingServerRequestById(requestId: number): void {
-    pendingServerRequestsByThreadId.value = removeServerRequestById(
-      pendingServerRequestsByThreadId.value,
-      requestId,
-    )
+    serverRequestState.remove(requestId)
   }
 
   function handleServerRequestNotification(notification: RpcNotification): boolean {
-    if (notification.method === 'server/request') {
-      const request = normalizeServerRequest(notification.params)
-      if (!request) return true
-      upsertPendingServerRequest(request)
-      return true
-    }
-
-    if (notification.method === 'server/request/resolved') {
-      const id = readResolvedServerRequestId(notification.params)
-      if (id !== null) {
-        removePendingServerRequestById(id)
-      }
-      return true
-    }
-
-    return false
-  }
-
-  function applyRateLimitNotification(notification: RpcNotification): boolean {
-    const rateLimits = readRateLimitSnapshotPayload(notification)
-    if (!rateLimits) return false
-
-    // Treat realtime rate-limit payloads as invalidation signals. Some app-server
-    // versions emit transient zero-filled snapshots; the explicit read endpoint is
-    // authoritative and also includes reset-credit metadata.
-    void refreshRateLimits()
-    return true
+    return serverRequestState.handle(notification)
   }
 
   function applyRealtimeUpdates(notification: RpcNotification): void {
-    if (applyRateLimitNotification(notification)) {
+    if (handleRateLimitNotification(notification)) {
       return
     }
 
@@ -838,7 +781,7 @@ export function useDesktopState() {
       setTurnSummaryForThread(startedTurn.threadId, null)
       setTurnErrorForThread(startedTurn.threadId, null)
       setThreadInProgress(startedTurn.threadId, true)
-      structuredPlanByThreadId.value = clearStructuredPlan(structuredPlanByThreadId.value, startedTurn.threadId)
+      structuredPlanState.clear(startedTurn.threadId)
       if (shouldClearUnreadForStartedTurn(eventUnreadByThreadId.value, startedTurn)) {
         eventUnreadByThreadId.value = omitKey(eventUnreadByThreadId.value, startedTurn.threadId)
       }
@@ -874,7 +817,7 @@ export function useDesktopState() {
       setThreadInProgress(completedTurn.threadId, false)
       setTurnActivityForThread(completedTurn.threadId, null)
       markThreadUnreadByEvent(completedTurn.threadId)
-      structuredPlanByThreadId.value = endStructuredPlan(structuredPlanByThreadId.value, completedTurn.threadId, completedTurn.turnId)
+      structuredPlanState.end(completedTurn.threadId, completedTurn.turnId)
     }
 
     const turnErrorMessage = readTurnErrorMessage(notification)
@@ -916,7 +859,7 @@ export function useDesktopState() {
     }
 
     const liveAgentMessageDelta = readAgentMessageDelta(notification)
-    if (liveAgentMessageDelta) {
+    if (liveAgentMessageDelta && dataAuthorityPolicy(notification.method)?.realtimeMode === 'apply-overlay') {
       liveAgentMessagesByThreadId.value = upsertLiveAssistantDeltaForThread(
         liveAgentMessagesByThreadId.value,
         notificationThreadId,
@@ -957,12 +900,8 @@ export function useDesktopState() {
       upsertLiveAgentMessage(notificationThreadId, updatedPlanMessage)
     }
     const structuredPlanUpdate = readStructuredPlanUpdate(notification)
-    if (structuredPlanUpdate) {
-      structuredPlanByThreadId.value = applyStructuredPlanUpdate(
-        structuredPlanByThreadId.value,
-        structuredPlanUpdate,
-        (structuredPlanByThreadId.value[structuredPlanUpdate.threadId]?.revision ?? 0) + 1,
-      )
+    if (structuredPlanUpdate && dataAuthorityPolicy(notification.method)?.realtimeMode === 'replace-snapshot') {
+      structuredPlanState.apply(structuredPlanUpdate)
     }
 
     const completedPlanMessage = readPlanMessageCompleted(notification)
@@ -1032,12 +971,14 @@ export function useDesktopState() {
   }
 
   async function loadThreads() {
+    const requestId = ++latestThreadsRequestId
     if (!hasLoadedThreads.value) {
       isLoadingThreads.value = true
     }
 
     try {
       const catalog = await fetchCatalog(isHiddenView.value ? 'hidden' : 'visible')
+      if (requestId !== latestThreadsRequestId) return
       const groups = catalog.groups
 
       const localDisplayNames = projectDisplayNameById.value
@@ -1083,7 +1024,7 @@ export function useDesktopState() {
         setSelectedThreadId(flatThreads[0]?.id ?? '')
       }
     } finally {
-      isLoadingThreads.value = false
+      if (requestId === latestThreadsRequestId) isLoadingThreads.value = false
     }
   }
 
@@ -1765,7 +1706,7 @@ export function useDesktopState() {
     liveAgentMessagesByThreadId.value = {}
     liveReasoningTextByThreadId.value = {}
     turnActivityByThreadId.value = {}
-    structuredPlanByThreadId.value = {}
+    structuredPlanState.reset()
     turnSummaryByThreadId.value = {}
     turnErrorByThreadId.value = {}
     messageLoadErrorByThreadId.value = {}
