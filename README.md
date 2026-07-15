@@ -102,6 +102,138 @@ Use `--host 0.0.0.0` only on trusted networks or behind your own HTTPS,
 authentication, and firewall controls. Browser access to CodyWebUI can expose
 local code, commands, credentials, and Codex capabilities.
 
+## Production Deployment and File Permissions
+
+Run CodyWebUI as the same operating-system user that owns the Codex
+configuration and the workspaces it manages. Do not start CodyWebUI with
+`sudo`: doing so can leave root-owned files inside a repository and make later
+runs under a normal account fail.
+
+CodyWebUI and Codex need read and write access to the workspace and its Git
+metadata. CodyWebUI also creates automatic turn checkpoints under:
+
+```text
+<repository>/.git/cody-web-ui-checkpoints/
+```
+
+The runtime user must be able to create, read, update, and delete entries in
+this directory. Checkpoints are CodyWebUI recovery data rather than Git commits;
+deleting them removes those recovery points but does not delete committed Git
+history.
+
+### Verify a workspace before starting the service
+
+Set these values for your installation, then run the checks as the service
+user:
+
+```bash
+CODY_USER=gouchao
+REPO=/data00/home/gouchao/code/life-csr
+CHECKPOINT_DIR="$REPO/.git/cody-web-ui-checkpoints"
+
+sudo -u "$CODY_USER" test -r "$REPO"
+sudo -u "$CODY_USER" test -w "$REPO"
+sudo -u "$CODY_USER" test -w "$REPO/.git"
+sudo -u "$CODY_USER" mkdir -p "$CHECKPOINT_DIR"
+sudo -u "$CODY_USER" touch "$CHECKPOINT_DIR/.permission-check"
+sudo -u "$CODY_USER" rm "$CHECKPOINT_DIR/.permission-check"
+```
+
+If a check fails, inspect every directory in the path instead of making the
+whole repository world-writable:
+
+```bash
+namei -l "$CHECKPOINT_DIR"
+find "$CHECKPOINT_DIR" ! -user "$CODY_USER" -ls | head -100
+```
+
+### systemd
+
+Set `User=` and `Group=` explicitly. `HOME` and `PATH` must point to the same
+user environment in which both `cody-web-ui` and `codex` are installed. For
+example:
+
+```ini
+[Unit]
+Description=CodyWebUI
+After=network.target
+
+[Service]
+Type=simple
+User=gouchao
+Group=gouchao
+WorkingDirectory=/home/gouchao
+Environment=HOME=/home/gouchao
+Environment=PATH=/home/gouchao/.local/bin:/usr/local/bin:/usr/bin:/bin
+EnvironmentFile=/etc/cody-web-ui.env
+ExecStart=/usr/bin/env cody-web-ui --host 127.0.0.1 --port 3000 --password ${CODY_WEB_UI_PASSWORD}
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
+```
+
+Store `CODY_WEB_UI_PASSWORD=...` in `/etc/cody-web-ui.env`, keep that file
+root-owned with mode `600`, and replace all example users and paths. Before
+enabling the unit, verify the binaries through the same account:
+
+```bash
+sudo -u gouchao env HOME=/home/gouchao PATH=/home/gouchao/.local/bin:/usr/local/bin:/usr/bin:/bin \
+  sh -c 'command -v cody-web-ui && command -v codex'
+```
+
+If the unit uses filesystem-hardening options such as `ProtectHome=`,
+`ReadOnlyPaths=`, or `ReadWritePaths=`, ensure every managed workspace and its
+`.git` directory remains writable by the service.
+
+### Containers and bind mounts
+
+When running in a container, mount workspaces read-write and make the container
+process UID/GID match the owner of the host files. Matching only the username
+is not sufficient. A read-only mount or mismatched numeric UID/GID can produce
+the same `EACCES` errors as incorrect host permissions.
+
+### Repair an existing checkpoint directory
+
+Stop CodyWebUI before changing checkpoint ownership. If the service runs as
+`gouchao`, repair the existing recovery data with:
+
+```bash
+CODY_USER=gouchao
+CODY_GROUP="$(id -gn "$CODY_USER")"
+REPO=/data00/home/gouchao/code/life-csr
+CHECKPOINT_DIR="$REPO/.git/cody-web-ui-checkpoints"
+
+sudo systemctl stop cody-web-ui
+sudo chown -R "$CODY_USER:$CODY_GROUP" "$CHECKPOINT_DIR"
+sudo chmod -R u+rwX "$CHECKPOINT_DIR"
+sudo systemctl start cody-web-ui
+```
+
+If old CodyWebUI recovery points are not needed, rebuilding the directory is
+cleaner:
+
+```bash
+sudo systemctl stop cody-web-ui
+sudo rm -rf -- "$CHECKPOINT_DIR"
+sudo install -d -o "$CODY_USER" -g "$CODY_GROUP" -m 700 "$CHECKPOINT_DIR"
+sudo systemctl start cody-web-ui
+```
+
+An `EACCES: permission denied, unlink ...` error usually means the runtime user
+lacks write and execute permission on a parent directory. If ownership and mode
+look correct, also inspect ACLs, immutable attributes, and mount flags:
+
+```bash
+getfacl "$CHECKPOINT_DIR"
+lsattr -R "$CHECKPOINT_DIR" | head -100
+mount | grep /data00
+```
+
+After upgrading an installation that was previously run as root or another
+user, perform the workspace checks above before starting CodyWebUI.
+
 ## Local Development
 
 Install dependencies:
