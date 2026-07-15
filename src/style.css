@@ -1825,10 +1825,19 @@ button,
 
 #app .message-body[data-role='user'] {
   max-width: min(88%, 42rem);
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+#app .message-card[data-role='user'] {
   padding: 0.72rem 0.9rem;
   border: 1px solid color-mix(in srgb, var(--color-accent) 22%, var(--color-border));
   border-radius: 1rem 1rem 0.28rem 1rem;
   background: color-mix(in srgb, var(--color-accent) 9%, var(--color-panel));
+  color: var(--color-text);
   box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.035);
 }
 
