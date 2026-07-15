@@ -30,6 +30,7 @@ function uiLabels(): MarkdownUiLabels {
     rendering: (engine) => t('markdown.rendering', { engine }), diagramAria: (engine) => t('markdown.diagramAria', { engine }),
     wrap: t('markdown.wrap'), copy: t('markdown.copy'), save: t('markdown.save'), dataTable: t('markdown.dataTable'), copyCsv: t('markdown.copyCsv'),
     openFile: (path) => t('markdown.openFile', { path }),
+    lineCount: (count) => t('markdown.lineCount', { count: String(count) }), expandCode: (count) => t('markdown.expandCode', { count: String(count) }), collapseCode: t('markdown.collapseCode'),
   }
 }
 
@@ -39,6 +40,7 @@ const renderedHtml = ref(renderMarkdown(props.text, uiLabels()))
 const previewImageUrl = ref('')
 let renderTimer = 0
 let diagramSequence = 0
+const expandedCodeBlockIndexes = new Set<number>()
 
 function stabilizeStreamingMarkdown(value: string): string {
   const fences = value.match(/^\s*```/gmu)?.length ?? 0
@@ -73,7 +75,12 @@ async function highlightCodeBlocks(): Promise<void> {
     image.addEventListener('error', () => { image.alt = image.alt || t('markdown.imageLoadFailed'); image.classList.add('is-load-error') }, { once: true })
   }
   rewriteWorkspaceAssetLinks()
-  for (const shell of Array.from(rootRef.value?.querySelectorAll<HTMLElement>('.markdown-code-shell') ?? [])) {
+  for (const [index, shell] of Array.from(rootRef.value?.querySelectorAll<HTMLElement>('.markdown-code-shell') ?? []).entries()) {
+    shell.dataset.codeIndex = String(index)
+    if (shell.classList.contains('is-collapsible') && expandedCodeBlockIndexes.has(index)) shell.classList.remove('is-collapsed')
+    for (const toggle of Array.from(shell.querySelectorAll<HTMLButtonElement>('[data-markdown-action="toggle-code"]'))) {
+      toggle.setAttribute('aria-expanded', String(!shell.classList.contains('is-collapsed')))
+    }
     const pre = shell.querySelector('pre')
     const wrapButton = shell.querySelector<HTMLButtonElement>('[data-markdown-action="wrap-code"]')
     if (pre && wrapButton) {
@@ -261,6 +268,18 @@ function onMarkdownClick(event: MouseEvent): void {
     const blob = new Blob([shell?.querySelector('code')?.textContent ?? ''], { type: 'text/plain' })
     const anchor = document.createElement('a'); anchor.href = URL.createObjectURL(blob); anchor.download = `snippet.${shell?.dataset.language || 'txt'}`; anchor.click(); URL.revokeObjectURL(anchor.href)
   }
+  if (action === 'toggle-code' && shell?.classList.contains('is-collapsible')) {
+    const index = Number(shell.dataset.codeIndex ?? -1)
+    const isExpanded = shell.classList.toggle('is-collapsed') === false
+    if (Number.isInteger(index) && index >= 0) {
+      if (isExpanded) expandedCodeBlockIndexes.add(index)
+      else expandedCodeBlockIndexes.delete(index)
+    }
+    for (const toggle of Array.from(shell.querySelectorAll<HTMLButtonElement>('[data-markdown-action="toggle-code"]'))) {
+      toggle.setAttribute('aria-expanded', String(isExpanded))
+    }
+    if (!isExpanded) shell.scrollIntoView({ block: 'nearest' })
+  }
   if (action === 'copy-table') void copyText(tableCsv(shell?.querySelector('table') as HTMLTableElement), button)
   if (action === 'open-file') {
     const rawPath = button.dataset.filePath ?? ''
@@ -339,6 +358,13 @@ onBeforeUnmount(() => window.clearTimeout(renderTimer))
 .message-markdown :deep(.markdown-code-actions) { @apply flex gap-1; }
 .message-markdown :deep(.markdown-tool-button) { @apply rounded px-1.5 py-1 text-[0.65rem] normal-case tracking-normal text-slate-300 hover:bg-white/10 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-1; }
 .message-markdown :deep(.markdown-code-shell.is-wrapped pre code) { white-space: pre-wrap; word-break: break-word; }
+.message-markdown :deep(.markdown-code-shell.is-collapsible.is-collapsed pre) { max-height: 16rem; overflow: hidden; }
+.message-markdown :deep(.markdown-code-expand) { @apply absolute inset-x-0 bottom-0 flex justify-center pb-3 pt-12; background:linear-gradient(to bottom,transparent,var(--color-code-background) 68%); }
+.message-markdown :deep(.markdown-code-expand button) { @apply rounded-full border border-slate-600 bg-slate-900/95 px-3 py-1.5 font-mono text-[0.68rem] text-slate-200 shadow-lg hover:border-slate-400 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2; }
+.message-markdown :deep(.markdown-code-shell:not(.is-collapsed) .markdown-code-expand) { @apply hidden; }
+.message-markdown :deep(.markdown-code-collapse) { @apply hidden; }
+.message-markdown :deep(.markdown-code-shell.is-collapsible:not(.is-collapsed) .markdown-code-collapse) { display:inline-flex; }
+@media (max-width: 640px) { .message-markdown :deep(.markdown-code-shell.is-collapsible.is-collapsed pre) { max-height: 14rem; } }
 .message-markdown :deep(.markdown-diagram-shell) { @apply relative my-4 overflow-hidden rounded-xl border theme-border theme-bg-panel; }
 .message-markdown :deep(.markdown-diagram-toolbar) { @apply flex min-h-10 flex-wrap items-center justify-between gap-2 border-b theme-border theme-bg-subtle px-3 font-mono text-[0.68rem] uppercase tracking-wide theme-muted; }
 .message-markdown :deep(.markdown-diagram-actions) { @apply flex flex-wrap justify-end gap-1; }

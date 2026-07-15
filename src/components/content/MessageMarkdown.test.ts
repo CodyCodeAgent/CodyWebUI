@@ -24,6 +24,20 @@ describe('MessageMarkdown', () => {
     expect(link.attributes('title')).toContain('Open src/main.ts')
   })
 
+  it('expands and collapses code blocks longer than ten lines', async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined)
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } })
+    const text = `\`\`\`ts\n${Array.from({ length: 11 }, (_, index) => `const line${String(index)} = ${String(index)}`).join('\n')}\n\`\`\``
+    const wrapper = mount(MessageMarkdown, { props: { text } })
+    const shell = wrapper.get('.markdown-code-shell')
+    expect(shell.classes()).toContain('is-collapsed')
+    await wrapper.get('.markdown-code-expand [data-markdown-action="toggle-code"]').trigger('click')
+    expect(shell.classes()).not.toContain('is-collapsed')
+    expect(wrapper.get('.markdown-code-collapse').attributes('aria-expanded')).toBe('true')
+    await wrapper.get('[data-markdown-action="copy-code"]').trigger('click')
+    expect(writeText).toHaveBeenCalledWith(expect.stringContaining('const line10 = 10'))
+  })
+
   it('rewrites workspace image links through the safe asset endpoint', async () => {
     const wrapper = mount(MessageMarkdown, {
       props: {
