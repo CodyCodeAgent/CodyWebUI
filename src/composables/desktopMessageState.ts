@@ -31,14 +31,25 @@ function areMessageSkillsEqual(first?: UiMessage['skills'], second?: UiMessage['
   for (let index = 0; index < left.length; index += 1) {
     if (
       left[index]?.name !== right[index]?.name ||
-      left[index]?.path !== right[index]?.path ||
-      left[index]?.displayName !== right[index]?.displayName ||
-      left[index]?.description !== right[index]?.description
+      left[index]?.path !== right[index]?.path
     ) {
       return false
     }
   }
   return true
+}
+
+function normalizeImageIdentity(value: string): string {
+  const normalized = value.trim()
+  const prefix = '/codex-api/local-image?path='
+  if (!normalized.startsWith(prefix)) return normalized
+  try { return decodeURIComponent(normalized.slice(prefix.length)) } catch { return normalized }
+}
+
+function areMessageImagesEqual(first?: string[], second?: string[]): boolean {
+  const left = Array.isArray(first) ? first.map(normalizeImageIdentity) : []
+  const right = Array.isArray(second) ? second.map(normalizeImageIdentity) : []
+  return areStringArraysEqual(left, right)
 }
 
 function areMessageToolsEqual(first: UiMessage['tool'], second: UiMessage['tool']): boolean {
@@ -95,7 +106,7 @@ function isPersistedUserMessage(message: UiMessage): boolean {
 function isMatchingUserMessage(first: UiMessage, second: UiMessage): boolean {
   if (first.role !== 'user' || second.role !== 'user') return false
   if (normalizeMessageText(first.text) !== normalizeMessageText(second.text)) return false
-  if (!areStringArraysEqual(first.images, second.images)) return false
+  if (!areMessageImagesEqual(first.images, second.images)) return false
   if (!areMessageSkillsEqual(first.skills, second.skills)) return false
   return true
 }
@@ -123,6 +134,16 @@ export function removeMessageById(messages: UiMessage[], messageId: string): UiM
   if (!messageId) return messages
   const next = messages.filter((message) => message.id !== messageId)
   return next.length === messages.length ? messages : next
+}
+
+export function replaceMessageById(messages: UiMessage[], messageId: string, replacement: UiMessage): UiMessage[] {
+  const index = messages.findIndex((message) => message.id === messageId)
+  if (index < 0) return messages
+  const next = messages.filter((message) => message.id !== replacement.id)
+  const replacementIndex = next.findIndex((message) => message.id === messageId)
+  if (replacementIndex < 0) return messages
+  next.splice(replacementIndex, 1, replacement)
+  return next
 }
 
 export function removeLivePlanMessagesForTurn(

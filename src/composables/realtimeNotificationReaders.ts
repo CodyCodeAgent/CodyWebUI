@@ -47,6 +47,13 @@ function readProtocolId(record: Record<string, unknown> | null | undefined, came
   return readString(record?.[camelKey]) || readString(record?.[snakeKey])
 }
 
+export function extractTurnIdFromNotification(notification: RpcNotification): string {
+  const params = asRecord(notification.params)
+  if (!params) return ''
+  const turn = asRecord(params.turn)
+  return readString(turn?.id) || readProtocolId(params, 'turnId', 'turn_id')
+}
+
 function readNotificationItemId(params: Record<string, unknown>): string {
   const directId = readProtocolId(params, 'itemId', 'item_id')
   if (directId) return directId

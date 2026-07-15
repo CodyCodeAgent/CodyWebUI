@@ -36,6 +36,7 @@ import {
 } from '../api/codexRealtimeClient'
 import {
   extractThreadIdFromNotification,
+  extractTurnIdFromNotification,
   isAgentContentEvent,
   liveReasoningMessageId,
   readAgentMessageCompleted,
@@ -81,6 +82,7 @@ import {
   clearLiveReasoningTextForThread,
   mergeMessages,
   removeMessageById,
+  replaceMessageById,
   removeLivePlanMessagesForTurn,
   removeRedundantLiveAgentMessages,
   updateLiveReasoningTextForThread,
@@ -245,6 +247,8 @@ export function useDesktopState() {
   let shouldAutoScrollOnNextAgentEvent = false
   const pendingTurnStartsById = new Map<string, TurnStartedInfo>()
   const livePlanMessageIdByTurnId = new Map<string, string>()
+  const optimisticUserMessageIdsByTurnId = new Map<string, string[]>()
+  const pendingOptimisticUserMessageIdsByThreadId = new Map<string, string[]>()
   const latestMessageLoadRequestIdByThreadId = new Map<string, number>()
   let nextMessageLoadRequestId = 0
   let latestThreadsRequestId = 0
@@ -657,6 +661,38 @@ export function useDesktopState() {
     }
     const previous = persistedMessagesByThreadId.value[threadId] ?? []
     setPersistedMessagesForThread(threadId, upsertMessage(previous, message))
+    pendingOptimisticUserMessageIdsByThreadId.set(threadId, [
+      ...(pendingOptimisticUserMessageIdsByThreadId.get(threadId) ?? []),
+      messageId,
+    ])
+    return messageId
+  }
+
+  function bindOptimisticUserMessageToTurn(threadId: string, turnId: string, messageId: string): void {
+    if (!turnId || !(persistedMessagesByThreadId.value[threadId] ?? []).some((message) => message.id === messageId)) return
+    const pending = pendingOptimisticUserMessageIdsByThreadId.get(threadId) ?? []
+    pendingOptimisticUserMessageIdsByThreadId.set(threadId, pending.filter((id) => id !== messageId))
+    optimisticUserMessageIdsByTurnId.set(turnId, [...(optimisticUserMessageIdsByTurnId.get(turnId) ?? []), messageId])
+    while (optimisticUserMessageIdsByTurnId.size > 1_000) {
+      const oldestTurnId = optimisticUserMessageIdsByTurnId.keys().next().value as string | undefined
+      if (!oldestTurnId) break
+      optimisticUserMessageIdsByTurnId.delete(oldestTurnId)
+    }
+  }
+
+  function consumeOptimisticUserMessageId(threadId: string, turnId: string): string {
+    const turnQueue = turnId ? optimisticUserMessageIdsByTurnId.get(turnId) ?? [] : []
+    const messageId = turnQueue[0] ?? ''
+    if (!messageId) return ''
+    if (turnQueue.length > 0) {
+      const remaining = turnQueue.slice(1)
+      if (remaining.length > 0) optimisticUserMessageIdsByTurnId.set(turnId, remaining)
+      else optimisticUserMessageIdsByTurnId.delete(turnId)
+    }
+    const pending = pendingOptimisticUserMessageIdsByThreadId.get(threadId) ?? []
+    const remainingPending = pending.filter((id) => id !== messageId)
+    if (remainingPending.length > 0) pendingOptimisticUserMessageIdsByThreadId.set(threadId, remainingPending)
+    else pendingOptimisticUserMessageIdsByThreadId.delete(threadId)
     return messageId
   }
 
@@ -664,6 +700,15 @@ export function useDesktopState() {
     if (!threadId || !messageId) return
     const previous = persistedMessagesByThreadId.value[threadId] ?? []
     setPersistedMessagesForThread(threadId, removeMessageById(previous, messageId))
+    const pending = pendingOptimisticUserMessageIdsByThreadId.get(threadId) ?? []
+    const nextPending = pending.filter((id) => id !== messageId)
+    if (nextPending.length > 0) pendingOptimisticUserMessageIdsByThreadId.set(threadId, nextPending)
+    else pendingOptimisticUserMessageIdsByThreadId.delete(threadId)
+    for (const [turnId, ids] of optimisticUserMessageIdsByTurnId) {
+      const nextIds = ids.filter((id) => id !== messageId)
+      if (nextIds.length > 0) optimisticUserMessageIdsByTurnId.set(turnId, nextIds)
+      else optimisticUserMessageIdsByTurnId.delete(turnId)
+    }
   }
 
   function beginPendingTurnForThread(
@@ -772,6 +817,8 @@ export function useDesktopState() {
 
     const startedTurn = readTurnStartedInfo(notification)
     if (startedTurn) {
+      const pendingOptimisticId = (pendingOptimisticUserMessageIdsByThreadId.get(startedTurn.threadId) ?? [])[0]
+      if (pendingOptimisticId) bindOptimisticUserMessageToTurn(startedTurn.threadId, startedTurn.turnId, pendingOptimisticId)
       pendingTurnStartsById.set(startedTurn.turnId, startedTurn)
       activeTurnIdByThreadId.value = setActiveTurnForThread(
         activeTurnIdByThreadId.value,
@@ -847,9 +894,16 @@ export function useDesktopState() {
     const completedUserMessages = readUserMessageCompleted(notification)
     if (completedUserMessages.length > 0) {
       const previousMessages = persistedMessagesByThreadId.value[notificationThreadId] ?? []
+      const formalUserMessage = completedUserMessages.find((message) => message.role === 'user' && message.messageType === 'userMessage')
+      const optimisticMessageId = formalUserMessage
+        ? consumeOptimisticUserMessageId(notificationThreadId, extractTurnIdFromNotification(notification))
+        : ''
+      const messagesWithFormalUser = formalUserMessage && optimisticMessageId
+        ? replaceMessageById(previousMessages, optimisticMessageId, formalUserMessage)
+        : previousMessages
       setPersistedMessagesForThread(
         notificationThreadId,
-        mergeMessages(previousMessages, completedUserMessages, { preserveMissing: true }),
+        mergeMessages(messagesWithFormalUser, completedUserMessages, { preserveMissing: true }),
       )
     }
 
@@ -1236,7 +1290,8 @@ export function useDesktopState() {
     const optimisticMessageId = addOptimisticUserMessage(threadId, turnInput)
 
     try {
-      await startTurnForThread(threadId, turnInput.text, turnInput.images, turnInput.skills)
+      const turnId = await startTurnForThread(threadId, turnInput.text, turnInput.images, turnInput.skills)
+      bindOptimisticUserMessageToTurn(threadId, turnId, optimisticMessageId)
     } catch (unknownError) {
       removeOptimisticUserMessage(threadId, optimisticMessageId)
       throw failPendingTurnForThread(threadId, unknownError, 'Unknown application error')
@@ -1264,7 +1319,8 @@ export function useDesktopState() {
     const optimisticMessageId = addOptimisticUserMessage(turnInput.threadId, turnInput)
 
     try {
-      await startTurnForThread(turnInput.threadId, turnInput.text, turnInput.images, turnInput.skills)
+      const turnId = await startTurnForThread(turnInput.threadId, turnInput.text, turnInput.images, turnInput.skills)
+      bindOptimisticUserMessageToTurn(turnInput.threadId, turnId, optimisticMessageId)
     } catch (unknownError) {
       removeOptimisticUserMessage(turnInput.threadId, optimisticMessageId)
       throw failPendingTurnForThread(turnInput.threadId, unknownError, 'Unknown application error')
@@ -1297,6 +1353,7 @@ export function useDesktopState() {
     })
 
     try {
+      bindOptimisticUserMessageToTurn(threadId, turnId, optimisticMessageId)
       await steerThreadTurn(threadId, turnId, nextText, nextImages, nextSkills)
       queueDesktopRealtimeSync(realtimeSyncQueue, threadId)
       await syncFromNotifications()
@@ -1351,10 +1408,12 @@ export function useDesktopState() {
       beginPendingTurnForThread(threadId)
       const optimisticMessageId = addOptimisticUserMessage(threadId, turnInput)
 
-      void startTurnForThread(threadId, turnInput.text, turnInput.images, turnInput.skills).catch((unknownError) => {
-        removeOptimisticUserMessage(threadId, optimisticMessageId)
-        failPendingTurnForThread(threadId, unknownError, 'Unknown application error')
-      })
+      void startTurnForThread(threadId, turnInput.text, turnInput.images, turnInput.skills)
+        .then((turnId) => bindOptimisticUserMessageToTurn(threadId, turnId, optimisticMessageId))
+        .catch((unknownError) => {
+          removeOptimisticUserMessage(threadId, optimisticMessageId)
+          failPendingTurnForThread(threadId, unknownError, 'Unknown application error')
+        })
       return threadId
     } catch (unknownError) {
       if (threadId) {
@@ -1374,7 +1433,7 @@ export function useDesktopState() {
     nextText: string,
     nextImages: UiComposerSubmitPayload['images'],
     nextSkills: UiComposerSubmitPayload['skills'],
-  ): Promise<void> {
+  ): Promise<string> {
     const modelId = selectedModelId.value.trim()
     const reasoningEffort = selectedReasoningEffort.value
     const collaborationMode = buildTurnCollaborationMode(
@@ -1427,6 +1486,7 @@ export function useDesktopState() {
 
       queueDesktopRealtimeSync(realtimeSyncQueue, threadId)
       await syncFromNotifications()
+      return turnId
     } catch (unknownError) {
       throw unknownError
     }

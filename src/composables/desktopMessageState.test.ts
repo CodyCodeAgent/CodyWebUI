@@ -19,6 +19,7 @@ import {
   removeDuplicateAdjacentUserMessages,
   removeLivePlanMessagesForTurn,
   removeMessageById,
+  replaceMessageById,
   removeRedundantLiveAgentMessages,
   resolveTurnDurationMs,
   updateLiveReasoningTextForThread,
@@ -167,6 +168,25 @@ describe('desktopMessageState', () => {
     expect(removeDuplicateAdjacentUserMessages([optimistic, persisted])).toEqual([persisted])
     expect(mergeMessages([optimistic], [persisted], { preserveMissing: true })).toEqual([persisted])
     expect(removeMessageById([optimistic], optimistic.id)).toEqual([])
+  })
+
+  it('matches skills by stable identity instead of presentation metadata', () => {
+    const optimistic = message({
+      id: 'optimistic-user:thread-1:1', role: 'user', text: 'Review this', messageType: 'userMessage.optimistic',
+      skills: [{ name: 'review', path: '/skills/review', displayName: 'Code Review', description: 'Detailed review' }],
+    })
+    const persisted = message({
+      id: 'server-user', role: 'user', text: 'Review this', messageType: 'userMessage',
+      skills: [{ name: 'review', path: '/skills/review', displayName: 'review', description: '' }],
+    })
+    expect(mergeMessages([optimistic], [persisted], { preserveMissing: true })).toEqual([persisted])
+  })
+
+  it('replaces an optimistic row by its turn-linked id without moving it below the answer', () => {
+    const optimistic = message({ id: 'optimistic-user:thread-1:1', role: 'user', text: 'Review this', messageType: 'userMessage.optimistic' })
+    const assistant = message({ id: 'assistant-1', role: 'assistant', text: 'Done' })
+    const persisted = message({ id: 'server-user', role: 'user', text: 'Review this', messageType: 'userMessage' })
+    expect(replaceMessageById([optimistic, assistant], optimistic.id, persisted)).toEqual([persisted, assistant])
   })
 
   it('replaces non-adjacent optimistic user messages without appending duplicates', () => {

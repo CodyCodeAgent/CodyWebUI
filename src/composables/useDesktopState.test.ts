@@ -878,6 +878,68 @@ describe('useDesktopState realtime messages', () => {
     expect(state.projectGroups.value[0]?.threads[0]?.inProgress).not.toBe(true)
   })
 
+  it('replaces a turn-linked optimistic skill message even when the item event arrives before turn/start returns', async () => {
+    installBrowserGlobals('thread-a')
+    const turnStart = deferred<string>()
+    codexApiMock.startThreadTurn.mockImplementation(async () => turnStart.promise)
+    codexApiMock.getThreadMessages.mockResolvedValue([])
+    const state = useDesktopState()
+    state.projectGroups.value = [{
+      projectName: 'repo', cwd: '/workspace/repo', threads: [{
+        id: 'thread-a', title: 'Thread A', projectName: 'repo', cwd: '/workspace/repo',
+        createdAtIso: '2026-07-07T00:00:00.000Z', updatedAtIso: '2026-07-07T00:01:00.000Z',
+        preview: '', unread: false, inProgress: false,
+      }],
+    }]
+    state.startRealtimeSync()
+    const send = state.sendMessageToSelectedThread({
+      text: 'Review this', images: [],
+      skills: [{ name: 'review', path: '/skills/review', displayName: 'Code Review', description: 'Detailed review' }],
+    })
+    const listener = codexApiMock.getNotificationListener()
+    listener?.({
+      method: 'item/completed', atIso: '2026-07-07T00:00:01.000Z',
+      params: { threadId: 'thread-a', turnId: 'turn-1', item: {
+        id: 'user-1', type: 'userMessage', content: [
+          { type: 'skill', name: 'review', path: '/skills/review' },
+          { type: 'text', text: 'Review this', text_elements: [] },
+        ],
+      } },
+    })
+    listener?.({
+      method: 'item/completed', atIso: '2026-07-07T00:00:02.000Z',
+      params: { threadId: 'thread-a', turnId: 'turn-1', item: { id: 'agent-1', type: 'agentMessage', text: 'Done' } },
+    })
+    turnStart.resolve('turn-1')
+    await send
+    expect(state.messages.value.filter((message) => message.role === 'user')).toHaveLength(1)
+    expect(state.messages.value.map((message) => message.id)).toEqual(['user-1', 'agent-1'])
+  })
+
+  it('keeps the turn mapping until a late formal user item arrives after turn completion', async () => {
+    installBrowserGlobals('thread-a')
+    codexApiMock.startThreadTurn.mockResolvedValue('turn-late')
+    codexApiMock.getThreadMessages.mockResolvedValue([])
+    const state = useDesktopState()
+    state.projectGroups.value = [{
+      projectName: 'repo', cwd: '/workspace/repo', threads: [{
+        id: 'thread-a', title: 'Thread A', projectName: 'repo', cwd: '/workspace/repo',
+        createdAtIso: '2026-07-07T00:00:00.000Z', updatedAtIso: '2026-07-07T00:01:00.000Z', preview: '', unread: false, inProgress: false,
+      }],
+    }]
+    state.startRealtimeSync()
+    await state.sendMessageToSelectedThread({ text: 'Late item', images: [], skills: [] })
+    const listener = codexApiMock.getNotificationListener()
+    listener?.({ method: 'turn/completed', atIso: '2026-07-07T00:00:02.000Z', params: { threadId: 'thread-a', turn: { id: 'turn-late' } } })
+    listener?.({
+      method: 'item/completed', atIso: '2026-07-07T00:00:03.000Z',
+      params: { threadId: 'thread-a', turnId: 'turn-late', item: {
+        id: 'user-late', type: 'userMessage', content: [{ type: 'text', text: 'Late item', text_elements: [] }],
+      } },
+    })
+    expect(state.messages.value.filter((message) => message.role === 'user').map((message) => message.id)).toEqual(['user-late'])
+  })
+
   it('sends explicit default collaboration mode after switching back from plan', async () => {
     installBrowserGlobals('thread-a')
     codexApiMock.startThreadTurn.mockResolvedValue('turn-1')
