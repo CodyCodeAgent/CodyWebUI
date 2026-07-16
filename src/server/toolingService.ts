@@ -1,5 +1,6 @@
 import { execFile, spawn, type ChildProcessWithoutNullStreams, type ExecFileException } from 'node:child_process'
 import { createHash, randomUUID } from 'node:crypto'
+import { constants as fsConstants } from 'node:fs'
 import { access, appendFile, cp, lstat, mkdir, mkdtemp, open, readFile, readdir, realpath, rm, stat, statfs, writeFile } from 'node:fs/promises'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import { isIP } from 'node:net'
@@ -34,6 +35,9 @@ const MAX_RETAINED_CHECKPOINTS = 20
 const MAX_CHECKPOINT_AGE_MS = 7 * 24 * 60 * 60 * 1000
 const CHECKPOINT_SCAN_TIMEOUT_MS = 20_000
 const checkpointQueueByRepository = new Map<string, Promise<void>>()
+const CHECKPOINT_PRUNE_BACKOFF_BASE_MS = 30_000
+const CHECKPOINT_PRUNE_BACKOFF_MAX_MS = 5 * 60_000
+const checkpointPruneBackoffByPath = new Map<string, { failureCount: number; retryAtMs: number }>()
 const CHECKPOINT_PRUNE_SCAN_MAX_ENTRIES = 10_000
 const DEFAULT_CHECKPOINT_EXCLUDED_NAMES = new Set([
   '.git', '.tmp-go', '.tmp-go-mod', '.tmp-go-cache', '.cache', '.gradle', '.m2',
@@ -116,6 +120,21 @@ export type ToolingCheckpoint = {
   untrackedBytes?: number
   skippedUntrackedPaths?: string[]
   partial?: boolean
+  pruneFailedCheckpointIds?: string[]
+}
+
+export type ToolingCheckpointHealth = {
+  cwd: string
+  repoRoot: string
+  checkpointRoot: string
+  generatedAtIso: string
+  status: 'healthy' | 'degraded' | 'unhealthy'
+  rootWritable: boolean
+  checkpointCount: number
+  knownBytes: number
+  unknownSizeCheckpointIds: string[]
+  blockedCheckpointIds: string[]
+  scanError: string
 }
 
 export type ToolingDiffSnapshot = {
@@ -5041,49 +5060,161 @@ async function backupUntrackedPaths(
   return { copiedBytes, skippedPaths }
 }
 
-async function directorySize(path: string, budget = { remaining: CHECKPOINT_PRUNE_SCAN_MAX_ENTRIES, deadlineMs: Date.now() + CHECKPOINT_SCAN_TIMEOUT_MS }): Promise<number> {
+async function directorySize(path: string, budget = { remaining: CHECKPOINT_PRUNE_SCAN_MAX_ENTRIES, deadlineMs: Date.now() + CHECKPOINT_SCAN_TIMEOUT_MS }): Promise<number | null> {
   try {
-    if (Date.now() > budget.deadlineMs || budget.remaining-- <= 0) return 0
+    if (Date.now() > budget.deadlineMs || budget.remaining-- <= 0) return null
     const info = await lstat(path)
     if (info.isSymbolicLink()) return 0
     if (info.isFile()) return info.size
     if (!info.isDirectory()) return 0
     let total = 0
-    for (const entry of await readdir(path)) total += await directorySize(join(path, entry))
+    for (const entry of await readdir(path)) {
+      const childBytes = await directorySize(join(path, entry), budget)
+      if (childBytes === null) return null
+      total += childBytes
+    }
     return total
   } catch {
-    return 0
+    return null
   }
 }
 
-async function pruneToolingCheckpoints(workspace: GitWorkspace, preserveId: string): Promise<void> {
+function checkpointErrorMessage(error: unknown): string {
+  return error instanceof Error && error.message ? error.message : String(error)
+}
+
+type CheckpointStorageEntry = {
+  id: string
+  path: string
+  createdAtMs: number
+  bytes: number | null
+  reportedPruneFailures: string[]
+}
+
+async function readCheckpointStorageEntries(workspace: GitWorkspace): Promise<{
+  entries: CheckpointStorageEntry[]
+  scanError: string
+}> {
   const root = checkpointRoot(workspace)
   let rows: string[]
-  try { rows = await readdir(root) } catch { return }
-  const entries = await Promise.all(rows.map(async (id) => {
+  try {
+    rows = await readdir(root)
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException).code
+    return { entries: [], scanError: code === 'ENOENT' ? '' : checkpointErrorMessage(error) }
+  }
+
+  const entries = await Promise.all(rows.map(async (id): Promise<CheckpointStorageEntry> => {
     const path = join(root, id)
-    try {
-      const info = await stat(path)
-      const metadata = await readFile(join(path, 'metadata.json'), 'utf8').then((raw) => JSON.parse(raw) as Partial<ToolingCheckpoint>).catch(() => null)
-      const recordedBytes = metadata
-        ? Math.max(0, Number(metadata.patchBytes ?? 0)) + Math.max(0, Number(metadata.untrackedBytes ?? 0))
-        : null
-      return { id, path, createdAtMs: info.mtimeMs, bytes: recordedBytes ?? await directorySize(path) }
-    } catch { return null }
+    let createdAtMs = 0
+    try { createdAtMs = (await stat(path)).mtimeMs } catch { /* Preserve the unreadable entry as unknown. */ }
+    const metadata = await readFile(join(path, 'metadata.json'), 'utf8')
+      .then((raw) => JSON.parse(raw) as Partial<ToolingCheckpoint>)
+      .catch(() => null)
+    const patchBytes = Number(metadata?.patchBytes)
+    const untrackedBytes = Number(metadata?.untrackedBytes ?? 0)
+    const recordedBytes = metadata && Number.isFinite(patchBytes) && patchBytes >= 0 && Number.isFinite(untrackedBytes) && untrackedBytes >= 0
+      ? patchBytes + untrackedBytes
+      : null
+    const reportedPruneFailures = Array.isArray(metadata?.pruneFailedCheckpointIds)
+      ? metadata.pruneFailedCheckpointIds.filter((value): value is string => typeof value === 'string')
+      : []
+    return {
+      id,
+      path,
+      createdAtMs,
+      bytes: recordedBytes ?? await directorySize(path),
+      reportedPruneFailures,
+    }
   }))
-  const checkpoints = entries.filter((entry): entry is NonNullable<typeof entry> => entry !== null)
-    .sort((a, b) => b.createdAtMs - a.createdAtMs)
-  let totalBytes = checkpoints.reduce((sum, entry) => sum + entry.bytes, 0)
+  return { entries: entries.sort((a, b) => b.createdAtMs - a.createdAtMs), scanError: '' }
+}
+
+async function pruneToolingCheckpoints(workspace: GitWorkspace, preserveId: string): Promise<string[]> {
+  const { entries: checkpoints } = await readCheckpointStorageEntries(workspace)
+  let totalBytes = checkpoints.reduce((sum, entry) => sum + (entry.bytes ?? 0), 0)
   const now = Date.now()
+  const failedCheckpointIds: string[] = []
   for (let index = 0; index < checkpoints.length; index += 1) {
     const entry = checkpoints[index]
     if (!entry || entry.id === preserveId) continue
     const expired = now - entry.createdAtMs > MAX_CHECKPOINT_AGE_MS
     const overCount = index >= MAX_RETAINED_CHECKPOINTS
     const overBytes = totalBytes > MAX_CHECKPOINT_REPOSITORY_BYTES
-    if (!expired && !overCount && !overBytes) continue
-    await rm(entry.path, { recursive: true, force: true })
-    totalBytes -= entry.bytes
+    const unknownSize = entry.bytes === null
+    if (!expired && !overCount && !overBytes && !unknownSize) continue
+    const backoff = checkpointPruneBackoffByPath.get(entry.path)
+    if (backoff && backoff.retryAtMs > now) {
+      failedCheckpointIds.push(entry.id)
+      continue
+    }
+    try {
+      await rm(entry.path, { recursive: true, force: true })
+      checkpointPruneBackoffByPath.delete(entry.path)
+      totalBytes -= entry.bytes ?? 0
+    } catch (error) {
+      failedCheckpointIds.push(entry.id)
+      const failureCount = (backoff?.failureCount ?? 0) + 1
+      const delayMs = Math.min(
+        CHECKPOINT_PRUNE_BACKOFF_MAX_MS,
+        CHECKPOINT_PRUNE_BACKOFF_BASE_MS * 2 ** Math.min(failureCount - 1, 10),
+      )
+      checkpointPruneBackoffByPath.delete(entry.path)
+      checkpointPruneBackoffByPath.set(entry.path, { failureCount, retryAtMs: now + delayMs })
+      while (checkpointPruneBackoffByPath.size > 1_000) {
+        const oldestPath = checkpointPruneBackoffByPath.keys().next().value as string | undefined
+        if (!oldestPath) break
+        checkpointPruneBackoffByPath.delete(oldestPath)
+      }
+      console.warn(`Failed to prune tooling checkpoint ${entry.id}; retrying after ${String(delayMs)}ms: ${checkpointErrorMessage(error)}`)
+    }
+  }
+  return failedCheckpointIds
+}
+
+export async function getToolingCheckpointHealth(cwd: string): Promise<ToolingCheckpointHealth> {
+  const workspace = await getGitWorkspace(cwd)
+  const root = checkpointRoot(workspace)
+  const { entries, scanError } = await readCheckpointStorageEntries(workspace)
+  let rootWritable = true
+  try {
+    await access(root, fsConstants.R_OK | fsConstants.W_OK | fsConstants.X_OK)
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+      try {
+        await access(workspace.gitCommonDir, fsConstants.W_OK | fsConstants.X_OK)
+      } catch {
+        rootWritable = false
+      }
+    } else {
+      rootWritable = false
+    }
+  }
+
+  const currentIds = new Set(entries.map((entry) => entry.id))
+  const blockedCheckpointIds = Array.from(new Set(entries.flatMap((entry) => [
+    ...(checkpointPruneBackoffByPath.has(entry.path) ? [entry.id] : []),
+    ...entry.reportedPruneFailures.filter((id) => currentIds.has(id)),
+  ]))).sort()
+  const unknownSizeCheckpointIds = entries.filter((entry) => entry.bytes === null).map((entry) => entry.id).sort()
+  const status = !rootWritable || Boolean(scanError)
+    ? 'unhealthy'
+    : blockedCheckpointIds.length > 0 || unknownSizeCheckpointIds.length > 0
+      ? 'degraded'
+      : 'healthy'
+
+  return {
+    cwd: workspace.cwd,
+    repoRoot: workspace.repoRoot,
+    checkpointRoot: root,
+    generatedAtIso: new Date().toISOString(),
+    status,
+    rootWritable,
+    checkpointCount: entries.length,
+    knownBytes: entries.reduce((sum, entry) => sum + (entry.bytes ?? 0), 0),
+    unknownSizeCheckpointIds,
+    blockedCheckpointIds,
+    scanError,
   }
 }
 
@@ -5155,10 +5286,18 @@ async function createToolingCheckpointUnlocked(params: {
       partial: checkpoint.partial,
     },
   })
-    await pruneToolingCheckpoints(workspace, id)
+    const pruneFailedCheckpointIds = await pruneToolingCheckpoints(workspace, id)
+    if (pruneFailedCheckpointIds.length > 0) {
+      checkpoint.pruneFailedCheckpointIds = pruneFailedCheckpointIds
+      await writeFile(join(checkpointDir, 'metadata.json'), `${JSON.stringify(checkpoint, null, 2)}\n`, 'utf8')
+    }
     return checkpoint
   } catch (error) {
-    await rm(checkpointDir, { recursive: true, force: true })
+    try {
+      await rm(checkpointDir, { recursive: true, force: true })
+    } catch (cleanupError) {
+      console.warn(`Failed to clean up incomplete tooling checkpoint ${id}: ${checkpointErrorMessage(cleanupError)}`)
+    }
     throw error
   }
 }
@@ -5201,7 +5340,8 @@ function isToolingCheckpoint(value: unknown): value is ToolingCheckpoint {
     typeof row.hasPatch === 'boolean' &&
     (row.untrackedBytes === undefined || typeof row.untrackedBytes === 'number') &&
     (row.skippedUntrackedPaths === undefined || (Array.isArray(row.skippedUntrackedPaths) && row.skippedUntrackedPaths.every((path) => typeof path === 'string'))) &&
-    (row.partial === undefined || typeof row.partial === 'boolean')
+    (row.partial === undefined || typeof row.partial === 'boolean') &&
+    (row.pruneFailedCheckpointIds === undefined || (Array.isArray(row.pruneFailedCheckpointIds) && row.pruneFailedCheckpointIds.every((id) => typeof id === 'string')))
   )
 }
 

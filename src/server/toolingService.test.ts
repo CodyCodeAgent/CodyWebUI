@@ -1,5 +1,5 @@
 import { execFile } from 'node:child_process'
-import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises'
+import { chmod, mkdir, mkdtemp, readFile, realpath, rm, utimes, writeFile } from 'node:fs/promises'
 import { createServer, type Server } from 'node:http'
 import type { AddressInfo } from 'node:net'
 import { tmpdir } from 'node:os'
@@ -27,6 +27,8 @@ import {
   readWorkspaceFile,
   readWorkspaceAsset,
   writeWorkspaceFile,
+  createToolingCheckpoint,
+  getToolingCheckpointHealth,
   listToolingCheckpoints,
   readToolingCheckpointPatch,
   rollbackWorkspaceFile,
@@ -771,6 +773,41 @@ describe('toolingService', () => {
       paths: ['example.txt'],
       hasPatch: true,
     })
+  })
+
+  it.skipIf(process.platform === 'win32')('keeps creating checkpoints when a stale checkpoint cannot be pruned', async () => {
+    const repo = await createRepo()
+    const legacyId = 'legacy-permission-checkpoint'
+    const legacyRoot = join(repo, '.git/cody-web-ui-checkpoints', legacyId)
+    const lockedDirectory = join(legacyRoot, 'untracked', '.tmp-go-mod')
+    await mkdir(lockedDirectory, { recursive: true })
+    await writeFile(join(lockedDirectory, '.travis.yml'), 'legacy\n', 'utf8')
+    const oldTimestamp = new Date(Date.now() - 8 * 24 * 60 * 60 * 1000)
+    await utimes(legacyRoot, oldTimestamp, oldTimestamp)
+    await chmod(lockedDirectory, 0o000)
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+
+    try {
+      await writeFile(join(repo, 'example.txt'), 'two\n', 'utf8')
+      const checkpoint = await createToolingCheckpoint({ cwd: repo, label: 'After legacy failure' })
+      const nextCheckpoint = await createToolingCheckpoint({ cwd: repo, label: 'During prune backoff' })
+      const health = await getToolingCheckpointHealth(repo)
+
+      expect(checkpoint.hasPatch).toBe(true)
+      expect(checkpoint.pruneFailedCheckpointIds).toContain(legacyId)
+      expect(nextCheckpoint.pruneFailedCheckpointIds).toContain(legacyId)
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining(`Failed to prune tooling checkpoint ${legacyId}`))
+      expect(warn).toHaveBeenCalledTimes(1)
+      expect(health).toMatchObject({
+        status: 'degraded',
+        rootWritable: true,
+        unknownSizeCheckpointIds: [legacyId],
+        blockedCheckpointIds: [legacyId],
+      })
+    } finally {
+      await chmod(lockedDirectory, 0o700).catch(() => undefined)
+      warn.mockRestore()
+    }
   })
 
   it('rejects unsafe checkpoint patch ids', async () => {

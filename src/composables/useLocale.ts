@@ -242,6 +242,13 @@ const MESSAGES = {
     'markdown.expandCode': 'Show all · {count} lines',
     'markdown.collapseCode': 'Collapse code',
 
+    'checkpointHealth.eyebrow': 'Recovery checkpoints',
+    'checkpointHealth.degradedTitle': 'Checkpoint recovery needs attention',
+    'checkpointHealth.unhealthyTitle': 'Checkpoint recovery is unavailable',
+    'checkpointHealth.summary': '{blocked} cleanup blocked · {unknown} unmeasured · {bytes} measured',
+    'checkpointHealth.backoff': 'Automatic checkpoints paused after {count} failures. Next retry: {time}.',
+    'checkpointHealth.guidance': 'Agent work can continue, but fix the checkpoint directory permissions to restore reliable recovery points.',
+
     'workLog.title': 'Work log',
     'workLog.open': 'Open work log',
     'workLog.close': 'Close work log',
@@ -726,6 +733,13 @@ const MESSAGES = {
     'markdown.lineCount': '{count} 行',
     'markdown.expandCode': '展开全部 · 共 {count} 行',
     'markdown.collapseCode': '收起代码',
+
+    'checkpointHealth.eyebrow': '恢复检查点',
+    'checkpointHealth.degradedTitle': '检查点恢复能力需要处理',
+    'checkpointHealth.unhealthyTitle': '检查点恢复能力不可用',
+    'checkpointHealth.summary': '{blocked} 个清理受阻 · {unknown} 个体积未知 · 已统计 {bytes}',
+    'checkpointHealth.backoff': '自动检查点已连续失败 {count} 次，下次重试：{time}。',
+    'checkpointHealth.guidance': 'Agent 仍可继续工作，但需要修复检查点目录权限，才能恢复可靠的回滚能力。',
 
     'workLog.title': '工作日志',
     'workLog.open': '打开工作日志',

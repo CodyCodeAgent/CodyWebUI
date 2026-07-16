@@ -55,12 +55,13 @@ export async function runControlledProcess(options: ControlledProcessOptions): P
   const startedAt = Date.now()
   const timeoutMs = Math.max(250, options.timeoutMs ?? 15_000)
   const maxOutputBytes = Math.max(1_024, options.maxOutputBytes ?? 2 * 1024 * 1024)
+  const hasInput = typeof options.input === 'string' && options.input.length > 0
 
   try {
     return await new Promise<ControlledProcessResult>((resolve, reject) => {
       const child = spawn(options.command, options.args, {
         cwd: options.cwd,
-        stdio: ['pipe', 'pipe', 'pipe'],
+        stdio: [hasInput ? 'pipe' : 'ignore', 'pipe', 'pipe'],
         windowsHide: true,
       })
       const stdout: Buffer[] = []
@@ -110,11 +111,17 @@ export async function runControlledProcess(options: ControlledProcessOptions): P
       const timeoutTimer = setTimeout(() => terminate(new Error(`${options.command} timed out after ${String(timeoutMs)}ms`)), timeoutMs)
       timeoutTimer.unref?.()
       options.signal?.addEventListener('abort', onAbort, { once: true })
-      child.stdout.on('data', (chunk: Buffer) => collect(stdout, chunk))
-      child.stderr.on('data', (chunk: Buffer) => collect(stderr, chunk))
+      child.stdout?.on('data', (chunk: Buffer) => collect(stdout, chunk))
+      child.stderr?.on('data', (chunk: Buffer) => collect(stderr, chunk))
       child.once('error', (error) => finish(error))
       child.once('close', (code) => finish(terminationError ?? undefined, code ?? -1))
-      child.stdin.end(options.input ?? '')
+      if (hasInput && child.stdin) {
+        child.stdin.on('error', (error: NodeJS.ErrnoException) => {
+          if (error.code === 'EPIPE' || error.code === 'ERR_STREAM_DESTROYED') return
+          terminate(error)
+        })
+        child.stdin.end(options.input)
+      }
     })
   } finally {
     releaseSlot()
