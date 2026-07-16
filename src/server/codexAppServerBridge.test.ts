@@ -280,7 +280,7 @@ describe('bridge server request endpoints', () => {
     }
   })
 
-  it('keeps smoke-only server request injection disabled unless explicitly enabled', async () => {
+  it('keeps smoke-only hooks disabled unless explicitly enabled', async () => {
     const previousSmokeHooks = process.env.CODY_WEB_UI_ENABLE_SMOKE_HOOKS
     const sharedBridgeKey = '__codexRemoteSharedBridge__'
     const injectedPayloads: unknown[] = []
@@ -372,6 +372,12 @@ describe('bridge server request endpoints', () => {
         body: { error: 'Not found' },
       })
       expect(injectedPayloads).toEqual([])
+      await expect(readJsonResponse(`${baseUrl}/codex-api/smoke/controlled-process-epipe`, {
+        method: 'POST',
+      })).resolves.toEqual({
+        status: 404,
+        body: { error: 'Not found' },
+      })
 
       process.env.CODY_WEB_UI_ENABLE_SMOKE_HOOKS = '1'
       await expect(readJson(`${baseUrl}/codex-api/smoke/server-requests`, {
@@ -385,6 +391,9 @@ describe('bridge server request endpoints', () => {
         }),
       })
       expect(injectedPayloads).toEqual([body])
+      await expect(readJson(`${baseUrl}/codex-api/smoke/controlled-process-epipe`, {
+        method: 'POST',
+      })).resolves.toMatchObject({ result: { exitCode: 0 } })
     } finally {
       if (previousSmokeHooks === undefined) {
         delete process.env.CODY_WEB_UI_ENABLE_SMOKE_HOOKS
@@ -522,6 +531,22 @@ describe('approval audit helpers', () => {
 })
 
 describe('automatic turn checkpoints', () => {
+  it('backs off repeated attempts after a workspace checkpoint failure', async () => {
+    const missingWorkspace = join(tmpdir(), `cody-web-ui-missing-${String(Date.now())}`)
+    const notification = {
+      method: 'turn/started',
+      params: { turn: { id: 'turn-failure', threadId: 'thread-failure' } },
+    }
+
+    await expect(createAutomaticTurnCheckpoint(missingWorkspace, notification)).rejects.toThrow()
+    await expect(createAutomaticTurnCheckpoint(missingWorkspace, notification)).resolves.toMatchObject({
+      beforeCheckpointSkipped: true,
+      beforeCheckpointReason: 'checkpoint-failure-backoff',
+      beforeCheckpointFailureCount: 1,
+      beforeCheckpointRetryAtIso: expect.any(String),
+    })
+  })
+
   it('deduplicates an unchanged after-turn checkpoint', async () => {
     const repo = await createRepo()
     await writeFile(join(repo, 'example.txt'), 'two\n', 'utf8')

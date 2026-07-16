@@ -338,6 +338,26 @@ export type UiToolingCheckpoint = {
   untrackedBytes?: number
   skippedUntrackedPaths?: string[]
   partial?: boolean
+  pruneFailedCheckpointIds?: string[]
+}
+
+export type UiCheckpointHealth = {
+  cwd: string
+  repoRoot: string
+  checkpointRoot: string
+  generatedAtIso: string
+  status: 'healthy' | 'degraded' | 'unhealthy'
+  rootWritable: boolean
+  checkpointCount: number
+  knownBytes: number
+  unknownSizeCheckpointIds: string[]
+  blockedCheckpointIds: string[]
+  scanError: string
+  automaticBackoff: {
+    failureCount: number
+    retryAtIso: string
+    active: boolean
+  } | null
 }
 
 export type UiToolingCheckpointPatch = {

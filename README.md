@@ -279,7 +279,7 @@ git diff --check
 
 `npm run verify` builds the app and runs the default non-token validation
 suite: typecheck, unit tests, whitespace checks, packaged CLI smoke, npm package
-dry-run smoke, approval center browser smoke, composer input smoke, Settings
+dry-run smoke, controlled-process EPIPE survival smoke, approval center browser smoke, composer input smoke, Settings
 theme persistence and visual-health smoke, empty thread lifecycle smoke, and
 Work log browser smoke with panel/fullscreen visual-health checks. It also runs
 the large-thread history, live-turn, and natural-approval smokes in their
@@ -291,6 +291,9 @@ Manual smoke checks before publishing or sharing a build:
 
 - Run `npm run build && npm run smoke:cli` to verify the packaged CLI can
   start, serve the app shell, and answer the local meta API.
+- Run `npm run smoke:controlled-process` after a build to make a bundled child
+  process close stdin early, then verify the packaged CodyWebUI server remains
+  alive and continues answering health requests.
 - Run `npm run smoke:package` after a build to verify `npm pack --dry-run`
   contains the expected `cody-web-ui` package name, CLI bin, built frontend,
   built CLI, README, license, smoke scripts, and no legacy package branding.

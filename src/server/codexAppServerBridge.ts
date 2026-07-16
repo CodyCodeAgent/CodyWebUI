@@ -3,7 +3,7 @@ import { mkdtemp, readFile } from 'node:fs/promises'
 import type { Server as HttpServer, IncomingMessage, ServerResponse } from 'node:http'
 import type { Socket } from 'node:net'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { join, resolve } from 'node:path'
 import { cwd as getProcessCwd } from 'node:process'
 import { WebSocket, WebSocketServer } from 'ws'
 import {
@@ -16,6 +16,7 @@ import {
   type CatalogVisibility,
 } from './catalogStore.js'
 import { CatalogSyncService } from './catalogSyncService.js'
+import { runControlledProcess } from './controlledProcess.js'
 import { handleDirectoryList } from './directoryBrowser.js'
 import {
   isApprovalRequestMethod,
@@ -82,6 +83,7 @@ import {
   handleWriteWorkspaceFile,
   createWorkspaceWorkflowRun,
   createToolingCheckpoint,
+  getToolingCheckpointHealth,
   readToolingCheckpointFingerprint,
   createPersistentApprovalGrant,
   evaluateWorkspaceFileChangePolicy,
@@ -1709,6 +1711,9 @@ function sendBridgeWebSocketMessage(socket: WebSocket, message: BridgeWebSocketM
 const SHARED_BRIDGE_KEY = '__codexRemoteSharedBridge__'
 const notificationPersistenceQueueByThread = new Map<string, Promise<void>>()
 const automaticCheckpointFingerprintByTurn = new Map<string, string>()
+const AUTOMATIC_CHECKPOINT_BACKOFF_BASE_MS = 30_000
+const AUTOMATIC_CHECKPOINT_BACKOFF_MAX_MS = 5 * 60_000
+const automaticCheckpointBackoffByWorkspace = new Map<string, { failureCount: number; retryAtMs: number }>()
 
 function enqueueNotificationPersistence(key: string, task: () => Promise<void>): void {
   const previous = notificationPersistenceQueueByThread.get(key) ?? Promise.resolve()
@@ -1729,36 +1734,68 @@ export async function createAutomaticTurnCheckpoint(
       : ''
   if (!phase) return {}
 
-  const threadId = readNotificationThreadId(notification.params)
-  const turnId = readNotificationTurnId(notification.params)
-  const { repositoryKey, fingerprint, dirty } = await readToolingCheckpointFingerprint(cwd)
-  const fingerprintKey = `${repositoryKey}:${threadId}:${turnId}`
-  if (phase === 'after' && automaticCheckpointFingerprintByTurn.get(fingerprintKey) === fingerprint) {
-    automaticCheckpointFingerprintByTurn.delete(fingerprintKey)
-    return { afterCheckpointSkipped: true, afterCheckpointReason: 'workspace-unchanged' }
-  }
-  if (phase === 'before') automaticCheckpointFingerprintByTurn.set(fingerprintKey, fingerprint)
-  else automaticCheckpointFingerprintByTurn.delete(fingerprintKey)
-  while (automaticCheckpointFingerprintByTurn.size > 1_000) {
-    const oldestKey = automaticCheckpointFingerprintByTurn.keys().next().value as string | undefined
-    if (!oldestKey) break
-    automaticCheckpointFingerprintByTurn.delete(oldestKey)
-  }
-  if (!dirty) {
-    const prefix = phase === 'before' ? 'beforeCheckpoint' : 'afterCheckpoint'
-    return { [`${prefix}Skipped`]: true, [`${prefix}Reason`]: 'workspace-clean' }
-  }
-  const label = `${phase === 'before' ? 'Before' : 'After'} turn ${shortId(turnId)} (${shortId(threadId)})`
-  const checkpoint = await createToolingCheckpoint({
-    cwd,
-    label,
-    untrackedPolicy: 'files-only',
-  })
   const prefix = phase === 'before' ? 'beforeCheckpoint' : 'afterCheckpoint'
-  return {
-    [`${prefix}Id`]: checkpoint.id,
-    [`${prefix}HasPatch`]: checkpoint.hasPatch,
-    [`${prefix}PatchBytes`]: checkpoint.patchBytes,
+  const backoffKey = resolve(cwd)
+  const backoff = automaticCheckpointBackoffByWorkspace.get(backoffKey)
+  if (backoff && backoff.retryAtMs > Date.now()) {
+    return {
+      [`${prefix}Skipped`]: true,
+      [`${prefix}Reason`]: 'checkpoint-failure-backoff',
+      [`${prefix}FailureCount`]: backoff.failureCount,
+      [`${prefix}RetryAtIso`]: new Date(backoff.retryAtMs).toISOString(),
+    }
+  }
+
+  try {
+    const threadId = readNotificationThreadId(notification.params)
+    const turnId = readNotificationTurnId(notification.params)
+    const { repositoryKey, fingerprint, dirty } = await readToolingCheckpointFingerprint(cwd)
+    const fingerprintKey = `${repositoryKey}:${threadId}:${turnId}`
+    if (phase === 'after' && automaticCheckpointFingerprintByTurn.get(fingerprintKey) === fingerprint) {
+      automaticCheckpointFingerprintByTurn.delete(fingerprintKey)
+      automaticCheckpointBackoffByWorkspace.delete(backoffKey)
+      return { afterCheckpointSkipped: true, afterCheckpointReason: 'workspace-unchanged' }
+    }
+    if (phase === 'before') automaticCheckpointFingerprintByTurn.set(fingerprintKey, fingerprint)
+    else automaticCheckpointFingerprintByTurn.delete(fingerprintKey)
+    while (automaticCheckpointFingerprintByTurn.size > 1_000) {
+      const oldestKey = automaticCheckpointFingerprintByTurn.keys().next().value as string | undefined
+      if (!oldestKey) break
+      automaticCheckpointFingerprintByTurn.delete(oldestKey)
+    }
+    if (!dirty) {
+      automaticCheckpointBackoffByWorkspace.delete(backoffKey)
+      return { [`${prefix}Skipped`]: true, [`${prefix}Reason`]: 'workspace-clean' }
+    }
+    const label = `${phase === 'before' ? 'Before' : 'After'} turn ${shortId(turnId)} (${shortId(threadId)})`
+    const checkpoint = await createToolingCheckpoint({
+      cwd,
+      label,
+      untrackedPolicy: 'files-only',
+    })
+    automaticCheckpointBackoffByWorkspace.delete(backoffKey)
+    return {
+      [`${prefix}Id`]: checkpoint.id,
+      [`${prefix}HasPatch`]: checkpoint.hasPatch,
+      [`${prefix}PatchBytes`]: checkpoint.patchBytes,
+      ...(checkpoint.pruneFailedCheckpointIds?.length
+        ? { [`${prefix}PruneFailedCheckpointIds`]: checkpoint.pruneFailedCheckpointIds }
+        : {}),
+    }
+  } catch (error) {
+    const failureCount = (backoff?.failureCount ?? 0) + 1
+    const delayMs = Math.min(
+      AUTOMATIC_CHECKPOINT_BACKOFF_MAX_MS,
+      AUTOMATIC_CHECKPOINT_BACKOFF_BASE_MS * 2 ** Math.min(failureCount - 1, 10),
+    )
+    automaticCheckpointBackoffByWorkspace.delete(backoffKey)
+    automaticCheckpointBackoffByWorkspace.set(backoffKey, { failureCount, retryAtMs: Date.now() + delayMs })
+    while (automaticCheckpointBackoffByWorkspace.size > 1_000) {
+      const oldestKey = automaticCheckpointBackoffByWorkspace.keys().next().value as string | undefined
+      if (!oldestKey) break
+      automaticCheckpointBackoffByWorkspace.delete(oldestKey)
+    }
+    throw error
   }
 }
 
@@ -2065,6 +2102,31 @@ export function createCodexBridgeMiddleware(): CodexBridgeMiddleware {
 
       if (req.method === 'GET' && url.pathname === '/codex-api/tooling/workspace-security') {
         await handleWorkspaceSecuritySnapshot(url, res)
+        return
+      }
+
+      if (req.method === 'GET' && url.pathname === '/codex-api/tooling/checkpoint-health') {
+        try {
+          const cwd = url.searchParams.get('cwd')?.trim() ?? ''
+          const health = await getToolingCheckpointHealth(cwd)
+          const backoff = automaticCheckpointBackoffByWorkspace.get(resolve(cwd))
+          setJson(res, 200, {
+            result: {
+              ...health,
+              status: backoff && health.status === 'healthy' ? 'degraded' : health.status,
+              automaticBackoff: backoff
+                ? {
+                    failureCount: backoff.failureCount,
+                    retryAtIso: new Date(backoff.retryAtMs).toISOString(),
+                    active: backoff.retryAtMs > Date.now(),
+                  }
+                : null,
+            },
+          })
+        } catch (error) {
+          const message = error instanceof Error && error.message ? error.message : 'Failed to inspect checkpoint health'
+          setJson(res, 400, { error: message })
+        }
         return
       }
 
@@ -2391,6 +2453,22 @@ export function createCodexBridgeMiddleware(): CodexBridgeMiddleware {
         }
         const payload = await readJsonBody(req)
         const result = appServer.injectSmokeServerRequest(payload)
+        setJson(res, 200, { result })
+        return
+      }
+
+      if (req.method === 'POST' && url.pathname === '/codex-api/smoke/controlled-process-epipe') {
+        if (!areSmokeHooksEnabled()) {
+          setJson(res, 404, { error: 'Not found' })
+          return
+        }
+        const result = await runControlledProcess({
+          command: process.execPath,
+          args: ['-e', 'process.stdin.destroy(); setTimeout(() => process.exit(0), 25)'],
+          cwd: getProcessCwd(),
+          input: 'x'.repeat(8 * 1024 * 1024),
+          timeoutMs: 2_000,
+        })
         setJson(res, 200, { result })
         return
       }

@@ -1,5 +1,6 @@
 import type {
   UiAuditTrail,
+  UiCheckpointHealth,
   UiCodexSessionEventTrail,
   UiNotificationDeliveryReport,
   UiWorkspaceSessionSummaryTrail,
@@ -30,6 +31,28 @@ export async function fetchWorkspaceAuditEvents(cwd: string, limit = 30): Promis
   }
 
   return result as UiAuditTrail
+}
+
+export async function fetchCheckpointHealth(cwd: string): Promise<UiCheckpointHealth> {
+  const { result, status } = await fetchCodexResultRecord(queryPath('/codex-api/tooling/checkpoint-health', { cwd }), {
+    method: 'tooling/checkpoint-health',
+    networkErrorMessage: 'Checkpoint health request failed before it was sent',
+    httpErrorMessage: 'Checkpoint health request failed',
+    malformedMessage: 'Checkpoint health returned malformed response',
+  })
+  if (
+    typeof result.status !== 'string' ||
+    typeof result.checkpointRoot !== 'string' ||
+    !Array.isArray(result.unknownSizeCheckpointIds) ||
+    !Array.isArray(result.blockedCheckpointIds)
+  ) {
+    throw new CodexApiError('Checkpoint health returned malformed response', {
+      code: 'invalid_response',
+      method: 'tooling/checkpoint-health',
+      status,
+    })
+  }
+  return result as UiCheckpointHealth
 }
 
 export async function fetchCodexSessionEvents(

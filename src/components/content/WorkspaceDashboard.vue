@@ -18,6 +18,7 @@
     </header>
 
     <p v-if="errorMessage" class="workspace-dashboard-error">{{ errorMessage }}</p>
+    <WorkspaceCheckpointHealthNotice :health="checkpointHealth" />
 
     <div class="workspace-dashboard-grid">
       <section class="workspace-dashboard-panel" aria-label="Repository status">
@@ -342,6 +343,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import {
+  fetchCheckpointHealth,
   fetchWorkspaceRecentSessions,
   testWorkspaceNotifications,
 } from '../../api/codexSessionClient'
@@ -385,6 +387,7 @@ import {
 } from '../../composables/workspaceDashboardRules'
 import type {
   UiNotificationDeliveryReport,
+  UiCheckpointHealth,
   UiRateLimitSnapshot,
   UiServerRequestReply,
   UiServerRequest,
@@ -398,6 +401,7 @@ import WorkspaceAccessSecurityPanel from './WorkspaceAccessSecurityPanel.vue'
 import WorkspaceApprovalCenter from './WorkspaceApprovalCenter.vue'
 import WorkspaceAuditPanel from './WorkspaceAuditPanel.vue'
 import WorkspaceCommandsPanel from './WorkspaceCommandsPanel.vue'
+import WorkspaceCheckpointHealthNotice from './WorkspaceCheckpointHealthNotice.vue'
 import WorkspaceDiagnosticsPanel from './WorkspaceDiagnosticsPanel.vue'
 import WorkspaceFilesPanel from './WorkspaceFilesPanel.vue'
 import WorkspaceGitPanel from './WorkspaceGitPanel.vue'
@@ -430,6 +434,7 @@ defineEmits<{
 }>()
 
 const snapshot = ref<UiWorkspaceSnapshot | null>(null)
+const checkpointHealth = ref<UiCheckpointHealth | null>(null)
 const validationHistoryRuns = ref<UiWorkspaceScriptRun[]>([])
 const recentSessions = ref<UiWorkspaceSessionSummary[]>([])
 const notificationTestReport = ref<UiNotificationDeliveryReport | null>(null)
@@ -535,6 +540,7 @@ async function loadSnapshot(): Promise<void> {
   const cwd = props.cwd.trim()
   if (!cwd) {
     snapshot.value = null
+    checkpointHealth.value = null
     validationHistoryRuns.value = []
     recentSessions.value = []
     errorMessage.value = ''
@@ -544,16 +550,19 @@ async function loadSnapshot(): Promise<void> {
   isLoading.value = true
   errorMessage.value = ''
   try {
-    const [nextSnapshot, history, sessionTrail] = await Promise.all([
+    const [nextSnapshot, history, sessionTrail, nextCheckpointHealth] = await Promise.all([
       fetchWorkspaceSnapshot(cwd),
       fetchWorkspaceValidationRuns(cwd, 12),
       fetchWorkspaceRecentSessions(cwd, 12),
+      fetchCheckpointHealth(cwd).catch(() => null),
     ])
     snapshot.value = nextSnapshot
+    checkpointHealth.value = nextCheckpointHealth
     validationHistoryRuns.value = history.runs
     recentSessions.value = sessionTrail.sessions
   } catch (error) {
     snapshot.value = null
+    checkpointHealth.value = null
     validationHistoryRuns.value = []
     recentSessions.value = []
     errorMessage.value = error instanceof Error ? error.message : 'Failed to load workspace snapshot.'
