@@ -71,6 +71,7 @@ function areMessageToolsEqual(first: UiMessage['tool'], second: UiMessage['tool'
 function areMessageFieldsEqual(first: UiMessage, second: UiMessage): boolean {
   return (
     first.id === second.id &&
+    first.turnId === second.turnId &&
     first.role === second.role &&
     first.text === second.text &&
     areStringArraysEqual(first.images, second.images) &&
@@ -109,6 +110,50 @@ function isMatchingUserMessage(first: UiMessage, second: UiMessage): boolean {
   if (!areMessageImagesEqual(first.images, second.images)) return false
   if (!areMessageSkillsEqual(first.skills, second.skills)) return false
   return true
+}
+
+function isMatchingTurnUserMessage(first: UiMessage, second: UiMessage): boolean {
+  return Boolean(
+    first.turnId &&
+    second.turnId &&
+    first.turnId === second.turnId &&
+    isPersistedUserMessage(first) &&
+    isPersistedUserMessage(second) &&
+    isMatchingUserMessage(first, second),
+  )
+}
+
+function turnUserIdentity(message: UiMessage): string {
+  if (!message.turnId || !isPersistedUserMessage(message)) return ''
+  const images = (message.images ?? []).map(normalizeImageIdentity).join('\u0001')
+  const skills = (message.skills ?? []).map((skill) => `${skill.name}\u0002${skill.path}`).join('\u0001')
+  return `${message.turnId}\u0000${normalizeMessageText(message.text)}\u0000${images}\u0000${skills}`
+}
+
+function insertIncomingRowsAtProtocolPosition(base: UiMessage[], rows: UiMessage[], incoming: UiMessage[]): UiMessage[] {
+  if (rows.length === 0) return base
+  const result = [...base]
+  const incomingIndex = new Map(incoming.map((message, index) => [message.id, index]))
+  for (const row of rows) {
+    const position = incomingIndex.get(row.id) ?? incoming.length
+    let insertionIndex = -1
+    for (let index = position - 1; index >= 0; index -= 1) {
+      const anchor = result.findIndex((message) => message.id === incoming[index]?.id)
+      if (anchor >= 0) { insertionIndex = anchor + 1; break }
+    }
+    if (insertionIndex < 0) {
+      for (let index = position + 1; index < incoming.length; index += 1) {
+        const anchor = result.findIndex((message) => message.id === incoming[index]?.id)
+        if (anchor >= 0) { insertionIndex = anchor; break }
+      }
+    }
+    if (insertionIndex < 0 && row.turnId) {
+      const receipt = result.findIndex((message) => message.turnId === row.turnId && message.messageType === WORKED_MESSAGE_TYPE)
+      if (receipt >= 0) insertionIndex = receipt
+    }
+    result.splice(insertionIndex < 0 ? result.length : insertionIndex, 0, row)
+  }
+  return result
 }
 
 export function removeDuplicateAdjacentUserMessages(messages: UiMessage[]): UiMessage[] {
@@ -225,15 +270,37 @@ export function mergeMessages(
 
   const optimisticReplacements = replaceOptimisticUserMessages(previous, mergedIncoming)
 
+  // Codex history and realtime notifications both expose a parent turnId. An
+  // item can occasionally be replayed with a different/transient item id; in
+  // that case replace the row in its original turn instead of appending the
+  // historical message at the bottom of the conversation.
+  const consumedTurnLinkedIncomingIds = new Set<string>()
+  const turnLinkedIncoming = new Map<string, UiMessage[]>()
+  for (const incomingMessage of mergedIncoming) {
+    const key = turnUserIdentity(incomingMessage)
+    if (!key) continue
+    const matches = turnLinkedIncoming.get(key)
+    if (matches) matches.push(incomingMessage)
+    else turnLinkedIncoming.set(key, [incomingMessage])
+  }
+
   const mergedFromPrevious = optimisticReplacements.messages.map((previousMessage) => {
     const nextMessage = incomingById.get(previousMessage.id)
-    if (!nextMessage) {
-      return previousMessage
+    if (nextMessage) {
+      if (areMessageFieldsEqual(previousMessage, nextMessage)) {
+        return previousMessage
+      }
+      return nextMessage
     }
-    if (areMessageFieldsEqual(previousMessage, nextMessage)) {
-      return previousMessage
+
+    const key = turnUserIdentity(previousMessage)
+    const turnLinkedReplacement = (key ? turnLinkedIncoming.get(key) : undefined)
+      ?.find((incomingMessage) => !consumedTurnLinkedIncomingIds.has(incomingMessage.id) && isMatchingTurnUserMessage(previousMessage, incomingMessage))
+    if (turnLinkedReplacement) {
+      consumedTurnLinkedIncomingIds.add(turnLinkedReplacement.id)
+      return turnLinkedReplacement
     }
-    return nextMessage
+    return previousMessage
   })
 
   const previousIdSet = new Set(optimisticReplacements.messages.map((message) => message.id))
@@ -248,7 +315,11 @@ export function mergeMessages(
     .slice(lastTurnBoundaryIndex + 1)
     .filter(isPersistedUserMessage)
   const appended = mergedIncoming.filter((message) => {
-    if (previousIdSet.has(message.id) || optimisticReplacements.consumedIncomingIds.has(message.id)) return false
+    if (
+      previousIdSet.has(message.id) ||
+      optimisticReplacements.consumedIncomingIds.has(message.id) ||
+      consumedTurnLinkedIncomingIds.has(message.id)
+    ) return false
     // Silent history refreshes and item/completed notifications can deliver
     // the same user item with different transient ids. Do not append it below
     // an already-streaming assistant response. A Worked receipt is the turn
@@ -259,7 +330,8 @@ export function mergeMessages(
     }
     return true
   })
-  const merged = removeDuplicateAdjacentUserMessages(removeDuplicateMessageIds([...mergedFromPrevious, ...appended]))
+  const ordered = insertIncomingRowsAtProtocolPosition(mergedFromPrevious, appended, mergedIncoming)
+  const merged = removeDuplicateAdjacentUserMessages(removeDuplicateMessageIds(ordered))
 
   return areMessageArraysEqual(previous, merged) ? previous : merged
 }
@@ -398,12 +470,14 @@ export function upsertLiveAssistantDelta(
     messageId: string
     textDelta: string
     messageType: LiveAssistantMessageType
+    turnId?: string
   },
 ): UiMessage[] {
   if (!delta.messageId || !delta.textDelta) return previous
   const existing = previous.find((message) => message.id === delta.messageId)
   return upsertMessage(previous, {
     id: delta.messageId,
+    turnId: delta.turnId || existing?.turnId,
     role: 'assistant',
     text: `${existing?.text ?? ''}${delta.textDelta}`,
     messageType: delta.messageType,
@@ -417,6 +491,7 @@ export function upsertLiveAssistantDeltaForThread(
     messageId: string
     textDelta: string
     messageType: LiveAssistantMessageType
+    turnId?: string
   },
 ): Record<string, UiMessage[]> {
   if (!threadId) return state
@@ -663,6 +738,7 @@ export function resolveTurnDurationMs(values: {
 export function buildTurnSummaryMessage(summary: TurnSummaryState): UiMessage {
   return {
     id: `turn-summary:${summary.turnId}`,
+    turnId: summary.turnId,
     role: 'system',
     text: `Worked for ${formatTurnDuration(summary.durationMs)}`,
     messageType: WORKED_MESSAGE_TYPE,

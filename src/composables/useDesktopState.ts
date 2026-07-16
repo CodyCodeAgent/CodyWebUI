@@ -921,6 +921,7 @@ export function useDesktopState() {
           messageId: liveAgentMessageDelta.messageId,
           textDelta: liveAgentMessageDelta.delta,
           messageType: 'agentMessage.live',
+          turnId: liveAgentMessageDelta.turnId,
         },
       )
     }
@@ -942,6 +943,7 @@ export function useDesktopState() {
           messageId: livePlanMessageDelta.messageId,
           textDelta: livePlanMessageDelta.delta,
           messageType: 'plan.live',
+          turnId: livePlanMessageDelta.turnId,
         },
       )
     }

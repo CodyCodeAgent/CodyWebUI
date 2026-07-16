@@ -225,7 +225,7 @@
 
         <section class="content-body">
           <template v-if="isSettingsRoute">
-            <AppSettingsPage />
+            <AppSettingsPage :projects="newThreadProjectOptions" @select-thread="onSelectThread" />
           </template>
           <template v-else-if="isSkillsRoute">
             <WorkspaceSkillsPage :cwd="skillsCwd" :project-label="skillsProjectLabel" />

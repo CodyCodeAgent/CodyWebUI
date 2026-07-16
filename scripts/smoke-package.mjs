@@ -55,6 +55,7 @@ function assertPackedFiles(packResult) {
     'dist/index.html',
     'dist-cli/index.js',
     'scripts/smoke-cli.mjs',
+    'scripts/smoke-agent-tasks.mjs',
     'scripts/smoke-catalog.mjs',
     'scripts/smoke-history.mjs',
     'scripts/smoke-package.mjs',

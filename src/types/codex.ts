@@ -73,6 +73,8 @@ export type UiThread = {
 
 export type UiMessage = {
   id: string
+  /** Parent Codex turn. Used to reconcile realtime items with history safely. */
+  turnId?: string
   role: 'user' | 'assistant' | 'system'
   text: string
   images?: string[]

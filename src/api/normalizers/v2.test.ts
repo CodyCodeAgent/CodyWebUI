@@ -87,9 +87,12 @@ describe('normalizeThreadMessagesV2', () => {
     ])
 
     expect(messages.at(-1)).toMatchObject({
+      turnId: 'turn-1',
       messageType: 'worked',
       role: 'system',
     })
+
+    expect(messages.every((message) => message.turnId === 'turn-1')).toBe(true)
 
     expect(messages[1]).toMatchObject({
       role: 'system',
