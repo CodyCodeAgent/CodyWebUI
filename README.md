@@ -40,11 +40,58 @@ protocol.
   SQLite.
 - Reconcile the local catalog on startup, from Codex events, and every 30
   seconds in the background.
+- Schedule persistent Agent tasks from plain language or a form using one-time,
+  interval, daily, weekly, monthly, workday, exclusion-date, or Cron plans.
 - Apply persistent light/dark skins, accent colors, global density, and five
   workspace layout presets across Settings, conversations, and dashboards.
 - View account rate limits and token usage.
 - Use a configurable token flame widget for daily usage intensity.
 - Protect remote browser access with a password by default.
+
+### Agent task automation
+
+Settings → Automation can create an Agent task from a custom instruction or a
+saved prompt template. Each run creates a separate Codex thread so its context,
+approval requests, token usage, and result remain independently auditable.
+
+Task definitions, immutable definition versions, run timelines, delivery state,
+and run history are stored in the CodyWebUI SQLite database. The scheduler
+recovers after service restarts, retries failures with bounded backoff, and
+supports three explicit overlap policies: skip the new run, keep one queued
+run, or cancel the old run and replace it. Active runs can be cancelled from
+the UI.
+
+Retries are tracked per scheduled run rather than across the lifetime of the
+task. On restart, CodyWebUI reads the associated Codex thread before deciding
+whether an interrupted local scheduler record succeeded or failed. A SQLite
+lease elects one scheduler when multiple CodyWebUI Node processes share the
+same settings database; run completion and delivery are committed once.
+
+Safety controls include per-run time and token limits, automatic pause after a
+configurable number of consecutive failures, and per-task notification rules.
+Read-only access is the default. Workspace-write tasks remain sandboxed to the
+selected workspace with network access disabled; actions that cross that
+boundary surface through the normal approval center.
+
+Results always remain in the independent Codex conversation. A task can also
+append its result to a workspace-relative file, deliver it through configured
+workspace notification/webhook channels, or do both. Settings → Automation
+also supports task duplication, JSON import/export, definition rollback, and a
+step-by-step run timeline.
+
+Task workspaces are restricted to visible projects in the local catalog once
+the catalog has been populated. Deleting a task archives its definition and
+cancels pending queued runs while retaining versions and completed run history
+for audit. The Archived view can restore a task in a paused state or permanently
+delete its definition, versions, timeline, and run history after an explicit
+confirmation. Batch imports are validated completely before any definition is
+created. For daylight-saving transitions, nonexistent local times shift forward
+by the DST gap and ambiguous times use the first occurrence.
+
+When multiple CodyWebUI processes share one settings database, manual queue and
+replace requests are persisted in SQLite. The elected scheduler process performs
+the actual Codex interrupt and replacement, so a request handled by a standby
+web process cannot attempt to control a turn owned by another process.
 
 ## Requirements
 
@@ -278,8 +325,8 @@ git diff --check
 ```
 
 `npm run verify` builds the app and runs the default non-token validation
-suite: typecheck, unit tests, whitespace checks, packaged CLI smoke, npm package
-dry-run smoke, controlled-process EPIPE survival smoke, approval center browser smoke, composer input smoke, Settings
+suite: typecheck, unit tests, whitespace checks, packaged CLI smoke, Agent task
+API lifecycle smoke, npm package dry-run smoke, controlled-process EPIPE survival smoke, approval center browser smoke, composer input smoke, Settings
 theme persistence and visual-health smoke, empty thread lifecycle smoke, and
 Work log browser smoke with panel/fullscreen visual-health checks. It also runs
 the large-thread history, live-turn, and natural-approval smokes in their

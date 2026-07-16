@@ -57,12 +57,13 @@ function toCompactJson(value: unknown): string {
   }
 }
 
-function buildToolMessage(item: ThreadItem): UiMessage | null {
+function buildToolMessage(item: ThreadItem, turnId: string): UiMessage | null {
   const tool = buildToolTimelineEntry(item)
   if (!tool) return null
 
   return {
     id: item.id,
+    turnId,
     role: 'system',
     text: '',
     messageType: `tool.${item.type}`,
@@ -201,11 +202,12 @@ function buildToolTimelineEntry(item: ThreadItem): UiToolTimelineEntry | null {
   return null
 }
 
-function toUiMessages(item: ThreadItem): UiMessage[] {
+function toUiMessages(item: ThreadItem, turnId: string): UiMessage[] {
   if (item.type === 'agentMessage') {
     return [
       {
         id: item.id,
+        turnId,
         role: 'assistant',
         text: item.text,
         messageType: item.type,
@@ -217,6 +219,7 @@ function toUiMessages(item: ThreadItem): UiMessage[] {
     return [
       {
         id: item.id,
+        turnId,
         role: 'assistant',
         text: item.text,
         messageType: item.type,
@@ -225,14 +228,14 @@ function toUiMessages(item: ThreadItem): UiMessage[] {
   }
 
   if (item.type === 'userMessage') {
-    return buildUserMessageContentMessages(item.id, item.content, item.type)
+    return buildUserMessageContentMessages(item.id, item.content, item.type, turnId)
   }
 
   if (item.type === 'reasoning') {
     return []
   }
 
-  const toolMessage = buildToolMessage(item)
+  const toolMessage = buildToolMessage(item, turnId)
   return toolMessage ? [toolMessage] : []
 }
 
@@ -268,6 +271,7 @@ function buildTurnReceipt(turn: Turn): UiMessage | null {
   ].filter(Boolean)
   return {
     id: `turn-summary:${turn.id}`,
+    turnId: turn.id,
     role: 'system',
     text: [label, ...evidence].join(' · '),
     messageType: 'worked',
@@ -339,7 +343,7 @@ export function normalizeThreadMessagesV2(payload: ThreadReadResponse): UiMessag
   for (const turn of turns) {
     const items = Array.isArray(turn.items) ? turn.items : []
     for (const item of items) {
-      messages.push(...toUiMessages(item))
+      messages.push(...toUiMessages(item, turn.id))
     }
     const receipt = buildTurnReceipt(turn)
     if (receipt) messages.push(receipt)

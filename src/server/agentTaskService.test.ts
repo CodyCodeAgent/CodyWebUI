@@ -1,0 +1,167 @@
+import { mkdtemp, readFile, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { AgentTaskService } from './agentTaskService'
+import type { AgentTaskInput } from './agentTaskStore'
+
+let tempDir = ''
+const previousDb = process.env.CODY_WEB_UI_SETTINGS_DB
+
+function taskInput(permission: AgentTaskInput['permission'] = 'read-only'): AgentTaskInput {
+  return {
+    name: 'Repository watch', description: '', cwd: tempDir,
+    prompt: 'Inspect the repository and report risks.',
+    schedule: { kind: 'interval', intervalMinutes: 60 }, timezone: 'UTC', model: 'gpt-test', effort: 'high',
+    permission, enabled: true, timeoutMinutes: 30, maxRetries: 1,
+    concurrencyPolicy: 'skip', notificationPolicy: 'important', outputMode: 'conversation', outputPath: '',
+    maxTokens: 0, pauseAfterFailures: 3,
+  }
+}
+
+beforeEach(async () => {
+  tempDir = await mkdtemp(join(tmpdir(), 'cody-agent-service-'))
+  process.env.CODY_WEB_UI_SETTINGS_DB = join(tempDir, 'settings.sqlite3')
+})
+
+afterEach(async () => {
+  if (previousDb === undefined) delete process.env.CODY_WEB_UI_SETTINGS_DB
+  else process.env.CODY_WEB_UI_SETTINGS_DB = previousDb
+  await rm(tempDir, { recursive: true, force: true })
+})
+
+describe('AgentTaskService', () => {
+  it('turns common Chinese and English schedule descriptions into editable drafts', () => {
+    const service = new AgentTaskService(vi.fn())
+    expect(service.parse('每周一 9点检查项目', 'Asia/Shanghai')).toMatchObject({ schedule: { kind: 'weekly', weekday: 1, time: '09:00' }, confidence: 'high' })
+    expect(service.parse('every 2 hours review CI', 'UTC')).toMatchObject({ schedule: { kind: 'interval', intervalMinutes: 120 } })
+  })
+
+  it('validates a full import before creating any definitions', async () => {
+    const service = new AgentTaskService(vi.fn())
+    await expect(service.importDefinitions({ tasks: [taskInput(), { ...taskInput(), name: '' }] })).rejects.toThrow()
+    expect((await service.list()).tasks).toHaveLength(0)
+  })
+
+  it('keeps one manual run queued behind an executing run', async () => {
+    let sequence = 0
+    const rpc = vi.fn(async (method: string) => method === 'thread/start'
+      ? { thread: { id: `thread-queue-${String(++sequence)}` } }
+      : { turn: { id: `turn-queue-${String(sequence)}` } })
+    const service = new AgentTaskService(rpc)
+    const task = await service.create({ ...taskInput(), concurrencyPolicy: 'queue' })
+    const first = await service.runNow(task.id)
+    await vi.waitFor(async () => expect((await service.list()).runs.find((run) => run.id === first.id)?.status).toBe('running'))
+    const queued = await service.runNow(task.id)
+    expect(queued.status).toBe('queued')
+    await expect(service.runNow(task.id)).rejects.toThrow('queued')
+    service.onNotification({ method: 'turn/completed', params: { threadId: 'thread-queue-1', turn: { id: 'turn-queue-1', status: 'completed', items: [] } } })
+    await vi.waitFor(() => expect(rpc).toHaveBeenCalledWith('thread/start', expect.anything()))
+    await vi.waitFor(() => expect(rpc.mock.calls.filter(([method]) => method === 'thread/start')).toHaveLength(2))
+    service.stop()
+  })
+
+  it('hands a replace request from a standby process back to the scheduler through SQLite', async () => {
+    let sequence = 0
+    const ownerRpc = vi.fn(async (method: string) => method === 'thread/start'
+      ? { thread: { id: `thread-owner-${String(++sequence)}` } }
+      : method === 'turn/start' ? { turn: { id: `turn-owner-${String(sequence)}` } } : {})
+    const standbyRpc = vi.fn(async () => ({}))
+    const owner = new AgentTaskService(ownerRpc, { pollIntervalMs: 1_000 })
+    const standby = new AgentTaskService(standbyRpc, { pollIntervalMs: 1_000 })
+    await owner.start()
+    const task = await owner.create({ ...taskInput(), concurrencyPolicy: 'replace' })
+    const first = await owner.runNow(task.id)
+    await vi.waitFor(async () => expect((await owner.list()).runs.find((run) => run.id === first.id)?.status).toBe('running'))
+
+    const replacement = await standby.runNow(task.id)
+    expect(replacement.status).toBe('queued')
+    expect(standbyRpc).not.toHaveBeenCalled()
+    await vi.waitFor(async () => expect((await owner.runs(task.id)).find((run) => run.id === first.id)?.status).toBe('cancelled'))
+    expect(ownerRpc).toHaveBeenCalledWith('turn/interrupt', { threadId: 'thread-owner-1', turnId: 'turn-owner-1' })
+    await vi.waitFor(() => expect(ownerRpc.mock.calls.filter(([method]) => method === 'thread/start')).toHaveLength(2), { timeout: 2_500 })
+
+    owner.stop()
+    standby.stop()
+  })
+
+  it('starts an isolated Codex thread and records completion notifications', async () => {
+    const rpc = vi.fn(async (method: string) => method === 'thread/start'
+      ? { thread: { id: 'thread-agent-1' } }
+      : { turn: { id: 'turn-agent-1' } })
+    const service = new AgentTaskService(rpc)
+    const task = await service.create(taskInput())
+    await service.runNow(task.id)
+
+    await vi.waitFor(() => expect(rpc).toHaveBeenCalledTimes(2))
+    expect(rpc).toHaveBeenNthCalledWith(1, 'thread/start', { cwd: tempDir, model: 'gpt-test' })
+    expect(rpc).toHaveBeenNthCalledWith(2, 'turn/start', expect.objectContaining({
+      threadId: 'thread-agent-1',
+      effort: 'high',
+      approvalPolicy: 'on-request',
+      sandboxPolicy: { type: 'readOnly', networkAccess: false },
+    }))
+
+    service.onNotification({ method: 'item/completed', params: { threadId: 'thread-agent-1', turnId: 'turn-agent-1', item: { type: 'agentMessage', text: 'Everything is healthy.' } } })
+    service.onNotification({ method: 'thread/tokenUsage/updated', params: { threadId: 'thread-agent-1', turnId: 'turn-agent-1', tokenUsage: { last: { input_tokens: 100, output_tokens: 20, total_tokens: 120 } } } })
+    service.onNotification({ method: 'turn/completed', params: { threadId: 'thread-agent-1', turn: { id: 'turn-agent-1', status: 'completed', items: [] } } })
+
+    await vi.waitFor(async () => {
+      const result = await service.list()
+      expect(result.runs[0]).toMatchObject({ status: 'succeeded', summary: 'Everything is healthy.', totalTokens: 120 })
+    })
+    service.stop()
+  })
+
+  it('marks unattended runs as waiting when Codex requests approval', async () => {
+    const rpc = vi.fn(async (method: string) => method === 'thread/start'
+      ? { thread: { id: 'thread-agent-2' } }
+      : { turn: { id: 'turn-agent-2' } })
+    const service = new AgentTaskService(rpc)
+    const task = await service.create(taskInput('workspace-write'))
+    await service.runNow(task.id)
+    await vi.waitFor(() => expect(rpc).toHaveBeenCalledTimes(2))
+    expect(rpc).toHaveBeenLastCalledWith('turn/start', expect.objectContaining({
+      sandboxPolicy: { type: 'workspaceWrite', writableRoots: [tempDir], networkAccess: false },
+    }))
+
+    service.onNotification({ method: 'server/request', params: { threadId: 'thread-agent-2', turnId: 'turn-agent-2' } })
+    await vi.waitFor(async () => expect((await service.list()).runs[0]?.status).toBe('waiting_approval'))
+    service.onNotification({ method: 'server/request/resolved', params: { threadId: 'thread-agent-2', turnId: 'turn-agent-2' } })
+    await vi.waitFor(async () => expect((await service.list()).runs[0]?.status).toBe('running'))
+    service.stop()
+  })
+
+  it('interrupts an active run when the user cancels it', async () => {
+    const rpc = vi.fn(async (method: string) => method === 'thread/start' ? { thread: { id: 'thread-cancel' } } : method === 'turn/start' ? { turn: { id: 'turn-cancel' } } : {})
+    const service = new AgentTaskService(rpc)
+    const task = await service.create(taskInput())
+    const run = await service.runNow(task.id)
+    await vi.waitFor(async () => expect((await service.list()).runs[0]?.status).toBe('running'))
+    await service.cancel(task.id, run.id)
+    expect(rpc).toHaveBeenCalledWith('turn/interrupt', { threadId: 'thread-cancel', turnId: 'turn-cancel' })
+    expect((await service.list()).runs[0]).toMatchObject({ status: 'cancelled', error: 'Cancelled by user.' })
+    service.stop()
+  })
+
+  it('enforces token limits and delivers successful output to a workspace file and notifications', async () => {
+    const rpc = vi.fn(async (method: string) => method === 'thread/start' ? { thread: { id: 'thread-output' } } : method === 'turn/start' ? { turn: { id: 'turn-output' } } : {})
+    const onEvent = vi.fn()
+    const service = new AgentTaskService(rpc, { onEvent })
+    const limited = await service.create({ ...taskInput(), name: 'Limited', maxTokens: 100 })
+    await service.runNow(limited.id)
+    await vi.waitFor(() => expect(rpc).toHaveBeenCalledTimes(2))
+    service.onNotification({ method: 'thread/tokenUsage/updated', params: { threadId: 'thread-output', turnId: 'turn-output', tokenUsage: { last: { total_tokens: 120 } } } })
+    await vi.waitFor(async () => expect((await service.list()).runs.find((run) => run.taskId === limited.id)?.status).toBe('failed'))
+    expect(rpc).toHaveBeenCalledWith('turn/interrupt', { threadId: 'thread-output', turnId: 'turn-output' })
+
+    const delivered = await service.create({ ...taskInput(), name: 'Delivered', outputMode: 'file-and-notification', outputPath: 'reports/agent.md', notificationPolicy: 'all' })
+    await service.runNow(delivered.id)
+    await vi.waitFor(() => expect(rpc).toHaveBeenCalledTimes(5))
+    service.onNotification({ method: 'item/completed', params: { threadId: 'thread-output', turnId: 'turn-output', item: { type: 'agentMessage', text: 'Ship it.' } } })
+    service.onNotification({ method: 'turn/completed', params: { threadId: 'thread-output', turn: { id: 'turn-output', status: 'completed', items: [] } } })
+    await vi.waitFor(async () => expect(await readFile(join(tempDir, 'reports/agent.md'), 'utf8')).toContain('Ship it.'))
+    expect(onEvent).toHaveBeenCalledWith(expect.objectContaining({ title: 'Agent task result', summary: 'Ship it.' }))
+    service.stop()
+  })
+})

@@ -16,6 +16,8 @@ import {
   type CatalogVisibility,
 } from './catalogStore.js'
 import { CatalogSyncService } from './catalogSyncService.js'
+import { AgentTaskService } from './agentTaskService.js'
+import type { AgentTaskInput } from './agentTaskStore.js'
 import { runControlledProcess } from './controlledProcess.js'
 import { handleDirectoryList } from './directoryBrowser.js'
 import {
@@ -1655,6 +1657,7 @@ type SharedBridgeState = {
   appServer: AppServerProcess
   catalogSync: CatalogSyncService
   tokenUsageReconciliation?: TokenUsageReconciliationService
+  agentTasks?: AgentTaskService
   methodCatalog: MethodCatalog
   stopNotificationDispatch: () => void
   productEventHub: ProductEventHub
@@ -1811,17 +1814,33 @@ function getSharedBridgeState(): SharedBridgeState {
   const catalogSync = new CatalogSyncService((method, params) => appServer.rpc(method, params))
   const tokenUsageReconciliation = new TokenUsageReconciliationService()
   const productEventHub = new ProductEventHub()
+  const agentTasks = new AgentTaskService((method, params) => appServer.rpc(method, params), {
+    onEvent: async ({ task, run, title, summary, severity }) => {
+      await dispatchWorkflowProductNotification(task.cwd, {
+        id: `agent-task:${task.id}:${run.id}:${title}`,
+        kind: severity === 'danger' ? 'task_failed' : severity === 'warning' ? 'user_input_required' : severity === 'success' ? 'task_completed' : 'task_started',
+        title,
+        summary,
+        severity,
+        threadId: run.threadId,
+        turnId: run.turnId,
+        method: 'agent-task/event',
+      }, productEventHub)
+    },
+  })
   const notificationDispatcher = new NotificationDispatcher({
     workspaceCwd: getProcessCwd(),
   })
   const stopNotificationDispatch = appServer.onNotification((notification) => {
     catalogSync.onNotification(notification.method)
+    const isAgentTaskNotification = agentTasks.ownsNotification(notification)
+    agentTasks.onNotification(notification)
     const payload = {
       ...notification,
       atIso: new Date().toISOString(),
       metadata: {} as Record<string, unknown>,
     }
-    void notificationDispatcher.handleCodexNotification(payload)
+    if (!isAgentTaskNotification) void notificationDispatcher.handleCodexNotification(payload)
     const queueKey = readNotificationThreadId(notification.params) || 'global'
     enqueueNotificationPersistence(queueKey, async () => {
       const workspaceCwd = await resolveNotificationWorkspaceCwd(notification.params)
@@ -1845,6 +1864,7 @@ function getSharedBridgeState(): SharedBridgeState {
     appServer,
     catalogSync,
     tokenUsageReconciliation,
+    agentTasks,
     methodCatalog: new MethodCatalog(),
     stopNotificationDispatch,
     productEventHub,
@@ -1853,6 +1873,9 @@ function getSharedBridgeState(): SharedBridgeState {
   if (process.env.NODE_ENV !== 'test') {
     catalogSync.start()
     tokenUsageReconciliation.start()
+    void agentTasks.start().catch((error: unknown) => {
+      console.warn(`Agent task scheduler failed to start: ${error instanceof Error ? error.message : String(error)}`)
+    })
   }
   return created
 }
@@ -1887,7 +1910,7 @@ async function buildGatewayDiagnostics(
 }
 
 export function createCodexBridgeMiddleware(): CodexBridgeMiddleware {
-  const { appServer, catalogSync, tokenUsageReconciliation, methodCatalog, stopNotificationDispatch, productEventHub } = getSharedBridgeState()
+  const { appServer, catalogSync, tokenUsageReconciliation, agentTasks, methodCatalog, stopNotificationDispatch, productEventHub } = getSharedBridgeState()
 
   const middleware = async (req: IncomingMessage, res: ServerResponse, next: () => void) => {
     try {
@@ -1949,6 +1972,135 @@ export function createCodexBridgeMiddleware(): CodexBridgeMiddleware {
             generatedAtIso: new Date().toISOString(),
           },
         })
+        return
+      }
+
+      if (url.pathname === '/codex-api/agent-tasks' && req.method === 'GET') {
+        if (!agentTasks) {
+          setJson(res, 503, { error: 'Agent task scheduler is unavailable' })
+          return
+        }
+        const visibility = url.searchParams.get('visibility') === 'archived' ? 'archived' : 'active'
+        setJson(res, 200, { result: await agentTasks.list(visibility) })
+        return
+      }
+
+      if (url.pathname === '/codex-api/agent-tasks' && req.method === 'POST') {
+        if (!agentTasks) {
+          setJson(res, 503, { error: 'Agent task scheduler is unavailable' })
+          return
+        }
+        const body = asRecord(await readJsonBody(req))
+        const task = await agentTasks.create(asRecord(body?.task) as AgentTaskInput)
+        setJson(res, 201, { result: { task } })
+        return
+      }
+
+      if (url.pathname === '/codex-api/agent-tasks/item' && req.method === 'PUT') {
+        if (!agentTasks) {
+          setJson(res, 503, { error: 'Agent task scheduler is unavailable' })
+          return
+        }
+        const body = asRecord(await readJsonBody(req))
+        const id = readString(body?.id)
+        const task = await agentTasks.update(id, asRecord(body?.task) as AgentTaskInput)
+        setJson(res, 200, { result: { task } })
+        return
+      }
+
+      if (url.pathname === '/codex-api/agent-tasks/item' && req.method === 'DELETE') {
+        if (!agentTasks) {
+          setJson(res, 503, { error: 'Agent task scheduler is unavailable' })
+          return
+        }
+        const id = url.searchParams.get('id')?.trim() ?? ''
+        const permanent = url.searchParams.get('permanent') === 'true'
+        if (permanent) await agentTasks.permanentlyDelete(id)
+        else await agentTasks.remove(id)
+        setJson(res, 200, { result: { deleted: true, permanent } })
+        return
+      }
+
+      if (url.pathname === '/codex-api/agent-tasks/control' && req.method === 'POST') {
+        if (!agentTasks) {
+          setJson(res, 503, { error: 'Agent task scheduler is unavailable' })
+          return
+        }
+        const body = asRecord(await readJsonBody(req))
+        const id = readString(body?.id)
+        const action = readString(body?.action)
+        if (action === 'run') {
+          setJson(res, 202, { result: { run: await agentTasks.runNow(id) } })
+          return
+        }
+        if (action === 'cancel') {
+          setJson(res, 200, { result: { run: await agentTasks.cancel(id, readString(body?.runId)) } })
+          return
+        }
+        if (action === 'duplicate') {
+          setJson(res, 201, { result: { task: await agentTasks.duplicate(id) } })
+          return
+        }
+        if (action === 'restore') {
+          setJson(res, 200, { result: { task: await agentTasks.restore(id) } })
+          return
+        }
+        if (action === 'pause' || action === 'resume') {
+          setJson(res, 200, { result: { task: await agentTasks.setEnabled(id, action === 'resume') } })
+          return
+        }
+        setJson(res, 400, { error: 'Invalid action: expected run, pause, resume, cancel, duplicate, or restore' })
+        return
+      }
+
+      if (url.pathname === '/codex-api/agent-tasks/parse' && req.method === 'POST') {
+        if (!agentTasks) { setJson(res, 503, { error: 'Agent task scheduler is unavailable' }); return }
+        const body = asRecord(await readJsonBody(req))
+        setJson(res, 200, { result: { draft: agentTasks.parse(readString(body?.instruction), readString(body?.timezone) || undefined) } })
+        return
+      }
+
+      if (url.pathname === '/codex-api/agent-tasks/export' && req.method === 'GET') {
+        if (!agentTasks) { setJson(res, 503, { error: 'Agent task scheduler is unavailable' }); return }
+        const ids = (url.searchParams.get('ids') ?? '').split(',').map((value) => value.trim()).filter(Boolean)
+        setJson(res, 200, { result: await agentTasks.exportDefinitions(ids) })
+        return
+      }
+
+      if (url.pathname === '/codex-api/agent-tasks/import' && req.method === 'POST') {
+        if (!agentTasks) { setJson(res, 503, { error: 'Agent task scheduler is unavailable' }); return }
+        const body = await readJsonBody(req)
+        setJson(res, 201, { result: { tasks: await agentTasks.importDefinitions(body) } })
+        return
+      }
+
+      if (url.pathname === '/codex-api/agent-task-versions' && req.method === 'GET') {
+        if (!agentTasks) { setJson(res, 503, { error: 'Agent task scheduler is unavailable' }); return }
+        setJson(res, 200, { result: { versions: await agentTasks.versions(url.searchParams.get('taskId')?.trim() ?? '') } })
+        return
+      }
+
+      if (url.pathname === '/codex-api/agent-task-versions/rollback' && req.method === 'POST') {
+        if (!agentTasks) { setJson(res, 503, { error: 'Agent task scheduler is unavailable' }); return }
+        const body = asRecord(await readJsonBody(req))
+        setJson(res, 200, { result: { task: await agentTasks.rollback(readString(body?.taskId), Number(body?.version)) } })
+        return
+      }
+
+      if (url.pathname === '/codex-api/agent-task-run-events' && req.method === 'GET') {
+        if (!agentTasks) { setJson(res, 503, { error: 'Agent task scheduler is unavailable' }); return }
+        setJson(res, 200, { result: { events: await agentTasks.runEvents(url.searchParams.get('runId')?.trim() ?? '') } })
+        return
+      }
+
+      if (url.pathname === '/codex-api/agent-task-runs' && req.method === 'GET') {
+        if (!agentTasks) {
+          setJson(res, 503, { error: 'Agent task scheduler is unavailable' })
+          return
+        }
+        const taskId = url.searchParams.get('taskId')?.trim() ?? ''
+        const limit = Number(url.searchParams.get('limit') ?? 50)
+        setJson(res, 200, { result: { runs: await agentTasks.runs(taskId, limit) } })
         return
       }
 
@@ -2512,6 +2664,7 @@ export function createCodexBridgeMiddleware(): CodexBridgeMiddleware {
   middleware.dispose = () => {
     catalogSync.stop()
     tokenUsageReconciliation?.stop()
+    agentTasks?.stop()
     stopNotificationDispatch()
     productEventHub.clear()
     appServer.dispose()

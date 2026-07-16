@@ -197,6 +197,7 @@ describe('realtime notification readers', () => {
 
   it('reads completed user messages for immediate conversation rendering', () => {
     const messages = readUserMessageCompleted(notification('item/completed', {
+      turnId: 'turn-1',
       item: {
         type: 'userMessage',
         id: 'user-1',
@@ -212,6 +213,7 @@ describe('realtime notification readers', () => {
     expect(messages).toHaveLength(2)
     expect(messages[0]).toMatchObject({
       id: 'user-1',
+      turnId: 'turn-1',
       role: 'user',
       text: 'Run this check',
       images: ['/codex-api/local-image?path=%2Ftmp%2Fscreenshot.png'],
@@ -227,6 +229,7 @@ describe('realtime notification readers', () => {
     })
     expect(messages[1]).toMatchObject({
       id: 'user-1:user-content:3',
+      turnId: 'turn-1',
       role: 'user',
       messageType: 'userContent.unknownBlock',
       isUnhandled: true,

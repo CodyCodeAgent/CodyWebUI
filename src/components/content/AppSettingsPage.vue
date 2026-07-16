@@ -62,6 +62,7 @@
           <p class="app-settings-subtitle">{{ t('settings.tasks.subtitle') }}</p>
         </div>
       </header>
+      <AgentTasksPanel :projects="projects" @select-thread="$emit('selectThread', $event)" />
       <BackgroundTasksPanel />
     </section>
 
@@ -140,6 +141,10 @@ import { DESKTOP_SETTING_KEYS } from '../../composables/desktopSettingsKeys'
 import { useLocale, type AppLocale } from '../../composables/useLocale'
 const WorkspaceThemePanel = defineAsyncComponent(() => import('./WorkspaceThemePanel.vue'))
 const BackgroundTasksPanel = defineAsyncComponent(() => import('./BackgroundTasksPanel.vue'))
+const AgentTasksPanel = defineAsyncComponent(() => import('./AgentTasksPanel.vue'))
+
+withDefaults(defineProps<{ projects?: Array<{ cwd: string; label: string }> }>(), { projects: () => [] })
+defineEmits<{ selectThread: [threadId: string] }>()
 
 type FlameCorner = 'bottom-right' | 'bottom-left' | 'top-right' | 'top-left'
 

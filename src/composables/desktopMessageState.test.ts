@@ -214,6 +214,93 @@ describe('desktopMessageState', () => {
     expect(merged).toEqual([longPersisted, shortOptimistic])
   })
 
+  it('reconciles a replayed historical user item by turn without moving it to the bottom', () => {
+    const historicalUser = message({
+      id: 'user-old-id',
+      turnId: 'turn-previous',
+      role: 'user',
+      text: '之前发出的消息',
+      messageType: 'userMessage',
+    })
+    const historicalAnswer = message({
+      id: 'assistant-previous',
+      turnId: 'turn-previous',
+      text: '之前的回复',
+      messageType: 'agentMessage',
+    })
+    const historicalReceipt = message({
+      id: 'turn-summary:turn-previous',
+      turnId: 'turn-previous',
+      role: 'system',
+      text: 'Answered',
+      messageType: 'worked',
+    })
+    const currentUser = message({
+      id: 'user-current',
+      turnId: 'turn-current',
+      role: 'user',
+      text: '现在发出的消息',
+      messageType: 'userMessage',
+    })
+    const currentAnswer = message({
+      id: 'assistant-current',
+      turnId: 'turn-current',
+      text: '正在回复',
+      messageType: 'agentMessage.live',
+    })
+    const replayedHistoricalUser = message({
+      ...historicalUser,
+      id: 'user-replayed-id',
+    })
+
+    const merged = mergeMessages(
+      [historicalUser, historicalAnswer, historicalReceipt, currentUser, currentAnswer],
+      [replayedHistoricalUser, historicalAnswer, historicalReceipt, currentUser],
+      { preserveMissing: true },
+    )
+
+    expect(merged.map((row) => row.id)).toEqual([
+      'user-replayed-id',
+      'assistant-previous',
+      'turn-summary:turn-previous',
+      'user-current',
+      'assistant-current',
+    ])
+    expect(merged.filter((row) => row.text === '之前发出的消息')).toHaveLength(1)
+  })
+
+  it('preserves identical prompts when they belong to different turns', () => {
+    const first = message({
+      id: 'user-first', turnId: 'turn-1', role: 'user', text: '再试一次', messageType: 'userMessage',
+    })
+    const receipt = message({
+      id: 'turn-summary:turn-1', turnId: 'turn-1', role: 'system', text: 'Answered', messageType: 'worked',
+    })
+    const second = message({
+      id: 'user-second', turnId: 'turn-2', role: 'user', text: '再试一次', messageType: 'userMessage',
+    })
+
+    expect(mergeMessages([first, receipt], [first, receipt, second], { preserveMissing: true })).toEqual([
+      first,
+      receipt,
+      second,
+    ])
+  })
+
+  it('inserts a newly discovered historical row at its protocol turn instead of the tail', () => {
+    const oldAnswer = message({ id: 'old-answer', turnId: 'turn-old', text: '旧回复' })
+    const oldReceipt = message({ id: 'turn-summary:turn-old', turnId: 'turn-old', role: 'system', text: 'Answered', messageType: 'worked' })
+    const current = message({ id: 'current-user', turnId: 'turn-current', role: 'user', text: '新问题', messageType: 'userMessage' })
+    const missingOldUser = message({ id: 'old-user', turnId: 'turn-old', role: 'user', text: '旧问题', messageType: 'userMessage' })
+
+    const merged = mergeMessages(
+      [oldAnswer, oldReceipt, current],
+      [missingOldUser, oldAnswer, oldReceipt, current],
+      { preserveMissing: true },
+    )
+    expect(merged.map((row) => row.id)).toEqual(['old-user', 'old-answer', 'turn-summary:turn-old', 'current-user'])
+  })
+
   it('removes redundant live assistant messages once persisted text arrives', () => {
     const live = message({
       id: 'live-agent',

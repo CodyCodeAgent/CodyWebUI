@@ -311,13 +311,14 @@ export function readAgentMessageStartedId(notification: RpcNotification): string
   return readString(item.id)
 }
 
-export function readAgentMessageDelta(notification: RpcNotification): { messageId: string; delta: string } | null {
+export function readAgentMessageDelta(notification: RpcNotification): { messageId: string; turnId?: string; delta: string } | null {
   const params = asRecord(notification.params)
   if (!params || notification.method !== 'item/agentMessage/delta') return null
   const messageId = readNotificationItemId(params)
+  const turnId = readProtocolId(params, 'turnId', 'turn_id')
   const delta = readNotificationTextDelta(params)
   if (!messageId || !delta) return null
-  return { messageId, delta }
+  return { messageId, ...(turnId ? { turnId } : {}), delta }
 }
 
 export function readAgentMessageCompleted(notification: RpcNotification): UiMessage | null {
@@ -326,9 +327,10 @@ export function readAgentMessageCompleted(notification: RpcNotification): UiMess
   const item = asRecord(params.item)
   if (!item || item.type !== 'agentMessage') return null
   const id = readString(item.id)
+  const turnId = readProtocolId(params, 'turnId', 'turn_id')
   const text = readString(item.text)
   if (!id || !text) return null
-  return { id, role: 'assistant', text, messageType: 'agentMessage.live' }
+  return { id, turnId, role: 'assistant', text, messageType: 'agentMessage.live' }
 }
 
 export function readUserMessageCompleted(notification: RpcNotification): UiMessage[] {
@@ -338,8 +340,9 @@ export function readUserMessageCompleted(notification: RpcNotification): UiMessa
   if (!item || item.type !== 'userMessage') return []
 
   const itemId = readString(item.id)
+  const turnId = readProtocolId(params, 'turnId', 'turn_id')
   if (!itemId || !Array.isArray(item.content)) return []
-  return buildUserMessageContentMessages(itemId, item.content)
+  return buildUserMessageContentMessages(itemId, item.content, 'userMessage', turnId)
 }
 
 export function readPlanMessageDelta(notification: RpcNotification): { messageId: string; turnId: string; delta: string } | null {
@@ -358,9 +361,10 @@ export function readPlanMessageCompleted(notification: RpcNotification): UiMessa
   const item = asRecord(params.item)
   if (!item || item.type !== 'plan') return null
   const id = readString(item.id)
+  const turnId = readProtocolId(params, 'turnId', 'turn_id')
   const text = readString(item.text)
   if (!id || !text) return null
-  return { id, role: 'assistant', text, messageType: 'plan.live' }
+  return { id, turnId, role: 'assistant', text, messageType: 'plan.live' }
 }
 
 export function readPlanUpdatedMessage(
@@ -397,6 +401,7 @@ export function readPlanUpdatedMessage(
 
   return {
     id: planMessageIdForTurn(turnId) ?? `plan:${turnId}:live`,
+    turnId,
     role: 'assistant',
     text,
     messageType: 'plan.live',

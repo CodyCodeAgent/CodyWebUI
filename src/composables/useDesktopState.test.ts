@@ -338,6 +338,7 @@ describe('useDesktopState realtime messages', () => {
     expect(state.messages.value).toEqual([
       {
         id: 'msg-live',
+        turnId: 'turn-live',
         role: 'assistant',
         text: '实时',
         messageType: 'agentMessage.live',
@@ -394,12 +395,14 @@ describe('useDesktopState realtime messages', () => {
     expect(state.messages.value).toEqual([
       {
         id: 'msg-live',
+        turnId: 'turn-live',
         role: 'assistant',
         text: 'Hello',
         messageType: 'agentMessage.live',
       },
       {
         id: 'plan-live',
+        turnId: 'turn-live',
         role: 'assistant',
         text: '1. [todo] Verify realtime output',
         messageType: 'plan.live',
@@ -538,12 +541,14 @@ describe('useDesktopState realtime messages', () => {
     expect(state.messages.value).toEqual([
       {
         id: 'msg-b',
+        turnId: 'turn-b',
         role: 'assistant',
         text: '后台最终输出',
         messageType: 'agentMessage.live',
       },
       {
         id: 'plan-b',
+        turnId: 'turn-b',
         role: 'assistant',
         text: '1. [todo] 后台计划',
         messageType: 'plan.live',
@@ -594,12 +599,14 @@ describe('useDesktopState realtime messages', () => {
     expect(state.messages.value).toEqual([
       {
         id: 'msg-b',
+        turnId: 'turn-b',
         role: 'assistant',
         text: '后台最终输出',
         messageType: 'agentMessage.live',
       },
       {
         id: 'plan-b',
+        turnId: 'turn-b',
         role: 'assistant',
         text: '1. [done] 检查实时输出\n2. [doing] 运行测试',
         messageType: 'plan.live',
@@ -624,12 +631,14 @@ describe('useDesktopState realtime messages', () => {
     expect(state.messages.value).toEqual([
       {
         id: 'msg-b',
+        turnId: 'turn-b',
         role: 'assistant',
         text: '后台最终输出',
         messageType: 'agentMessage.live',
       },
       {
         id: 'turn-summary:turn-b',
+        turnId: 'turn-b',
         role: 'system',
         text: 'Worked for 8s',
         messageType: 'worked',

@@ -33,6 +33,7 @@ export function extractCodexUserRequestText(value: string): string {
 export function parseUserMessageContent(
   itemId: string,
   content: unknown,
+  turnId?: string,
 ): ParsedUserMessageContent {
   if (!Array.isArray(content)) return { text: '', images: [], skills: [], rawBlocks: [] }
 
@@ -86,6 +87,7 @@ export function parseUserMessageContent(
 
     rawBlocks.push({
       id: `${itemId}:user-content:${String(index)}`,
+      turnId,
       role: 'user',
       text: '',
       messageType: `userContent.${blockType || 'unknown'}`,
@@ -106,13 +108,15 @@ export function buildUserMessageContentMessages(
   itemId: string,
   content: unknown,
   messageType = 'userMessage',
+  turnId?: string,
 ): UiMessage[] {
-  const parsed = parseUserMessageContent(itemId, content)
+  const parsed = parseUserMessageContent(itemId, content, turnId)
   const messages: UiMessage[] = []
 
   if (parsed.text.length > 0 || parsed.images.length > 0 || parsed.skills.length > 0) {
     messages.push({
       id: itemId,
+      turnId,
       role: 'user',
       text: parsed.text,
       images: parsed.images,
