@@ -5,6 +5,7 @@ import express, { type Express } from 'express'
 import { attachCodexBridgeWebSocketServer, createCodexBridgeMiddleware } from './codexAppServerBridge.js'
 import { createAuthMiddleware, type AuthMiddleware } from './authMiddleware.js'
 import { buildSecurityAccessSnapshot } from './securityAccess.js'
+import { BUILD_INFO } from '../buildInfo.js'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const distDir = join(__dirname, '..', 'dist')
@@ -37,6 +38,13 @@ export function createServer(options: ServerOptions = {}): ServerInstance {
     res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=(), payment=()')
     res.setHeader('Cross-Origin-Opener-Policy', 'same-origin')
     next()
+  })
+
+  // Public by design: operators must be able to verify the running build
+  // before authenticating or diagnosing a stale deployment.
+  app.get('/codex-api/meta/version', (_req, res) => {
+    res.setHeader('Cache-Control', 'no-store')
+    res.json({ result: BUILD_INFO })
   })
 
   // 1. Auth middleware (if password is set)

@@ -131,6 +131,13 @@ managed process, and starts the new server in the background:
 npm run deploy
 ```
 
+The deploy command verifies that the running server reports the Git commit it
+just built. You can inspect the active build without signing in:
+
+```bash
+curl http://127.0.0.1:3000/codex-api/meta/version
+```
+
 Runtime state and logs are stored in `.cody-runtime/` by default. Configure the
 listener through environment variables before deploying:
 

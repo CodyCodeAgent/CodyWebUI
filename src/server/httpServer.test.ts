@@ -83,6 +83,17 @@ describe('httpServer', () => {
       const port = await listen(server)
       const baseUrl = `http://127.0.0.1:${String(port)}`
 
+      const versionResponse = await fetch(`${baseUrl}/codex-api/meta/version`)
+      await expect(versionResponse.json()).resolves.toMatchObject({
+        result: {
+          version: '0.1.0',
+          gitSha: expect.stringMatching(/^(?:[0-9a-f]{7,12}|unknown)$/),
+          builtAt: expect.any(String),
+          label: expect.stringContaining('v0.1.0'),
+        },
+      })
+      expect(versionResponse.headers.get('cache-control')).toBe('no-store')
+
       await expect(fetch(`${baseUrl}/codex-api/meta/access-security`).then((response) => response.json())).resolves.toMatchObject({
         result: {
           auth: {

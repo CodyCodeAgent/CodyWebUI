@@ -6,6 +6,10 @@
   >
     <template #sidebar>
       <section class="sidebar-root">
+        <div class="sidebar-brand" :title="BUILD_INFO.builtAt">
+          <span>CODY / CONTROL</span>
+          <small>{{ BUILD_INFO.label }}</small>
+        </div>
         <SidebarThreadControls
           v-if="!isEffectiveSidebarCollapsed"
           class="sidebar-thread-controls-host"
@@ -323,6 +327,7 @@ import type {
   UiToolingRollbackFileResult,
 } from './types/codex'
 import type { PromptInsertion } from './composables/promptLibraryRules'
+import { BUILD_INFO } from './buildInfo'
 
 const MOBILE_SIDEBAR_BREAKPOINT = 700
 const {

@@ -1675,9 +1675,11 @@ button,
   padding: 0.85rem 0.65rem 1.25rem;
 }
 
-#app .sidebar-root::before {
-  content: 'CODY / CONTROL';
-  display: block;
+#app .sidebar-brand {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .75rem;
   margin: 0.15rem 0.65rem 0.25rem;
   color: var(--color-text-muted);
   font-family: var(--font-mono);
@@ -1685,6 +1687,17 @@ button,
   font-weight: 600;
   letter-spacing: 0.16em;
   opacity: 0.8;
+}
+
+#app .sidebar-brand small {
+  overflow: hidden;
+  color: color-mix(in srgb, var(--color-accent) 72%, var(--color-text-muted));
+  font-size: .52rem;
+  font-weight: 600;
+  letter-spacing: .02em;
+  text-overflow: ellipsis;
+  text-transform: none;
+  white-space: nowrap;
 }
 
 #app .sidebar-thread-controls {
