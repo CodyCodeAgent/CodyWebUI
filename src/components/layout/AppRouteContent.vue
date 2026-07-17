@@ -83,3 +83,30 @@ const emit = defineEmits<{
 }>()
 const { t } = useLocale()
 </script>
+
+<style scoped>
+@reference "../../style.css";
+
+/* Keep the conversation viewport bounded so its internal list owns scrolling.
+   These rules must live here: App.vue's scoped styles cannot reach through the
+   AppRouteContent component boundary. */
+.content-grid {
+  @apply flex flex-1 min-h-0 flex-col gap-3;
+}
+
+.content-workbench {
+  @apply flex flex-1 min-h-0 gap-3 px-0;
+}
+
+.content-thread {
+  @apply flex flex-1 min-h-0 flex-col overflow-hidden;
+}
+
+.content-thread :deep(.conversation-root) {
+  @apply flex-1 min-h-0;
+}
+
+.content-grid > :deep(.thread-composer) {
+  @apply shrink-0;
+}
+</style>
