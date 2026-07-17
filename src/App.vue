@@ -192,10 +192,11 @@
             :aria-label="t('skills.openProject')"
             @click="openCurrentWorkspaceSkills"
           >
-            ◇ {{ activeWorkspaceSkillCount === null ? t('skills.title') : t('skills.count', { count: String(activeWorkspaceSkillCount) }) }}
+            <IconTablerClipboardList aria-hidden="true" />
+            {{ activeWorkspaceSkillCount === null ? t('skills.title') : t('skills.count', { count: String(activeWorkspaceSkillCount) }) }}
           </button>
           <button v-if="isHomeRoute" type="button" @click="homeSurface = homeSurface === 'brief' ? 'console' : 'brief'">
-            {{ homeSurface === 'brief' ? 'Open workspace console' : 'Back to brief' }}
+            {{ homeSurface === 'brief' ? t('app.openWorkspaceConsole') : t('app.backToBrief') }}
           </button>
         </div>
 

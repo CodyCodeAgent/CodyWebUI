@@ -1,6 +1,6 @@
 import type { SkinPack, ThemeTokens } from './tokens'
 
-const systemSans = '"IBM Plex Sans", "Avenir Next", "Segoe UI", ui-sans-serif, system-ui, sans-serif'
+const systemSans = 'Inter, "IBM Plex Sans", "Avenir Next", "Segoe UI", ui-sans-serif, system-ui, sans-serif'
 const systemMono = '"IBM Plex Mono", "Cascadia Code", "SFMono-Regular", ui-monospace, monospace'
 
 function tokens(overrides: Partial<ThemeTokens> & { color: ThemeTokens['color'] }): ThemeTokens {
@@ -71,29 +71,29 @@ export const BUILT_IN_SKINS: SkinPack[] = [
     isDark: true,
     syntaxTheme: 'dark',
     terminalTheme: { background: '#05070c', foreground: '#e5e7eb' },
-    chartPalette: ['#38bdf8', '#34d399', '#f59e0b', '#fb7185', '#a78bfa'],
+    chartPalette: ['#22c55e', '#38bdf8', '#f59e0b', '#f87171', '#a78bfa'],
     background: { type: 'grid' },
     tokens: tokens({
       color: {
-        background: '#0b0e13',
-        surface: '#10151d',
-        panel: '#121821',
-        elevated: '#1b2430',
-        text: '#edf3f8',
-        textMuted: '#8d9bab',
-        border: '#283442',
-        accent: '#42c8f5',
-        danger: '#ff6b7a',
-        warning: '#f0b35a',
-        success: '#55d6a7',
-        info: '#78a9ff',
-        codeBackground: '#070a0f',
-        terminalBackground: '#070a0f',
+        background: '#0f172a',
+        surface: '#111827',
+        panel: '#131c2f',
+        elevated: '#1e293b',
+        text: '#f8fafc',
+        textMuted: '#94a3b8',
+        border: '#334155',
+        accent: '#22c55e',
+        danger: '#ef4444',
+        warning: '#f59e0b',
+        success: '#22c55e',
+        info: '#38bdf8',
+        codeBackground: '#0b1120',
+        terminalBackground: '#0b1120',
       },
       shadow: {
         panel: '0 1px 0 rgb(255 255 255 / 0.035), 0 14px 36px rgb(0 0 0 / 0.22)',
         floating: '0 28px 72px rgb(0 0 0 / 0.52)',
-        focus: '0 0 0 3px rgb(66 200 245 / 0.24)',
+        focus: '0 0 0 3px rgb(34 197 94 / 0.28)',
       },
       density: 'compact',
     }),

@@ -8,7 +8,13 @@
       class="desktop-resize-handle"
       type="button"
       aria-label="Resize sidebar"
+      role="separator"
+      aria-orientation="vertical"
+      :aria-valuemin="MIN_SIDEBAR_WIDTH"
+      :aria-valuemax="MAX_SIDEBAR_WIDTH"
+      :aria-valuenow="Math.round(sidebarWidth)"
       @mousedown="onResizeHandleMouseDown"
+      @keydown="onResizeHandleKeyDown"
     />
     <section class="desktop-main">
       <slot name="content" />
@@ -85,6 +91,15 @@ function onResizeHandleMouseDown(event: MouseEvent): void {
   window.addEventListener('mousemove', onMouseMove)
   window.addEventListener('mouseup', onMouseUp)
 }
+
+function onResizeHandleKeyDown(event: KeyboardEvent): void {
+  if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return
+  event.preventDefault()
+  if (event.key === 'Home') sidebarWidth.value = MIN_SIDEBAR_WIDTH
+  else if (event.key === 'End') sidebarWidth.value = MAX_SIDEBAR_WIDTH
+  else sidebarWidth.value = clampSidebarWidth(sidebarWidth.value + (event.key === 'ArrowLeft' ? -16 : 16))
+  saveSidebarWidth(sidebarWidth.value)
+}
 </script>
 
 <style scoped>
@@ -111,6 +126,13 @@ function onResizeHandleMouseDown(event: MouseEvent): void {
 .desktop-resize-handle::before {
   content: '';
   @apply absolute -left-2 -right-2 top-0 bottom-0;
+}
+
+.desktop-resize-handle:hover,
+.desktop-resize-handle:focus-visible {
+  z-index: 2;
+  background: var(--color-accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-accent) 22%, transparent);
 }
 
 .desktop-main {

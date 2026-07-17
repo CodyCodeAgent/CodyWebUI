@@ -3,8 +3,8 @@
   <WorkspaceSkillsPage v-else-if="isSkillsRoute" :cwd="skillsCwd" :project-label="skillsProjectLabel" />
   <template v-else-if="isHomeRoute">
     <nav class="mission-stage-nav" :aria-label="t('app.taskStages')">
-      <button v-for="stage in missionStages" :key="stage.id" type="button" :data-active="stage.id === activeMissionStage">
-        <span>{{ stage.label }}</span><small>{{ stage.hint }}</small>
+      <button v-for="(stage, index) in missionStages" :key="stage.id" type="button" :data-active="stage.id === activeMissionStage" :aria-current="stage.id === activeMissionStage ? 'step' : undefined">
+        <b aria-hidden="true">{{ String(index + 1).padStart(2, '0') }}</b><span>{{ stage.label }}</span><small>{{ stage.hint }}</small>
       </button>
     </nav>
     <WorkspaceDashboard v-if="homeSurface === 'console'" :cwd="newThreadCwd" :project-label="newThreadProjectLabel"
@@ -12,7 +12,7 @@
       @select-thread="emit('selectThread', $event)" @respond-server-request="emit('respondServerRequest', $event)" />
     <div v-else class="content-grid new-thread-grid">
       <div class="new-thread-empty">
-        <div class="new-thread-kicker"><span class="new-thread-kicker-signal" aria-hidden="true" />Agent mission control</div>
+        <div class="new-thread-kicker"><span class="new-thread-kicker-signal" aria-hidden="true" />{{ t('app.missionControl') }}</div>
         <p class="new-thread-hero">{{ t('app.hero') }}</p>
         <p class="new-thread-subtitle">{{ t('app.heroSubtitle') }}</p>
         <ComposerDropdown class="new-thread-folder-dropdown" :model-value="newThreadCwd" :options="newThreadFolderOptions"
