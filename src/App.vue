@@ -6,9 +6,8 @@
   >
     <template #sidebar>
       <section class="sidebar-root">
-        <div class="sidebar-brand" :title="BUILD_INFO.builtAt">
+        <div class="sidebar-brand">
           <span>CODY / CONTROL</span>
-          <small>{{ BUILD_INFO.label }}</small>
         </div>
         <SidebarThreadControls
           v-if="!isEffectiveSidebarCollapsed"
@@ -185,6 +184,23 @@
           </template>
         </ContentHeader>
 
+        <div
+          v-if="backendConnectionBannerVisible"
+          class="backend-connection-banner"
+          :data-tone="backendConnectionBannerTone"
+          role="status"
+          aria-live="polite"
+        >
+          <span class="backend-connection-dot" aria-hidden="true" />
+          <div class="backend-connection-copy">
+            <strong>{{ backendConnectionTitle }}</strong>
+            <span>{{ backendConnectionMessage }}</span>
+          </div>
+          <button type="button" :disabled="backendHealthCheckInFlight" @click="checkBackendHealthNow">
+            {{ backendHealthCheckInFlight ? t('app.backend.checking') : t('app.backend.retry') }}
+          </button>
+        </div>
+
         <div v-if="!isSettingsRoute" class="workspace-context-bar" :aria-label="t('app.workspaceContext')">
           <span class="workspace-context-live" aria-hidden="true" />
           <span><small>{{ t('app.workspace') }}</small>{{ newThreadProjectLabel || t('app.notSelected') }}</span>
@@ -327,7 +343,6 @@ import type {
   UiToolingRollbackFileResult,
 } from './types/codex'
 import type { PromptInsertion } from './composables/promptLibraryRules'
-import { BUILD_INFO } from './buildInfo'
 
 const MOBILE_SIDEBAR_BREAKPOINT = 700
 const {
@@ -504,7 +519,25 @@ const activeWorkspaceSkillCount = computed(() => {
   const count = skillCountsByCwd.value[tokenFlameCwd.value]
   return typeof count === 'number' ? count : null
 })
+const backendConnectionState = ref<'online' | 'offline' | 'restored'>('online')
+const backendHealthCheckInFlight = ref(false)
+const backendLastError = ref('')
+const backendConnectionBannerVisible = computed(() => backendConnectionState.value !== 'online')
+const backendConnectionBannerTone = computed(() => backendConnectionState.value === 'offline' ? 'warning' : 'success')
+const backendConnectionTitle = computed(() => backendConnectionState.value === 'offline'
+  ? t('app.backend.offlineTitle')
+  : t('app.backend.restoredTitle'))
+const backendConnectionMessage = computed(() => {
+  if (backendConnectionState.value === 'offline') {
+    return backendLastError.value
+      ? t('app.backend.offlineWithError', { error: backendLastError.value })
+      : t('app.backend.offlineBody')
+  }
+  return t('app.backend.restoredBody')
+})
 let hasHydratedDefaultNewThreadCwd = false
+let backendHealthInterval: number | null = null
+let backendHealthRestoreTimer: number | null = null
 
 onMounted(() => {
   applyCurrentTheme()
@@ -512,6 +545,7 @@ onMounted(() => {
   window.addEventListener('keydown', onWindowKeyDown)
   window.addEventListener('resize', updateMobileViewport)
   browserNotifications.start()
+  startBackendHealthMonitor()
   void initialize()
 })
 
@@ -519,8 +553,79 @@ onUnmounted(() => {
   window.removeEventListener('keydown', onWindowKeyDown)
   window.removeEventListener('resize', updateMobileViewport)
   browserNotifications.stop()
+  stopBackendHealthMonitor()
   stopRealtimeSync()
 })
+
+function startBackendHealthMonitor(): void {
+  void checkBackendHealth()
+  backendHealthInterval = window.setInterval(() => {
+    void checkBackendHealth()
+  }, 5_000)
+}
+
+function stopBackendHealthMonitor(): void {
+  if (backendHealthInterval !== null) {
+    window.clearInterval(backendHealthInterval)
+    backendHealthInterval = null
+  }
+  if (backendHealthRestoreTimer !== null) {
+    window.clearTimeout(backendHealthRestoreTimer)
+    backendHealthRestoreTimer = null
+  }
+}
+
+function checkBackendHealthNow(): void {
+  void checkBackendHealth()
+}
+
+async function checkBackendHealth(): Promise<void> {
+  if (backendHealthCheckInFlight.value) return
+  backendHealthCheckInFlight.value = true
+  const controller = new AbortController()
+  const timeoutId = window.setTimeout(() => controller.abort(), 3_000)
+  try {
+    const response = await fetch('/codex-api/meta/version', {
+      cache: 'no-store',
+      signal: controller.signal,
+    })
+    if (!response.ok) throw new Error(`HTTP ${response.status}`)
+    markBackendOnline()
+  } catch (error) {
+    markBackendOffline(error)
+  } finally {
+    window.clearTimeout(timeoutId)
+    backendHealthCheckInFlight.value = false
+  }
+}
+
+function markBackendOnline(): void {
+  backendLastError.value = ''
+  if (backendConnectionState.value === 'offline') {
+    backendConnectionState.value = 'restored'
+    if (backendHealthRestoreTimer !== null) window.clearTimeout(backendHealthRestoreTimer)
+    backendHealthRestoreTimer = window.setTimeout(() => {
+      backendConnectionState.value = 'online'
+      backendHealthRestoreTimer = null
+    }, 4_000)
+    void refreshAll({ loadSelectedMessages: false }).catch(() => undefined)
+    return
+  }
+  if (backendConnectionState.value !== 'restored') {
+    backendConnectionState.value = 'online'
+  }
+}
+
+function markBackendOffline(error: unknown): void {
+  if (backendHealthRestoreTimer !== null) {
+    window.clearTimeout(backendHealthRestoreTimer)
+    backendHealthRestoreTimer = null
+  }
+  backendConnectionState.value = 'offline'
+  backendLastError.value = error instanceof Error && error.name !== 'AbortError'
+    ? error.message
+    : ''
+}
 
 function updateMobileViewport(): void {
   isMobileViewport.value = window.innerWidth <= MOBILE_SIDEBAR_BREAKPOINT
@@ -1141,6 +1246,63 @@ async function submitFirstMessageForNewThread(payload: UiComposerSubmitPayload):
 
 .content-error {
   @apply mx-0 mt-1 flex shrink-0 items-start gap-2 rounded-lg border theme-border-danger theme-bg-danger-soft px-3 py-2 text-sm theme-text-danger;
+}
+
+.backend-connection-banner {
+  @apply mx-0 mt-1 flex shrink-0 items-center gap-3 rounded-lg border px-3 py-2 text-sm;
+  background: color-mix(in srgb, var(--color-warning) 10%, var(--color-panel));
+  border-color: color-mix(in srgb, var(--color-warning) 36%, var(--color-border));
+  color: var(--color-text);
+}
+
+.backend-connection-banner[data-tone='success'] {
+  background: color-mix(in srgb, var(--color-success) 10%, var(--color-panel));
+  border-color: color-mix(in srgb, var(--color-success) 36%, var(--color-border));
+}
+
+.backend-connection-dot {
+  @apply h-2.5 w-2.5 shrink-0 rounded-full;
+  background: var(--color-warning);
+  animation: backend-connection-pulse 1.5s ease-in-out infinite;
+}
+
+.backend-connection-banner[data-tone='success'] .backend-connection-dot {
+  background: var(--color-success);
+  animation: none;
+}
+
+.backend-connection-copy {
+  @apply grid min-w-0 flex-1 gap-0.5;
+}
+
+.backend-connection-copy strong {
+  @apply text-sm font-semibold;
+  color: var(--color-text);
+}
+
+.backend-connection-copy span {
+  @apply truncate text-xs;
+  color: var(--color-text-muted);
+}
+
+.backend-connection-banner button {
+  @apply shrink-0 rounded-md border px-2.5 py-1 text-xs font-medium transition disabled:cursor-wait disabled:opacity-60;
+  background: var(--color-surface);
+  border-color: var(--color-border);
+  color: var(--color-text);
+}
+
+.backend-connection-banner button:hover:not(:disabled) {
+  background: var(--color-elevated);
+}
+
+@keyframes backend-connection-pulse {
+  0%, 100% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--color-warning) 34%, transparent);
+  }
+  50% {
+    box-shadow: 0 0 0 0.45rem color-mix(in srgb, var(--color-warning) 0%, transparent);
+  }
 }
 
 .content-error-text {

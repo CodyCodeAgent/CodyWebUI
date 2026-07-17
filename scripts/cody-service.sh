@@ -4,12 +4,18 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 RUNTIME_DIR="${CODY_RUNTIME_DIR:-$PROJECT_DIR/.cody-runtime}"
+ENV_FILE="$RUNTIME_DIR/service.env"
+mkdir -p "$RUNTIME_DIR"
+if [[ -f "$ENV_FILE" ]]; then
+  set -a
+  source "$ENV_FILE"
+  set +a
+fi
 PID_FILE="$RUNTIME_DIR/server.pid"
 LOG_FILE="${CODY_LOG_FILE:-$RUNTIME_DIR/server.log}"
 HOST="${CODY_HOST:-127.0.0.1}"
 PORT="${CODY_PORT:-3000}"
 PASSWORD="${CODY_PASSWORD:-}"
-mkdir -p "$RUNTIME_DIR"
 
 read_pid() { [[ -f "$PID_FILE" ]] || return 1; local pid; pid="$(tr -dc '0-9' < "$PID_FILE")"; [[ -n "$pid" ]] || return 1; printf '%s' "$pid"; }
 is_our_process() { local command; kill -0 "$1" 2>/dev/null || return 1; command="$(ps -p "$1" -o command= 2>/dev/null || true)"; [[ "$command" == *"$PROJECT_DIR/dist-cli/index.js"* ]]; }
@@ -47,7 +53,7 @@ start_service() {
   if [[ -n "$PASSWORD" ]]; then args+=(--password "$PASSWORD")
   elif [[ "$HOST" == "127.0.0.1" || "$HOST" == "localhost" || "$HOST" == "::1" ]]; then args+=(--no-password)
   else echo "CODY_PASSWORD is required when CODY_HOST is not loopback." >&2; return 1; fi
-  echo "Starting CodyWebUI on $HOST:$PORT..."; nohup node "${args[@]}" >> "$LOG_FILE" 2>&1 & pid=$!; printf '%s\n' "$pid" > "$PID_FILE"
+  echo "Starting CodyWebUI on $HOST:$PORT..."; nohup setsid node "${args[@]}" >> "$LOG_FILE" 2>&1 < /dev/null & pid=$!; printf '%s\n' "$pid" > "$PID_FILE"
   for _ in {1..50}; do
     if ! kill -0 "$pid" 2>/dev/null; then echo "CodyWebUI exited during startup. See $LOG_FILE" >&2; tail -n 30 "$LOG_FILE" >&2 || true; rm -f "$PID_FILE"; return 1; fi
     if node -e "fetch('http://$HOST:$PORT/').then(r=>process.exit(r.status<500?0:1)).catch(()=>process.exit(1))"; then echo "CodyWebUI is running (PID $pid). Log: $LOG_FILE"; return 0; fi

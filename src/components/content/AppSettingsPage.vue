@@ -12,6 +12,29 @@
     </aside>
 
     <div class="app-settings-content">
+    <section v-show="matchesSettings('about')" id="settings-about" class="app-settings-section">
+      <header class="app-settings-section-header">
+        <div>
+          <h2 class="app-settings-title">{{ t('settings.about.title') }}</h2>
+          <p class="app-settings-subtitle">{{ t('settings.about.subtitle') }}</p>
+        </div>
+      </header>
+      <dl class="app-version-details">
+        <div>
+          <dt>{{ t('settings.about.version') }}</dt>
+          <dd>{{ BUILD_INFO.version }}</dd>
+        </div>
+        <div>
+          <dt>{{ t('settings.about.gitSha') }}</dt>
+          <dd>{{ BUILD_INFO.gitSha }}</dd>
+        </div>
+        <div>
+          <dt>{{ t('settings.about.builtAt') }}</dt>
+          <dd>{{ buildTimeLabel }}</dd>
+        </div>
+      </dl>
+    </section>
+
     <section v-show="matchesSettings('language')" id="settings-language" class="app-settings-section">
       <header class="app-settings-section-header">
         <div>
@@ -139,6 +162,7 @@ import { fetchUserSetting, writeUserSetting } from '../../api/codexSettingsClien
 import { fetchCatalogStatus, syncCatalogNow, type CatalogSyncStatus } from '../../api/codexCatalogClient'
 import { DESKTOP_SETTING_KEYS } from '../../composables/desktopSettingsKeys'
 import { useLocale, type AppLocale } from '../../composables/useLocale'
+import { BUILD_INFO } from '../../buildInfo'
 const WorkspaceThemePanel = defineAsyncComponent(() => import('./WorkspaceThemePanel.vue'))
 const BackgroundTasksPanel = defineAsyncComponent(() => import('./BackgroundTasksPanel.vue'))
 const AgentTasksPanel = defineAsyncComponent(() => import('./AgentTasksPanel.vue'))
@@ -176,6 +200,7 @@ const saveTone = ref<'success' | 'danger'>('success')
 const hasHydrated = ref(false)
 const settingsQuery = ref('')
 const settingsNavItems = computed(() => [
+  { id: 'settings-about', key: 'about', label: t('settings.nav.about'), terms: 'about version build git sha commit 关于 版本 构建 提交' },
   { id: 'settings-language', key: 'language', label: t('settings.nav.language'), terms: 'language locale chinese english 语言 中文 英文' },
   { id: 'settings-catalog', key: 'catalog', label: t('settings.nav.catalog'), terms: 'catalog sync projects conversations 目录 同步 项目 会话' },
   { id: 'settings-tasks', key: 'tasks', label: t('settings.nav.tasks'), terms: 'background tasks sync token diagnostics jobs 后台 任务 校准' },
@@ -208,6 +233,7 @@ const catalogStatusLabel = computed(() => {
   if (catalogStatusTone.value === 'working') return t('settings.catalog.status.running')
   return t('settings.catalog.status.ready')
 })
+const buildTimeLabel = computed(() => formatCatalogTime(BUILD_INFO.builtAt))
 
 function matchesSettings(key: string): boolean {
   const query = settingsQuery.value.trim().toLowerCase()
@@ -438,6 +464,25 @@ onMounted(() => {
 .catalog-sync-status {
   @apply m-0 grid grid-cols-3 gap-3 border-t theme-border pt-3;
   border-color: var(--color-border);
+}
+
+.app-version-details {
+  @apply m-0 grid gap-3 border-t theme-border pt-3 md:grid-cols-3;
+  border-color: var(--color-border);
+}
+
+.app-version-details div {
+  @apply min-w-0;
+}
+
+.app-version-details dt {
+  @apply text-xs font-semibold theme-muted;
+  color: var(--color-text-muted);
+}
+
+.app-version-details dd {
+  @apply m-0 mt-1 truncate font-mono text-sm theme-text;
+  color: var(--color-text);
 }
 
 .catalog-sync-status div {

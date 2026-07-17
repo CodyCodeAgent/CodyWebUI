@@ -4,8 +4,14 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 RUNTIME_DIR="${CODY_RUNTIME_DIR:-$PROJECT_DIR/.cody-runtime}"
+ENV_FILE="$RUNTIME_DIR/service.env"
 LOCK_HASH_FILE="$RUNTIME_DIR/package-lock.sha256"
 cd "$PROJECT_DIR"; mkdir -p "$RUNTIME_DIR"
+if [[ -f "$ENV_FILE" ]]; then
+  set -a
+  source "$ENV_FILE"
+  set +a
+fi
 
 command -v node >/dev/null || { echo "Node.js 18+ is required." >&2; exit 1; }
 command -v npm >/dev/null || { echo "npm is required." >&2; exit 1; }
