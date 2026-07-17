@@ -121,6 +121,38 @@ cody-web-ui
 By default the server listens on `127.0.0.1:3000` and prints a generated
 password. Open the printed URL in a browser and sign in with that password.
 
+## Production deployment script
+
+The repository includes an idempotent deployment command that initializes
+locked dependencies when needed, builds both bundles, stops the previously
+managed process, and starts the new server in the background:
+
+```bash
+npm run deploy
+```
+
+Runtime state and logs are stored in `.cody-runtime/` by default. Configure the
+listener through environment variables before deploying:
+
+```bash
+CODY_HOST=0.0.0.0 CODY_PORT=8080 CODY_PASSWORD='replace-me' npm run deploy
+```
+
+`CODY_PASSWORD` is mandatory for non-loopback hosts. Service lifecycle commands
+are also available independently:
+
+```bash
+npm run service:status
+npm run service:restart
+npm run service:stop
+bash scripts/cody-service.sh logs
+```
+
+The PID file is validated against this checkout's absolute CLI path before a
+process is stopped, preventing a stale PID from terminating an unrelated
+process. Override the runtime or log location with `CODY_RUNTIME_DIR` or
+`CODY_LOG_FILE`.
+
 ## CLI Usage
 
 ```text

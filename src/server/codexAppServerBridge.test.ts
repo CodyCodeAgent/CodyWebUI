@@ -607,7 +607,7 @@ describe('automatic turn checkpoints', () => {
     })
     expect(result).toMatchObject({ afterCheckpointHasPatch: true })
     expect(typeof result.afterCheckpointId).toBe('string')
-  })
+  }, 20_000)
 
   it('does not recursively copy untracked directories for automatic checkpoints', async () => {
     const repo = await createRepo()

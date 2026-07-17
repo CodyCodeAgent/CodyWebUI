@@ -1,14 +1,5 @@
 import { computed, ref } from 'vue'
 import {
-  getAvailableModelIds,
-  getCollaborationModes,
-  getCurrentModelConfig,
-} from '../api/codexModelClient'
-import {
-  fetchUserSetting,
-  writeUserSetting,
-} from '../api/codexSettingsClient'
-import {
   compactThread,
   forkThread,
   getThreadMessages,
@@ -26,14 +17,7 @@ import {
   setProjectHidden,
   setThreadHidden,
 } from '../api/codexCatalogClient'
-import {
-  fetchPendingServerRequests,
-  respondServerRequest,
-} from '../api/codexBridgeClient'
-import {
-  subscribeRpcNotifications,
-  type RpcNotification,
-} from '../api/codexRealtimeClient'
+import type { RpcNotification } from '../api/codexRealtimeClient'
 import {
   extractThreadIdFromNotification,
   extractTurnIdFromNotification,
@@ -58,11 +42,13 @@ import {
   readTurnStartedInfo,
   readUserMessageCompleted,
   type TurnActivityState,
-  type TurnCompletedInfo,
   type TurnStartedInfo,
 } from './realtimeNotificationReaders'
 import { useStructuredPlanState } from './useStructuredPlanState'
 import { useServerRequestState } from './useServerRequestState'
+import { useDesktopComposerState } from './useDesktopComposerState'
+import { useDesktopRealtimeState } from './useDesktopRealtimeState'
+import { useDesktopThreadState } from './useDesktopThreadState'
 import { shouldQueueEventDrivenSyncForMethod } from './realtimeSyncPolicy'
 import { useRateLimitState } from './useRateLimitState'
 import { dataAuthorityPolicy } from './dataAuthorityPolicy'
@@ -95,7 +81,6 @@ import {
   type TurnErrorState,
   type TurnSummaryState,
 } from './desktopMessageState'
-import { normalizeServerRequest } from './desktopServerRequests'
 import {
   markThreadMessagesLoaded,
   markThreadResumed,
@@ -104,22 +89,9 @@ import {
   shouldShowMessagesLoading,
 } from './desktopThreadScopedState'
 import {
-  DEFAULT_COLLABORATION_MODE,
-  FALLBACK_PLAN_COLLABORATION_MODE,
   buildTurnCollaborationMode,
-  mergeAvailableModelsWithCurrent,
-  mergeCollaborationModeOptions,
-  normalizeSelectedReasoningEffort,
-  reconcileSelectedCollaborationModeName,
-  selectCollaborationModeName,
-  selectModelId,
-  selectReasoningEffortFromPreference,
-  type CurrentModelPreference,
 } from './desktopTurnPreferences'
-import {
-  buildTurnPermissionOverride,
-  normalizeComposerPermissionMode,
-} from './desktopTurnPermissions'
+import { buildTurnPermissionOverride } from './desktopTurnPermissions'
 import {
   buildCompletedTurnSummary,
   buildPendingTurnActivity,
@@ -131,25 +103,7 @@ import {
   setActiveTurnForThread,
   shouldClearUnreadForStartedTurn,
 } from './desktopTurnState'
-import {
-  loadAutoRefreshEnabled,
-  loadDesktopTurnPreferences,
-  loadProjectDisplayNames,
-  loadProjectOrder,
-  loadReadStateMap,
-  loadSelectedThreadId,
-  loadThreadScrollStateMap,
-  normalizeDesktopTurnPreferences,
-  normalizeThreadScrollState,
-  saveAutoRefreshEnabled,
-  saveDesktopTurnPreferences,
-  saveProjectDisplayNames,
-  saveProjectOrder,
-  saveReadStateMap,
-  saveSelectedThreadId,
-  saveThreadScrollStateMap,
-} from './desktopStateStorage'
-import { DESKTOP_SETTING_KEYS } from './desktopSettingsKeys'
+import { normalizeThreadScrollState, saveProjectDisplayNames, saveProjectOrder, saveReadStateMap, saveThreadScrollStateMap } from './desktopStateStorage'
 import {
   areStringArraysEqual,
   buildThreadGroupsWithFlags,
@@ -168,14 +122,10 @@ import {
   upsertThreadInGroups,
 } from './threadGroupState'
 import type {
-  ReasoningEffort,
   UiCollaborationModeOption,
-  UiComposerPermissionMode,
   UiComposerSubmitPayload,
   ThreadScrollState,
   UiMessage,
-  UiProjectGroup,
-  UiServerRequest,
   UiServerRequestReply,
   UiThread,
   UiToolingRollbackFileResult,
@@ -184,42 +134,27 @@ import type {
 export { buildRollbackAuditMessage } from './desktopMessageState'
 
 const EVENT_SYNC_DEBOUNCE_MS = 220
-const AUTO_REFRESH_INTERVAL_MS = 4000
 
 export function useDesktopState() {
-  const projectGroups = ref<UiProjectGroup[]>([])
-  const sourceGroups = ref<UiProjectGroup[]>([])
-  const optimisticThreadById = ref<Record<string, UiThread>>({})
-  const selectedThreadId = ref(loadSelectedThreadId())
-  const isHiddenView = ref(false)
-  const persistedMessagesByThreadId = ref<Record<string, UiMessage[]>>({})
-  const liveAgentMessagesByThreadId = ref<Record<string, UiMessage[]>>({})
-  const liveReasoningTextByThreadId = ref<Record<string, string>>({})
-  const inProgressById = ref<Record<string, boolean>>({})
-  const eventUnreadByThreadId = ref<Record<string, boolean>>({})
-  const initialTurnPreferences = loadDesktopTurnPreferences()
-  const availableModelIds = ref<string[]>([])
-  const selectedModelId = ref(initialTurnPreferences.modelId)
-  const selectedReasoningEffort = ref<ReasoningEffort | ''>(initialTurnPreferences.reasoningEffort)
-  const selectedPermissionMode = ref<UiComposerPermissionMode>(initialTurnPreferences.permissionMode)
-  const collaborationModeOptions = ref<UiCollaborationModeOption[]>([
-    DEFAULT_COLLABORATION_MODE,
-    FALLBACK_PLAN_COLLABORATION_MODE,
-  ])
-  const selectedCollaborationModeName = ref(initialTurnPreferences.collaborationModeName)
-  const readStateByThreadId = ref<Record<string, string>>(loadReadStateMap())
-  const scrollStateByThreadId = ref<Record<string, ThreadScrollState>>(loadThreadScrollStateMap())
-  const projectOrder = ref<string[]>(loadProjectOrder())
-  const projectDisplayNameById = ref<Record<string, string>>(loadProjectDisplayNames())
-  const loadedVersionByThreadId = ref<Record<string, string>>({})
-  const loadedMessagesByThreadId = ref<Record<string, boolean>>({})
-  const resumedThreadById = ref<Record<string, boolean>>({})
+  const threadState = useDesktopThreadState()
+  const {
+    projectGroups, sourceGroups, optimisticThreadById, selectedThreadId, isHiddenView,
+    persistedMessagesByThreadId, liveAgentMessagesByThreadId, liveReasoningTextByThreadId,
+    inProgressById, eventUnreadByThreadId, readStateByThreadId, scrollStateByThreadId,
+    projectOrder, projectDisplayNameById, loadedVersionByThreadId, loadedMessagesByThreadId,
+    resumedThreadById, allThreads, selectedThread, selectedThreadScrollState,
+  } = threadState
+  const composerState = useDesktopComposerState()
+  const { availableModelIds, selectedModelId, selectedReasoningEffort, selectedPermissionMode,
+    collaborationModeOptions, selectedCollaborationModeName, selectedCollaborationMode,
+    hydrate: hydrateTurnPreferencesFromSettingsStore, refreshCollaborationModes, refreshModelPreferences,
+    setSelectedModelId, setSelectedReasoningEffort, setSelectedCollaborationModeName, setSelectedPermissionMode } = composerState
   const turnSummaryByThreadId = ref<Record<string, TurnSummaryState>>({})
   const turnActivityByThreadId = ref<Record<string, TurnActivityState>>({})
   const structuredPlanState = useStructuredPlanState(selectedThreadId)
   const turnErrorByThreadId = ref<Record<string, TurnErrorState>>({})
   const activeTurnIdByThreadId = ref<Record<string, string>>({})
-  const serverRequestState = useServerRequestState(selectedThreadId)
+  const serverRequestState = useServerRequestState(selectedThreadId, (message) => { error.value = message })
   const pendingServerRequestsByThreadId = serverRequestState.byThreadId
   const {
     rateLimitSnapshot,
@@ -236,12 +171,7 @@ export function useDesktopState() {
   const error = ref('')
   const isPolling = ref(false)
   const hasLoadedThreads = ref(false)
-  const isAutoRefreshEnabled = ref(loadAutoRefreshEnabled())
-  const autoRefreshSecondsLeft = ref(Math.floor(AUTO_REFRESH_INTERVAL_MS / 1000))
-  let stopNotificationStream: (() => void) | null = null
   let eventSyncTimer: number | null = null
-  let autoRefreshIntervalTimer: number | null = null
-  let autoRefreshCountdownTimer: number | null = null
   const realtimeSyncQueue = createDesktopRealtimeSyncQueue()
   const activeReasoningItemIdByThreadId = new Map<string, string>()
   let shouldAutoScrollOnNextAgentEvent = false
@@ -253,24 +183,10 @@ export function useDesktopState() {
   let nextMessageLoadRequestId = 0
   let latestThreadsRequestId = 0
   let nextOptimisticUserMessageId = 0
-  let hasHydratedTurnPreferences = false
 
-  const allThreads = computed(() => flattenThreads(projectGroups.value))
-  const selectedThread = computed(() =>
-    allThreads.value.find((thread) => thread.id === selectedThreadId.value) ?? null,
-  )
-  const selectedThreadScrollState = computed<ThreadScrollState | null>(
-    () => scrollStateByThreadId.value[selectedThreadId.value] ?? null,
-  )
   const selectedThreadServerRequests = serverRequestState.selected
   const isLoadingMessages = computed(() => loadingMessagesByThreadId.value[selectedThreadId.value] === true)
   const allPendingServerRequests = serverRequestState.all
-  const selectedCollaborationMode = computed<UiCollaborationModeOption>(() => {
-    const selected = collaborationModeOptions.value.find(
-      (option) => option.name === selectedCollaborationModeName.value,
-    )
-    return selected ?? DEFAULT_COLLABORATION_MODE
-  })
   const selectedLiveOverlay = computed(() =>
     buildLiveOverlay(
       selectedThreadId.value,
@@ -292,8 +208,7 @@ export function useDesktopState() {
 
   function setSelectedThreadId(nextThreadId: string): void {
     if (selectedThreadId.value === nextThreadId) return
-    selectedThreadId.value = nextThreadId
-    saveSelectedThreadId(nextThreadId)
+    threadState.setSelectedThreadId(nextThreadId)
     shouldAutoScrollOnNextAgentEvent = false
   }
 
@@ -327,121 +242,6 @@ export function useDesktopState() {
 
   function clearError(): void {
     error.value = ''
-  }
-
-  function currentTurnPreferences() {
-    return normalizeDesktopTurnPreferences({
-      modelId: selectedModelId.value,
-      reasoningEffort: selectedReasoningEffort.value,
-      collaborationModeName: selectedCollaborationModeName.value,
-      permissionMode: selectedPermissionMode.value,
-    })
-  }
-
-  function persistTurnPreferences(): void {
-    const preferences = currentTurnPreferences()
-    saveDesktopTurnPreferences(preferences)
-    if (!hasHydratedTurnPreferences) return
-    void writeUserSetting(DESKTOP_SETTING_KEYS.turnPreferences, preferences).catch(() => {
-      // Keep the browser-local preference if remote settings persistence fails.
-    })
-  }
-
-  async function hydrateTurnPreferencesFromSettingsStore(): Promise<void> {
-    if (hasHydratedTurnPreferences) return
-    hasHydratedTurnPreferences = true
-
-    try {
-      const setting = await fetchUserSetting<unknown>(DESKTOP_SETTING_KEYS.turnPreferences)
-      if (setting) {
-        const preferences = normalizeDesktopTurnPreferences(setting.value)
-        selectedModelId.value = preferences.modelId
-        selectedReasoningEffort.value = preferences.reasoningEffort
-        selectedCollaborationModeName.value = preferences.collaborationModeName
-        selectedPermissionMode.value = preferences.permissionMode
-        saveDesktopTurnPreferences(preferences)
-        return
-      }
-    } catch {
-      // Keep browser-local preferences if remote settings cannot be read.
-    }
-
-    const localPreferences = currentTurnPreferences()
-    saveDesktopTurnPreferences(localPreferences)
-    void writeUserSetting(DESKTOP_SETTING_KEYS.turnPreferences, localPreferences).catch(() => {
-      // Keep the browser-local preference if the initial remote write fails.
-    })
-  }
-
-  function setSelectedModelId(modelId: string): void {
-    selectedModelId.value = modelId.trim()
-    persistTurnPreferences()
-  }
-
-  function setSelectedReasoningEffort(effort: ReasoningEffort | ''): void {
-    const normalizedEffort = normalizeSelectedReasoningEffort(effort)
-    if (normalizedEffort === null) return
-    selectedReasoningEffort.value = normalizedEffort
-    persistTurnPreferences()
-  }
-
-  function setSelectedCollaborationModeName(name: string): void {
-    const nextName = selectCollaborationModeName(name, collaborationModeOptions.value)
-    if (!nextName) return
-    selectedCollaborationModeName.value = nextName
-    persistTurnPreferences()
-  }
-
-  function setSelectedPermissionMode(mode: UiComposerPermissionMode): void {
-    selectedPermissionMode.value = normalizeComposerPermissionMode(mode)
-    persistTurnPreferences()
-  }
-
-  async function refreshCollaborationModes(): Promise<void> {
-    let remoteOptions: UiCollaborationModeOption[] = []
-    try {
-      remoteOptions = await getCollaborationModes()
-    } catch {
-      remoteOptions = []
-    }
-
-    const nextOptions = mergeCollaborationModeOptions(remoteOptions)
-    collaborationModeOptions.value = nextOptions
-    selectedCollaborationModeName.value = reconcileSelectedCollaborationModeName(
-      selectedCollaborationModeName.value,
-      nextOptions,
-    )
-    persistTurnPreferences()
-  }
-
-  async function refreshModelPreferences(): Promise<void> {
-    let modelIds: string[] = []
-    let currentConfig: CurrentModelPreference = {
-      model: '',
-      reasoningEffort: '',
-    }
-
-    try {
-      modelIds = await getAvailableModelIds()
-    } catch {
-      modelIds = []
-    }
-
-    try {
-      currentConfig = await getCurrentModelConfig()
-    } catch {
-      currentConfig = { model: '', reasoningEffort: '' }
-    }
-
-    modelIds = mergeAvailableModelsWithCurrent(modelIds, currentConfig.model)
-    availableModelIds.value = modelIds
-
-    selectedModelId.value = selectModelId(selectedModelId.value, modelIds, currentConfig.model)
-    selectedReasoningEffort.value = selectReasoningEffortFromPreference(
-      selectedReasoningEffort.value,
-      currentConfig,
-    )
-    persistTurnPreferences()
   }
 
   function applyThreadFlags(): void {
@@ -784,18 +584,6 @@ export function useDesktopState() {
     )
   }
 
-  function upsertPendingServerRequest(request: UiServerRequest): void {
-    serverRequestState.upsert(request)
-  }
-
-  function removePendingServerRequestById(requestId: number): void {
-    serverRequestState.remove(requestId)
-  }
-
-  function handleServerRequestNotification(notification: RpcNotification): boolean {
-    return serverRequestState.handle(notification)
-  }
-
   function applyRealtimeUpdates(notification: RpcNotification): void {
     if (handleRateLimitNotification(notification)) {
       return
@@ -806,7 +594,7 @@ export function useDesktopState() {
       addOptimisticThread(startedThread)
     }
 
-    if (handleServerRequestNotification(notification)) {
+    if (serverRequestState.handle(notification)) {
       return
     }
 
@@ -1657,102 +1445,11 @@ export function useDesktopState() {
     }
   }
 
-  function startRealtimeSync(): void {
-    if (typeof window === 'undefined') return
-
-    if (stopNotificationStream) return
-    void hydrateTurnPreferencesFromSettingsStore()
-    if (isAutoRefreshEnabled.value) {
-      startAutoRefreshTimer()
-    }
-    void loadPendingServerRequestsFromBridge()
-    void refreshRateLimits()
-    stopNotificationStream = subscribeRpcNotifications((notification) => {
-      applyRealtimeUpdates(notification)
-      queueEventDrivenSync(notification)
-    })
-  }
-
-  async function loadPendingServerRequestsFromBridge(): Promise<void> {
-    try {
-      const rows = await fetchPendingServerRequests()
-      for (const row of rows) {
-        const request = normalizeServerRequest(row)
-        if (request) {
-          upsertPendingServerRequest(request)
-        }
-      }
-    } catch {
-      // Keep UI usable when pending request endpoint is temporarily unavailable.
-    }
-  }
-
   async function respondToPendingServerRequest(reply: UiServerRequestReply): Promise<void> {
-    try {
-      await respondServerRequest({
-        id: reply.id,
-        approvalScope: reply.approvalScope,
-        result: reply.result,
-        error: reply.error,
-      })
-      removePendingServerRequestById(reply.id)
-    } catch (unknownError) {
-      error.value = unknownError instanceof Error ? unknownError.message : 'Failed to reply to server request'
-    }
+    await serverRequestState.respond(reply)
   }
 
-  function stopAutoRefreshTimer(options: { updatePreference?: boolean } = {}): void {
-    const updatePreference = options.updatePreference ?? true
-
-    if (autoRefreshIntervalTimer !== null && typeof window !== 'undefined') {
-      window.clearInterval(autoRefreshIntervalTimer)
-      autoRefreshIntervalTimer = null
-    }
-    if (autoRefreshCountdownTimer !== null && typeof window !== 'undefined') {
-      window.clearInterval(autoRefreshCountdownTimer)
-      autoRefreshCountdownTimer = null
-    }
-    if (updatePreference) {
-      isAutoRefreshEnabled.value = false
-      saveAutoRefreshEnabled(false)
-    }
-    autoRefreshSecondsLeft.value = Math.floor(AUTO_REFRESH_INTERVAL_MS / 1000)
-  }
-
-  function startAutoRefreshTimer(): void {
-    if (typeof window === 'undefined') return
-    if (autoRefreshIntervalTimer !== null || autoRefreshCountdownTimer !== null) return
-
-    isAutoRefreshEnabled.value = true
-    saveAutoRefreshEnabled(true)
-    autoRefreshSecondsLeft.value = Math.floor(AUTO_REFRESH_INTERVAL_MS / 1000)
-
-    autoRefreshIntervalTimer = window.setInterval(() => {
-      autoRefreshSecondsLeft.value = Math.floor(AUTO_REFRESH_INTERVAL_MS / 1000)
-      void syncThreadStatus()
-    }, AUTO_REFRESH_INTERVAL_MS)
-
-    autoRefreshCountdownTimer = window.setInterval(() => {
-      autoRefreshSecondsLeft.value = Math.max(0, autoRefreshSecondsLeft.value - 1)
-    }, 1000)
-  }
-
-  function toggleAutoRefreshTimer(): void {
-    if (isAutoRefreshEnabled.value) {
-      stopAutoRefreshTimer()
-      return
-    }
-    startAutoRefreshTimer()
-  }
-
-  function stopRealtimeSync(): void {
-    stopAutoRefreshTimer({ updatePreference: false })
-
-    if (stopNotificationStream) {
-      stopNotificationStream()
-      stopNotificationStream = null
-    }
-
+  function resetRealtimeDomainState(): void {
     clearDesktopRealtimeSyncQueue(realtimeSyncQueue)
     pendingTurnStartsById.clear()
     livePlanMessageIdByTurnId.clear()
@@ -1774,6 +1471,17 @@ export function useDesktopState() {
     messageLoadErrorByThreadId.value = {}
     activeTurnIdByThreadId.value = {}
   }
+
+  const realtimeState = useDesktopRealtimeState({
+    hydratePreferences: hydrateTurnPreferencesFromSettingsStore,
+    loadPendingApprovals: serverRequestState.load,
+    refreshRateLimits,
+    applyNotification: applyRealtimeUpdates,
+    queueNotificationSync: queueEventDrivenSync,
+    syncThreadStatus,
+    resetDomainState: resetRealtimeDomainState,
+  })
+  const { isAutoRefreshEnabled, autoRefreshSecondsLeft, toggleAutoRefreshTimer, startRealtimeSync, stopRealtimeSync } = realtimeState
 
   return {
     projectGroups,

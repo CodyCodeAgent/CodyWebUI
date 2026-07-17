@@ -6,83 +6,26 @@ import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { cwd as getProcessCwd } from 'node:process'
 import { WebSocket, WebSocketServer } from 'ws'
-import {
-  findCatalogThreadCwd,
-  listCatalog,
-  setCatalogProjectDisplayName,
-  setCatalogProjectHidden,
-  setCatalogProjectOrder,
-  setCatalogThreadHidden,
-  type CatalogVisibility,
-} from './catalogStore.js'
+import { findCatalogThreadCwd } from './catalogStore.js'
 import { CatalogSyncService } from './catalogSyncService.js'
 import { AgentTaskService } from './agentTaskService.js'
-import type { AgentTaskInput } from './agentTaskStore.js'
-import { runControlledProcess } from './controlledProcess.js'
-import { handleDirectoryList } from './directoryBrowser.js'
 import {
   isApprovalRequestMethod,
   isCommandApprovalRequestMethod,
   isFileChangeApprovalRequestMethod,
 } from '../api/codexServerRequestMethods.js'
-import { handleImageUpload, handleLocalImage } from './imageUploads.js'
 import { NotificationDispatcher, type NotificationDispatchEvent } from './notificationDispatchService.js'
 import { buildSecurityAccessSnapshot } from './securityAccess.js'
-import { appendCodexSessionEvent, handleDailyTokenUsage, handleListCodexSessionEvents, handleListCodexWorkspaceSessions, summarizeGlobalDailyTokenUsage } from './sessionEventStore.js'
+import { appendCodexSessionEvent } from './sessionEventStore.js'
 import { TokenUsageReconciliationService } from './tokenUsageReconciliationService.js'
-import { renderPlantUmlSvg } from './diagramRenderService.js'
-import { handleListUserSettings, handleReadUserSetting, handleWriteUserSetting } from './settingsStore.js'
-import { handleDeletePromptTemplate, handleFavoritePromptTemplate, handleListPromptTemplates, handleReplacePromptTemplates, handleSavePromptTemplate, handleUsePromptTemplate } from './promptLibraryStore.js'
+import { createAgentTaskRoutes } from './routes/agentTaskRoutes.js'
+import { createBackgroundTaskRoutes } from './routes/backgroundTaskRoutes.js'
+import { createCatalogRoutes } from './routes/catalogRoutes.js'
+import { createContentRoutes } from './routes/contentRoutes.js'
+import { createGatewayRoutes } from './routes/gatewayRoutes.js'
+import { createWorkspaceToolingRoutes } from './routes/workspaceToolingRoutes.js'
+import { createSmokeRoutes } from './routes/smokeRoutes.js'
 import {
-  handleApplyPatchToWorkspaceWorktree,
-  handleApplyWorkspaceWorkflowImplementation,
-  handleCaptureWorkspacePreviewScreenshot,
-  handleCommitStagedWorkspaceChanges,
-  handleCreateWorkspacePullRequest,
-  handleCreateToolingCheckpoint,
-  handleCreateWorkspaceWorktree,
-  handleDefaultWorkspace,
-  handleDiscardWorkspaceWorkflowImplementation,
-  handleGetWorkspaceWorkflowDeliveryDraft,
-  handleGetWorkspaceWorkflowReplay,
-  handleMarkWorkspaceWorkflowMerged,
-  handleMarkWorkspaceWorkflowReadyToMerge,
-  handleListApprovalGrants,
-  handleListTerminalSessions,
-  handleListToolingCheckpoints,
-  handleListWorkspaceAuditEvents,
-  handleListWorkspaceReviewComments,
-  handleListWorkspaceValidationRuns,
-  handleListWorkspaceWorkflows,
-  handleListWorkspaceWorktrees,
-  handleListWorkspaceFiles,
-  handleProbeWorkspacePreview,
-  handleCreateWorkspaceReviewComment,
-  handleCreateWorkspaceReviewFollowUp,
-  handleReadWorkspaceFile,
-  handleReadWorkspaceAsset,
-  handleReadToolingCheckpointPatch,
-  handleRollbackToolingHunk,
-  handleRemoveWorkspaceWorktree,
-  handleRevokeApprovalGrant,
-  handleRollbackToolingFile,
-  handleRollbackToolingWorkspace,
-  handleRunWorkspaceScript,
-  handleStageToolingHunk,
-  handleStartTerminalSession,
-  handleStopTerminalSession,
-  handleUpdateWorkspaceReviewCommentStatus,
-  handleWorkspacePorts,
-  handleWorkspacePullRequestDraft,
-  handleWorkspaceReviewDraft,
-  handleStageWorkspaceGitPaths,
-  handleToolingDiff,
-  handleUnstageWorkspaceGitPaths,
-  handleWorkspaceGitDeliveryDraft,
-  handleWorkspaceGitStatus,
-  handleWorkspaceSecuritySnapshot,
-  handleWorkspaceSnapshot,
-  handleWriteWorkspaceFile,
   createWorkspaceWorkflowRun,
   createToolingCheckpoint,
   getToolingCheckpointHealth,
@@ -122,11 +65,6 @@ type JsonRpcResponse = {
     message: string
   }
   method?: string
-  params?: unknown
-}
-
-type RpcProxyRequest = {
-  method: string
   params?: unknown
 }
 
@@ -1909,8 +1847,52 @@ async function buildGatewayDiagnostics(
   }
 }
 
+async function handleCheckpointHealthRoute(url: URL, res: ServerResponse): Promise<void> {
+  try {
+    const cwd = url.searchParams.get('cwd')?.trim() ?? ''
+    const health = await getToolingCheckpointHealth(cwd)
+    const backoff = automaticCheckpointBackoffByWorkspace.get(resolve(cwd))
+    setJson(res, 200, {
+      result: {
+        ...health,
+        status: backoff && health.status === 'healthy' ? 'degraded' : health.status,
+        automaticBackoff: backoff ? {
+          failureCount: backoff.failureCount,
+          retryAtIso: new Date(backoff.retryAtMs).toISOString(),
+          active: backoff.retryAtMs > Date.now(),
+        } : null,
+      },
+    })
+  } catch (error) {
+    setJson(res, 400, { error: error instanceof Error && error.message ? error.message : 'Failed to inspect checkpoint health' })
+  }
+}
+
 export function createCodexBridgeMiddleware(): CodexBridgeMiddleware {
   const { appServer, catalogSync, tokenUsageReconciliation, agentTasks, methodCatalog, stopNotificationDispatch, productEventHub } = getSharedBridgeState()
+  const domainRoutes = [
+    createGatewayRoutes({
+      rpc: (method, params) => appServer.rpc(method, params),
+      respond: (payload) => appServer.respondToServerRequest(payload),
+      listPending: () => appServer.listPendingServerRequests(),
+      listMethods: () => methodCatalog.listMethods(),
+      listNotifications: () => methodCatalog.listNotificationMethods(),
+      diagnostics: () => buildGatewayDiagnostics(appServer, methodCatalog),
+      accessSecurity: ({ req }) => buildSecurityAccessSnapshot(req, { authEnabled: false, listenHost: '127.0.0.1', listenPort: null }),
+    }),
+    createBackgroundTaskRoutes({ catalogSync, tokenUsageReconciliation }),
+    createAgentTaskRoutes(agentTasks),
+    createCatalogRoutes(catalogSync),
+    createContentRoutes(),
+    createWorkspaceToolingRoutes({
+      checkpointHealth: ({ url, res }) => handleCheckpointHealthRoute(url, res),
+      createWorkflow: ({ req, res }) => handleCreateWorkspaceWorkflowWithNotifications(req, res, productEventHub),
+      updateWorkflowAgentStatus: ({ req, res }) => handleUpdateWorkspaceWorkflowAgentStatusWithNotifications(req, res, productEventHub),
+      provisionWorkflowAgentWorktree: ({ req, res }) => handleProvisionWorkspaceWorkflowAgentWorktreeWithNotifications(req, res),
+      runWorkflowValidation: ({ req, res }) => handleRunWorkspaceWorkflowValidationWithNotifications(req, res, productEventHub),
+    }),
+    createSmokeRoutes({ enabled: areSmokeHooksEnabled, injectServerRequest: (payload) => appServer.injectSmokeServerRequest(payload) }),
+  ]
 
   const middleware = async (req: IncomingMessage, res: ServerResponse, next: () => void) => {
     try {
@@ -1921,737 +1903,8 @@ export function createCodexBridgeMiddleware(): CodexBridgeMiddleware {
 
       const url = new URL(req.url, 'http://localhost')
 
-      if (req.method === 'POST' && url.pathname === '/codex-api/rpc') {
-        const payload = await readJsonBody(req)
-        const body = asRecord(payload) as RpcProxyRequest | null
-
-        if (!body || typeof body.method !== 'string' || body.method.length === 0) {
-          setJson(res, 400, { error: 'Invalid body: expected { method, params? }' })
-          return
-        }
-
-        const result = await appServer.rpc(body.method, body.params ?? null)
-        setJson(res, 200, { result })
-        return
-      }
-
-      if (url.pathname === '/codex-api/background-tasks' && req.method === 'GET') {
-        setJson(res, 200, {
-          result: {
-            tasks: [catalogSync.getStatus(), tokenUsageReconciliation?.getStatus()].filter(Boolean),
-            generatedAtIso: new Date().toISOString(),
-          },
-        })
-        return
-      }
-
-      if (url.pathname === '/codex-api/background-tasks' && req.method === 'POST') {
-        const body = asRecord(await readJsonBody(req))
-        const name = readString(body?.name)
-        const action = readString(body?.action)
-        const service = name === 'project-thread-catalog-sync'
-          ? catalogSync
-          : name === 'token-usage-reconciliation' && tokenUsageReconciliation
-            ? tokenUsageReconciliation
-            : null
-        if (!service || !['run', 'pause', 'resume'].includes(action)) {
-          setJson(res, 400, { error: 'Invalid body: expected a known task name and run, pause, or resume action' })
-          return
-        }
-        if (action === 'pause') service.pause()
-        else if (action === 'resume') service.resume()
-        else if (name === 'project-thread-catalog-sync') void catalogSync.syncNow().catch((error: unknown) => {
-          console.warn(`Background catalog sync failed: ${error instanceof Error ? error.message : String(error)}`)
-        })
-        else void tokenUsageReconciliation?.runNow().catch((error: unknown) => {
-          console.warn(`Background token reconciliation failed: ${error instanceof Error ? error.message : String(error)}`)
-        })
-        setJson(res, action === 'run' ? 202 : 200, {
-          result: {
-            tasks: [catalogSync.getStatus(), tokenUsageReconciliation?.getStatus()].filter(Boolean),
-            generatedAtIso: new Date().toISOString(),
-          },
-        })
-        return
-      }
-
-      if (url.pathname === '/codex-api/agent-tasks' && req.method === 'GET') {
-        if (!agentTasks) {
-          setJson(res, 503, { error: 'Agent task scheduler is unavailable' })
-          return
-        }
-        const visibility = url.searchParams.get('visibility') === 'archived' ? 'archived' : 'active'
-        setJson(res, 200, { result: await agentTasks.list(visibility) })
-        return
-      }
-
-      if (url.pathname === '/codex-api/agent-tasks' && req.method === 'POST') {
-        if (!agentTasks) {
-          setJson(res, 503, { error: 'Agent task scheduler is unavailable' })
-          return
-        }
-        const body = asRecord(await readJsonBody(req))
-        const task = await agentTasks.create(asRecord(body?.task) as AgentTaskInput)
-        setJson(res, 201, { result: { task } })
-        return
-      }
-
-      if (url.pathname === '/codex-api/agent-tasks/item' && req.method === 'PUT') {
-        if (!agentTasks) {
-          setJson(res, 503, { error: 'Agent task scheduler is unavailable' })
-          return
-        }
-        const body = asRecord(await readJsonBody(req))
-        const id = readString(body?.id)
-        const task = await agentTasks.update(id, asRecord(body?.task) as AgentTaskInput)
-        setJson(res, 200, { result: { task } })
-        return
-      }
-
-      if (url.pathname === '/codex-api/agent-tasks/item' && req.method === 'DELETE') {
-        if (!agentTasks) {
-          setJson(res, 503, { error: 'Agent task scheduler is unavailable' })
-          return
-        }
-        const id = url.searchParams.get('id')?.trim() ?? ''
-        const permanent = url.searchParams.get('permanent') === 'true'
-        if (permanent) await agentTasks.permanentlyDelete(id)
-        else await agentTasks.remove(id)
-        setJson(res, 200, { result: { deleted: true, permanent } })
-        return
-      }
-
-      if (url.pathname === '/codex-api/agent-tasks/control' && req.method === 'POST') {
-        if (!agentTasks) {
-          setJson(res, 503, { error: 'Agent task scheduler is unavailable' })
-          return
-        }
-        const body = asRecord(await readJsonBody(req))
-        const id = readString(body?.id)
-        const action = readString(body?.action)
-        if (action === 'run') {
-          setJson(res, 202, { result: { run: await agentTasks.runNow(id) } })
-          return
-        }
-        if (action === 'cancel') {
-          setJson(res, 200, { result: { run: await agentTasks.cancel(id, readString(body?.runId)) } })
-          return
-        }
-        if (action === 'duplicate') {
-          setJson(res, 201, { result: { task: await agentTasks.duplicate(id) } })
-          return
-        }
-        if (action === 'restore') {
-          setJson(res, 200, { result: { task: await agentTasks.restore(id) } })
-          return
-        }
-        if (action === 'pause' || action === 'resume') {
-          setJson(res, 200, { result: { task: await agentTasks.setEnabled(id, action === 'resume') } })
-          return
-        }
-        setJson(res, 400, { error: 'Invalid action: expected run, pause, resume, cancel, duplicate, or restore' })
-        return
-      }
-
-      if (url.pathname === '/codex-api/agent-tasks/parse' && req.method === 'POST') {
-        if (!agentTasks) { setJson(res, 503, { error: 'Agent task scheduler is unavailable' }); return }
-        const body = asRecord(await readJsonBody(req))
-        setJson(res, 200, { result: { draft: agentTasks.parse(readString(body?.instruction), readString(body?.timezone) || undefined) } })
-        return
-      }
-
-      if (url.pathname === '/codex-api/agent-tasks/export' && req.method === 'GET') {
-        if (!agentTasks) { setJson(res, 503, { error: 'Agent task scheduler is unavailable' }); return }
-        const ids = (url.searchParams.get('ids') ?? '').split(',').map((value) => value.trim()).filter(Boolean)
-        setJson(res, 200, { result: await agentTasks.exportDefinitions(ids) })
-        return
-      }
-
-      if (url.pathname === '/codex-api/agent-tasks/import' && req.method === 'POST') {
-        if (!agentTasks) { setJson(res, 503, { error: 'Agent task scheduler is unavailable' }); return }
-        const body = await readJsonBody(req)
-        setJson(res, 201, { result: { tasks: await agentTasks.importDefinitions(body) } })
-        return
-      }
-
-      if (url.pathname === '/codex-api/agent-task-versions' && req.method === 'GET') {
-        if (!agentTasks) { setJson(res, 503, { error: 'Agent task scheduler is unavailable' }); return }
-        setJson(res, 200, { result: { versions: await agentTasks.versions(url.searchParams.get('taskId')?.trim() ?? '') } })
-        return
-      }
-
-      if (url.pathname === '/codex-api/agent-task-versions/rollback' && req.method === 'POST') {
-        if (!agentTasks) { setJson(res, 503, { error: 'Agent task scheduler is unavailable' }); return }
-        const body = asRecord(await readJsonBody(req))
-        setJson(res, 200, { result: { task: await agentTasks.rollback(readString(body?.taskId), Number(body?.version)) } })
-        return
-      }
-
-      if (url.pathname === '/codex-api/agent-task-run-events' && req.method === 'GET') {
-        if (!agentTasks) { setJson(res, 503, { error: 'Agent task scheduler is unavailable' }); return }
-        setJson(res, 200, { result: { events: await agentTasks.runEvents(url.searchParams.get('runId')?.trim() ?? '') } })
-        return
-      }
-
-      if (url.pathname === '/codex-api/agent-task-runs' && req.method === 'GET') {
-        if (!agentTasks) {
-          setJson(res, 503, { error: 'Agent task scheduler is unavailable' })
-          return
-        }
-        const taskId = url.searchParams.get('taskId')?.trim() ?? ''
-        const limit = Number(url.searchParams.get('limit') ?? 50)
-        setJson(res, 200, { result: { runs: await agentTasks.runs(taskId, limit) } })
-        return
-      }
-
-      if (req.method === 'GET' && url.pathname === '/codex-api/catalog') {
-        const visibility: CatalogVisibility = url.searchParams.get('visibility') === 'hidden' ? 'hidden' : 'visible'
-        await catalogSync.refreshForRead()
-        setJson(res, 200, {
-          result: {
-            catalog: await listCatalog(visibility),
-            sync: catalogSync.getStatus(),
-          },
-        })
-        return
-      }
-
-      if (req.method === 'GET' && url.pathname === '/codex-api/catalog/status') {
-        setJson(res, 200, { result: { sync: catalogSync.getStatus() } })
-        return
-      }
-
-      if (req.method === 'POST' && url.pathname === '/codex-api/catalog/sync') {
-        await catalogSync.syncNow()
-        setJson(res, 200, {
-          result: {
-            catalog: await listCatalog('visible'),
-            sync: catalogSync.getStatus(),
-          },
-        })
-        return
-      }
-
-      if (req.method === 'POST' && url.pathname === '/codex-api/catalog/projects/visibility') {
-        const body = asRecord(await readJsonBody(req))
-        const projectKey = readString(body?.projectKey)
-        if (!projectKey || typeof body?.hidden !== 'boolean') {
-          setJson(res, 400, { error: 'Invalid body: expected { projectKey, hidden }' })
-          return
-        }
-        await setCatalogProjectHidden(projectKey, body.hidden)
-        setJson(res, 200, { result: { ok: true } })
-        return
-      }
-
-      if (req.method === 'POST' && url.pathname === '/codex-api/catalog/threads/visibility') {
-        const body = asRecord(await readJsonBody(req))
-        const threadId = readString(body?.threadId)
-        if (!threadId || typeof body?.hidden !== 'boolean') {
-          setJson(res, 400, { error: 'Invalid body: expected { threadId, hidden }' })
-          return
-        }
-        await setCatalogThreadHidden(threadId, body.hidden)
-        setJson(res, 200, { result: { ok: true } })
-        return
-      }
-
-      if (req.method === 'POST' && url.pathname === '/codex-api/catalog/projects/presentation') {
-        const body = asRecord(await readJsonBody(req))
-        const projectKey = readString(body?.projectKey)
-        if (!projectKey || typeof body?.displayName !== 'string') {
-          setJson(res, 400, { error: 'Invalid body: expected { projectKey, displayName }' })
-          return
-        }
-        await setCatalogProjectDisplayName(projectKey, body.displayName)
-        setJson(res, 200, { result: { ok: true } })
-        return
-      }
-
-      if (req.method === 'POST' && url.pathname === '/codex-api/catalog/projects/order') {
-        const body = asRecord(await readJsonBody(req))
-        const projectKeys = Array.isArray(body?.projectKeys)
-          ? body.projectKeys.filter((value): value is string => typeof value === 'string')
-          : []
-        if (projectKeys.length === 0) {
-          setJson(res, 400, { error: 'Invalid body: expected { projectKeys: string[] }' })
-          return
-        }
-        await setCatalogProjectOrder(projectKeys)
-        setJson(res, 200, { result: { ok: true } })
-        return
-      }
-
-      if (req.method === 'POST' && url.pathname === '/codex-api/uploads/images') {
-        await handleImageUpload(req, res)
-        return
-      }
-
-      if ((req.method === 'GET' || req.method === 'HEAD') && url.pathname === '/codex-api/local-image') {
-        await handleLocalImage(url, res, req.method)
-        return
-      }
-
-      if (req.method === 'GET' && url.pathname === '/codex-api/settings') {
-        await handleReadUserSetting(url, res)
-        return
-      }
-
-      if (req.method === 'GET' && url.pathname === '/codex-api/settings/list') {
-        await handleListUserSettings(url, res)
-        return
-      }
-
-      if (req.method === 'POST' && url.pathname === '/codex-api/settings') {
-        await handleWriteUserSetting(req, res)
-        return
-      }
-
-      if (req.method === 'GET' && url.pathname === '/codex-api/prompt-templates') {
-        await handleListPromptTemplates(url, res)
-        return
-      }
-
-      if (req.method === 'POST' && url.pathname === '/codex-api/prompt-templates') {
-        await handleReplacePromptTemplates(req, res)
-        return
-      }
-
-      if (req.method === 'POST' && url.pathname === '/codex-api/prompt-templates/item') {
-        await handleSavePromptTemplate(req, res)
-        return
-      }
-
-      if (req.method === 'DELETE' && url.pathname === '/codex-api/prompt-templates/item') {
-        await handleDeletePromptTemplate(url, res)
-        return
-      }
-
-      if (req.method === 'POST' && url.pathname === '/codex-api/prompt-templates/use') {
-        await handleUsePromptTemplate(req, res)
-        return
-      }
-
-      if (req.method === 'POST' && url.pathname === '/codex-api/prompt-templates/favorite') {
-        await handleFavoritePromptTemplate(req, res)
-        return
-      }
-
-      if (req.method === 'GET' && url.pathname === '/codex-api/fs/directories') {
-        await handleDirectoryList(url, res)
-        return
-      }
-
-      if (req.method === 'GET' && url.pathname === '/codex-api/tooling/diff') {
-        await handleToolingDiff(url, res)
-        return
-      }
-
-      if (req.method === 'GET' && url.pathname === '/codex-api/tooling/workspace-snapshot') {
-        await handleWorkspaceSnapshot(url, res)
-        return
-      }
-
-      if (req.method === 'GET' && url.pathname === '/codex-api/tooling/workspace-security') {
-        await handleWorkspaceSecuritySnapshot(url, res)
-        return
-      }
-
-      if (req.method === 'GET' && url.pathname === '/codex-api/tooling/checkpoint-health') {
-        try {
-          const cwd = url.searchParams.get('cwd')?.trim() ?? ''
-          const health = await getToolingCheckpointHealth(cwd)
-          const backoff = automaticCheckpointBackoffByWorkspace.get(resolve(cwd))
-          setJson(res, 200, {
-            result: {
-              ...health,
-              status: backoff && health.status === 'healthy' ? 'degraded' : health.status,
-              automaticBackoff: backoff
-                ? {
-                    failureCount: backoff.failureCount,
-                    retryAtIso: new Date(backoff.retryAtMs).toISOString(),
-                    active: backoff.retryAtMs > Date.now(),
-                  }
-                : null,
-            },
-          })
-        } catch (error) {
-          const message = error instanceof Error && error.message ? error.message : 'Failed to inspect checkpoint health'
-          setJson(res, 400, { error: message })
-        }
-        return
-      }
-
-      if (req.method === 'POST' && url.pathname === '/codex-api/tooling/notifications/test') {
-        const body = asRecord(await readJsonBody(req))
-        const cwd = typeof body?.cwd === 'string' ? body.cwd.trim() : ''
-        if (!cwd) {
-          setJson(res, 400, { error: 'cwd is required' })
-          return
-        }
-        const dispatcher = new NotificationDispatcher({ workspaceCwd: cwd })
-        const result = await dispatcher.dispatchTestNotification()
-        setJson(res, 200, { result })
-        return
-      }
-
-      if (req.method === 'GET' && url.pathname === '/codex-api/tooling/default-workspace') {
-        await handleDefaultWorkspace(res)
-        return
-      }
-
-      if (req.method === 'GET' && url.pathname === '/codex-api/tooling/git-status') {
-        await handleWorkspaceGitStatus(url, res)
-        return
-      }
-
-      if (req.method === 'GET' && url.pathname === '/codex-api/tooling/git-delivery-draft') {
-        await handleWorkspaceGitDeliveryDraft(url, res)
-        return
-      }
-
-      if (req.method === 'GET' && url.pathname === '/codex-api/tooling/review-draft') {
-        await handleWorkspaceReviewDraft(url, res)
-        return
-      }
-
-      if (req.method === 'GET' && url.pathname === '/codex-api/tooling/pull-request-draft') {
-        await handleWorkspacePullRequestDraft(url, res)
-        return
-      }
-
-      if (req.method === 'POST' && url.pathname === '/codex-api/tooling/git-commit') {
-        await handleCommitStagedWorkspaceChanges(req, res)
-        return
-      }
-
-      if (req.method === 'POST' && url.pathname === '/codex-api/tooling/pull-request') {
-        await handleCreateWorkspacePullRequest(req, res)
-        return
-      }
-
-      if (req.method === 'GET' && url.pathname === '/codex-api/tooling/worktrees') {
-        await handleListWorkspaceWorktrees(url, res)
-        return
-      }
-
-      if (req.method === 'POST' && url.pathname === '/codex-api/tooling/worktrees') {
-        await handleCreateWorkspaceWorktree(req, res)
-        return
-      }
-
-      if (req.method === 'POST' && url.pathname === '/codex-api/tooling/worktrees/remove') {
-        await handleRemoveWorkspaceWorktree(req, res)
-        return
-      }
-
-      if (req.method === 'POST' && url.pathname === '/codex-api/tooling/worktrees/apply-patch') {
-        await handleApplyPatchToWorkspaceWorktree(req, res)
-        return
-      }
-
-      if (req.method === 'GET' && url.pathname === '/codex-api/tooling/ports') {
-        await handleWorkspacePorts(url, res)
-        return
-      }
-
-      if (req.method === 'POST' && url.pathname === '/codex-api/tooling/preview-probe') {
-        await handleProbeWorkspacePreview(req, res)
-        return
-      }
-
-      if (req.method === 'POST' && url.pathname === '/codex-api/tooling/preview-screenshot') {
-        await handleCaptureWorkspacePreviewScreenshot(req, res)
-        return
-      }
-
-      if (req.method === 'GET' && url.pathname === '/codex-api/tooling/terminal-sessions') {
-        await handleListTerminalSessions(url, res)
-        return
-      }
-
-      if (req.method === 'GET' && url.pathname === '/codex-api/tooling/validation-runs') {
-        await handleListWorkspaceValidationRuns(url, res)
-        return
-      }
-
-      if (req.method === 'GET' && url.pathname === '/codex-api/tooling/workflows') {
-        await handleListWorkspaceWorkflows(url, res)
-        return
-      }
-
-      if (req.method === 'POST' && url.pathname === '/codex-api/tooling/workflows') {
-        await handleCreateWorkspaceWorkflowWithNotifications(req, res, productEventHub)
-        return
-      }
-
-      if (req.method === 'POST' && url.pathname === '/codex-api/tooling/workflows/agent-status') {
-        await handleUpdateWorkspaceWorkflowAgentStatusWithNotifications(req, res, productEventHub)
-        return
-      }
-
-      if (req.method === 'POST' && url.pathname === '/codex-api/tooling/workflows/agent-worktree') {
-        await handleProvisionWorkspaceWorkflowAgentWorktreeWithNotifications(req, res)
-        return
-      }
-
-      if (req.method === 'POST' && url.pathname === '/codex-api/tooling/workflows/apply-implementation') {
-        await handleApplyWorkspaceWorkflowImplementation(req, res)
-        return
-      }
-
-      if (req.method === 'POST' && url.pathname === '/codex-api/tooling/workflows/discard-implementation') {
-        await handleDiscardWorkspaceWorkflowImplementation(req, res)
-        return
-      }
-
-      if (req.method === 'GET' && url.pathname === '/codex-api/tooling/workflows/replay') {
-        await handleGetWorkspaceWorkflowReplay(url, res)
-        return
-      }
-
-      if (req.method === 'GET' && url.pathname === '/codex-api/tooling/workflows/delivery-draft') {
-        await handleGetWorkspaceWorkflowDeliveryDraft(url, res)
-        return
-      }
-
-      if (req.method === 'POST' && url.pathname === '/codex-api/tooling/workflows/ready-to-merge') {
-        await handleMarkWorkspaceWorkflowReadyToMerge(req, res)
-        return
-      }
-
-      if (req.method === 'POST' && url.pathname === '/codex-api/tooling/workflows/merged') {
-        await handleMarkWorkspaceWorkflowMerged(req, res)
-        return
-      }
-
-      if (req.method === 'POST' && url.pathname === '/codex-api/tooling/workflows/validation-run') {
-        await handleRunWorkspaceWorkflowValidationWithNotifications(req, res, productEventHub)
-        return
-      }
-
-      if (req.method === 'POST' && url.pathname === '/codex-api/tooling/terminal-sessions') {
-        await handleStartTerminalSession(req, res)
-        return
-      }
-
-      if (req.method === 'POST' && url.pathname === '/codex-api/tooling/terminal-sessions/stop') {
-        await handleStopTerminalSession(req, res)
-        return
-      }
-
-      if (req.method === 'POST' && url.pathname === '/codex-api/tooling/git-stage') {
-        await handleStageWorkspaceGitPaths(req, res)
-        return
-      }
-
-      if (req.method === 'POST' && url.pathname === '/codex-api/tooling/git-unstage') {
-        await handleUnstageWorkspaceGitPaths(req, res)
-        return
-      }
-
-      if (req.method === 'GET' && url.pathname === '/codex-api/tooling/workspace-files') {
-        await handleListWorkspaceFiles(url, res)
-        return
-      }
-
-      if (req.method === 'GET' && url.pathname === '/codex-api/tooling/workspace-file') {
-        await handleReadWorkspaceFile(url, res)
-        return
-      }
-
-      if (req.method === 'GET' && url.pathname === '/codex-api/tooling/workspace-asset') {
-        await handleReadWorkspaceAsset(url, res)
-        return
-      }
-
-      if (req.method === 'POST' && url.pathname === '/codex-api/tooling/workspace-file') {
-        await handleWriteWorkspaceFile(req, res)
-        return
-      }
-
-      if (req.method === 'POST' && url.pathname === '/codex-api/tooling/workspace-script/run') {
-        await handleRunWorkspaceScript(req, res)
-        return
-      }
-
-      if (req.method === 'GET' && url.pathname === '/codex-api/tooling/approval-grants') {
-        await handleListApprovalGrants(url, res)
-        return
-      }
-
-      if (req.method === 'POST' && url.pathname === '/codex-api/tooling/approval-grants/revoke') {
-        await handleRevokeApprovalGrant(req, res)
-        return
-      }
-
-      if (req.method === 'GET' && url.pathname === '/codex-api/tooling/checkpoints') {
-        await handleListToolingCheckpoints(url, res)
-        return
-      }
-
-      if (req.method === 'GET' && url.pathname === '/codex-api/tooling/audit-events') {
-        await handleListWorkspaceAuditEvents(url, res)
-        return
-      }
-
-      if (req.method === 'GET' && url.pathname === '/codex-api/tooling/review-comments') {
-        await handleListWorkspaceReviewComments(url, res)
-        return
-      }
-
-      if (req.method === 'POST' && url.pathname === '/codex-api/tooling/review-comments') {
-        await handleCreateWorkspaceReviewComment(req, res)
-        return
-      }
-
-      if (req.method === 'POST' && url.pathname === '/codex-api/tooling/review-comments/status') {
-        await handleUpdateWorkspaceReviewCommentStatus(req, res)
-        return
-      }
-
-      if (req.method === 'POST' && url.pathname === '/codex-api/tooling/review-comments/follow-up') {
-        await handleCreateWorkspaceReviewFollowUp(req, res)
-        return
-      }
-
-      if (req.method === 'GET' && url.pathname === '/codex-api/tooling/session-events') {
-        await handleListCodexSessionEvents(url, res)
-        return
-      }
-
-      if (req.method === 'GET' && url.pathname === '/codex-api/tooling/recent-sessions') {
-        await handleListCodexWorkspaceSessions(url, res)
-        return
-      }
-
-      if (req.method === 'GET' && url.pathname === '/codex-api/token-usage/today') {
-        if (url.searchParams.get('scope') === 'global') {
-          const [visible, hidden] = await Promise.all([listCatalog('visible'), listCatalog('hidden')])
-          const result = await summarizeGlobalDailyTokenUsage({
-            cwds: [
-              url.searchParams.get('cwd') ?? '',
-              ...visible.projects.map((project) => project.cwd),
-              ...hidden.projects.map((project) => project.cwd),
-            ],
-            date: url.searchParams.get('date') ?? undefined,
-            timezoneOffsetMinutes: Number(url.searchParams.get('timezoneOffsetMinutes') ?? '0'),
-          })
-          setJson(res, 200, { result })
-          return
-        }
-        await handleDailyTokenUsage(url, res)
-        return
-      }
-
-      if (req.method === 'POST' && url.pathname === '/codex-api/diagrams/plantuml') {
-        const body = asRecord(await readJsonBody(req))
-        const source = typeof body?.source === 'string' ? body.source : ''
-        try {
-          const svg = await renderPlantUmlSvg(source)
-          setJson(res, 200, { result: { svg } })
-        } catch (error) {
-          setJson(res, 422, { error: getErrorMessage(error, 'PlantUML rendering failed') })
-        }
-        return
-      }
-
-      if (req.method === 'GET' && url.pathname === '/codex-api/tooling/checkpoint-patch') {
-        await handleReadToolingCheckpointPatch(url, res)
-        return
-      }
-
-      if (req.method === 'POST' && url.pathname === '/codex-api/tooling/checkpoints') {
-        await handleCreateToolingCheckpoint(req, res)
-        return
-      }
-
-      if (req.method === 'POST' && url.pathname === '/codex-api/tooling/rollback-file') {
-        await handleRollbackToolingFile(req, res)
-        return
-      }
-
-      if (req.method === 'POST' && url.pathname === '/codex-api/tooling/rollback-workspace') {
-        await handleRollbackToolingWorkspace(req, res)
-        return
-      }
-
-      if (req.method === 'POST' && url.pathname === '/codex-api/tooling/rollback-hunk') {
-        await handleRollbackToolingHunk(req, res)
-        return
-      }
-
-      if (req.method === 'POST' && url.pathname === '/codex-api/tooling/stage-hunk') {
-        await handleStageToolingHunk(req, res)
-        return
-      }
-
-      if (req.method === 'POST' && url.pathname === '/codex-api/server-requests/respond') {
-        const payload = await readJsonBody(req)
-        await appServer.respondToServerRequest(payload)
-        setJson(res, 200, { ok: true })
-        return
-      }
-
-      if (req.method === 'GET' && url.pathname === '/codex-api/server-requests/pending') {
-        setJson(res, 200, { data: appServer.listPendingServerRequests() })
-        return
-      }
-
-      if (req.method === 'POST' && url.pathname === '/codex-api/smoke/server-requests') {
-        if (!areSmokeHooksEnabled()) {
-          setJson(res, 404, { error: 'Not found' })
-          return
-        }
-        const payload = await readJsonBody(req)
-        const result = appServer.injectSmokeServerRequest(payload)
-        setJson(res, 200, { result })
-        return
-      }
-
-      if (req.method === 'POST' && url.pathname === '/codex-api/smoke/controlled-process-epipe') {
-        if (!areSmokeHooksEnabled()) {
-          setJson(res, 404, { error: 'Not found' })
-          return
-        }
-        const result = await runControlledProcess({
-          command: process.execPath,
-          args: ['-e', 'process.stdin.destroy(); setTimeout(() => process.exit(0), 25)'],
-          cwd: getProcessCwd(),
-          input: 'x'.repeat(8 * 1024 * 1024),
-          timeoutMs: 2_000,
-        })
-        setJson(res, 200, { result })
-        return
-      }
-
-      if (req.method === 'GET' && url.pathname === '/codex-api/meta/methods') {
-        const methods = await methodCatalog.listMethods()
-        setJson(res, 200, { data: methods })
-        return
-      }
-
-      if (req.method === 'GET' && url.pathname === '/codex-api/meta/notifications') {
-        const methods = await methodCatalog.listNotificationMethods()
-        setJson(res, 200, { data: methods })
-        return
-      }
-
-      if (req.method === 'GET' && url.pathname === '/codex-api/meta/diagnostics') {
-        const diagnostics = await buildGatewayDiagnostics(appServer, methodCatalog)
-        setJson(res, 200, { result: diagnostics })
-        return
-      }
-
-      if (req.method === 'GET' && url.pathname === '/codex-api/meta/access-security') {
-        setJson(res, 200, {
-          result: buildSecurityAccessSnapshot(req, {
-            authEnabled: false,
-            listenHost: '127.0.0.1',
-            listenPort: null,
-          }),
-        })
-        return
+      for (const route of domainRoutes) {
+        if (await route({ req, res, url })) return
       }
 
       next()

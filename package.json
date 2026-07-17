@@ -52,6 +52,11 @@
     "build:frontend": "vue-tsc --noEmit && vite build",
     "build:cli": "tsup",
     "build": "npm run build:frontend && npm run build:cli",
+    "deploy": "bash scripts/deploy.sh",
+    "service:start": "bash scripts/cody-service.sh start",
+    "service:stop": "bash scripts/cody-service.sh stop",
+    "service:restart": "bash scripts/cody-service.sh restart",
+    "service:status": "bash scripts/cody-service.sh status",
     "verify": "npm run typecheck && npm test && git diff --check && npm run build && npm run smoke:cli && npm run smoke:agent-tasks && npm run smoke:controlled-process && npm run smoke:package && npm run smoke:approval && npm run smoke:catalog && npm run smoke:composer && npm run smoke:history && npm run smoke:theme && npm run smoke:thread && npm run smoke:worklog && npm run smoke:turn && npm run smoke:turn-approval",
     "preview": "vite preview",
     "prepublishOnly": "npm run verify"

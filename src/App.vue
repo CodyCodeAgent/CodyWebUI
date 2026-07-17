@@ -223,91 +223,20 @@
           </button>
         </div>
 
-        <section class="content-body">
-          <template v-if="isSettingsRoute">
-            <AppSettingsPage :projects="newThreadProjectOptions" @select-thread="onSelectThread" />
-          </template>
-          <template v-else-if="isSkillsRoute">
-            <WorkspaceSkillsPage :cwd="skillsCwd" :project-label="skillsProjectLabel" />
-          </template>
-          <template v-else-if="isHomeRoute">
-            <nav class="mission-stage-nav" :aria-label="t('app.taskStages')">
-              <button v-for="stage in missionStages" :key="stage.id" type="button" :data-active="stage.id === activeMissionStage">
-                <span>{{ stage.label }}</span><small>{{ stage.hint }}</small>
-              </button>
-            </nav>
-            <WorkspaceDashboard
-              v-if="homeSurface === 'console'"
-              :cwd="newThreadCwd"
-              :project-label="newThreadProjectLabel"
-              :threads="allThreads"
-              :pending-requests="allPendingServerRequests"
-              :rate-limit-snapshot="rateLimitSnapshot"
-              @select-thread="onSelectThread"
-              @respond-server-request="onRespondServerRequest"
-            />
-            <div v-else class="content-grid new-thread-grid">
-              <div class="new-thread-empty">
-                <div class="new-thread-kicker">
-                  <span class="new-thread-kicker-signal" aria-hidden="true" />
-                  Agent mission control
-                </div>
-                <p class="new-thread-hero">{{ t('app.hero') }}</p>
-                <p class="new-thread-subtitle">{{ t('app.heroSubtitle') }}</p>
-                <ComposerDropdown class="new-thread-folder-dropdown" :model-value="newThreadCwd"
-                  :options="newThreadFolderOptions" :placeholder="t('app.chooseFolder')"
-                  :disabled="newThreadFolderOptions.length === 0" @update:model-value="onSelectNewThreadFolder" />
-              </div>
-
-              <ThreadComposer :active-thread-id="composerThreadContextId" :disabled="isSendingMessage"
-                :prompt-insertion="promptInsertion"
-                :models="availableModelIds" :selected-model="selectedModelId"
-                :selected-reasoning-effort="selectedReasoningEffort"
-                :collaboration-modes="collaborationModeOptions"
-                :selected-collaboration-mode="selectedCollaborationModeName"
-                :selected-permission-mode="selectedPermissionMode"
-                :busy-label="homeComposerBusyLabel"
-                :is-turn-in-progress="false"
-                :is-interrupting-turn="false" :cwd="newThreadCwd" @submit="onSubmitThreadMessage"
-                @update:selected-model="onSelectModel" @update:selected-reasoning-effort="onSelectReasoningEffort"
-                @update:selected-collaboration-mode="onSelectCollaborationMode"
-                @update:selected-permission-mode="onSelectPermissionMode" />
-
-            </div>
-          </template>
-          <template v-else>
-            <div class="content-grid">
-              <div class="content-workbench">
-                <div class="content-thread">
-                  <ThreadConversation :messages="filteredMessages" :is-loading="isLoadingMessages"
-                    :cwd="selectedThread?.cwd ?? ''"
-                    :load-error="selectedMessageLoadError"
-                    :active-thread-id="composerThreadContextId" :scroll-state="selectedThreadScrollState"
-                    :live-overlay="liveOverlay"
-                    :pending-requests="selectedThreadServerRequests"
-                    @update-scroll-state="onUpdateThreadScrollState"
-                    @respond-server-request="onRespondServerRequest"
-                    @retry-load="onRetryLoadMessages" />
-                </div>
-              </div>
-
-              <ThreadComposer :active-thread-id="composerThreadContextId"
-                :prompt-insertion="promptInsertion"
-                :disabled="isSendingMessage" :models="availableModelIds"
-                :selected-model="selectedModelId" :selected-reasoning-effort="selectedReasoningEffort"
-                :collaboration-modes="collaborationModeOptions"
-                :selected-collaboration-mode="selectedCollaborationModeName"
-                :selected-permission-mode="selectedPermissionMode"
-                :busy-label="threadComposerBusyLabel"
-                :cwd="selectedThread?.cwd ?? ''"
-                :is-turn-in-progress="isSelectedThreadInProgress" :is-interrupting-turn="isInterruptingTurn"
-                @submit="onSubmitThreadMessage" @update:selected-model="onSelectModel"
-                @update:selected-reasoning-effort="onSelectReasoningEffort"
-                @update:selected-collaboration-mode="onSelectCollaborationMode"
-                @update:selected-permission-mode="onSelectPermissionMode" @interrupt="onInterruptTurn" />
-            </div>
-          </template>
-        </section>
+        <section class="content-body"><AppRouteContent
+          v-bind="{ isSettingsRoute, isSkillsRoute, isHomeRoute, newThreadProjectOptions, skillsCwd, skillsProjectLabel,
+            missionStages, activeMissionStage, homeSurface, newThreadCwd, newThreadProjectLabel, allThreads,
+            allPendingServerRequests, rateLimitSnapshot, newThreadFolderOptions, composerThreadContextId, isSendingMessage,
+            promptInsertion, availableModelIds, selectedModelId, selectedReasoningEffort, collaborationModeOptions,
+            selectedCollaborationModeName, selectedPermissionMode, homeComposerBusyLabel, filteredMessages,
+            isLoadingMessages, selectedThread, selectedMessageLoadError, selectedThreadScrollState, liveOverlay,
+            selectedThreadServerRequests, threadComposerBusyLabel, isSelectedThreadInProgress, isInterruptingTurn }"
+          @select-thread="onSelectThread" @respond-server-request="onRespondServerRequest"
+          @select-new-thread-folder="onSelectNewThreadFolder" @submit-message="onSubmitThreadMessage"
+          @select-model="onSelectModel" @select-reasoning-effort="onSelectReasoningEffort"
+          @select-collaboration-mode="onSelectCollaborationMode" @select-permission-mode="onSelectPermissionMode"
+          @update-scroll-state="onUpdateThreadScrollState" @retry-load="onRetryLoadMessages" @interrupt="onInterruptTurn"
+        /></section>
       </section>
     </template>
   </DesktopLayout>
@@ -335,15 +264,12 @@
 </template>
 
 <script setup lang="ts">
-import { computed, defineAsyncComponent, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import DesktopLayout from './components/layout/DesktopLayout.vue'
 import SidebarThreadTree from './components/sidebar/SidebarThreadTree.vue'
 import ContentHeader from './components/content/ContentHeader.vue'
-import ThreadConversation from './components/content/ThreadConversation.vue'
 import ThreadActivityPanel from './components/content/ThreadActivityPanel.vue'
-import ThreadComposer from './components/content/ThreadComposer.vue'
-import ComposerDropdown from './components/content/ComposerDropdown.vue'
 import DirectoryPickerModal from './components/content/DirectoryPickerModal.vue'
 import NewThreadSetupModal, { type NewThreadProjectOption } from './components/content/NewThreadSetupModal.vue'
 import RateLimitFloatingStatus from './components/content/RateLimitFloatingStatus.vue'
@@ -352,6 +278,7 @@ import MissionChecklist from './components/content/MissionChecklist.vue'
 import BrowserNotificationsPanel from './components/content/BrowserNotificationsPanel.vue'
 import PromptLibraryDrawer from './components/content/PromptLibraryDrawer.vue'
 import SidebarThreadControls from './components/sidebar/SidebarThreadControls.vue'
+import AppRouteContent from './components/layout/AppRouteContent.vue'
 import IconTablerFolder from './components/icons/IconTablerFolder.vue'
 import IconTablerClipboardList from './components/icons/IconTablerClipboardList.vue'
 import IconTablerMoon from './components/icons/IconTablerMoon.vue'
@@ -382,6 +309,7 @@ import { DESKTOP_SETTING_KEYS, DESKTOP_STORAGE_KEYS } from './composables/deskto
 import { useBrowserNotifications } from './composables/useBrowserNotifications'
 import { useDesktopState } from './composables/useDesktopState'
 import { useLocale } from './composables/useLocale'
+import { useAppRouteOrchestration } from './composables/useAppRouteOrchestration'
 import { fetchUserSetting, writeUserSetting } from './api/codexSettingsClient'
 import { getSkillCatalog } from './api/codexComposerClient'
 import { useTheme } from './theme/useTheme'
@@ -396,10 +324,6 @@ import type {
 import type { PromptInsertion } from './composables/promptLibraryRules'
 
 const MOBILE_SIDEBAR_BREAKPOINT = 700
-const WorkspaceDashboard = defineAsyncComponent(() => import('./components/content/WorkspaceDashboard.vue'))
-const AppSettingsPage = defineAsyncComponent(() => import('./components/content/AppSettingsPage.vue'))
-const WorkspaceSkillsPage = defineAsyncComponent(() => import('./components/content/WorkspaceSkillsPage.vue'))
-
 const {
   projectGroups,
   projectDisplayNameById,
@@ -486,36 +410,28 @@ const homeSurface = ref<'brief' | 'console'>('brief')
 const skillCountsByCwd = ref<Record<string, number>>({})
 const sidebarSearchInputRef = ref<HTMLInputElement | null>(null)
 
+const {
+  routeThreadId,
+  isHomeRoute,
+  isSettingsRoute,
+  isSkillsRoute,
+  skillsCwd,
+  skillsProjectLabel,
+  contentTitle,
+} = useAppRouteOrchestration({
+  projectGroups,
+  projectDisplayNameById,
+  selectedThread,
+  newThreadCwd,
+  translate: t,
+})
+
 function onInsertPrompt(insertion: PromptInsertion): void {
   promptInsertion.value = { ...insertion, id: Date.now() }
 }
 
-const routeThreadId = computed(() => {
-  const rawThreadId = route.params.threadId
-  return typeof rawThreadId === 'string' ? rawThreadId : ''
-})
-
 const knownThreadIdSet = computed(() => knownThreadIds(projectGroups.value))
-
-const isHomeRoute = computed(() => route.name === 'home')
-const isSettingsRoute = computed(() => route.name === 'settings')
-const isSkillsRoute = computed(() => route.name === 'skills')
-const skillsCwd = computed(() => typeof route.query.cwd === 'string' ? route.query.cwd.trim() : newThreadCwd.value)
-const skillsProjectLabel = computed(() => {
-  const group = projectGroups.value.find((item) => {
-    const cwd = item.cwd?.trim() || item.threads[0]?.cwd?.trim() || ''
-    return cwd === skillsCwd.value
-  })
-  if (!group) return skillsCwd.value
-  return projectDisplayNameById.value[group.projectName]?.trim() || group.projectName
-})
 const isEffectiveSidebarCollapsed = computed(() => isSidebarCollapsed.value || isMobileViewport.value)
-const contentTitle = computed(() => {
-  if (isSettingsRoute.value) return t('app.title.settings')
-  if (isSkillsRoute.value) return t('skills.title')
-  if (isHomeRoute.value) return t('app.title.newThread')
-  return selectedThread.value?.title ?? t('app.title.chooseThread')
-})
 const autoRefreshButtonLabel = computed(() => autoRefreshLabel({
   isEnabled: isAutoRefreshEnabled.value,
   secondsLeft: autoRefreshSecondsLeft.value,
