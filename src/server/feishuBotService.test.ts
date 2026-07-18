@@ -185,6 +185,7 @@ function harness(binding?: FeishuSessionBinding, options: {
   findActiveTurnId?: (threadId: string) => Promise<string | null>
   stopTurn?: (input: { threadId: string; turnId?: string }) => Promise<void>
   grantUser?: (input: { botId: string; openId: string }) => Promise<void>
+  now?: () => Date
   lifecycle?: FeishuLifecyclePort
   readTurnState?: (threadId: string, turnId: string) => Promise<{
     status: 'running' | 'completed' | 'failed' | 'cancelled' | 'missing'
@@ -230,6 +231,7 @@ function harness(binding?: FeishuSessionBinding, options: {
     ...(options.lifecycle ? { lifecycle: options.lifecycle } : {}),
     transportFactory: () => transport,
     schedule: (work) => work(),
+    ...(options.now ? { now: options.now } : {}),
     reconnectCheckMs: 1_000_000,
     streamPatchMs: 1_000_000,
   })
@@ -485,6 +487,96 @@ describe('FeishuBotService', () => {
     expect(startTurn).toHaveBeenCalledWith(expect.objectContaining({
       threadId: 'thread-1', prompt: 'SHARESESSIONOK', metadata: expect.objectContaining({ feishuSenderOpenId: 'ou_guest' }),
     }))
+    await service.stop()
+  })
+
+  it('coalesces simultaneous duplicate access approvals into one persisted grant', async () => {
+    let releaseGrant: (() => void) | undefined
+    const grantUser = vi.fn(async () => new Promise<void>((resolve) => { releaseGrant = resolve }))
+    const { service, transport } = harness(binding(), {
+      bot: { ...bot, allowedOpenIds: ['ou_owner'], allowAllUsers: false },
+      grantUser,
+    })
+    await service.start()
+    const request = inbound({ message_id: 'om_access_concurrent' })
+    request.event_id = 'event-access-concurrent'
+    ;((request.sender as Record<string, unknown>).sender_id as Record<string, unknown>).open_id = 'ou_guest'
+    transport.handlers?.onMessage(request)
+    await vi.waitFor(() => expect(transport.cards.some((row) => row.kind === 'user:ou_owner')).toBe(true))
+    const token = String(findCardActionValue(
+      transport.cards.find((row) => row.kind === 'user:ou_owner')?.card,
+      'cody_feishu_grant_access',
+    )?.access_request_token ?? '')
+    const payload = {
+      action: { value: { action: 'cody_feishu_grant_access', access_request_token: token } },
+      operator: { operator_id: { open_id: 'ou_owner' } },
+    }
+    const first = transport.handlers?.onCardAction(payload)
+    await vi.waitFor(() => expect(grantUser).toHaveBeenCalledTimes(1))
+    const second = transport.handlers?.onCardAction(payload)
+    await new Promise((resolve) => setImmediate(resolve))
+    expect(grantUser).toHaveBeenCalledTimes(1)
+    releaseGrant?.()
+    const results = await Promise.all([first, second])
+    expect(results.map((value) => JSON.stringify(value))).toEqual([
+      expect.stringContaining('已允许访问'),
+      expect.stringContaining('已允许访问'),
+    ])
+    expect(grantUser).toHaveBeenCalledTimes(1)
+    await service.stop()
+  })
+
+  it('supports private access requests and a frozen denial without granting access', async () => {
+    const { service, transport, startTurn, grantUser } = harness(undefined, {
+      bot: { ...bot, allowedOpenIds: ['ou_owner'], allowAllUsers: false },
+    })
+    await service.start()
+    const request = inbound({
+      message_id: 'om_private_access', chat_id: 'oc_private_guest', chat_type: 'p2p', mentions: [],
+      content: JSON.stringify({ text: 'hello' }),
+    })
+    request.event_id = 'event-private-access'
+    ;((request.sender as Record<string, unknown>).sender_id as Record<string, unknown>).open_id = 'ou_guest'
+    transport.handlers?.onMessage(request)
+    await vi.waitFor(() => expect(transport.cards.some((row) => row.kind === 'user:ou_owner')).toBe(true))
+    const token = String(findCardActionValue(
+      transport.cards.find((row) => row.kind === 'user:ou_owner')?.card,
+      'cody_feishu_deny_access',
+    )?.access_request_token ?? '')
+    const denied = await transport.handlers?.onCardAction({
+      action: { value: { action: 'cody_feishu_deny_access', access_request_token: token } },
+      operator: { operator_id: { open_id: 'ou_owner' } },
+    })
+    expect(JSON.stringify(denied)).toContain('已拒绝访问')
+    expect(JSON.stringify(denied)).not.toContain('cody_feishu_')
+    expect(grantUser).not.toHaveBeenCalled()
+    expect(startTurn).not.toHaveBeenCalled()
+    await service.stop()
+  })
+
+  it('rejects an otherwise valid access request token after its seven-day lifetime', async () => {
+    let current = new Date('2026-07-19T00:00:00.000Z')
+    const { service, transport, grantUser } = harness(undefined, {
+      bot: { ...bot, allowedOpenIds: ['ou_owner'], allowAllUsers: false },
+      now: () => current,
+    })
+    await service.start()
+    const request = inbound({ message_id: 'om_access_expiring' })
+    request.event_id = 'event-access-expiring'
+    ;((request.sender as Record<string, unknown>).sender_id as Record<string, unknown>).open_id = 'ou_guest'
+    transport.handlers?.onMessage(request)
+    await vi.waitFor(() => expect(transport.cards.some((row) => row.kind === 'user:ou_owner')).toBe(true))
+    const token = String(findCardActionValue(
+      transport.cards.find((row) => row.kind === 'user:ou_owner')?.card,
+      'cody_feishu_grant_access',
+    )?.access_request_token ?? '')
+    current = new Date('2026-07-27T00:00:00.000Z')
+    const expired = await transport.handlers?.onCardAction({
+      action: { value: { action: 'cody_feishu_grant_access', access_request_token: token } },
+      operator: { operator_id: { open_id: 'ou_owner' } },
+    })
+    expect(JSON.stringify(expired)).toContain('已失效')
+    expect(grantUser).not.toHaveBeenCalled()
     await service.stop()
   })
 

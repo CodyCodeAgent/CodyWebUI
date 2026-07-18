@@ -757,6 +757,7 @@ export class FeishuBotService {
   private readonly pendingRequestCards = new Map<string, PendingRequestCard>()
   private readonly serverRequestPresentations = new Map<string, Promise<void>>()
   private readonly inFlightCardActions = new Map<string, Promise<void>>()
+  private readonly inFlightAccessActions = new Map<string, Promise<FeishuCard>>()
   private readonly completedCardActions = new Map<string, { completedAt: number; card: FeishuCard }>()
   private unsubscribeNotifications: (() => void) | null = null
   private reconnectTimer: ReturnType<typeof setInterval> | null = null
@@ -838,6 +839,7 @@ export class FeishuBotService {
     this.pendingRequestCards.clear()
     this.serverRequestPresentations.clear()
     this.inFlightCardActions.clear()
+    this.inFlightAccessActions.clear()
     this.completedCardActions.clear()
   }
 
@@ -1180,20 +1182,37 @@ export class FeishuBotService {
       if (!request) return { toast: { type: 'warning', content: '访问申请已失效或校验失败，请让对方重新申请' } }
       const requesterOpenId = request.requesterOpenId
       const granted = action === FEISHU_CARD_ACTIONS.grantAccess
-      if (granted) {
-        if (!this.dependencies.access) return { toast: { type: 'error', content: '访问授权通道尚未连接' } }
-        if (!runtime.bot.allowedOpenIds.includes(requesterOpenId)) {
-          await this.dependencies.access.grantUser({ botId, openId: requesterOpenId })
+      if (granted && !this.dependencies.access) return { toast: { type: 'error', content: '访问授权通道尚未连接' } }
+      const operationKey = `${botId}:access:${readString(value.access_request_token)}:${granted ? 'grant' : 'deny'}`
+      const nowMs = this.now().getTime()
+      for (const [key, resolved] of this.completedCardActions) {
+        if (nowMs - resolved.completedAt > 10 * 60_000) this.completedCardActions.delete(key)
+      }
+      const completed = this.completedCardActions.get(operationKey)
+      if (completed) return rawCardResponse(completed.card)
+      const inFlight = this.inFlightAccessActions.get(operationKey)
+      if (inFlight) return rawCardResponse(await inFlight)
+      const work = (async () => {
+        if (granted && !runtime.bot.allowedOpenIds.includes(requesterOpenId)) {
+          await this.dependencies.access!.grantUser({ botId, openId: requesterOpenId })
           runtime.bot = { ...runtime.bot, allowedOpenIds: [...runtime.bot.allowedOpenIds, requesterOpenId] }
           runtime.fingerprint = botFingerprint(runtime.bot)
         }
+        const card = buildResolvedAccessRequestCard({
+          requesterOpenId,
+          granted,
+          operatorOpenId,
+          resolvedAtIso: this.now().toISOString(),
+        })
+        this.completedCardActions.set(operationKey, { completedAt: this.now().getTime(), card })
+        return card
+      })()
+      this.inFlightAccessActions.set(operationKey, work)
+      try {
+        return rawCardResponse(await work)
+      } finally {
+        this.inFlightAccessActions.delete(operationKey)
       }
-      return rawCardResponse(buildResolvedAccessRequestCard({
-        requesterOpenId,
-        granted,
-        operatorOpenId,
-        resolvedAtIso: this.now().toISOString(),
-      }))
     }
     if (action === FEISHU_CARD_ACTIONS.userInputToggle) {
       const pending = this.pendingRequestCards.get(requestKey(botId, readString(value.request_id)))
