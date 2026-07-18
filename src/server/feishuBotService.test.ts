@@ -6,6 +6,7 @@ import {
   normalizeFeishuInbound,
   type FeishuBotDefinition,
   type FeishuBotStorePort,
+  type FeishuLifecyclePort,
   type FeishuPendingInbound,
   type FeishuRuntimeUpdate,
   type FeishuSessionBinding,
@@ -13,6 +14,7 @@ import {
   type FeishuTransportHandlers,
   type FeishuTransportState,
 } from './feishuBotService'
+import type { FeishuCard, FeishuTurn } from './feishuBotStore'
 import type { FeishuMessageResource } from './feishuMessageParser'
 import { FeishuPermanentDeliveryError } from './feishuReliableTransport'
 
@@ -68,6 +70,74 @@ class MemoryStore implements FeishuBotStorePort {
   }
 }
 
+class MemoryLifecycle implements FeishuLifecyclePort {
+  turns = new Map<string, FeishuTurn>()
+  cards = new Map<string, FeishuCard>()
+  private sequence = 0
+
+  async createTurn(input: Parameters<FeishuLifecyclePort['createTurn']>[0]) {
+    const now = new Date().toISOString()
+    const turn: FeishuTurn = {
+      id: `durable-turn-${String(++this.sequence)}`,
+      botId: input.botId,
+      bindingKey: input.bindingKey,
+      inboundMessageId: input.inboundMessageId,
+      sessionId: input.sessionId,
+      turnId: '',
+      status: input.status,
+      prompt: input.prompt,
+      responseText: '',
+      cardId: null,
+      lastError: '',
+      createdAtIso: now,
+      updatedAtIso: now,
+      completedAtIso: null,
+    }
+    this.turns.set(turn.id, turn)
+    return turn
+  }
+
+  async updateTurn(id: string, patch: Parameters<FeishuLifecyclePort['updateTurn']>[1]) {
+    const current = this.turns.get(id)
+    if (!current) return null
+    const status = patch.status ?? current.status
+    const next: FeishuTurn = {
+      ...current,
+      ...patch,
+      updatedAtIso: new Date().toISOString(),
+      completedAtIso: patch.completedAtIso ?? (['completed', 'failed', 'cancelled'].includes(status)
+        ? new Date().toISOString()
+        : current.completedAtIso),
+    }
+    this.turns.set(id, next)
+    return next
+  }
+
+  async listTurns() { return [...this.turns.values()] }
+
+  async upsertCard(input: Parameters<FeishuLifecyclePort['upsertCard']>[0]) {
+    const now = new Date().toISOString()
+    const current = this.cards.get(input.id)
+    const card: FeishuCard = {
+      id: input.id,
+      botId: input.botId,
+      bindingKey: input.bindingKey,
+      messageId: input.messageId === undefined ? (current?.messageId ?? null) : input.messageId,
+      purpose: input.purpose,
+      status: input.status,
+      version: input.version,
+      state: input.state,
+      createdAtIso: current?.createdAtIso ?? now,
+      updatedAtIso: now,
+    }
+    this.cards.set(card.id, card)
+    return card
+  }
+
+  async findCard(id: string) { return this.cards.get(id) ?? null }
+  async listCards() { return [...this.cards.values()] }
+}
+
 class FakeTransport implements FeishuTransport {
   getMessage?: FeishuTransport['getMessage']
   handlers: FeishuTransportHandlers | null = null
@@ -113,6 +183,8 @@ function harness(binding?: FeishuSessionBinding, options: {
   bot?: FeishuBotDefinition
   isThreadBusy?: (threadId: string) => Promise<boolean>
   findActiveTurnId?: (threadId: string) => Promise<string | null>
+  stopTurn?: (input: { threadId: string; turnId?: string }) => Promise<void>
+  lifecycle?: FeishuLifecyclePort
   readTurnState?: (threadId: string, turnId: string) => Promise<{
     status: 'running' | 'completed' | 'failed' | 'cancelled' | 'missing'
     responseText?: string
@@ -124,7 +196,7 @@ function harness(binding?: FeishuSessionBinding, options: {
   const transport = new FakeTransport()
   let turnSequence = 0
   const startTurn = vi.fn(async () => ({ turnId: `turn-${String(++turnSequence)}` }))
-  const stopTurn = vi.fn(async () => undefined)
+  const stopTurn = vi.fn(options.stopTurn ?? (async () => undefined))
   const renameSession = vi.fn(async () => undefined)
   const archiveSession = vi.fn(async () => undefined)
   const approvalResolve = vi.fn(async () => undefined)
@@ -152,6 +224,7 @@ function harness(binding?: FeishuSessionBinding, options: {
     },
     approvals: { resolve: approvalResolve },
     serverRequests: { respond: respondServerRequest },
+    ...(options.lifecycle ? { lifecycle: options.lifecycle } : {}),
     transportFactory: () => transport,
     schedule: (work) => work(),
     reconnectCheckMs: 1_000_000,
@@ -927,6 +1000,33 @@ describe('FeishuBotService', () => {
     await vi.waitFor(() => expect(stopTurn).toHaveBeenCalledWith({ threadId: 'thread-1', turnId: 'turn-web' }))
     expect(transport.texts.some((text) => text.includes('其他入口启动的任务'))).toBe(true)
     await service.stop()
+  })
+
+  it('keeps the durable turn and card cancelled when completion races an explicit stop', async () => {
+    const lifecycle = new MemoryLifecycle()
+    let serviceForStop: FeishuBotService | null = null
+    const setup = harness(binding(), {
+      lifecycle,
+      stopTurn: async () => {
+        serviceForStop?.handleAppServerNotification({
+          method: 'turn/completed',
+          params: { threadId: 'thread-1', turn: { id: 'turn-1', status: 'completed' } },
+        })
+        await new Promise((resolve) => setImmediate(resolve))
+      },
+    })
+    serviceForStop = setup.service
+    await setup.service.start()
+
+    setup.transport.handlers?.onMessage(commandMessage('om_stop_race_prompt', 'run until stopped'))
+    await vi.waitFor(() => expect(setup.startTurn).toHaveBeenCalledTimes(1))
+    setup.transport.handlers?.onMessage(commandMessage('om_stop_race_command', '/stop'))
+
+    await vi.waitFor(() => expect(setup.stopTurn).toHaveBeenCalledWith({ threadId: 'thread-1', turnId: 'turn-1' }))
+    await vi.waitFor(() => expect([...lifecycle.turns.values()][0]?.status).toBe('cancelled'))
+    expect([...lifecycle.cards.values()][0]?.status).toBe('cancelled')
+    expect(setup.transport.cards.some((row) => JSON.stringify(row.card).includes('已停止'))).toBe(true)
+    await setup.service.stop()
   })
 
   it('keeps the original card retryable after a background failure', async () => {

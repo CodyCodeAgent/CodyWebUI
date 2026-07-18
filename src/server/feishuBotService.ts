@@ -259,6 +259,7 @@ type ActiveTurnCard = {
   durableTurnId?: string
   durableCardId?: string
   cardVersion: number
+  stopRequested: boolean
 }
 
 type QueuedTurnCard = {
@@ -899,7 +900,7 @@ export class FeishuBotService {
     if (!active) return
     if (notification.method === 'turn/started') {
       if (turnId && !active.turnId) active.turnId = turnId
-      active.state = 'running'
+      if (!active.stopRequested) active.state = 'running'
       return
     }
     const { delta, completedText } = notificationDelta(notification)
@@ -908,13 +909,19 @@ export class FeishuBotService {
     if (notification.method === 'turn/completed') {
       const error = turnError(notification)
       active.error = error
-      active.state = error ? 'failed' : 'completed'
+      active.state = active.stopRequested ? 'stopped' : error ? 'failed' : 'completed'
+      void this.patchActiveTurn(active, true)
+      return
+    }
+    if (notification.method === 'turn/interrupted') {
+      active.state = 'stopped'
+      active.stopRequested = true
       void this.patchActiveTurn(active, true)
       return
     }
     if (notification.method === 'turn/failed') {
       active.error = turnError(notification) || 'Codex 执行失败'
-      active.state = 'failed'
+      active.state = active.stopRequested ? 'stopped' : 'failed'
       void this.patchActiveTurn(active, true)
       return
     }
@@ -1732,7 +1739,13 @@ export class FeishuBotService {
         await runtime.transport.replyText(inbound.messageId, '当前 Session 没有正在运行的回复。', Boolean(inbound.rootId))
         return
       }
-      await this.dependencies.turns.stopTurn?.({ threadId: binding.threadId, turnId: active.turnId })
+      active.stopRequested = true
+      try {
+        await this.dependencies.turns.stopTurn?.({ threadId: binding.threadId, turnId: active.turnId })
+      } catch (error) {
+        active.stopRequested = false
+        throw error
+      }
       active.state = 'stopped'
       await this.patchActiveTurn(active, true)
       return
@@ -1902,6 +1915,7 @@ export class FeishuBotService {
       durableTurnId: durableTurn?.id,
       durableCardId: durableTurn ? (durableTurn.cardId ?? `turn:${durableTurn.id}`) : undefined,
       cardVersion: 0,
+      stopRequested: false,
     }
     await this.persistActiveCard(active)
     if (active.durableTurnId && active.durableCardId) {
@@ -2144,6 +2158,7 @@ export class FeishuBotService {
         durableTurnId: turn.id,
         durableCardId: card.id,
         cardVersion: card.version,
+        stopRequested: turn.status === 'cancelled',
       }
       if (turn.status === 'running' && turn.turnId && this.dependencies.turns.readTurnState) {
         try {
