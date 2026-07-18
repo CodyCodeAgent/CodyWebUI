@@ -623,6 +623,30 @@ export async function upsertFeishuBot(input: {
   })
 }
 
+/** Atomically grants one exact Feishu identity without ever enabling broad access. */
+export async function grantFeishuBotUserAccess(botId: string, openId: string): Promise<FeishuBotConfig> {
+  const id = normalizeBotId(botId)
+  const normalizedOpenId = openId.trim()
+  if (!/^ou_[A-Za-z0-9_-]+$/u.test(normalizedOpenId)) throw new Error('Invalid Feishu open_id')
+  return withLocalDatabase((db) => {
+    ensureFeishuTables(db)
+    const transaction = db.transaction(() => {
+      const row = db.prepare('SELECT allowed_open_ids_json AS allowedOpenIdsJson FROM feishu_bots WHERE bot_id = ?').get(id) as { allowedOpenIdsJson: string } | undefined
+      if (!row) throw new Error('Feishu bot not found')
+      const parsed = parseJson(row.allowedOpenIdsJson, [])
+      const existing = Array.isArray(parsed) ? parsed.filter((value): value is string => typeof value === 'string') : []
+      const allowedOpenIds = uniqueStrings([...existing, normalizedOpenId])
+      db.prepare(`
+        UPDATE feishu_bots
+        SET allow_all_users = 0, allowed_open_ids_json = ?, updated_at_iso = ?
+        WHERE bot_id = ?
+      `).run(stringifyJson(allowedOpenIds), nowIso(), id)
+    })
+    transaction()
+    return normalizeBot(db.prepare(`${BOT_SELECT} WHERE b.bot_id = ?`).get(id) as BotRow)
+  })
+}
+
 /** Compatibility wrapper for the original single-bot API. */
 export async function saveFeishuBotConfig(input: {
   id?: string

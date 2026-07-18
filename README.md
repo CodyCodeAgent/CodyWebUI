@@ -70,8 +70,9 @@ visible CodyWebUI project and an existing or new Codex Session. Feishu and the
 browser then operate on the exact same `app-server` thread—CodyWebUI does not
 start a second CLI process or maintain a second transcript.
 
-The client includes safe group trigger modes, identity and group-chat allow-lists, streamed
-cards, approvals and user-input cards, commands, durable inbound deduplication,
+The client includes safe group trigger modes, identity and group-chat allow-lists,
+signed least-privilege access-request cards, streamed cards, approvals and
+user-input cards, commands, durable inbound deduplication,
 FIFO turns shared with Web work, retry/dead-letter delivery, attachments, and
 passive plus live connectivity diagnostics. See
 [Feishu integration setup](docs/FEISHU_INTEGRATION.md) for

@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import {
   FEISHU_CARD_ACTIONS,
+  buildAccessRequestCard,
   buildApprovalCard,
   buildProjectSelectionCard,
   buildResolvedRequestCard,
+  buildResolvedAccessRequestCard,
   buildSessionSelectionCard,
   buildSessionStatusCard,
   buildStreamingReplyCard,
@@ -63,6 +65,25 @@ describe('Feishu cards', () => {
     expect(approval).toContain(FEISHU_CARD_ACTIONS.approve)
     expect(approval).toContain(FEISHU_CARD_ACTIONS.deny)
     expect(approval).toContain('42')
+  })
+
+  it('builds a narrow user-access request and freezes the result', () => {
+    const request = JSON.stringify(buildAccessRequestCard({
+      requesterOpenId: 'ou_guest', chatId: 'oc_team', chatType: 'group',
+      requestToken: 'signed-request-token',
+    }))
+    expect(request).toContain(FEISHU_CARD_ACTIONS.grantAccess)
+    expect(request).toContain(FEISHU_CARD_ACTIONS.denyAccess)
+    expect(request).toContain('ou_guest')
+    expect(request).toContain('signed-request-token')
+    expect(request).toContain('不会开启全员访问')
+
+    const resolved = JSON.stringify(buildResolvedAccessRequestCard({
+      requesterOpenId: 'ou_guest', granted: true, operatorOpenId: 'ou_owner',
+      resolvedAtIso: '2026-07-19T00:00:00.000Z',
+    }))
+    expect(resolved).toContain('已允许访问')
+    expect(resolved).not.toContain('cody_feishu_')
   })
 
   it('builds a stateful user-input card and a frozen resolved state', () => {

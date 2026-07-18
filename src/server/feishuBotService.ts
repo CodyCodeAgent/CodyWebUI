@@ -1,13 +1,15 @@
 import * as Lark from '@larksuiteoapi/node-sdk'
-import { randomUUID } from 'node:crypto'
+import { createHmac, randomUUID, timingSafeEqual } from 'node:crypto'
 import type { Readable } from 'node:stream'
 import {
   FEISHU_CARD_ACTIONS,
+  buildAccessRequestCard,
   buildApprovalCard,
   buildActionResultCard,
   buildBotHelpCard,
   buildBoundSessionCard,
   buildProjectSelectionCard,
+  buildResolvedAccessRequestCard,
   buildResolvedRequestCard,
   buildSessionSelectionCard,
   buildSessionStatusCard,
@@ -151,6 +153,11 @@ export interface FeishuServerRequestPort {
   }): Promise<void>
 }
 
+export interface FeishuAccessPort {
+  /** Persist one exact user grant. Broad access must never be enabled here. */
+  grantUser(input: { botId: string; openId: string }): Promise<void>
+}
+
 export interface FeishuLifecyclePort {
   createTurn(input: {
     botId: string; bindingKey: string; inboundMessageId: string; sessionId: string
@@ -227,6 +234,7 @@ export type FeishuBotServiceDependencies = {
   turns: FeishuTurnPort
   notifications?: FeishuNotificationPort
   approvals?: FeishuApprovalPort
+  access?: FeishuAccessPort
   serverRequests?: FeishuServerRequestPort
   lifecycle?: FeishuLifecyclePort
   transportFactory?: (bot: FeishuBotDefinition) => FeishuTransport
@@ -428,6 +436,49 @@ function actionData(payload: unknown): {
 
 function rawCardResponse(card: FeishuCard): Record<string, unknown> {
   return { card: { type: 'raw', data: card } }
+}
+
+const ACCESS_REQUEST_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1_000
+
+type SignedAccessRequest = {
+  v: 1
+  botId: string
+  requesterOpenId: string
+  chatId: string
+  eventKey: string
+  createdAtMs: number
+}
+
+function signAccessRequest(bot: FeishuBotDefinition, inbound: NormalizedInbound, createdAtMs: number): string {
+  const payload: SignedAccessRequest = {
+    v: 1,
+    botId: bot.botId,
+    requesterOpenId: inbound.senderOpenId,
+    chatId: inbound.chatId,
+    eventKey: inbound.eventKey,
+    createdAtMs,
+  }
+  const encoded = Buffer.from(JSON.stringify(payload)).toString('base64url')
+  const signature = createHmac('sha256', bot.appSecret).update(encoded).digest('base64url')
+  return `${encoded}.${signature}`
+}
+
+function verifyAccessRequestToken(bot: FeishuBotDefinition, token: string, nowMs: number): SignedAccessRequest | null {
+  const [encoded, suppliedSignature, extra] = token.split('.')
+  if (!encoded || !suppliedSignature || extra) return null
+  const expectedSignature = createHmac('sha256', bot.appSecret).update(encoded).digest('base64url')
+  const supplied = Buffer.from(suppliedSignature)
+  const expected = Buffer.from(expectedSignature)
+  if (supplied.length !== expected.length || !timingSafeEqual(supplied, expected)) return null
+  try {
+    const value = JSON.parse(Buffer.from(encoded, 'base64url').toString('utf8')) as Partial<SignedAccessRequest>
+    if (value.v !== 1 || value.botId !== bot.botId || !/^ou_[A-Za-z0-9_-]+$/u.test(value.requesterOpenId ?? '')) return null
+    if (typeof value.chatId !== 'string' || typeof value.eventKey !== 'string' || typeof value.createdAtMs !== 'number') return null
+    if (value.createdAtMs > nowMs + 60_000 || nowMs - value.createdAtMs > ACCESS_REQUEST_MAX_AGE_MS) return null
+    return value as SignedAccessRequest
+  } catch {
+    return null
+  }
 }
 
 function notificationIds(notification: FeishuAppServerNotification): { threadId: string; turnId: string } {
@@ -1121,6 +1172,29 @@ export class FeishuBotService {
     const { value, option, operatorOpenId, openMessageId } = data
     const action = readString(value.action)
     const botId = runtime.bot.botId
+    if (action === FEISHU_CARD_ACTIONS.grantAccess || action === FEISHU_CARD_ACTIONS.denyAccess) {
+      if (!operatorOpenId || operatorOpenId !== runtime.bot.allowedOpenIds[0]) {
+        return { toast: { type: 'error', content: '只有机器人管理员可以处理访问申请' } }
+      }
+      const request = verifyAccessRequestToken(runtime.bot, readString(value.access_request_token), this.now().getTime())
+      if (!request) return { toast: { type: 'warning', content: '访问申请已失效或校验失败，请让对方重新申请' } }
+      const requesterOpenId = request.requesterOpenId
+      const granted = action === FEISHU_CARD_ACTIONS.grantAccess
+      if (granted) {
+        if (!this.dependencies.access) return { toast: { type: 'error', content: '访问授权通道尚未连接' } }
+        if (!runtime.bot.allowedOpenIds.includes(requesterOpenId)) {
+          await this.dependencies.access.grantUser({ botId, openId: requesterOpenId })
+          runtime.bot = { ...runtime.bot, allowedOpenIds: [...runtime.bot.allowedOpenIds, requesterOpenId] }
+          runtime.fingerprint = botFingerprint(runtime.bot)
+        }
+      }
+      return rawCardResponse(buildResolvedAccessRequestCard({
+        requesterOpenId,
+        granted,
+        operatorOpenId,
+        resolvedAtIso: this.now().toISOString(),
+      }))
+    }
     if (action === FEISHU_CARD_ACTIONS.userInputToggle) {
       const pending = this.pendingRequestCards.get(requestKey(botId, readString(value.request_id)))
       if (!pending || pending.kind !== 'user_input') return { toast: { type: 'warning', content: '该问题已回答或已失效' } }
@@ -1490,7 +1564,10 @@ export class FeishuBotService {
       this.log('warn', `[feishu:${runtime.bot.botId}] rejected inbound ${preliminary.messageId}: sender open_id missing`)
       return
     }
-    if (!this.isInboundAuthorized(runtime.bot, preliminary)) return
+    if (!this.isInboundAuthorized(runtime.bot, preliminary)) {
+      await this.processAccessRequest(runtime, preliminary)
+      return
+    }
     if (!await this.dependencies.store.claimEvent(runtime.bot.botId, preliminary.eventKey)) return
     try {
       const completed = await this.completeInboundMessage(runtime, payload)
@@ -2045,6 +2122,7 @@ export class FeishuBotService {
           feishuBotId: active.binding.botId,
           feishuBindingKey: active.binding.bindingKey,
           feishuMessageId: sourceMessageId,
+          feishuSenderOpenId: active.requesterOpenId,
         },
         collaborationMode: active.binding.collaborationMode ?? 'default',
       })
@@ -2452,6 +2530,49 @@ export class FeishuBotService {
     const allowedChatIds = bot.allowedChatIds ?? []
     if (inbound.chatType === 'group' && allowedChatIds.length > 0 && !allowedChatIds.includes(inbound.chatId)) return false
     return true
+  }
+
+  private async processAccessRequest(runtime: Runtime, inbound: NormalizedInbound): Promise<void> {
+    const bot = runtime.bot
+    // A group-chat restriction is a hard boundary, not an invitation flow.
+    const allowedChatIds = bot.allowedChatIds ?? []
+    if (inbound.chatType === 'group' && allowedChatIds.length > 0 && !allowedChatIds.includes(inbound.chatId)) return
+    // Never react to ambient group traffic from an unauthorized member.
+    if (inbound.chatType === 'group' && !inbound.explicitlyMentioned) return
+    if (bot.allowAllUsers || bot.allowedOpenIds.includes(inbound.senderOpenId)) return
+    const ownerOpenId = bot.allowedOpenIds[0]
+    if (!ownerOpenId || !runtime.transport.sendUserCard || !this.dependencies.access) return
+    if (!await this.dependencies.store.claimEvent(bot.botId, inbound.eventKey)) return
+    try {
+      const notify = async () => {
+        await runtime.transport.sendUserCard!(ownerOpenId, buildAccessRequestCard({
+          requesterOpenId: inbound.senderOpenId,
+          chatId: inbound.chatId,
+          chatType: inbound.chatType,
+          requestToken: signAccessRequest(bot, inbound, this.now().getTime()),
+        }))
+        await this.replyTextWithFallback(
+          runtime,
+          inbound.messageId,
+          inbound.chatId,
+          '当前账号尚未加入机器人白名单，已向管理员发送访问申请。批准后请重试。',
+          Boolean(inbound.rootId),
+        )
+      }
+      if (runtime.transport.withDeliveryScope) {
+        await runtime.transport.withDeliveryScope(`${bot.botId}:access-request:${inbound.eventKey}`, notify)
+      } else {
+        await notify()
+      }
+      await this.dependencies.store.completeEvent?.(bot.botId, inbound.eventKey)
+    } catch (error) {
+      await this.dependencies.store.failEvent?.(
+        bot.botId,
+        inbound.eventKey,
+        error instanceof Error ? error.message : String(error),
+      )
+      throw error
+    }
   }
 
   private async replyCardWithFallback(

@@ -184,6 +184,7 @@ function harness(binding?: FeishuSessionBinding, options: {
   isThreadBusy?: (threadId: string) => Promise<boolean>
   findActiveTurnId?: (threadId: string) => Promise<string | null>
   stopTurn?: (input: { threadId: string; turnId?: string }) => Promise<void>
+  grantUser?: (input: { botId: string; openId: string }) => Promise<void>
   lifecycle?: FeishuLifecyclePort
   readTurnState?: (threadId: string, turnId: string) => Promise<{
     status: 'running' | 'completed' | 'failed' | 'cancelled' | 'missing'
@@ -200,6 +201,7 @@ function harness(binding?: FeishuSessionBinding, options: {
   const renameSession = vi.fn(async () => undefined)
   const archiveSession = vi.fn(async () => undefined)
   const approvalResolve = vi.fn(async () => undefined)
+  const grantUser = vi.fn(options.grantUser ?? (async () => undefined))
   const respondServerRequest = vi.fn(async () => undefined)
   const service = new FeishuBotService({
     store,
@@ -223,6 +225,7 @@ function harness(binding?: FeishuSessionBinding, options: {
       ...(options.readTurnState ? { readTurnState: options.readTurnState } : {}),
     },
     approvals: { resolve: approvalResolve },
+    access: { grantUser },
     serverRequests: { respond: respondServerRequest },
     ...(options.lifecycle ? { lifecycle: options.lifecycle } : {}),
     transportFactory: () => transport,
@@ -230,7 +233,7 @@ function harness(binding?: FeishuSessionBinding, options: {
     reconnectCheckMs: 1_000_000,
     streamPatchMs: 1_000_000,
   })
-  return { service, store, transport, startTurn, stopTurn, renameSession, archiveSession, approvalResolve, respondServerRequest }
+  return { service, store, transport, startTurn, stopTurn, renameSession, archiveSession, approvalResolve, grantUser, respondServerRequest }
 }
 
 function binding(): FeishuSessionBinding {
@@ -245,6 +248,24 @@ function commandMessage(messageId: string, prompt: string): Record<string, unkno
   const message = inbound({ message_id: messageId, content: JSON.stringify({ text: `@_user_1 ${prompt}` }) })
   message.event_id = `event-${messageId}`
   return message
+}
+
+function findCardActionValue(value: unknown, action: string): Record<string, unknown> | null {
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      const found = findCardActionValue(item, action)
+      if (found) return found
+    }
+    return null
+  }
+  if (!value || typeof value !== 'object') return null
+  const record = value as Record<string, unknown>
+  if (record.action === action) return record
+  for (const child of Object.values(record)) {
+    const found = findCardActionValue(child, action)
+    if (found) return found
+  }
+  return null
 }
 
 describe('FeishuBotService', () => {
@@ -413,6 +434,58 @@ describe('FeishuBotService', () => {
     allowed.transport.handlers?.onMessage(inbound())
     await vi.waitFor(() => expect(allowed.transport.cards).toHaveLength(1))
     await allowed.service.stop()
+  })
+
+  it('lets an unauthorized mentioned user request a narrow grant and join the shared Session after owner approval', async () => {
+    const { service, store, transport, startTurn, grantUser } = harness(binding(), {
+      bot: { ...bot, allowedOpenIds: ['ou_owner'], allowAllUsers: false },
+    })
+    await service.start()
+
+    const request = inbound({ message_id: 'om_access_request' })
+    request.event_id = 'event-access-request'
+    ;((request.sender as Record<string, unknown>).sender_id as Record<string, unknown>).open_id = 'ou_guest'
+    transport.handlers?.onMessage(request)
+    await vi.waitFor(() => expect(transport.cards.some((row) => row.kind === 'user:ou_owner')).toBe(true))
+    const ownerCard = transport.cards.find((row) => row.kind === 'user:ou_owner')?.card
+    const accessAction = findCardActionValue(ownerCard, 'cody_feishu_grant_access')
+    const requestToken = String(accessAction?.access_request_token ?? '')
+    expect(requestToken).not.toBe('')
+    expect(transport.texts.some((text) => text.includes('已向管理员发送访问申请'))).toBe(true)
+    expect(startTurn).not.toHaveBeenCalled()
+    expect(store.completedEvents).toContain('bot-1:event-access-request')
+
+    const denied = await transport.handlers?.onCardAction({
+      action: { value: { action: 'cody_feishu_grant_access', access_request_token: requestToken } },
+      operator: { operator_id: { open_id: 'ou_guest' } },
+    })
+    expect(JSON.stringify(denied)).toContain('只有机器人管理员')
+    expect(grantUser).not.toHaveBeenCalled()
+
+    const tampered = await transport.handlers?.onCardAction({
+      action: { value: { action: 'cody_feishu_grant_access', access_request_token: `${requestToken}x` } },
+      operator: { operator_id: { open_id: 'ou_owner' } },
+    })
+    expect(JSON.stringify(tampered)).toContain('校验失败')
+    expect(grantUser).not.toHaveBeenCalled()
+
+    const approved = await transport.handlers?.onCardAction({
+      action: { value: { action: 'cody_feishu_grant_access', access_request_token: requestToken } },
+      operator: { operator_id: { open_id: 'ou_owner' } },
+    })
+    expect(grantUser).toHaveBeenCalledWith({ botId: 'bot-1', openId: 'ou_guest' })
+    expect(JSON.stringify(approved)).toContain('已允许访问')
+    expect(JSON.stringify(approved)).not.toContain('cody_feishu_')
+
+    const followUp = inbound({ message_id: 'om_guest_followup', content: JSON.stringify({ text: '@_user_1 SHARESESSIONOK' }) })
+    followUp.event_id = 'event-guest-followup'
+    ;((followUp.sender as Record<string, unknown>).sender_id as Record<string, unknown>).open_id = 'ou_guest'
+    transport.handlers?.onMessage(followUp)
+    await vi.waitFor(() => expect(startTurn).toHaveBeenCalledTimes(1))
+    expect(startTurn).toHaveBeenCalledWith(expect.objectContaining({
+      threadId: 'thread-1', prompt: 'SHARESESSIONOK', metadata: expect.objectContaining({ feishuSenderOpenId: 'ou_guest' }),
+    }))
+    await service.stop()
   })
 
   it('enforces a configured group-chat allowlist before claiming the event', async () => {

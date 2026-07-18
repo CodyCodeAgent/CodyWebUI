@@ -34,6 +34,7 @@ import {
   deletePendingFeishuMessage,
   deleteFeishuBot,
   findFeishuBot,
+  grantFeishuBotUserAccess,
   findFeishuBinding,
   listFeishuBindings,
   listFeishuBots,
@@ -442,6 +443,19 @@ export function createFeishuIntegration(input: {
         if (!Number.isInteger(numericId)) throw new Error('Invalid approval request id')
         if (!['accept', 'acceptForSession', 'decline', 'cancel'].includes(decision)) throw new Error('Invalid approval decision')
         await gateway.resolveApproval(numericId, decision as 'accept' | 'acceptForSession' | 'decline' | 'cancel')
+      },
+    },
+    access: {
+      grantUser: async ({ botId, openId }) => {
+        const updated = await grantFeishuBotUserAccess(botId, openId)
+        await appendFeishuAuditLog({
+          botId,
+          action: 'access.granted',
+          targetType: 'feishu_bot',
+          targetId: botId,
+          success: true,
+          metadata: { allowedOpenIdCount: updated.allowedOpenIds.length },
+        })
       },
     },
     serverRequests: {

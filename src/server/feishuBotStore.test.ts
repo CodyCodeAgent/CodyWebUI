@@ -18,6 +18,7 @@ import {
   failFeishuInboundEvent,
   findFeishuBinding,
   findFeishuBot,
+  grantFeishuBotUserAccess,
   findFeishuCard,
   findFeishuTurn,
   listFeishuAuditLogs,
@@ -128,6 +129,20 @@ describe('feishuBotStore bots', () => {
 
     await expect(claimFeishuEvent('event-once')).resolves.toBe(true)
     await expect(claimFeishuEvent('event-once')).resolves.toBe(false)
+  })
+
+  it('persists exact access grants atomically without enabling broad access', async () => {
+    await bot('access')
+    await upsertFeishuBot({ id: 'access', appId: 'cli_access', enabled: true, allowAllUsers: true })
+
+    await grantFeishuBotUserAccess('access', 'ou_guest')
+    await grantFeishuBotUserAccess('access', 'ou_guest')
+
+    await expect(findFeishuBot('access')).resolves.toMatchObject({
+      allowAllUsers: false,
+      allowedOpenIds: ['ou_a', 'ou_b', 'ou_guest'],
+      appSecret: 'secret-access',
+    })
   })
 })
 

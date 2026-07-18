@@ -78,6 +78,16 @@ is also available per bot. An empty allow-list blocks everyone by default.
 Broad access is represented separately by `allowAllUsers=true`, and the UI
 requires explicit acknowledgement before saving that higher-risk policy.
 
+When a person outside that identity allow-list explicitly @mentions the bot in
+an allowed group (or messages it directly), CodyWebUI does not silently discard
+the request. It privately sends the bot administrator—the first configured
+allow-list member—a signed approval card and tells the requester to wait. An
+approval atomically adds only that exact `open_id`; it never enables broad
+access. The requester can then retry and use the same group/topic Session.
+Ambient unmentioned group messages and messages from a group outside
+`allowedChatIds` never create an access request. Approval tokens are signed,
+expire after seven days, and cannot be edited to grant a different identity.
+
 ## Multiple bots and management
 
 **Settings → Feishu bots** manages multiple independent custom apps. Each has
@@ -134,7 +144,9 @@ Application availability and CodyWebUI authorization are deliberately separate:
   and non-listed chat IDs are rejected before the inbound event is claimed.
 - **CodyWebUI access** controls whose messages may operate projects and Sessions.
   The QR creator is added automatically. An empty allow-list denies everyone;
-  `allowAllUsers` is a separate, explicitly confirmed broad-access switch.
+  `allowAllUsers` is a separate, explicitly confirmed broad-access switch. A
+  denied user's explicit request can be approved privately by the first
+  allow-listed administrator, granting only the signed requesting `open_id`.
 
 Publishing an app to a broad Feishu audience therefore never silently grants
 them CodyWebUI access.

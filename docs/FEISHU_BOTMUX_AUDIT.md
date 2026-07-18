@@ -25,6 +25,7 @@ second owner of a Session.
 | Retry/backoff, withdrawn-source fallback, dead-lettering | Adapt | Implemented; temporary errors retry, known permanent failures dead-letter, reply-source failure may fall back to chat delivery. |
 | Fast card callback acknowledgement | Adapt | Implemented for slow session-selection and request actions; completion patches the card asynchronously. |
 | Card interaction authorization | Adapt | Implemented using verified callback operator plus persisted binding/request ownership; action value identity is untrusted. |
+| In-chat access request and narrow grant | Adapt | Implemented for explicit unauthorized private/@ messages. The first allow-listed administrator receives a private signed approval card; approval atomically grants only the requesting Open ID, preserves `allowAllUsers=false`, and takes effect without reconnecting. Disallowed chats and ambient group traffic stay silent. |
 | Streaming/terminal cards | Adapt | Implemented with durable card versions and terminal freeze. |
 | Existing Session/new Session picker | Adapt | Implemented against the CodyWebUI visible project catalog and `thread/start`; the opening prompt and creation intent remain durable until a turn is prepared, including restart recovery. |
 | Approval and request-user-input cards | Adapt | Implemented through CodyWebUI's existing app-server server-request response path; group prompts are private when supported. |

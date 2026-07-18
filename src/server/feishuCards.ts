@@ -5,6 +5,8 @@ export const FEISHU_CARD_ACTIONS = {
   unbind: 'cody_feishu_unbind',
   approve: 'cody_feishu_approve',
   deny: 'cody_feishu_deny',
+  grantAccess: 'cody_feishu_grant_access',
+  denyAccess: 'cody_feishu_deny_access',
   userInputToggle: 'cody_feishu_user_input_toggle',
   userInputSubmit: 'cody_feishu_user_input_submit',
 } as const
@@ -226,6 +228,52 @@ export function buildApprovalCard(input: {
       ],
     },
   ], 'orange')
+}
+
+/** Sent privately to an existing allow-list member when another user asks to use the bot. */
+export function buildAccessRequestCard(input: {
+  requesterOpenId: string
+  chatId: string
+  chatType: 'p2p' | 'group'
+  requestToken: string
+}): FeishuCard {
+  const base = {
+    access_request_token: input.requestToken,
+  }
+  const source = input.chatType === 'p2p' ? '私聊' : `群聊 \`${truncate(input.chatId, 80)}\``
+  return card('飞书机器人访问申请', [
+    {
+      tag: 'div',
+      text: markdown(`用户 \`${truncate(input.requesterOpenId, 100)}\` 在${source}中请求使用 CodyWebUI。\n\n批准只会把这个 Open ID 精确加入白名单，不会开启全员访问。`),
+    },
+    {
+      tag: 'action',
+      actions: [
+        { tag: 'button', type: 'primary', text: plainText('允许访问'), value: { action: FEISHU_CARD_ACTIONS.grantAccess, ...base } },
+        { tag: 'button', type: 'danger', text: plainText('拒绝'), value: { action: FEISHU_CARD_ACTIONS.denyAccess, ...base } },
+      ],
+    },
+  ], 'orange')
+}
+
+export function buildResolvedAccessRequestCard(input: {
+  requesterOpenId: string
+  granted: boolean
+  operatorOpenId: string
+  resolvedAtIso: string
+}): FeishuCard {
+  return card(input.granted ? '已允许访问' : '已拒绝访问', [
+    {
+      tag: 'div',
+      text: markdown(input.granted
+        ? `已将 \`${truncate(input.requesterOpenId, 100)}\` 精确加入机器人白名单。对方现在可以回到原会话重试。`
+        : `未向 \`${truncate(input.requesterOpenId, 100)}\` 开放机器人访问。`),
+    },
+    {
+      tag: 'note',
+      elements: [{ tag: 'plain_text', content: `操作人：${truncate(input.operatorOpenId, 100)} · ${input.resolvedAtIso}` }],
+    },
+  ], input.granted ? 'green' : 'grey')
 }
 
 export type FeishuUserInputQuestion = {
