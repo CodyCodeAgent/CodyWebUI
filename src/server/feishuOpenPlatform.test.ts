@@ -212,6 +212,26 @@ describe('official Feishu device registration', () => {
     }));
   });
 
+  it('surfaces the Feishu permission code when tenant identity readback is rejected', async () => {
+    const sdkError = Object.assign(new Error('Request failed with status code 400'), {
+      response: { data: { code: 99991672, msg: 'Access denied: [tenant:tenant:readonly]' } },
+    });
+    const result = await registerOfficialFeishuOpenPlatformApp({
+      name: 'Cody Bot',
+      registerAppImpl: vi.fn(async () => ({
+        client_id: 'cli_created', client_secret: 'secret',
+        user_info: { open_id: 'ou_owner', tenant_brand: 'feishu' as const },
+      })) as any,
+      resolveIdentity: vi.fn(async () => { throw sdkError; }),
+    });
+
+    expect(result).toMatchObject({ ok: false, reason: 'identity_unavailable' });
+    if (!result.ok) {
+      expect(result.message).toContain('99991672');
+      expect(result.message).toContain('tenant:tenant:readonly');
+    }
+  });
+
   it('does not request contact profile scopes in the official flow', async () => {
     const registerAppImpl = vi.fn(async () => ({
       client_id: 'cli_created', client_secret: 'secret',
@@ -227,6 +247,7 @@ describe('official Feishu device registration', () => {
     });
     const call = (registerAppImpl.mock.calls as unknown as Array<[any]>)[0]?.[0];
     const tenantScopes = call?.addons.scopes.tenant as string[];
+    expect(tenantScopes).toContain('tenant:tenant:readonly');
     expect(tenantScopes).toContain('im:message:send_as_bot');
     expect(tenantScopes.some((scope) => scope.startsWith('contact:'))).toBe(false);
   });
