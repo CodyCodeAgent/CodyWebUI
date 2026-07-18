@@ -165,7 +165,13 @@ export class FeishuCodexGateway {
     }))
     const turns = asRecord(payload?.thread)?.turns
     if (!Array.isArray(turns)) return null
-    const active = turns.map(asRecord).find((value) => readString(value?.status) === 'inProgress')
+    // thread/read keeps historical turns in chronological order. Interrupted
+    // clients can leave an older turn marked inProgress, while app-server only
+    // accepts interrupts for the newest active turn. Always prefer the last
+    // active record instead of the first stale one.
+    const active = turns.map(asRecord)
+      .filter((value) => readString(value?.status) === 'inProgress')
+      .at(-1)
     return readString(active?.id) || null
   }
 

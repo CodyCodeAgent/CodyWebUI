@@ -1002,6 +1002,27 @@ describe('FeishuBotService', () => {
     await service.stop()
   })
 
+  it('re-reads and stops the latest Web-origin turn when the first active id is stale', async () => {
+    const findActiveTurnId = vi.fn()
+      .mockResolvedValueOnce('turn-stale')
+      .mockResolvedValueOnce('turn-current')
+    const { service, transport, stopTurn } = harness(binding(), {
+      findActiveTurnId,
+      stopTurn: async ({ turnId }) => {
+        if (turnId === 'turn-stale') throw new Error('expected active turn id turn-stale but found turn-current')
+      },
+    })
+    await service.start()
+
+    transport.handlers?.onMessage(commandMessage('om_external_stop_retry', '/stop'))
+
+    await vi.waitFor(() => expect(stopTurn).toHaveBeenCalledTimes(2))
+    expect(stopTurn).toHaveBeenNthCalledWith(1, { threadId: 'thread-1', turnId: 'turn-stale' })
+    expect(stopTurn).toHaveBeenNthCalledWith(2, { threadId: 'thread-1', turnId: 'turn-current' })
+    expect(transport.texts.some((text) => text.includes('其他入口启动的任务'))).toBe(true)
+    await service.stop()
+  })
+
   it('keeps the durable turn and card cancelled when completion races an explicit stop', async () => {
     const lifecycle = new MemoryLifecycle()
     let serviceForStop: FeishuBotService | null = null

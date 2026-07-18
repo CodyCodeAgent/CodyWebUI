@@ -1732,7 +1732,16 @@ export class FeishuBotService {
       if (!active) {
         const externalTurnId = await this.dependencies.turns.findActiveTurnId?.(binding.threadId)
         if (externalTurnId) {
-          await this.dependencies.turns.stopTurn?.({ threadId: binding.threadId, turnId: externalTurnId })
+          try {
+            await this.dependencies.turns.stopTurn?.({ threadId: binding.threadId, turnId: externalTurnId })
+          } catch (error) {
+            // The Web client can finish one turn and start another between the
+            // read and interrupt RPCs. Re-read once so /stop targets the
+            // authoritative current turn instead of failing on a stale id.
+            const refreshedTurnId = await this.dependencies.turns.findActiveTurnId?.(binding.threadId)
+            if (!refreshedTurnId || refreshedTurnId === externalTurnId) throw error
+            await this.dependencies.turns.stopTurn?.({ threadId: binding.threadId, turnId: refreshedTurnId })
+          }
           await runtime.transport.replyText(inbound.messageId, '已停止当前 Session 中由 Web 或其他入口启动的任务。', Boolean(inbound.rootId))
           return
         }

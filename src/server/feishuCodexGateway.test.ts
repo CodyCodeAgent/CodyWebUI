@@ -91,7 +91,11 @@ describe('FeishuCodexGateway', () => {
 
   it('finds the active turn so another CodyWebUI client can stop it', async () => {
     const rpc = vi.fn(async () => ({
-      thread: { turns: [{ id: 'turn-done', status: 'completed' }, { id: 'turn-live', status: 'inProgress' }] },
+      thread: { turns: [
+        { id: 'turn-done', status: 'completed' },
+        { id: 'turn-stale', status: 'inProgress' },
+        { id: 'turn-live', status: 'inProgress' },
+      ] },
     }))
     const gateway = new FeishuCodexGateway({ rpc, respondToServerRequest: vi.fn(), readCatalog: vi.fn(async () => catalog) })
     await expect(gateway.findActiveTurnId(' thread-1 ')).resolves.toBe('turn-live')
