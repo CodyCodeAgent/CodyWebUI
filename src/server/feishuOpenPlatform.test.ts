@@ -314,7 +314,7 @@ describe('official Feishu device registration', () => {
         scope: { list: vi.fn(async () => ({
           code: 0,
           data: { scopes: [
-            { scope_name: 'im:message:send_as_bot', scope_type: 'tenant', grant_status: 2 },
+            { scope_name: 'im:message:send_as_bot', scope_type: 'tenant', grant_status: 1 },
           ] },
         })) },
         application: { get: vi.fn(async () => ({
@@ -324,7 +324,6 @@ describe('official Feishu device registration', () => {
             online_version_id: 'v1',
             mobile_default_ability: 'bot',
             pc_default_ability: 'bot',
-            event: { subscription_type: 'websocket', subscribed_events: ['im.message.receive_v1'] },
             callback: { callback_type: 'websocket', subscribed_callbacks: ['card.action.trigger'] },
           } },
         })) },
@@ -332,6 +331,8 @@ describe('official Feishu device registration', () => {
           code: 0,
           data: { app_version: {
             version_id: 'v1',
+            status: 1,
+            events: ['接收消息'],
             ability: { bot: {} },
             remark: { visibility: { is_all: false, visible_list: { open_ids: ['ou_owner'] } } },
           } },
@@ -363,7 +364,7 @@ describe('official Feishu device registration', () => {
     const client = {
       application: {
         scope: { list: vi.fn(async () => ({ code: 0, data: { scopes: [
-          { scope_name: 'im:message:send_as_bot', scope_type: 'tenant', grant_status: 1 },
+          { scope_name: 'im:message:send_as_bot', scope_type: 'tenant', grant_status: 2 },
         ] } })) },
         application: { get: vi.fn(async () => ({ code: 0, data: { app: {} } })) },
         applicationAppVersion: { get: vi.fn(async () => ({ code: 0, data: { app_version: {} } })) },
@@ -376,7 +377,7 @@ describe('official Feishu device registration', () => {
       visibility: { isVisibleToAll: false, userOpenIds: ['ou_owner'] },
     });
     expect(result).toMatchObject({ ok: false, reason: 'scope_verification_failed' });
-    if (!result.ok) expect(result.message).toContain('=1');
+    if (!result.ok) expect(result.message).toContain('=2');
   });
 
   it('disables bot ability and the remote app with its own public credentials', async () => {
