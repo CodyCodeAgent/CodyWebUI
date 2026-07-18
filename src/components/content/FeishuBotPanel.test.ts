@@ -191,6 +191,17 @@ describe('FeishuBotPanel', () => {
     wrapper.unmount()
   })
 
+  it('makes the first allow-list identity access administrator explicit', async () => {
+    api.fetchFeishuBots.mockResolvedValue([bot])
+    api.fetchFeishuBindings.mockResolvedValue([])
+    api.fetchFeishuDiagnostics.mockResolvedValue(diagnostics)
+    const wrapper = mount(FeishuBotPanel)
+    await flushPromises()
+    expect(wrapper.text()).toContain('The first Open ID is the access-request administrator')
+    expect(wrapper.text()).toContain('receives private approval cards')
+    wrapper.unmount()
+  })
+
   it('defaults group messages to mention-required and saves an explicit higher-noise mode', async () => {
     api.fetchFeishuBots.mockResolvedValue([])
     api.fetchFeishuBindings.mockResolvedValue([])
