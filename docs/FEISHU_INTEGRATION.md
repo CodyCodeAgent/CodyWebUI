@@ -338,6 +338,7 @@ scopes separately.
 
 | Permission | Purpose |
 | --- | --- |
+| `tenant:tenant:readonly` | Bind the app to the verified tenant immediately after official QR registration. |
 | `im:message` | Send, reply to, and update bot messages/cards. |
 | `im:message.p2p_msg:readonly` | Receive private-chat messages. |
 | `im:message.group_at_msg:readonly` | Receive group @mentions. |

@@ -2217,6 +2217,11 @@ function readOfficialBotScopeManifest(): ScopeManifest {
   return {
     scopes: {
       tenant: [
+        // Required immediately after the official device flow so CodyWebUI can
+        // bind the newly issued App ID to the tenant that the scanner just
+        // confirmed. Without it, tenant.tenant.query() fails before the normal
+        // configuration pass has a chance to add permissions.
+        'tenant:tenant:readonly',
         'im:message',
         'im:message.p2p_msg:readonly',
         'im:message.group_at_msg:readonly',
@@ -2573,7 +2578,17 @@ function summarizeOpenPlatformPayload(payload: unknown): string {
 
 function safeErrorMessage(err: unknown): string {
   const message = err instanceof Error ? err.message : String(err);
-  return message.replace(/[A-Za-z0-9_=-]{24,}/g, '***');
+  const row = asRecord(err);
+  const responseData = asRecord(asRecord(row.response).data);
+  const detail = pickString(responseData, ['msg', 'message']);
+  const responseCode = responseData.code;
+  const code = typeof responseCode === 'number' || typeof responseCode === 'string'
+    ? String(responseCode)
+    : '';
+  const expanded = detail && !message.includes(detail)
+    ? `${message}${code ? `（飞书错误 ${code}` : '（飞书错误'}: ${detail}）`
+    : message;
+  return expanded.replace(/[A-Za-z0-9_=-]{24,}/g, '***');
 }
 
 function markFinalResponseUrl(response: Response, finalUrl: string): void {

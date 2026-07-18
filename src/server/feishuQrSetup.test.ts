@@ -143,7 +143,7 @@ describe('FeishuQrSetupManager', () => {
     ))
   })
 
-  it('revalidates tenant identity before retrying an official app saved after an identity lookup failure', async () => {
+  it('repairs official scopes before revalidating a persisted app after an identity lookup failure', async () => {
     const createApp = vi.fn(async (options: any) => {
       const fallbackIdentity = {
         userId: 'ou_owner', openId: 'ou_owner', userName: '扫码创建者',
@@ -162,12 +162,13 @@ describe('FeishuQrSetupManager', () => {
       userId: 'ou_owner', openId: 'ou_owner', userName: 'Alice',
       tenantId: 't_recovered', tenantName: 'Recovered Enterprise', brand: 'feishu' as const,
     }))
+    const configureOfficialApp = vi.fn(async () => successfulOfficialConfiguration())
     const manager = new FeishuQrSetupManager({
       createBot,
       updateBot: vi.fn(async () => ({ ...bot(true), tenantId: 't_recovered', tenantName: 'Recovered Enterprise' })),
       createApp: createApp as any,
       refreshOfficialIdentity,
-      configureOfficialApp: vi.fn(async () => successfulOfficialConfiguration()),
+      configureOfficialApp,
       verifyBotConnection: verifyConnectedBot,
     })
 
@@ -177,7 +178,9 @@ describe('FeishuQrSetupManager', () => {
     await vi.waitFor(() => expect(manager.get(started.id)?.status).toBe('completed'))
 
     expect(createApp).toHaveBeenCalledTimes(1)
+    expect(configureOfficialApp).toHaveBeenCalledTimes(1)
     expect(refreshOfficialIdentity).toHaveBeenCalledWith({ botId: 'bot-1', ownerOpenId: 'ou_owner' })
+    expect(configureOfficialApp.mock.invocationCallOrder[0]).toBeLessThan(refreshOfficialIdentity.mock.invocationCallOrder[0])
     expect(manager.get(started.id)?.account).toMatchObject({ tenantName: 'Recovered Enterprise', userName: 'Alice' })
   })
 

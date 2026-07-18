@@ -646,15 +646,11 @@ export class FeishuQrSetupManager {
         if (!this.deps.refreshOfficialIdentity) throw new Error('官方扫码应用缺少企业身份回读器')
         const ownerOpenId = job.ownerPlatformUserId?.trim() ?? ''
         if (!ownerOpenId) throw new Error('缺少扫码创建者 Open ID，不能重新验证企业身份')
-        const identity = await this.deps.refreshOfficialIdentity({ botId: job.bot.id, ownerOpenId })
-        if (job.account?.tenantName && job.account.tenantName !== '企业信息待重新验证'
-          && job.bot.tenantId && job.bot.tenantId !== identity.tenantId) {
-          throw new Error(`企业身份回读发生变化（${job.account.tenantName} → ${identity.tenantName}），机器人保持禁用`)
-        }
-        job.account = this.accountDto(identity)
-        job.ownerPlatformUserId = identity.openId ?? identity.userId
-        job.checks.accountVerified = true
-        await this.persist(job)
+        // The tenant identity API itself requires tenant:tenant:readonly. New
+        // official registrations declare it up front, but persisted jobs from
+        // an older build may not have it. Run the idempotent configuration pass
+        // first so retry repairs the existing app instead of asking for another
+        // scan or creating a duplicate application.
         const configured = await this.deps.configureOfficialApp({
           botId: job.bot.id,
           signal: job.controller.signal,
@@ -673,6 +669,16 @@ export class FeishuQrSetupManager {
           appEnabledVerified: configured.appEnabledReady,
           botIdentityVerified: Boolean(configured.botOpenId),
         } satisfies Partial<FeishuSetupChecks>)
+        await this.persist(job)
+        const identity = await this.deps.refreshOfficialIdentity({ botId: job.bot.id, ownerOpenId })
+        if (job.account?.tenantName && job.account.tenantName !== '企业信息待重新验证'
+          && job.bot.tenantId && job.bot.tenantId !== identity.tenantId) {
+          throw new Error(`企业身份回读发生变化（${job.account.tenantName} → ${identity.tenantName}），机器人保持禁用`)
+        }
+        job.account = this.accountDto(identity)
+        job.ownerPlatformUserId = identity.openId ?? identity.userId
+        job.checks.accountVerified = true
+        await this.persist(job)
       } else {
         const visibilityOverride = this.visibilityOverride(job)
         const configured = await this.automateSetup({
