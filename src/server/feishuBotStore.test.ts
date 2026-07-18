@@ -138,7 +138,7 @@ describe('feishuBotStore bindings and pending messages', () => {
     await upsertFeishuBinding({
       botId: 'alpha', bindingKey: 'chat-1:topic-1', scopeType: 'topic', chatId: 'chat-1',
       rootId: 'topic-1', projectCwd: '/repo/shared', projectName: 'Shared',
-      sessionId: 'session-1', sessionTitle: 'Existing session', userOpenId: 'ou_user',
+      sessionId: 'session-1', sessionTitle: 'Existing session', collaborationMode: 'plan', userOpenId: 'ou_user',
     })
     await upsertFeishuBinding({
       botId: 'beta', bindingKey: 'chat-1:topic-1', scopeType: 'topic', chatId: 'chat-1',
@@ -149,6 +149,7 @@ describe('feishuBotStore bindings and pending messages', () => {
     expect(await findFeishuBinding('chat-1:topic-1', 'alpha')).toMatchObject({
       id: 'chat-1:topic-1', botId: 'alpha', botName: 'alpha bot', scopeType: 'topic',
       projectCwd: '/repo/shared', cwd: '/repo/shared', sessionId: 'session-1', threadId: 'session-1',
+      collaborationMode: 'plan',
     })
     expect((await listFeishuBindings({ botId: 'beta' }))[0]?.sessionId).toBe('session-2')
     expect(await listFeishuBindings({ sessionId: 'session-1' })).toHaveLength(1)

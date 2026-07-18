@@ -110,7 +110,12 @@ export class FeishuCodexGateway {
     return { id, title: readString(thread?.name) || readString(thread?.title) || 'New session', cwd: normalizedCwd }
   }
 
-  async startTurn(threadId: string, text: string, localImagePaths: string[] = []): Promise<FeishuStartedTurn> {
+  async startTurn(
+    threadId: string,
+    text: string,
+    localImagePaths: string[] = [],
+    collaborationMode: 'default' | 'plan' = 'default',
+  ): Promise<FeishuStartedTurn> {
     const normalizedThreadId = threadId.trim()
     const normalizedText = text.trim()
     if (!normalizedThreadId) throw new Error('A thread id is required to start a turn')
@@ -125,10 +130,29 @@ export class FeishuCodexGateway {
         .filter(Boolean)
         .map((path) => ({ type: 'localImage', path })),
     ]
-    const payload = asRecord(await this.dependencies.rpc('turn/start', {
+    const turnStartParams: Record<string, unknown> = {
       threadId: normalizedThreadId,
       input,
-    }))
+    }
+    if (collaborationMode === 'plan') {
+      const [modePayload, configPayload] = await Promise.all([
+        this.dependencies.rpc('collaborationMode/list', {}),
+        this.dependencies.rpc('config/read', {}),
+      ])
+      const modeData = asRecord(modePayload)?.data
+      const modes = Array.isArray(modeData) ? modeData : []
+      const plan = modes.map((row) => asRecord(row)).find((row) => readString(row?.mode) === 'plan')
+      const config = asRecord(asRecord(configPayload)?.config)
+      turnStartParams.collaborationMode = {
+        mode: 'plan',
+        settings: {
+          model: readString(plan?.model) || readString(config?.model),
+          reasoning_effort: readString(plan?.reasoning_effort) || readString(config?.model_reasoning_effort) || null,
+          developer_instructions: readString(plan?.developer_instructions) || null,
+        },
+      }
+    }
+    const payload = asRecord(await this.dependencies.rpc('turn/start', turnStartParams))
     const turn = asRecord(payload?.turn)
     const turnId = readString(turn?.id)
     if (!turnId) throw new Error('turn/start did not return a turn id')

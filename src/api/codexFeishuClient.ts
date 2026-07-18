@@ -105,6 +105,7 @@ export type FeishuBinding = {
   projectName: string
   sessionId: string | null
   sessionTitle: string | null
+  collaborationMode: 'default' | 'plan'
   userOpenId: string | null
   createdAtIso: string
   updatedAtIso: string
@@ -207,6 +208,7 @@ function normalizeBinding(value: unknown): FeishuBinding | null {
     projectName: typeof row.projectName === 'string' ? row.projectName : '',
     sessionId: optionalString(row.sessionId),
     sessionTitle: optionalString(row.sessionTitle),
+    collaborationMode: row.collaborationMode === 'plan' ? 'plan' : 'default',
     userOpenId: optionalString(row.userOpenId),
     createdAtIso: typeof row.createdAtIso === 'string' ? row.createdAtIso : '',
     updatedAtIso: typeof row.updatedAtIso === 'string' ? row.updatedAtIso : '',

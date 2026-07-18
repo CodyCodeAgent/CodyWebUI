@@ -1107,6 +1107,19 @@ describe('FeishuBotService', () => {
     await service.stop()
   })
 
+  it('persists Plan mode per binding and forwards it to new turns', async () => {
+    const { service, store, transport, startTurn } = harness(binding())
+    await service.start()
+    transport.handlers?.onMessage(commandMessage('om_mode_plan', '/mode plan'))
+    await vi.waitFor(() => expect(transport.texts.some((text) => text.includes('Plan 模式'))).toBe(true))
+    expect(store.bindings.get(binding().bindingKey)?.collaborationMode).toBe('plan')
+
+    transport.handlers?.onMessage(commandMessage('om_mode_prompt', 'Ask me to choose one option'))
+    await vi.waitFor(() => expect(startTurn).toHaveBeenCalledOnce())
+    expect(startTurn).toHaveBeenCalledWith(expect.objectContaining({ collaborationMode: 'plan' }))
+    await service.stop()
+  })
+
   it('redacts SDK headers, token fields and the exact app secret', () => {
     const serialized = formatFeishuSdkError(
       'Authorization: Bearer abc.def {"appSecret":"sekret","tenant_access_token":"tenant","app_access_token":"app","client_secret":"client","refresh_token":"refresh"} sekret',

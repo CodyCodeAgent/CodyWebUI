@@ -362,6 +362,7 @@ export function buildSessionStatusCard(input: {
   threadId: string
   state: 'idle' | 'running' | 'queued' | 'external'
   queuedCount: number
+  collaborationMode?: 'default' | 'plan'
   webUrl?: string
 }): FeishuCard {
   const stateLabel = input.state === 'running'
@@ -376,6 +377,7 @@ export function buildSessionStatusCard(input: {
       { is_short: true, text: markdown(`**状态**\n${stateLabel}`) },
       { is_short: false, text: markdown(`**Session**\n${truncate(input.sessionTitle, 120)}`) },
       { is_short: true, text: markdown(`**排队消息**\n${input.queuedCount}`) },
+      { is_short: true, text: markdown(`**模式**\n${input.collaborationMode ?? 'default'}`) },
     ],
   }]
   if (input.webUrl) {
@@ -404,18 +406,20 @@ export function buildActionResultCard(input: {
 export function buildBotHelpCard(input: {
   projectLabel?: string
   sessionTitle?: string
+  collaborationMode?: 'default' | 'plan'
 }): FeishuCard {
   const status = input.sessionTitle
     ? `当前绑定：**${truncate(input.projectLabel || '未知项目', 80)} / ${truncate(input.sessionTitle, 100)}**`
     : '当前状态：**尚未绑定 Session**'
   return card('CodyWebUI 机器人帮助', [
-    { tag: 'div', text: markdown(status) },
+    { tag: 'div', text: markdown(`${status}\n当前模式：**${input.collaborationMode ?? 'default'}**`) },
     { tag: 'div', text: markdown([
       '`/project` 选择项目',
       '`/sessions` 查看 Session',
       '`/switch` 切换 Session',
       '`/new` 新建 Session',
       '`/status` 查看状态',
+      '`/mode plan|default` 切换对话模式',
       '`/stop` 停止当前回复',
       '`/answer 请求ID 问题ID 答案` 回答自定义问题',
       '`/rename 新名称` 重命名',

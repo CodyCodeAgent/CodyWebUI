@@ -61,6 +61,32 @@ describe('FeishuCodexGateway', () => {
     })
   })
 
+  it('starts Plan turns with the live collaboration preset and model configuration', async () => {
+    const rpc = vi.fn(async (method: string) => {
+      if (method === 'collaborationMode/list') return { data: [{ name: 'Plan', mode: 'plan', model: null, reasoning_effort: 'medium' }] }
+      if (method === 'config/read') return { config: { model: 'gpt-5.6-sol', model_reasoning_effort: 'high' } }
+      if (method === 'turn/start') return { turn: { id: 'turn-plan' } }
+      return {}
+    })
+    const gateway = new FeishuCodexGateway({ rpc, respondToServerRequest: vi.fn(), readCatalog: vi.fn(async () => catalog) })
+
+    await expect(gateway.startTurn('thread-1', 'Ask before deciding', [], 'plan')).resolves.toEqual({ threadId: 'thread-1', turnId: 'turn-plan' })
+    expect(rpc).toHaveBeenCalledWith('collaborationMode/list', {})
+    expect(rpc).toHaveBeenCalledWith('config/read', {})
+    expect(rpc).toHaveBeenCalledWith('turn/start', {
+      threadId: 'thread-1',
+      input: [{ type: 'text', text: 'Ask before deciding', text_elements: [] }],
+      collaborationMode: {
+        mode: 'plan',
+        settings: {
+          model: 'gpt-5.6-sol',
+          reasoning_effort: 'medium',
+          developer_instructions: null,
+        },
+      },
+    })
+  })
+
   it('resolves approvals through the existing server-request channel', async () => {
     const respondToServerRequest = vi.fn(async () => undefined)
     const gateway = new FeishuCodexGateway({ rpc: vi.fn(), respondToServerRequest, readCatalog: vi.fn(async () => catalog) })

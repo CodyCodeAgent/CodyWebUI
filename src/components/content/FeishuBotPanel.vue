@@ -564,7 +564,7 @@
                 <div class="feishu-binding-main">
                   <strong>{{ binding.projectName || binding.projectCwd }}</strong>
                   <span>{{ binding.sessionTitle || binding.sessionId || t('settings.feishu.newSession') }}</span>
-                  <code>{{ scopeLabel(binding.scopeType) }} · {{ binding.chatId }}</code>
+                  <code>{{ scopeLabel(binding.scopeType) }} · {{ binding.collaborationMode }} · {{ binding.chatId }}</code>
                 </div>
                 <div class="feishu-binding-meta">
                   <time :datetime="binding.lastMessageAtIso || undefined">{{ formatTime(binding.lastMessageAtIso) }}</time>

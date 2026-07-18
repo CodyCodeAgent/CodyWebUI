@@ -61,6 +61,7 @@ export type FeishuConversationBinding = {
   threadId: string
   sessionTitle: string
   threadTitle: string
+  collaborationMode: 'default' | 'plan'
   userOpenId: string
   senderOpenId: string
   createdAtIso: string
@@ -242,6 +243,8 @@ function ensureFeishuTables(db: Database.Database): void {
       project_name TEXT NOT NULL DEFAULT '',
       session_id TEXT NOT NULL,
       session_title TEXT NOT NULL DEFAULT '',
+      collaboration_mode TEXT NOT NULL DEFAULT 'default'
+        CHECK (collaboration_mode IN ('default', 'plan')),
       created_at_iso TEXT NOT NULL,
       updated_at_iso TEXT NOT NULL,
       last_message_at_iso TEXT,
@@ -379,6 +382,10 @@ function ensureFeishuTables(db: Database.Database): void {
   }
   if (!botColumns.some((column) => column.name === 'tenant_name')) {
     db.exec("ALTER TABLE feishu_bots ADD COLUMN tenant_name TEXT NOT NULL DEFAULT ''")
+  }
+  const bindingColumns = db.prepare('PRAGMA table_info(feishu_bindings)').all() as Array<{ name: string }>
+  if (!bindingColumns.some((column) => column.name === 'collaboration_mode')) {
+    db.exec("ALTER TABLE feishu_bindings ADD COLUMN collaboration_mode TEXT NOT NULL DEFAULT 'default' CHECK (collaboration_mode IN ('default', 'plan'))")
   }
   const pendingColumns = db.prepare('PRAGMA table_info(feishu_pending_messages_v2)').all() as Array<{ name: string }>
   if (!pendingColumns.some((column) => column.name === 'claim_token')) {
@@ -690,6 +697,7 @@ type BindingInput = {
   threadId?: string
   sessionTitle?: string
   threadTitle?: string
+  collaborationMode?: 'default' | 'plan'
   userOpenId?: string
   senderOpenId?: string
 }
@@ -702,12 +710,13 @@ function normalizeBinding(row: Record<string, unknown>): FeishuConversationBindi
   const sessionId = String(row.sessionId)
   const sessionTitle = String(row.sessionTitle ?? '')
   const userOpenId = String(row.userOpenId ?? '')
+  const collaborationMode = row.collaborationMode === 'plan' ? 'plan' : 'default'
   return {
     id, bindingKey: id, botId: String(row.botId), botName: String(row.botName ?? ''), scopeType,
     chatId: String(row.chatId), rootId: String(row.rootId ?? ''),
     chatType: scopeType === 'private' ? 'p2p' : 'group', projectCwd, cwd: projectCwd,
     projectName: String(row.projectName ?? ''), projectKey, sessionId, threadId: sessionId,
-    sessionTitle, threadTitle: sessionTitle, userOpenId, senderOpenId: userOpenId,
+    sessionTitle, threadTitle: sessionTitle, collaborationMode, userOpenId, senderOpenId: userOpenId,
     createdAtIso: String(row.createdAtIso), updatedAtIso: String(row.updatedAtIso),
     lastMessageAtIso: typeof row.lastMessageAtIso === 'string' ? row.lastMessageAtIso : null,
   }
@@ -719,6 +728,7 @@ const BINDING_SELECT = `
     x.user_open_id AS userOpenId, x.project_key AS projectKey,
     x.project_cwd AS projectCwd, x.project_name AS projectName,
     x.session_id AS sessionId, x.session_title AS sessionTitle,
+    x.collaboration_mode AS collaborationMode,
     x.created_at_iso AS createdAtIso, x.updated_at_iso AS updatedAtIso,
     x.last_message_at_iso AS lastMessageAtIso
   FROM feishu_bindings x JOIN feishu_bots b ON b.bot_id = x.bot_id
@@ -757,23 +767,25 @@ export async function upsertFeishuBinding(input: BindingInput): Promise<FeishuCo
   return withLocalDatabase((db) => {
     ensureFeishuTables(db)
     ensureBotExists(db, botId)
-    const existing = db.prepare('SELECT created_at_iso AS createdAtIso FROM feishu_bindings WHERE bot_id = ? AND binding_key = ?').get(botId, bindingKey) as { createdAtIso: string } | undefined
+    const existing = db.prepare('SELECT created_at_iso AS createdAtIso, collaboration_mode AS collaborationMode FROM feishu_bindings WHERE bot_id = ? AND binding_key = ?').get(botId, bindingKey) as { createdAtIso: string; collaborationMode: 'default' | 'plan' } | undefined
+    const collaborationMode = input.collaborationMode ?? existing?.collaborationMode ?? 'default'
     db.prepare(`
       INSERT INTO feishu_bindings
         (bot_id, binding_key, scope_type, chat_id, root_id, user_open_id,
          project_key, project_cwd, project_name, session_id, session_title,
-         created_at_iso, updated_at_iso, last_message_at_iso)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)
+         collaboration_mode, created_at_iso, updated_at_iso, last_message_at_iso)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)
       ON CONFLICT(bot_id, binding_key) DO UPDATE SET
         scope_type = excluded.scope_type, chat_id = excluded.chat_id, root_id = excluded.root_id,
         user_open_id = excluded.user_open_id, project_key = excluded.project_key,
         project_cwd = excluded.project_cwd, project_name = excluded.project_name,
         session_id = excluded.session_id, session_title = excluded.session_title,
+        collaboration_mode = excluded.collaboration_mode,
         updated_at_iso = excluded.updated_at_iso
     `).run(botId, bindingKey, scopeType, input.chatId.trim(), clean(input.rootId),
       clean(input.userOpenId ?? input.senderOpenId), clean(input.projectKey, projectCwd), projectCwd,
       clean(input.projectName), sessionId, clean(input.sessionTitle ?? input.threadTitle),
-      existing?.createdAtIso ?? timestamp, timestamp)
+      collaborationMode, existing?.createdAtIso ?? timestamp, timestamp)
     return normalizeBinding(db.prepare(`${BINDING_SELECT} WHERE x.bot_id = ? AND x.binding_key = ?`).get(botId, bindingKey) as Record<string, unknown>)
   })
 }

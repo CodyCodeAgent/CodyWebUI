@@ -227,6 +227,7 @@ The supported commands are:
 | `/switch <number\|threadId\|title>` | Bind an existing Session directly. |
 | `/new` | Create and bind a Session in the current project. |
 | `/status` | Show bound project/Session, running/queued state, and browser link. |
+| `/mode plan\|default` | Persist the Codex collaboration mode for this Feishu binding. Plan mode enables real `request_user_input` cards. |
 | `/stop` | Interrupt the active turn for this Session, including a turn started from the Web UI. |
 | `/answer <requestId> <questionId> <answer>` | Supply a permitted custom answer; sensitive answers require private chat. |
 | `/rename <name>` | Rename the bound Session. |

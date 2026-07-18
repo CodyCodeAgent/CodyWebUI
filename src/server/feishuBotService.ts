@@ -74,6 +74,7 @@ export type FeishuSessionBinding = FeishuConversationRoute & {
   cwd: string
   threadId: string
   threadTitle: string
+  collaborationMode?: 'default' | 'plan'
 }
 
 export type FeishuRuntimeUpdate = {
@@ -117,6 +118,7 @@ export interface FeishuTurnPort {
     localImagePaths?: string[]
     source: 'feishu'
     metadata: Record<string, string>
+    collaborationMode?: 'default' | 'plan'
   }): Promise<{ turnId: string }>
   stopTurn?(input: { threadId: string; turnId?: string }): Promise<void>
   isThreadBusy?(threadId: string): Promise<boolean>
@@ -1612,12 +1614,13 @@ export class FeishuBotService {
     const commandMatch = inbound.prompt.match(/^\/(\w+)(?:\s+([\s\S]+))?$/u)
     const command = commandMatch?.[1]?.toLowerCase() ?? ''
     const commandArgument = commandMatch?.[2]?.trim() ?? ''
-    const managementCommands = new Set(['archive', 'new', 'project', 'rename', 'sessions', 'status', 'stop', 'switch', 'unbind'])
+    const managementCommands = new Set(['archive', 'mode', 'new', 'project', 'rename', 'sessions', 'status', 'stop', 'switch', 'unbind'])
     const knownCommands = new Set([...managementCommands, 'answer', 'help'])
     if (command === 'help') {
       await runtime.transport.replyCard(inbound.messageId, buildBotHelpCard({
         projectLabel: binding?.projectLabel,
         sessionTitle: binding?.threadTitle,
+        collaborationMode: binding?.collaborationMode ?? 'default',
       }), Boolean(inbound.rootId))
       return
     }
@@ -1725,8 +1728,31 @@ export class FeishuBotService {
         threadId: binding.threadId,
         state: active ? 'running' : queuedCount > 0 ? 'queued' : externalBusy ? 'external' : 'idle',
         queuedCount,
+        collaborationMode: binding.collaborationMode ?? 'default',
         webUrl: this.dependencies.webThreadUrl?.(binding.threadId),
       }), Boolean(inbound.rootId))
+      return
+    }
+
+    if (command === 'mode') {
+      if (!binding) {
+        await runtime.transport.replyText(inbound.messageId, '当前对话尚未绑定 Session。', Boolean(inbound.rootId))
+        return
+      }
+      if (!commandArgument) {
+        await runtime.transport.replyText(inbound.messageId, `当前模式：${binding.collaborationMode ?? 'default'}。用法：/mode plan 或 /mode default`, Boolean(inbound.rootId))
+        return
+      }
+      const collaborationMode = commandArgument.toLowerCase()
+      if (collaborationMode !== 'plan' && collaborationMode !== 'default') {
+        await runtime.transport.replyText(inbound.messageId, '用法：/mode plan 或 /mode default', Boolean(inbound.rootId))
+        return
+      }
+      binding = { ...binding, collaborationMode }
+      await this.dependencies.store.upsertBinding(binding)
+      await runtime.transport.replyText(inbound.messageId, collaborationMode === 'plan'
+        ? '已切换到 Plan 模式。后续消息可以发起 request_user_input 交互卡；使用 /mode default 可切回。'
+        : '已切换到 Default 模式。', Boolean(inbound.rootId))
       return
     }
 
@@ -2020,6 +2046,7 @@ export class FeishuBotService {
           feishuBindingKey: active.binding.bindingKey,
           feishuMessageId: sourceMessageId,
         },
+        collaborationMode: active.binding.collaborationMode ?? 'default',
       })
       active.turnId = result.turnId
       // Notifications can overtake the turn/start RPC response. Do not revive
