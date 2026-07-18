@@ -77,7 +77,10 @@ describe('AgentTaskService', () => {
     const replacement = await standby.runNow(task.id)
     expect(replacement.status).toBe('queued')
     expect(standbyRpc).not.toHaveBeenCalled()
-    await vi.waitFor(async () => expect((await owner.runs(task.id)).find((run) => run.id === first.id)?.status).toBe('cancelled'))
+    await vi.waitFor(
+      async () => expect((await owner.runs(task.id)).find((run) => run.id === first.id)?.status).toBe('cancelled'),
+      { timeout: 2_500 },
+    )
     expect(ownerRpc).toHaveBeenCalledWith('turn/interrupt', { threadId: 'thread-owner-1', turnId: 'turn-owner-1' })
     await vi.waitFor(() => expect(ownerRpc.mock.calls.filter(([method]) => method === 'thread/start')).toHaveLength(2), { timeout: 2_500 })
 

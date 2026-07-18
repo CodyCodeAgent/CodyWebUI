@@ -770,6 +770,13 @@ export class FeishuBotService {
     if (this.reconnectTimer) clearInterval(this.reconnectTimer)
     this.reconnectTimer = null
     for (const runtime of this.runtimes.values()) runtime.transport.close()
+    // A transport callback can still be finishing after the long connection is
+    // closed. Drain those per-binding handlers before clearing recovered state,
+    // otherwise an old service instance may write into the same SQLite rows
+    // after a replacement instance has already restored them.
+    const pendingMessages = Array.from(this.messageQueues.values())
+    if (pendingMessages.length > 0) await Promise.allSettled(pendingMessages)
+    this.messageQueues.clear()
     this.runtimes.clear()
     for (const active of this.activeTurnsByThread.values()) if (active.patchTimer) clearTimeout(active.patchTimer)
     this.activeTurnsByThread.clear()
