@@ -1,5 +1,5 @@
 import Database from 'better-sqlite3'
-import { mkdir } from 'node:fs/promises'
+import { chmod, mkdir } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
 
@@ -11,14 +11,22 @@ export function localDatabasePath(): string {
 
 export async function withLocalDatabase<T>(operation: (db: Database.Database) => T): Promise<T> {
   const dbPath = localDatabasePath()
-  await mkdir(dirname(dbPath), { recursive: true })
+  const dbDirectory = dirname(dbPath)
+  await mkdir(dbDirectory, { recursive: true, mode: 0o700 })
+  // The default database contains write-only integration credentials. Keep its
+  // containing directory private even when an earlier version created it with
+  // a permissive umask. A custom database may intentionally live in a shared
+  // service directory, so only its file is tightened below.
+  if (dbPath === DEFAULT_SETTINGS_DB_PATH) await chmod(dbDirectory, 0o700)
 
-  let db: Database.Database
+  let db: Database.Database | undefined
   try {
     db = new Database(dbPath)
+    await chmod(dbPath, 0o600)
     db.pragma('journal_mode = WAL')
     db.pragma('foreign_keys = ON')
   } catch (error) {
+    db?.close()
     const message = error instanceof Error ? error.message : String(error)
     throw new Error(`Failed to open settings database at ${dbPath}: ${message}`)
   }

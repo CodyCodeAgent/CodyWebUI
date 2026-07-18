@@ -1,29 +1,25 @@
 import { defineConfig } from "vite";
 import type { Server as HttpServer } from "node:http";
-import { execFileSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
 import vue from "@vitejs/plugin-vue";
 import {
   attachCodexBridgeWebSocketServer,
   createCodexBridgeMiddleware,
 } from "./src/server/codexAppServerBridge";
 import tailwindcss from "@tailwindcss/vite";
-
-function readGitSha(): string {
-  try {
-    return execFileSync("git", ["rev-parse", "--short=12", "HEAD"], { encoding: "utf8" }).trim();
-  } catch {
-    return "unknown";
-  }
-}
+import { readBuildMetadata } from "./scripts/build-metadata.mjs";
 
 const buildVersion = process.env.npm_package_version ?? "0.0.0";
-const buildGitSha = readGitSha();
+const buildMetadata = readBuildMetadata(fileURLToPath(new URL(".", import.meta.url)));
 const buildTime = new Date().toISOString();
 
 export default defineConfig({
   define: {
     __CODY_VERSION__: JSON.stringify(buildVersion),
-    __CODY_GIT_SHA__: JSON.stringify(buildGitSha),
+    __CODY_GIT_SHA__: JSON.stringify(buildMetadata.gitSha),
+    __CODY_GIT_DIRTY__: JSON.stringify(buildMetadata.dirty),
+    __CODY_SOURCE_FINGERPRINT__: JSON.stringify(buildMetadata.sourceFingerprint),
+    __CODY_BUILD_ID__: JSON.stringify(buildMetadata.buildId),
     __CODY_BUILD_TIME__: JSON.stringify(buildTime),
   },
   server: {

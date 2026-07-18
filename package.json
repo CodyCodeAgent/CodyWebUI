@@ -34,7 +34,7 @@
   "scripts": {
     "dev": "vite",
     "start": "node dist-cli/index.js",
-    "test": "vitest run",
+    "test": "vitest run --maxWorkers=1",
     "typecheck": "vue-tsc --noEmit",
     "smoke:cli": "node scripts/smoke-cli.mjs",
     "smoke:approval": "node scripts/smoke-approval.mjs",
@@ -62,6 +62,7 @@
     "prepublishOnly": "npm run verify"
   },
   "dependencies": {
+    "@larksuiteoapi/node-sdk": "^1.71.1",
     "better-sqlite3": "^11.9.1",
     "commander": "^13.1.0",
     "dompurify": "^3.4.11",
@@ -73,6 +74,7 @@
     "mermaid": "^11.16.0",
     "monaco-editor": "^0.53.0",
     "node-plantuml": "^0.9.0",
+    "qrcode": "^1.5.4",
     "ws": "^8.21.0",
     "yaml": "^2.9.0"
   },
@@ -82,6 +84,7 @@
     "@types/express": "^5.0.0",
     "@types/markdown-it": "^14.1.2",
     "@types/node": "^22.13.2",
+    "@types/qrcode": "^1.5.6",
     "@types/ws": "^8.18.1",
     "@vitejs/plugin-vue": "^5.2.1",
     "@vue/test-utils": "^2.4.11",

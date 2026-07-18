@@ -23,8 +23,10 @@ import { createBackgroundTaskRoutes } from './routes/backgroundTaskRoutes.js'
 import { createCatalogRoutes } from './routes/catalogRoutes.js'
 import { createContentRoutes } from './routes/contentRoutes.js'
 import { createGatewayRoutes } from './routes/gatewayRoutes.js'
+import { createFeishuRoutes } from './routes/feishuRoutes.js'
 import { createWorkspaceToolingRoutes } from './routes/workspaceToolingRoutes.js'
 import { createSmokeRoutes } from './routes/smokeRoutes.js'
+import { createFeishuIntegration, type FeishuIntegration } from './feishuIntegration.js'
 import {
   createWorkspaceWorkflowRun,
   createToolingCheckpoint,
@@ -1342,6 +1344,10 @@ class AppServerProcess {
     return Array.from(this.pendingServerRequests.values())
   }
 
+  isServerRequestPending(id: number): boolean {
+    return this.pendingServerRequests.has(id)
+  }
+
   injectSmokeServerRequest(payload: unknown): PendingServerRequest {
     if (!areSmokeHooksEnabled()) {
       throw new Error('Smoke hooks are disabled')
@@ -1599,6 +1605,7 @@ type SharedBridgeState = {
   methodCatalog: MethodCatalog
   stopNotificationDispatch: () => void
   productEventHub: ProductEventHub
+  feishuIntegration: FeishuIntegration
 }
 
 export type CodexBridgeWebSocketOptions = {
@@ -1746,7 +1753,21 @@ function getSharedBridgeState(): SharedBridgeState {
   }
 
   const existing = globalScope[SHARED_BRIDGE_KEY]
-  if (existing) return existing
+  if (existing) {
+    // Older tests and hot-reloaded processes may have created the shared bridge
+    // before the Feishu integration existed. Hydrate it in place so the shared
+    // app-server remains reusable instead of forcing a second process.
+    if (!existing.feishuIntegration) {
+      existing.feishuIntegration = createFeishuIntegration({
+        rpc: (method, params) => existing.appServer.rpc(method, params),
+        respondToServerRequest: (payload) => existing.appServer.respondToServerRequest(payload),
+        isServerRequestPending: (id) => existing.appServer.isServerRequestPending(id),
+        subscribe: (listener) => existing.appServer.onNotification(listener),
+        catalogSync: existing.catalogSync,
+      })
+    }
+    return existing
+  }
 
   const appServer = new AppServerProcess()
   const catalogSync = new CatalogSyncService((method, params) => appServer.rpc(method, params))
@@ -1768,6 +1789,13 @@ function getSharedBridgeState(): SharedBridgeState {
   })
   const notificationDispatcher = new NotificationDispatcher({
     workspaceCwd: getProcessCwd(),
+  })
+  const feishuIntegration = createFeishuIntegration({
+    rpc: (method, params) => appServer.rpc(method, params),
+    respondToServerRequest: (payload) => appServer.respondToServerRequest(payload),
+    isServerRequestPending: (id) => appServer.isServerRequestPending(id),
+    subscribe: (listener) => appServer.onNotification(listener),
+    catalogSync,
   })
   const stopNotificationDispatch = appServer.onNotification((notification) => {
     catalogSync.onNotification(notification.method)
@@ -1806,6 +1834,7 @@ function getSharedBridgeState(): SharedBridgeState {
     methodCatalog: new MethodCatalog(),
     stopNotificationDispatch,
     productEventHub,
+    feishuIntegration,
   }
   globalScope[SHARED_BRIDGE_KEY] = created
   if (process.env.NODE_ENV !== 'test') {
@@ -1813,6 +1842,9 @@ function getSharedBridgeState(): SharedBridgeState {
     tokenUsageReconciliation.start()
     void agentTasks.start().catch((error: unknown) => {
       console.warn(`Agent task scheduler failed to start: ${error instanceof Error ? error.message : String(error)}`)
+    })
+    void feishuIntegration.start().catch((error: unknown) => {
+      console.warn(`Feishu bot service failed to start: ${error instanceof Error ? error.message : String(error)}`)
     })
   }
   return created
@@ -1869,7 +1901,7 @@ async function handleCheckpointHealthRoute(url: URL, res: ServerResponse): Promi
 }
 
 export function createCodexBridgeMiddleware(): CodexBridgeMiddleware {
-  const { appServer, catalogSync, tokenUsageReconciliation, agentTasks, methodCatalog, stopNotificationDispatch, productEventHub } = getSharedBridgeState()
+  const { appServer, catalogSync, tokenUsageReconciliation, agentTasks, methodCatalog, stopNotificationDispatch, productEventHub, feishuIntegration } = getSharedBridgeState()
   const domainRoutes = [
     createGatewayRoutes({
       rpc: (method, params) => appServer.rpc(method, params),
@@ -1883,6 +1915,7 @@ export function createCodexBridgeMiddleware(): CodexBridgeMiddleware {
     createBackgroundTaskRoutes({ catalogSync, tokenUsageReconciliation }),
     createAgentTaskRoutes(agentTasks),
     createCatalogRoutes(catalogSync),
+    createFeishuRoutes(feishuIntegration.routes),
     createContentRoutes(),
     createWorkspaceToolingRoutes({
       checkpointHealth: ({ url, res }) => handleCheckpointHealthRoute(url, res),
@@ -1920,6 +1953,7 @@ export function createCodexBridgeMiddleware(): CodexBridgeMiddleware {
     agentTasks?.stop()
     stopNotificationDispatch()
     productEventHub.clear()
+    void feishuIntegration.stop()
     appServer.dispose()
     const globalScope = globalThis as typeof globalThis & {
       [SHARED_BRIDGE_KEY]?: SharedBridgeState

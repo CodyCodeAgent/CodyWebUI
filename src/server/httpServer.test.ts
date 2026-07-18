@@ -88,6 +88,9 @@ describe('httpServer', () => {
         result: {
           version: '0.1.0',
           gitSha: expect.stringMatching(/^(?:[0-9a-f]{7,12}|unknown)$/),
+          gitDirty: expect.any(Boolean),
+          sourceFingerprint: expect.stringMatching(/^(?:[0-9a-f]{16}|unknown)$/),
+          buildId: expect.stringMatching(/^(?:[0-9a-f]{7,12}|unknown)(?:-dirty)?\.(?:[0-9a-f]{16}|unknown)$/),
           builtAt: expect.any(String),
           label: expect.stringContaining('v0.1.0'),
         },
@@ -106,6 +109,23 @@ describe('httpServer', () => {
           },
         },
       })
+
+      const insecureFeishuResponse = await fetch(`${baseUrl}/codex-api/feishu/bots`, {
+        headers: { 'x-forwarded-proto': 'http' },
+      })
+      expect(insecureFeishuResponse.status).toBe(426)
+      await expect(insecureFeishuResponse.json()).resolves.toEqual({
+        error: {
+          code: 'https_required',
+          message: expect.stringContaining('requires HTTPS'),
+        },
+      })
+
+      const proxiedHttpsFeishuResponse = await fetch(`${baseUrl}/codex-api/feishu/bots`, {
+        headers: { 'x-forwarded-proto': 'https' },
+      })
+      expect(proxiedHttpsFeishuResponse.status).toBe(200)
+      await expect(proxiedHttpsFeishuResponse.text()).resolves.toContain('app shell')
 
       await expect(fetch(`${baseUrl}/asset.txt`).then((response) => response.text())).resolves.toBe('static asset')
       await expect(fetch(`${baseUrl}/thread/example`).then((response) => response.text())).resolves.toContain('app shell')

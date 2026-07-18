@@ -1,0 +1,2594 @@
+/**
+ * Feishu Open Platform Web automation.
+ *
+ * Adapted from botmux (https://github.com/deepcoldy/botmux), MIT License.
+ * Copyright (c) 2026 botmux contributors.
+ */
+import { randomUUID } from 'node:crypto';
+import { chmodSync, existsSync, mkdirSync, readFileSync, renameSync, unlinkSync, writeFileSync } from 'node:fs';
+import { basename, join, dirname } from 'node:path';
+import { homedir } from 'node:os';
+import { deflateSync } from 'node:zlib';
+import * as Lark from '@larksuiteoapi/node-sdk';
+import QRCode from 'qrcode';
+import { credentialKeyFilePath, openCredential, sealCredential } from './credentialVault.js';
+
+/**
+ * All non-VC events (application identity) that the botmux dispatcher consumes.
+ * `card.action.trigger` is intentionally NOT here: the Open Platform treats it
+ * as a "callback" configured via `/developers/v1/callback/*`, see
+ * BOT_BASELINE_CALLBACKS.
+ */
+export const BOT_BASELINE_APP_EVENTS = [
+  'im.message.receive_v1',
+] as const;
+
+/** 缺了它 daemon 完全收不到消息——回读确认失败时整个自动配置 fail-closed。 */
+export const BOT_CRITICAL_APP_EVENTS = ['im.message.receive_v1'] as const;
+
+/** 卡片交互回调。缺了它卡片按钮点击无响应,同样 fail-closed。 */
+export const BOT_BASELINE_CALLBACKS = ['card.action.trigger'] as const;
+
+/** 开放平台「使用长连接接收事件/回调」对应的 mode 值。 */
+export const LONG_CONNECTION_EVENT_MODE = 4;
+
+export const VC_MEETING_APP_EVENTS: string[] = [];
+export const VC_MEETING_USER_EVENTS: string[] = [];
+const VC_MEETING_BOT_EVENTS: string[] = [];
+
+export const CODY_REDIRECT_URL = 'http://127.0.0.1:3000';
+const FEISHU_ACCOUNTS_ORIGIN = 'https://accounts.feishu.cn';
+const ASK_FEISHU_ORIGIN = 'https://ask.feishu.cn';
+const FEISHU_APP_ID = '12';
+const FEISHU_COMMON_HEADERS = {
+  'x-api-version': '1.0.28',
+  'x-device-info':
+    'device_id=0;device_name=Chrome;device_os=Mac;device_model=Chrome;lark_version=;channel=Release;package_name=feishu;tt_app_id=1658;is_dpop_support=true;is_iframe=false',
+  'x-locale': 'zh-CN',
+  'x-terminal-type': '2',
+};
+
+export interface StoredCookie {
+  name: string;
+  value: string;
+  domain: string;
+  path: string;
+  secure: boolean;
+  httpOnly: boolean;
+  hostOnly: boolean;
+  expiresAt?: number;
+  sameSite?: string;
+}
+
+/** 当前开放平台 Web session 对应的人与企业。创建前用它防止复用错租户。 */
+export interface FeishuWebSessionIdentity {
+  userId: string;
+  /** App-scoped Open ID returned by the official device authorization flow. */
+  openId?: string;
+  userName: string;
+  email?: string;
+  tenantId: string;
+  tenantName: string;
+  brand?: 'feishu' | 'lark';
+}
+
+export interface ScopeManifest {
+  scopes?: {
+    tenant?: string[];
+    user?: string[];
+  };
+}
+
+export interface OpenPlatformScopeEntry {
+  id: string;
+  name: string;
+  bucket?: 'tenant' | 'user';
+}
+
+export interface MappedScopeIds {
+  tenantScopeIds: string[];
+  userScopeIds: string[];
+  missingTenantScopes: string[];
+  missingUserScopes: string[];
+}
+
+export type OpenPlatformAutomationResult =
+  | {
+      ok: true;
+      sessionFile: string;
+      sessionSource: FeishuWebSessionSource;
+      cookieCount: number;
+      scopeCount: number;
+      skippedScopeCount: number;
+      scopeWarning?: string;
+      subscribedEventCount: number;
+      eventWarning?: string;
+      /** 回读后仍缺失的 VC 会议事件。普通建 bot 不阻断,VC listener 保存前必须为空。 */
+      missingVcEvents: string[];
+      /** 回读确认事件接收方式已是长连接(ok:true 时恒为 true,显式带回供门函数统一判定)。 */
+      eventModeReady: boolean;
+      versionId?: string;
+    }
+  | {
+      ok: false;
+      reason:
+        | 'unsupported_brand'
+        | 'aborted'
+        | 'missing_session'
+        | 'invalid_session'
+        | 'login_failed'
+        | 'qr_expired'
+        | 'timeout'
+        | 'missing_csrf'
+        | 'scope_mapping_failed'
+        | 'network'
+        | 'api_error';
+      message: string;
+      sessionFile?: string;
+      /** Number of events successfully subscribed (0 when event update failed before downstream error). */
+      subscribedEventCount?: number;
+      /** Warning from event subscription attempt, if any. */
+      eventWarning?: string;
+      /** 回读后仍缺失的 VC 会议事件(走到订阅阶段才有)。 */
+      missingVcEvents?: string[];
+      /** 事件接收方式是否回读确认为长连接(走到订阅阶段才有;早期失败为 undefined)。 */
+      eventModeReady?: boolean;
+    };
+
+export interface OpenPlatformAutomationOptions {
+  appId: string;
+  signal?: AbortSignal;
+  brand?: 'feishu' | 'lark';
+  sessionFilePath?: string;
+  bytedcliFallbackSessionFilePath?: string;
+  disableBytedcliFallback?: boolean;
+  /** Ignore cached sessions and require a fresh QR login. */
+  forceQrLogin?: boolean;
+  /** Reuse a valid cache or fail instead of presenting another QR. */
+  disableQrLogin?: boolean;
+  fetchImpl?: typeof fetch;
+  scopeManifest?: ScopeManifest;
+  /** Explicit operator-selected availability. Omit to preserve the published online range exactly. */
+  visibilityOverride?: OpenPlatformOnlineVisibility;
+  pollIntervalMs?: number;
+  maxWaitMs?: number;
+  onQrCode?: (info: { qrText: string; qrPayload: string }) => void | Promise<void>;
+  onStatus?: (message: string) => void | Promise<void>;
+}
+
+
+export type FeishuWebSessionSource = 'cody_cache' | 'qr_login' | 'bytedcli_fallback';
+export type FeishuWebSessionFailureReason = 'aborted' | 'login_failed' | 'qr_expired' | 'timeout' | 'network' | 'invalid_session';
+
+export type FeishuWebSessionPrepareResult =
+  | {
+      ok: true;
+      sessionFile: string;
+      source: FeishuWebSessionSource;
+      cookies: StoredCookie[];
+      cookieCount: number;
+    }
+  | {
+      ok: false;
+      reason: FeishuWebSessionFailureReason;
+      message: string;
+      sessionFile: string;
+      fallbackSessionFile?: string;
+    };
+
+export interface FeishuWebSessionOptions {
+  signal?: AbortSignal;
+  sessionFilePath?: string;
+  bytedcliFallbackSessionFilePath?: string;
+  disableBytedcliFallback?: boolean;
+  /**
+   * Ignore cached sessions and require a fresh QR login. Dashboard onboarding
+   * uses this so the user always sees which account is authorizing the new app;
+   * the resulting session is still cached for the remaining setup steps.
+   */
+  forceQrLogin?: boolean;
+  /** Reuse a valid cache or fail; never present another QR code. */
+  disableQrLogin?: boolean;
+  fetchImpl?: typeof fetch;
+  pollIntervalMs?: number;
+  maxWaitMs?: number;
+  onQrCode?: (info: { qrText: string; qrPayload: string; expireIn?: number }) => void | Promise<void>;
+  onStatus?: (message: string) => void | Promise<void>;
+}
+
+export type FeishuOpenPlatformSessionInspectionResult =
+  | {
+      ok: true;
+      source: FeishuWebSessionSource;
+      identity: FeishuWebSessionIdentity;
+      sessionFile: string;
+    }
+  | {
+      ok: false;
+      reason: FeishuWebSessionFailureReason | 'missing_csrf' | 'identity_unavailable' | 'network';
+      message: string;
+      sessionFile?: string;
+    };
+
+
+export function parseSetupOpenPlatformAutoFlag(argv: string[]): boolean {
+  let enabled = true;
+  for (const arg of argv) {
+    if (arg === '--open-platform-auto') enabled = true;
+    if (arg === '--no-open-platform-auto') enabled = false;
+  }
+  return enabled;
+}
+
+export function codyFeishuSessionFilePath(configDir = join(homedir(), '.cody-web-ui')): string {
+  return join(configDir, 'feishu-open-platform-session.json');
+}
+
+export function hasStoredFeishuOpenPlatformSession(filePath = codyFeishuSessionFilePath()): boolean {
+  return existsSync(filePath);
+}
+
+export function clearStoredFeishuOpenPlatformSession(filePath = codyFeishuSessionFilePath()): boolean {
+  if (!existsSync(filePath)) return false;
+  unlinkSync(filePath);
+  return true;
+}
+
+export function bytedcliFeishuSessionFilePath(homeDir = homedir()): string {
+  return join(homeDir, '.local', 'share', 'bytedcli', 'data', 'feishu_session.json');
+}
+
+export function readStoredCookiesFromSessionFile(filePath: string): StoredCookie[] | null {
+  if (!existsSync(filePath)) return null;
+  let parsed: unknown;
+  try {
+    const raw = readFileSync(filePath, 'utf-8');
+    parsed = JSON.parse(openCredential(raw, 'feishu-open-platform-session', credentialKeyFilePath(filePath)));
+  } catch {
+    return null;
+  }
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return null;
+  const cookies = (parsed as { cookies?: unknown }).cookies;
+  if (!Array.isArray(cookies)) return null;
+  return pruneExpiredCookies(cookies.filter(isStoredCookieRecord));
+}
+
+export function readStoredCookiesFromBytedcliSession(filePath: string): StoredCookie[] | null {
+  return readStoredCookiesFromSessionFile(filePath);
+}
+
+export function writeStoredCookiesToSessionFile(filePath: string, cookies: StoredCookie[]): void {
+  const dir = dirname(filePath);
+  mkdirSync(dir, { recursive: true });
+  try {
+    chmodSync(dir, 0o700);
+  } catch {
+    // Best-effort on non-POSIX filesystems.
+  }
+  const tmpPath = join(dir, `.${basename(filePath)}.${process.pid}.${Date.now()}.tmp`);
+  try {
+    const payload = JSON.stringify({ cookies: pruneExpiredCookies(cookies) });
+    writeFileSync(tmpPath, sealCredential(payload, 'feishu-open-platform-session', credentialKeyFilePath(filePath)), {
+      encoding: 'utf-8',
+      mode: 0o600,
+    });
+    renameSync(tmpPath, filePath);
+  } finally {
+    try {
+      unlinkSync(tmpPath);
+    } catch {
+      // Ignore.
+    }
+  }
+  try {
+    chmodSync(filePath, 0o600);
+  } catch {
+    // Best-effort on non-POSIX filesystems.
+  }
+}
+
+export function getCookieHeader(cookies: StoredCookie[], requestUrl: string): string {
+  const url = new URL(requestUrl);
+  return pruneExpiredCookies(cookies)
+    .filter(cookie => {
+      if (cookie.secure && url.protocol !== 'https:') return false;
+      if (!domainMatches(url.hostname, cookie)) return false;
+      return pathMatches(url.pathname || '/', cookie.path || '/');
+    })
+    .sort((a, b) => b.path.length - a.path.length)
+    .map(cookie => `${cookie.name}=${cookie.value}`)
+    .join('; ');
+}
+
+export function extractOpenPlatformCsrfToken(html: string): string | null {
+  const match =
+    html.match(/\bwindow\.csrfToken\s*=\s*(['"])([^'"]+)\1/) ??
+    html.match(/\bcsrfToken\s*:\s*(['"])([^'"]+)\1/);
+  return match?.[2] ?? null;
+}
+
+/**
+ * 开发者后台把当前登录人写入 `window.user = {...}`。只提取创建前需要展示和
+ * 比对的稳定字段，不把头像、功能开关等整段页面状态带进 Dashboard API。
+ */
+export function extractOpenPlatformSessionIdentity(html: string): FeishuWebSessionIdentity | null {
+  const marker = /\bwindow\.user\s*=\s*/g;
+  const match = marker.exec(html);
+  if (!match) return null;
+  const start = match.index + match[0].length;
+  const json = extractBalancedJsonObject(html, start);
+  if (!json) return null;
+  let user: Record<string, unknown>;
+  try {
+    user = asRecord(JSON.parse(json));
+  } catch {
+    return null;
+  }
+  const userId = pickString(user, ['id', 'userId', 'user_id']);
+  const userName = pickString(user, ['name', 'userName', 'user_name'])
+    ?? pickString(asRecord(user.displayName), ['value']);
+  const tenantId = pickString(user, ['tenantId', 'tenant_id']);
+  const tenantName = pickString(asRecord(user.tenantDisplayName), ['value'])
+    ?? pickString(user, ['tenantName', 'tenant_name']);
+  if (!userId || !userName || !tenantId || !tenantName) return null;
+  const email = pickString(user, ['email']);
+  return { userId, userName, ...(email ? { email } : {}), tenantId, tenantName };
+}
+
+export function extractOpenPlatformScopeEntries(payload: unknown): OpenPlatformScopeEntry[] {
+  const out: OpenPlatformScopeEntry[] = [];
+  collectScopeEntries(payload, undefined, out);
+  const seen = new Set<string>();
+  return out.filter(entry => {
+    const key = `${entry.bucket ?? 'any'}:${entry.name}:${entry.id}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+export function mapManifestScopesToOpenPlatformIds(
+  manifest: ScopeManifest,
+  catalog: OpenPlatformScopeEntry[],
+): MappedScopeIds {
+  const tenant = uniqueStrings(manifest.scopes?.tenant ?? []);
+  const user = uniqueStrings(manifest.scopes?.user ?? []);
+  return {
+    tenantScopeIds: mapScopeIds(tenant, catalog, 'tenant').ids,
+    userScopeIds: mapScopeIds(user, catalog, 'user').ids,
+    missingTenantScopes: mapScopeIds(tenant, catalog, 'tenant').missing,
+    missingUserScopes: mapScopeIds(user, catalog, 'user').missing,
+  };
+}
+
+export function buildScopeUpdatePayload(appId: string, mapped: Pick<MappedScopeIds, 'tenantScopeIds' | 'userScopeIds'>) {
+  return {
+    clientId: appId,
+    appScopeIDs: mapped.tenantScopeIds,
+    userScopeIDs: mapped.userScopeIds,
+    scopeIds: [],
+    operation: 'add',
+    isDeveloperPanel: true,
+  };
+}
+
+export function buildSafeSettingPayload(appId: string) {
+  return {
+    clientId: appId,
+    redirectURL: [CODY_REDIRECT_URL],
+  };
+}
+
+/**
+ * Build the incremental event-subscription payload used by the developer
+ * console (`updateEvent` in the console frontend bundle):
+ * `{clientId, operation:'add', events, appEvents, userEvents, eventMode}`。
+ * eventMode 必须回填读接口返回的当前值,事件按接收身份分桶(应用/用户)。
+ */
+export function buildEventSubscriptionPayload(
+  appId: string,
+  eventMode: number,
+  appEvents: string[],
+  userEvents: string[],
+  events: string[] = [],
+) {
+  return {
+    clientId: appId,
+    operation: 'add',
+    events,
+    appEvents,
+    userEvents,
+    eventMode,
+  };
+}
+
+/** 同款增量契约的回调版(console frontend `updateCallback`)。 */
+export function buildCallbackSubscriptionPayload(appId: string, callbackMode: number, callbacks: string[]) {
+  return {
+    clientId: appId,
+    operation: 'add',
+    callbacks,
+    callbackMode,
+  };
+}
+
+export interface OpenPlatformEventState {
+  eventMode?: number;
+  /** 所有已订阅事件(顶层 events + 应用/用户身份分组的并集)。 */
+  events: string[];
+  appEvents: string[];
+  userEvents: string[];
+}
+
+export interface OpenPlatformCallbackState {
+  callbackMode?: number;
+  callbacks: string[];
+}
+
+/** Extract the event mode and subscribed event ids from `/developers/v1/event/:clientId`. */
+export function extractOpenPlatformEventState(payload: unknown): OpenPlatformEventState {
+  const root = asRecord(payload);
+  const wrapped = asRecord(root.data);
+  const data = Object.keys(wrapped).length > 0 ? wrapped : root;
+  const appEvents = uniqueStrings([
+    ...extractEventIds(data.appEvents),
+    ...extractEventIdsFromDetails(data.appEventDetails),
+  ]);
+  const userEvents = uniqueStrings([
+    ...extractEventIds(data.userEvents),
+    ...extractEventIdsFromDetails(data.userEventDetails),
+  ]);
+  const genericEvents = uniqueStrings([
+    ...extractEventIds(data.events),
+    ...extractEventIdsFromDetails(data.eventDetails),
+  ]);
+  const eventMode = typeof data.eventMode === 'number' && Number.isFinite(data.eventMode)
+    ? data.eventMode
+    : undefined;
+  return {
+    eventMode,
+    events: uniqueStrings([...genericEvents, ...appEvents, ...userEvents]),
+    appEvents,
+    userEvents,
+  };
+}
+
+/** Extract the callback mode and subscribed callback ids from `/developers/v1/callback/:clientId`. */
+export function extractOpenPlatformCallbackState(payload: unknown): OpenPlatformCallbackState {
+  const root = asRecord(payload);
+  const wrapped = asRecord(root.data);
+  const data = Object.keys(wrapped).length > 0 ? wrapped : root;
+  const callbackMode = typeof data.callbackMode === 'number' && Number.isFinite(data.callbackMode)
+    ? data.callbackMode
+    : undefined;
+  return { callbackMode, callbacks: extractEventIds(data.callbacks) };
+}
+
+function extractEventIds(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return uniqueStrings(value
+    .map(item => typeof item === 'string' ? item : pickString(asRecord(item), ['id']))
+    .filter((item): item is string => Boolean(item)));
+}
+
+function extractEventIdsFromDetails(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return uniqueStrings(value.flatMap(group => extractEventIds(asRecord(group).items)));
+}
+
+/**
+ * 应用版本创建 payload,与 console launcher「一键创建智能体」同款极简结构
+ * (CDP 抓包确认)。⚠️不要重新加回 applyReasonConfig / isAutoAudit:false ——
+ * 那会让版本进入人工审核、发布后应用停在「未上架/未启用」(tenantAppStatus=0),
+ * 事件配置进了草稿也无法在企业内生效。visibleSuggest.members 必须含创建者,
+ * 否则同样不会自动上架启用。
+ */
+export type OpenPlatformVisibilitySuggest = {
+  departments: string[];
+  members: string[];
+  groups: string[];
+  isAll: number;
+};
+
+export type OpenPlatformOnlineVisibility = {
+  visibleSuggest: OpenPlatformVisibilitySuggest;
+  blackVisibleSuggest: OpenPlatformVisibilitySuggest;
+};
+
+const EMPTY_VISIBILITY: OpenPlatformVisibilitySuggest = { departments: [], members: [], groups: [], isAll: 0 };
+const MEMBER_ID_KEYS = ['id', 'openId', 'open_id', 'userId', 'user_id', 'memberId', 'member_id'];
+const DEPARTMENT_ID_KEYS = ['id', 'departmentId', 'department_id', 'openDepartmentId', 'open_department_id'];
+const GROUP_ID_KEYS = ['id', 'groupId', 'group_id', 'chatId', 'chat_id', 'openChatId', 'open_chat_id'];
+
+function visibilityId(item: unknown, keys: string[]): string {
+  if (typeof item === 'string') return item;
+  if (typeof item === 'number' && Number.isFinite(item)) return String(item);
+  const row = asRecord(item);
+  return pickString(row, keys) ?? '';
+}
+
+function visibilityIds(row: Record<string, unknown>, key: string, keys: string[], label: string, optional = false): string[] {
+  if (!(key in row)) {
+    if (optional) return [];
+    throw new Error(`visible/online ${label}.${key} 缺失，已中止以避免改变应用可见范围`);
+  }
+  const values = row[key];
+  if (!Array.isArray(values)) throw new Error(`visible/online ${label}.${key} 形态未识别，已中止以避免改变应用可见范围`);
+  const ids = values.map(item => visibilityId(item, keys)).filter(Boolean);
+  if (ids.length !== values.length) throw new Error(`visible/online ${label}.${key} 存在无法识别的条目，已中止以避免改变应用可见范围`);
+  return uniqueStrings(ids);
+}
+
+function visibilityBlock(value: unknown, label: string, groupsOptional = false): OpenPlatformVisibilitySuggest {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    throw new Error(`visible/online ${label} 形态未识别，已中止以避免改变应用可见范围`);
+  }
+  const row = value as Record<string, unknown>;
+  const isAll = row.isAll;
+  if (isAll !== 0 && isAll !== 1 && isAll !== false && isAll !== true) {
+    throw new Error(`visible/online ${label}.isAll 形态未识别，已中止以避免改变应用可见范围`);
+  }
+  return {
+    departments: visibilityIds(row, 'departments', DEPARTMENT_ID_KEYS, label),
+    members: visibilityIds(row, 'members', MEMBER_ID_KEYS, label),
+    groups: visibilityIds(row, 'groups', GROUP_ID_KEYS, label, groupsOptional),
+    isAll: isAll === 1 || isAll === true ? 1 : 0,
+  };
+}
+
+export function parseOpenPlatformOnlineVisibility(payload: unknown): OpenPlatformOnlineVisibility {
+  const rawData = asRecord(payload).data;
+  if (!rawData || typeof rawData !== 'object' || Array.isArray(rawData)) {
+    throw new Error('visible/online data 形态未识别，已中止以避免改变应用可见范围');
+  }
+  const data = rawData as Record<string, unknown>;
+  if ('whiteList' in data) {
+    if (!('blackList' in data)) throw new Error('visible/online blackList 缺失，已中止以避免扩大应用可见范围');
+    return {
+      visibleSuggest: visibilityBlock(data.whiteList, 'whiteList'),
+      blackVisibleSuggest: visibilityBlock(data.blackList, 'blackList'),
+    };
+  }
+  return {
+    visibleSuggest: visibilityBlock(data, 'whiteList', true),
+    blackVisibleSuggest: data.blackList == null ? { ...EMPTY_VISIBILITY } : visibilityBlock(data.blackList, 'blackList'),
+  };
+}
+
+export function buildAppVersionCreatePayload(
+  appVersion: string,
+  visibleMemberIds: string[] = [],
+  onlineVisibility?: OpenPlatformOnlineVisibility,
+) {
+  return {
+    appVersion,
+    mobileDefaultAbility: 'bot',
+    pcDefaultAbility: 'bot',
+    changeLog: 'Initial bot release.',
+    visibleSuggest: onlineVisibility?.visibleSuggest ?? {
+      departments: [],
+      members: visibleMemberIds,
+      groups: [],
+      isAll: 0,
+    },
+    blackVisibleSuggest: onlineVisibility?.blackVisibleSuggest ?? {
+      departments: [],
+      members: [],
+      groups: [],
+      isAll: 0,
+    },
+  };
+}
+
+export function buildFeishuQrPayload(token: string): string {
+  return JSON.stringify({ qrlogin: { token } });
+}
+
+export function mapFeishuQrPollingStatus(status: number | null): string {
+  if (status === 2) return '已经扫码，等待手机确认';
+  if (status === 5) return '二维码已过期';
+  return '等待飞书扫码';
+}
+
+export async function prepareFeishuWebSession(
+  options: FeishuWebSessionOptions = {},
+): Promise<FeishuWebSessionPrepareResult> {
+  const fetcher = options.fetchImpl ?? fetch;
+  const sessionFile = options.sessionFilePath ?? codyFeishuSessionFilePath();
+  if (!options.forceQrLogin) {
+    const cached = readStoredCookiesFromSessionFile(sessionFile);
+    if (cached && cached.length > 0 && await validateFeishuWebSession(cached, fetcher, options.signal)) {
+      return {
+        ok: true,
+        sessionFile,
+        source: 'cody_cache',
+        cookies: cached,
+        cookieCount: cached.length,
+      };
+    }
+  }
+
+  if (options.disableQrLogin) {
+    return {
+      ok: false,
+      reason: 'invalid_session',
+      message: '没有可复用的 Feishu Web session；为避免意外出现第二个二维码，已停止自动登录',
+      sessionFile,
+    };
+  }
+
+  let loginError: unknown;
+  try {
+    const loggedIn = await loginFeishuWebSession(fetcher, options);
+    writeStoredCookiesToSessionFile(sessionFile, loggedIn);
+    return {
+      ok: true,
+      sessionFile,
+      source: 'qr_login',
+      cookies: loggedIn,
+      cookieCount: loggedIn.length,
+    };
+  } catch (err) {
+    loginError = err;
+  }
+
+  const fallbackSessionFile = options.bytedcliFallbackSessionFilePath ?? bytedcliFeishuSessionFilePath();
+  if (!options.forceQrLogin && !options.disableBytedcliFallback) {
+    const fallback = readStoredCookiesFromBytedcliSession(fallbackSessionFile);
+    if (fallback && fallback.length > 0 && await validateFeishuWebSession(fallback, fetcher, options.signal)) {
+      writeStoredCookiesToSessionFile(sessionFile, fallback);
+      return {
+        ok: true,
+        sessionFile,
+        source: 'bytedcli_fallback',
+        cookies: fallback,
+        cookieCount: fallback.length,
+      };
+    }
+  }
+
+  return {
+    ok: false,
+    reason: classifyFeishuLoginError(loginError),
+    message: safeErrorMessage(loginError),
+    sessionFile,
+    fallbackSessionFile: options.disableBytedcliFallback || options.forceQrLogin ? undefined : fallbackSessionFile,
+  };
+}
+
+export async function automateOpenPlatformSetup(
+  options: OpenPlatformAutomationOptions,
+): Promise<OpenPlatformAutomationResult> {
+  const brand = options.brand ?? 'feishu';
+  if (brand !== 'feishu') {
+    return { ok: false, reason: 'unsupported_brand', message: '开放平台自动配置当前只支持 feishu.cn 租户' };
+  }
+
+  const fetcher = options.fetchImpl ?? fetch;
+  const preparedSession = await prepareFeishuWebSession({
+    signal: options.signal,
+    sessionFilePath: options.sessionFilePath,
+    bytedcliFallbackSessionFilePath: options.bytedcliFallbackSessionFilePath,
+    disableBytedcliFallback: options.disableBytedcliFallback,
+    forceQrLogin: options.forceQrLogin,
+    disableQrLogin: options.disableQrLogin,
+    fetchImpl: fetcher,
+    pollIntervalMs: options.pollIntervalMs,
+    maxWaitMs: options.maxWaitMs,
+    onQrCode: options.onQrCode,
+    onStatus: options.onStatus,
+  });
+  if (!preparedSession.ok) {
+    return {
+      ok: false,
+      reason: preparedSession.reason,
+      message: `获取 Feishu Web session 失败: ${preparedSession.message}`,
+      sessionFile: preparedSession.sessionFile,
+    };
+  }
+
+  const sessionFile = preparedSession.sessionFile;
+  const session = new MutableCookieJar(preparedSession.cookies, options.signal);
+  const defaultOrigin = 'https://open.feishu.cn';
+  const defaultAppHome = `${defaultOrigin}/app/${options.appId}`;
+  // The botmux-managed Feishu Web login yields reusable cookies, not Open
+  // Platform's page-scoped `window.csrfToken`. Load an Open Platform page with
+  // those cookies and extract CSRF from HTML before calling `/developers/v1/*`.
+  // Feishu tenants can redirect the console to open.larkoffice.com; API origin,
+  // referer, CSRF token and cookies must stay on that final origin.
+  let csrfToken: string | null = null;
+  let apiOrigin = defaultOrigin;
+  let appHome = defaultAppHome;
+  try {
+    const authPage = await session.fetchTextWithUrl(fetcher, `${defaultAppHome}/auth`);
+    apiOrigin = new URL(authPage.finalUrl).origin;
+    appHome = `${apiOrigin}/app/${options.appId}`;
+    csrfToken = extractOpenPlatformCsrfToken(authPage.text);
+    if (!csrfToken) {
+      const homePage = await session.fetchTextWithUrl(fetcher, appHome);
+      apiOrigin = new URL(homePage.finalUrl).origin;
+      appHome = `${apiOrigin}/app/${options.appId}`;
+      csrfToken = extractOpenPlatformCsrfToken(homePage.text);
+    }
+  } catch (err: any) {
+    return { ok: false, reason: 'network', message: `读取开放平台页面失败: ${safeErrorMessage(err)}`, sessionFile };
+  }
+  if (!csrfToken) {
+    return {
+      ok: false,
+      reason: 'missing_csrf',
+      message:
+        'Feishu session 可读取，但开放平台页面没有返回 window.csrfToken；可能需要在浏览器完成开放平台登录',
+      sessionFile,
+    };
+  }
+
+  const postJson = async (path: string, body?: unknown): Promise<unknown> => {
+    const url = `${apiOrigin}${path}`;
+    const response = await session.fetchRaw(fetcher, url, {
+      method: 'POST',
+      headers: {
+        accept: 'application/json, text/plain, */*',
+        origin: apiOrigin,
+        referer: appHome,
+        'x-csrf-token': csrfToken!,
+        ...(body === undefined ? {} : { 'content-type': 'application/json' }),
+      },
+      body: body === undefined ? undefined : JSON.stringify(body),
+    });
+    let data: any;
+    try {
+      data = await response.json();
+    } catch {
+      data = null;
+    }
+    if (!response.ok) {
+      throw new OpenPlatformApiError(`HTTP ${response.status} ${path}: ${summarizeOpenPlatformPayload(data)}`, data);
+    }
+    if (data && typeof data === 'object' && typeof data.code === 'number' && data.code !== 0) {
+      throw new OpenPlatformApiError(`code=${data.code} msg=${data.msg ?? data.message ?? ''}`, data);
+    }
+    return data;
+  };
+
+  let allScopesPayload: unknown;
+  try {
+    allScopesPayload = await postJson(`/developers/v1/scope/all/${options.appId}`);
+  } catch (err: any) {
+    return { ok: false, reason: 'api_error', message: `读取开放平台 scope 列表失败: ${safeErrorMessage(err)}`, sessionFile };
+  }
+
+  const manifest = options.scopeManifest ?? readDefaultScopeManifest();
+  const catalog = extractOpenPlatformScopeEntries(allScopesPayload);
+  const mapped = mapManifestScopesToOpenPlatformIds(manifest, catalog);
+  const missing = [...mapped.missingTenantScopes, ...mapped.missingUserScopes];
+  const skippedScopeCount = missing.length;
+  if (missing.length > 0) {
+    return {
+      ok: false,
+      reason: 'scope_mapping_failed',
+      message: `当前租户无法确认 ${missing.length} 项必要权限（${missing.slice(0, 8).join(', ')}）；为避免创建一个无法收发消息的机器人，已停止启用`,
+      sessionFile,
+    };
+  }
+
+  // CodyWebUI exposes local projects and command approvals. Missing messaging
+  // permissions must therefore fail closed; a partially configured app must
+  // never be reported as ready merely because event names were accepted.
+  let importedScopeCount = mapped.tenantScopeIds.length + mapped.userScopeIds.length;
+  let scopeWarning: string | undefined;
+  if (importedScopeCount > 0) {
+    try {
+      await postJson(`/developers/v1/scope/update/${options.appId}`, buildScopeUpdatePayload(options.appId, mapped));
+    } catch (err: any) {
+      return {
+        ok: false,
+        reason: 'api_error',
+        message: `必要权限导入失败: ${safeErrorMessage(err)}`,
+        sessionFile,
+      };
+    }
+  }
+
+  // Web 创建的是普通企业自建应用（不是 SDK PersonalAgent），需要显式开启
+  // 机器人能力并把事件接收方式切到长连接。对已启用的 SDK/已有应用重复调用
+  // 是幂等的；这里设为致命步骤，因为缺任一项 daemon 都无法正常收消息。
+  try {
+    await postJson(`/developers/v1/robot/switch/${options.appId}`, { clientId: options.appId, enable: true });
+    await postJson(`/developers/v1/event/switch/${options.appId}`, { clientId: options.appId, eventMode: 4 });
+  } catch (err: any) {
+    return {
+      ok: false,
+      reason: 'api_error',
+      message: `启用机器人或长连接事件能力失败: ${safeErrorMessage(err)}`,
+      sessionFile,
+    };
+  }
+
+  // 事件与回调都走 console 前端同款「增量」契约:先读现状 → operation:add 只补
+  // 缺失 → 回读确认。旧实现的 eventNames/eventNameList 参数和
+  // /event_callback/update 端点在开放平台并不存在,请求全部失败还被吞成
+  // warning——新建应用因此落地就没有任何事件订阅。核心项(im.message.receive_v1
+  // 事件 + card.action.trigger 回调)回读仍缺失时直接判失败:缺了它们 daemon
+  // 收不到消息/卡片点击,静默降级只会产出一个「建好了却不回话」的坏 bot。
+  const eventWarnings: string[] = [];
+  const readEventState = async () =>
+    extractOpenPlatformEventState(await postJson(`/developers/v1/event/${options.appId}`, { needEventDetail: true }));
+  const addEvents = async (appEvents: string[], userEvents: string[], eventMode: number) => {
+    await postJson(
+      `/developers/v1/event/update/${options.appId}`,
+      buildEventSubscriptionPayload(options.appId, eventMode, appEvents, userEvents),
+    );
+  };
+
+  let eventState: OpenPlatformEventState | undefined;
+  try {
+    eventState = await readEventState();
+  } catch (err: any) {
+    eventWarnings.push(`读取当前事件订阅失败: ${safeErrorMessage(err)}`);
+  }
+  const hasEvent = (name: string) => Boolean(eventState?.events.includes(name));
+  const wantedAppEvents = [...BOT_BASELINE_APP_EVENTS, ...VC_MEETING_APP_EVENTS];
+  const missingAppEvents = wantedAppEvents.filter(name => !hasEvent(name));
+  const missingUserEvents = VC_MEETING_USER_EVENTS.filter(name => !hasEvent(name));
+  if (missingAppEvents.length > 0 || missingUserEvents.length > 0) {
+    const eventMode = eventState?.eventMode ?? LONG_CONNECTION_EVENT_MODE;
+    try {
+      await addEvents(missingAppEvents, missingUserEvents, eventMode);
+    } catch {
+      // 部分租户个别事件依赖的权限不可授予会拒掉整批——逐个补,别让长尾事件拖垮核心事件
+      for (const name of missingAppEvents) {
+        try {
+          await addEvents([name], [], eventMode);
+        } catch (err: any) {
+          eventWarnings.push(`订阅事件 ${name} 失败: ${safeErrorMessage(err)}`);
+        }
+      }
+      for (const name of missingUserEvents) {
+        try {
+          await addEvents([], [name], eventMode);
+        } catch (err: any) {
+          eventWarnings.push(`订阅事件 ${name} 失败: ${safeErrorMessage(err)}`);
+        }
+      }
+    }
+    try {
+      eventState = await readEventState();
+    } catch (err: any) {
+      eventWarnings.push(`回读事件订阅失败: ${safeErrorMessage(err)}`);
+    }
+  }
+  const missingBaselineEvents = BOT_BASELINE_APP_EVENTS.filter(name => !hasEvent(name));
+  if (missingBaselineEvents.length > 0) {
+    eventWarnings.push(`基础事件未确认订阅: ${missingBaselineEvents.join(', ')}`);
+  }
+  // VC 事件缺失不阻断普通建 bot,但要显式带回给 VC listener 保存门
+  // (vcListenerEventGateError)——只看总 count 无法区分「缺的是不是 VC」。
+  const missingVcEvents: string[] = VC_MEETING_BOT_EVENTS.filter(name => !hasEvent(name));
+  if (missingVcEvents.length > 0) {
+    eventWarnings.push(`VC 会议事件未确认订阅: ${missingVcEvents.join(', ')}`);
+  }
+
+  // 卡片回调(card.action.trigger)在开放平台是「回调」不是「事件」,配置走
+  // /developers/v1/callback/*;回调接收方式独立于事件,需要单独切到长连接。
+  const readCallbackState = async () =>
+    extractOpenPlatformCallbackState(await postJson(`/developers/v1/callback/${options.appId}`, {}));
+  let callbackState: OpenPlatformCallbackState | undefined;
+  try {
+    callbackState = await readCallbackState();
+  } catch (err: any) {
+    eventWarnings.push(`读取当前回调订阅失败: ${safeErrorMessage(err)}`);
+  }
+  if (callbackState && callbackState.callbackMode !== LONG_CONNECTION_EVENT_MODE) {
+    try {
+      await postJson(`/developers/v1/callback/switch/${options.appId}`, {
+        clientId: options.appId,
+        callbackMode: LONG_CONNECTION_EVENT_MODE,
+      });
+      callbackState = await readCallbackState();
+    } catch (err: any) {
+      eventWarnings.push(`切换回调长连接模式失败: ${safeErrorMessage(err)}`);
+    }
+  }
+  let missingCallbacks = BOT_BASELINE_CALLBACKS.filter(name => !callbackState?.callbacks.includes(name));
+  if (missingCallbacks.length > 0) {
+    try {
+      await postJson(
+        `/developers/v1/callback/update/${options.appId}`,
+        buildCallbackSubscriptionPayload(
+          options.appId,
+          callbackState?.callbackMode ?? LONG_CONNECTION_EVENT_MODE,
+          [...missingCallbacks],
+        ),
+      );
+    } catch (err: any) {
+      eventWarnings.push(`订阅卡片回调失败: ${safeErrorMessage(err)}`);
+    }
+    try {
+      callbackState = await readCallbackState();
+    } catch (err: any) {
+      eventWarnings.push(`回读回调订阅失败: ${safeErrorMessage(err)}`);
+    }
+    missingCallbacks = BOT_BASELINE_CALLBACKS.filter(name => !callbackState?.callbacks.includes(name));
+  }
+
+  const subscribedEventCount =
+    [...wantedAppEvents, ...VC_MEETING_USER_EVENTS].filter(name => hasEvent(name)).length
+    + BOT_BASELINE_CALLBACKS.filter(name => callbackState?.callbacks.includes(name)).length;
+  const eventWarning = eventWarnings.length > 0 ? eventWarnings.join('; ') : undefined;
+  const criticalIssues: string[] = [
+    ...BOT_CRITICAL_APP_EVENTS.filter(name => !hasEvent(name)),
+    ...missingCallbacks,
+  ];
+  // 长连接模式必须以回读为准:switch 接口返回成功≠生效,mode 不是 4 时
+  // daemon 走长连接同样收不到事件/回调。eventModeReady 显式带回结果——
+  // dashboard listener 门要靠它识别「订阅名齐但接收方式不对」的黑洞。
+  const eventModeReady = eventState?.eventMode === LONG_CONNECTION_EVENT_MODE;
+  if (!eventModeReady) {
+    criticalIssues.push(`事件接收模式=${eventState?.eventMode ?? '未知'}(需长连接 ${LONG_CONNECTION_EVENT_MODE})`);
+  }
+  if (callbackState?.callbackMode !== LONG_CONNECTION_EVENT_MODE) {
+    criticalIssues.push(`回调接收模式=${callbackState?.callbackMode ?? '未知'}(需长连接 ${LONG_CONNECTION_EVENT_MODE})`);
+  }
+  if (criticalIssues.length > 0) {
+    return {
+      ok: false,
+      reason: 'api_error',
+      message: `核心事件/回调订阅未生效(${criticalIssues.join('; ')}),机器人将收不到消息或卡片点击;请到开放平台「事件与回调」手动补齐后重试`,
+      sessionFile,
+      subscribedEventCount,
+      eventWarning,
+      missingVcEvents,
+      eventModeReady,
+    };
+  }
+
+  try {
+    await postJson(`/developers/v1/safe_setting/update/${options.appId}`, buildSafeSettingPayload(options.appId));
+    // 完整镜像已发布版本的白/黑可见范围。成员、部门、群聊、全员标记和黑名单
+    // 缺一不可；结构变化时 fail closed，绝不把接管的成熟应用悄悄收窄或放宽。
+    const onlineVisibility = options.visibilityOverride ?? parseOpenPlatformOnlineVisibility(
+      await postJson(`/developers/v1/visible/online/${options.appId}`, {}),
+    );
+    const versionList = await postJson(`/developers/v1/app_version/list/${options.appId}`, {});
+    const appVersion = nextAppVersion(versionList);
+    const created = await postJson(`/developers/v1/app_version/create/${options.appId}`, buildAppVersionCreatePayload(appVersion, [], onlineVisibility));
+    const versionId = extractVersionId(created);
+    if (!versionId) throw new Error('版本创建返回成功但没有 versionId，无法确认配置已经发布');
+    await postJson(`/developers/v1/publish/commit/${options.appId}/${versionId}`, { clientId: options.appId });
+    return {
+      ok: true,
+      sessionFile,
+      sessionSource: preparedSession.source,
+      cookieCount: preparedSession.cookieCount,
+      scopeCount: importedScopeCount,
+      skippedScopeCount,
+      scopeWarning,
+      subscribedEventCount,
+      eventWarning,
+      missingVcEvents,
+      eventModeReady,
+      versionId,
+    };
+  } catch (err: any) {
+    return {
+      ok: false,
+      reason: 'api_error',
+      message: `开放平台自动配置失败: ${safeErrorMessage(err)}`,
+      sessionFile,
+      subscribedEventCount,
+      eventWarning,
+      missingVcEvents,
+      eventModeReady,
+    };
+  }
+}
+
+/**
+ * dashboard 保存 VC 会议监听 bot 前的事件订阅门。普通建 bot 允许 VC 事件缺失
+ * (只记 warning),但 listener 缺 VC 事件=会议邀请黑洞,必须阻断保存。
+ * 只看 subscribedEventCount 总数无法区分「缺的是不是 VC」,所以要看
+ * missingVcEvents。返回错误描述;可保存时返回 null。
+ */
+export function vcListenerEventGateError(result: {
+  eventWarning?: string;
+  subscribedEventCount?: number;
+  missingVcEvents?: string[];
+  eventModeReady?: boolean;
+}): string | null {
+  if (result.eventWarning && (result.subscribedEventCount ?? 0) === 0) {
+    return `事件订阅全部失败(${result.eventWarning})`;
+  }
+  // 订阅名齐但接收方式不是长连接同样收不到——eventModeReady 显式 false 才阻断,
+  // undefined(走到订阅阶段前就失败)保持原 best-effort 语义。
+  if (result.eventModeReady === false) {
+    return `事件接收方式未确认为长连接${result.eventWarning ? `(${result.eventWarning})` : ''}`;
+  }
+  const missingVc = result.missingVcEvents ?? [];
+  if (missingVc.length > 0) {
+    return `VC 会议事件未订阅成功(${missingVc.join(', ')})${result.eventWarning ? `;${result.eventWarning}` : ''}`;
+  }
+  return null;
+}
+
+// ─── 已有应用列表 / 凭证读取（setup「选择已有应用」路径）───────────────────────
+//
+// 复用同一套 Web session + console CSRF 机制，调 console 前端同款接口
+// （bundle 里的 getAppList / getAppSecret）。与 automateOpenPlatformSetup 的
+// 内联 postJson 少量重复——那条链路已实测稳定且 CSRF 种子页 / referer 都绑定
+// 具体 appId，不强行合并，避免动到已验证的自动配置路径。
+
+export interface OpenPlatformAppSummary {
+  clientId: string;
+  name: string;
+  /** 应用描述（接口给什么用什么，仅展示）。 */
+  description?: string;
+}
+
+export interface OpenPlatformApiClient {
+  apiOrigin: string;
+  postJson(path: string, body?: unknown): Promise<unknown>;
+  postForm(path: string, body: FormData): Promise<unknown>;
+}
+
+export type OpenPlatformClientResult =
+  | { ok: true; client: OpenPlatformApiClient; identity?: FeishuWebSessionIdentity }
+  | { ok: false; reason: 'missing_csrf' | 'network'; message: string };
+
+/**
+ * 用已就绪的 Web session cookies 构造开放平台 console API 客户端：加载 console
+ * 页面提取 `window.csrfToken` 与最终 origin（部分租户会把控制台重定向到
+ * open.larkoffice.com），返回可调 `/developers/v1/*` 的 postJson。
+ */
+export async function createOpenPlatformApiClient(
+  cookies: StoredCookie[],
+  opts: { fetchImpl?: typeof fetch; signal?: AbortSignal } = {},
+): Promise<OpenPlatformClientResult> {
+  const fetcher = opts.fetchImpl ?? fetch;
+  const session = new MutableCookieJar(cookies, opts.signal);
+  let csrfToken: string | null = null;
+  let apiOrigin = 'https://open.feishu.cn';
+  let referer = `${apiOrigin}/app`;
+  let identity: FeishuWebSessionIdentity | undefined;
+  try {
+    const page = await session.fetchTextWithUrl(fetcher, `${apiOrigin}/app`);
+    apiOrigin = new URL(page.finalUrl).origin;
+    referer = page.finalUrl;
+    csrfToken = extractOpenPlatformCsrfToken(page.text);
+    identity = extractOpenPlatformSessionIdentity(page.text) ?? undefined;
+  } catch (err) {
+    return { ok: false, reason: 'network', message: `读取开放平台页面失败: ${safeErrorMessage(err)}` };
+  }
+  if (!csrfToken) {
+    return {
+      ok: false,
+      reason: 'missing_csrf',
+      message: '开放平台页面没有返回 window.csrfToken；Web session 可能已过期或未完成开放平台登录',
+    };
+  }
+
+  const request = async (path: string, body?: BodyInit, contentType?: string): Promise<unknown> => {
+    const url = `${apiOrigin}${path}`;
+    const response = await session.fetchRaw(fetcher, url, {
+      method: 'POST',
+      headers: {
+        accept: 'application/json, text/plain, */*',
+        origin: apiOrigin,
+        referer,
+        'x-csrf-token': csrfToken!,
+        ...(contentType ? { 'content-type': contentType } : {}),
+      },
+      body,
+    });
+    let data: any;
+    try {
+      data = await response.json();
+    } catch {
+      data = null;
+    }
+    if (!response.ok) {
+      throw new OpenPlatformApiError(`HTTP ${response.status} ${path}: ${summarizeOpenPlatformPayload(data)}`, data);
+    }
+    if (data && typeof data === 'object' && typeof data.code === 'number' && data.code !== 0) {
+      throw new OpenPlatformApiError(`code=${data.code} msg=${data.msg ?? data.message ?? ''}`, data);
+    }
+    return data;
+  };
+
+  const postJson = async (path: string, body?: unknown): Promise<unknown> =>
+    request(path, body === undefined ? undefined : JSON.stringify(body), body === undefined ? undefined : 'application/json');
+  const postForm = async (path: string, body: FormData): Promise<unknown> => request(path, body);
+
+  return { ok: true, client: { apiOrigin, postJson, postForm }, identity };
+}
+
+/**
+ * 只检查现有缓存，不展示二维码。Dashboard 打开添加表单时调用；返回的账号/企业
+ * 会显示给用户，并在真正创建前再次比对，避免旧 cookie 把应用建到错误租户。
+ */
+export async function inspectCachedFeishuOpenPlatformSession(
+  options: Pick<FeishuWebSessionOptions, 'sessionFilePath' | 'fetchImpl'> = {},
+): Promise<FeishuOpenPlatformSessionInspectionResult> {
+  const prepared = await prepareFeishuWebSession({
+    ...options,
+    disableQrLogin: true,
+    disableBytedcliFallback: true,
+  });
+  if (!prepared.ok) return prepared;
+  const clientResult = await createOpenPlatformApiClient(prepared.cookies, { fetchImpl: options.fetchImpl });
+  if (!clientResult.ok) {
+    return {
+      ok: false,
+      reason: clientResult.reason,
+      message: clientResult.message,
+      sessionFile: prepared.sessionFile,
+    };
+  }
+  if (!clientResult.identity) {
+    return {
+      ok: false,
+      reason: 'identity_unavailable',
+      message: '开放平台没有返回当前账号与企业信息；为避免创建到错误租户，未复用该登录态',
+      sessionFile: prepared.sessionFile,
+    };
+  }
+  return {
+    ok: true,
+    source: prepared.source,
+    identity: clientResult.identity,
+    sessionFile: prepared.sessionFile,
+  };
+}
+
+export type CreateFeishuOpenPlatformAppResult =
+  | {
+      ok: true;
+      appId: string;
+      appSecret: string;
+      brand: 'feishu' | 'lark';
+      /** Official SDK device flow is the primary path; Web console is compatibility-only. */
+      registrationMethod?: 'official_device_flow' | 'web_console';
+      sessionFile?: string;
+      sessionSource: FeishuWebSessionSource | 'official_device_flow';
+      sessionIdentity: FeishuWebSessionIdentity;
+    }
+  | {
+      ok: false;
+      reason:
+        | FeishuWebSessionFailureReason
+        | 'missing_csrf'
+        | 'missing_icon'
+        | 'identity_unavailable'
+        | 'session_changed'
+        | 'access_denied'
+        | 'unsupported_brand'
+        | 'api_error';
+      message: string;
+      /** 应用已经建成但读取 Secret 失败时返回，调用方不得再创建一个重复应用。 */
+      appId?: string;
+      sessionFile?: string;
+    };
+
+export interface CreateFeishuOpenPlatformAppOptions extends FeishuWebSessionOptions {
+  name: string;
+  description?: string;
+  /** 测试/定制图标；默认生成 CodyWebUI 的 512x512 PNG 图标。 */
+  iconFilePath?: string;
+  /** Dashboard 表单打开时显示过的缓存身份；创建前必须仍是同一人、同一企业。 */
+  expectedIdentity?: Pick<FeishuWebSessionIdentity, 'userId' | 'tenantId'>;
+  /** 已拿到并验证账号/企业、但尚未创建应用时触发。 */
+  onSessionReady?: (info: {
+    source: FeishuWebSessionSource | 'official_device_flow';
+    identity: FeishuWebSessionIdentity;
+    /** The official Feishu/Lark page already showed and confirmed account + tenant. */
+    externallyConfirmed?: boolean;
+  }) => void | Promise<void>;
+  /** Persist write-only credentials before the setup function returns. */
+  onCredentials?: (info: {
+    appId: string;
+    appSecret: string;
+    identity: FeishuWebSessionIdentity;
+    brand?: 'feishu' | 'lark';
+  }) => void | Promise<void>;
+}
+
+export type ResolveOfficialFeishuIdentity = (input: {
+  appId: string;
+  appSecret: string;
+  openId: string;
+  brand: 'feishu' | 'lark';
+}) => Promise<FeishuWebSessionIdentity>;
+
+export interface RegisterOfficialFeishuAppOptions extends CreateFeishuOpenPlatformAppOptions {
+  scopeManifest?: ScopeManifest;
+  /** Update/take over this exact app through the official confirmation page. */
+  appIdToAdopt?: string;
+  /** Test seam; production always uses the SDK implementation. */
+  registerAppImpl?: typeof Lark.registerApp;
+  /** Test seam for the post-registration tenant/user identity readback. */
+  resolveIdentity?: ResolveOfficialFeishuIdentity;
+}
+
+function sdkDomain(brand: 'feishu' | 'lark'): Lark.Domain {
+  return brand === 'lark' ? Lark.Domain.Lark : Lark.Domain.Feishu;
+}
+
+/**
+ * Resolve the scanner and tenant from public Open APIs using the newly issued
+ * app credentials. Tenant identity is mandatory: silently inventing one could
+ * merge bots from different organizations in the management UI. User profile
+ * fields are best effort because contact range can temporarily lag publishing;
+ * the app-scoped Open ID remains the authoritative owner identity.
+ */
+export async function resolveOfficialFeishuRegistrationIdentity(input: {
+  appId: string;
+  appSecret: string;
+  openId: string;
+  brand: 'feishu' | 'lark';
+}): Promise<FeishuWebSessionIdentity> {
+  const client = new Lark.Client({
+    appId: input.appId,
+    appSecret: input.appSecret,
+    domain: sdkDomain(input.brand),
+  });
+  const tenantResponse = await client.tenant.tenant.query();
+  if (tenantResponse.code !== 0) {
+    throw new Error(`企业身份查询失败: ${tenantResponse.msg ?? tenantResponse.code ?? 'unknown error'}`);
+  }
+  const tenant = tenantResponse.data?.tenant;
+  const tenantId = tenant?.tenant_key?.trim() ?? '';
+  const tenantName = tenant?.name?.trim() ?? '';
+  if (!tenantId || !tenantName) throw new Error('企业身份查询成功但未返回 tenant_key 或企业名称');
+
+  let userName = '扫码创建者';
+  let email: string | undefined;
+  try {
+    const userResponse = await client.contact.v3.user.get({
+      path: { user_id: input.openId },
+      params: { user_id_type: 'open_id' },
+    });
+    if (userResponse.code === 0) {
+      userName = userResponse.data?.user?.name?.trim() || userName;
+      email = userResponse.data?.user?.email?.trim() || userResponse.data?.user?.enterprise_email?.trim() || undefined;
+    }
+  } catch {
+    // Cosmetic profile lookup must not orphan an otherwise valid registration.
+  }
+  return {
+    userId: input.openId,
+    openId: input.openId,
+    userName,
+    ...(email ? { email } : {}),
+    tenantId,
+    tenantName,
+    brand: input.brand,
+  };
+}
+
+function officialRegistrationFailureReason(error: unknown): Extract<CreateFeishuOpenPlatformAppResult, { ok: false }>['reason'] {
+  const row = error && typeof error === 'object' ? error as Record<string, unknown> : {};
+  const code = typeof row.code === 'string' ? row.code : '';
+  if (code === 'abort') return 'aborted';
+  if (code === 'expired_token') return 'qr_expired';
+  if (code === 'access_denied') return 'access_denied';
+  return 'api_error';
+}
+
+/**
+ * Primary onboarding path. Feishu's official device flow owns the account,
+ * tenant and requested-config confirmation page, then returns write-only app
+ * credentials. The private Web-console automation below remains a compatibility
+ * fallback and is intentionally not invoked after this flow has started: an
+ * ambiguous retry could create a duplicate application.
+ */
+export async function registerOfficialFeishuOpenPlatformApp(
+  options: RegisterOfficialFeishuAppOptions,
+): Promise<CreateFeishuOpenPlatformAppResult> {
+  const registerApp = options.registerAppImpl ?? Lark.registerApp;
+  const resolveIdentity = options.resolveIdentity ?? resolveOfficialFeishuRegistrationIdentity;
+  const manifest = options.scopeManifest ?? readOfficialBotScopeManifest();
+  let createdAppId: string | undefined;
+  const registrationController = new AbortController();
+  const onExternalAbort = () => registrationController.abort();
+  if (options.signal?.aborted) registrationController.abort();
+  else options.signal?.addEventListener('abort', onExternalAbort, { once: true });
+  const callbackTasks = new Set<Promise<void>>();
+  let callbackFailure: unknown;
+  const trackCallback = (value: void | Promise<void>): void => {
+    const task = Promise.resolve(value)
+      .catch((error) => {
+        callbackFailure ??= error;
+        registrationController.abort();
+      })
+      .finally(() => callbackTasks.delete(task));
+    callbackTasks.add(task);
+  };
+  try {
+    const registration = await registerApp({
+      source: 'cody-web-ui',
+      signal: registrationController.signal,
+      createOnly: options.appIdToAdopt ? false : true,
+      ...(options.appIdToAdopt ? { appId: options.appIdToAdopt } : {}),
+      appPreset: {
+        name: options.name.trim(),
+        desc: options.description?.trim() || 'AI coding assistant powered by CodyWebUI',
+      },
+      addons: {
+        preset: false,
+        scopes: {
+          tenant: [...new Set(manifest.scopes?.tenant ?? [])],
+          user: [...new Set(manifest.scopes?.user ?? [])],
+        },
+        events: { items: { tenant: [...BOT_BASELINE_APP_EVENTS], user: [] } },
+        callbacks: { items: [...BOT_BASELINE_CALLBACKS] },
+      },
+      onQRCodeReady: ({ url, expireIn }) => {
+        trackCallback(options.onQrCode?.({ qrText: url, qrPayload: url, expireIn }));
+      },
+      onStatusChange: ({ status, interval }) => {
+        const message = status === 'domain_switched'
+          ? '已识别为 Lark 国际版企业，正在切换授权域'
+          : status === 'slow_down'
+            ? `飞书要求降低查询频率${interval ? `（${interval} 秒）` : ''}`
+            : '已打开飞书官方确认页，等待完成应用创建';
+        trackCallback(options.onStatus?.(message));
+      },
+    });
+    await Promise.all([...callbackTasks]);
+    if (callbackFailure) throw callbackFailure;
+    const appId = registration.client_id?.trim() ?? '';
+    const appSecret = registration.client_secret?.trim() ?? '';
+    createdAppId = appId || undefined;
+    if (!appId.startsWith('cli_') || !appSecret) throw new Error('飞书官方注册成功响应缺少有效 App ID 或 App Secret');
+    if (options.appIdToAdopt && appId !== options.appIdToAdopt) {
+      throw new Error(`飞书官方接管返回了不同的 App ID（期望 ${options.appIdToAdopt}，实际 ${appId}），已停止接入`);
+    }
+    const brand = registration.user_info?.tenant_brand;
+    if (brand !== 'feishu' && brand !== 'lark') throw new Error('飞书官方注册成功响应缺少 tenant_brand，无法安全选择 API 域');
+    const openId = registration.user_info?.open_id?.trim() ?? '';
+    if (!openId) throw new Error('飞书官方注册成功响应缺少扫码创建者 open_id，机器人将保持禁用');
+
+    // Persist the newly issued credentials before any follow-up API lookup.
+    // This closes the largest crash window between remote creation and local
+    // recovery: even if tenant readback fails, restart resumes this App ID.
+    const provisionalIdentity: FeishuWebSessionIdentity = {
+      userId: openId,
+      openId,
+      userName: '扫码创建者',
+      tenantId: '',
+      tenantName: '企业信息待重新验证',
+      brand,
+    };
+    await options.onCredentials?.({ appId, appSecret, identity: provisionalIdentity, brand });
+
+    let identity: FeishuWebSessionIdentity;
+    try {
+      identity = await resolveIdentity({ appId, appSecret, openId, brand });
+    } catch (error) {
+      return {
+        ok: false,
+        reason: 'identity_unavailable',
+        message: `应用已创建并安全保存，但企业身份回读失败: ${safeErrorMessage(error)}`,
+        appId,
+      };
+    }
+
+    await options.onSessionReady?.({ source: 'official_device_flow', identity, externallyConfirmed: true });
+    return {
+      ok: true,
+      appId,
+      appSecret,
+      brand,
+      registrationMethod: 'official_device_flow',
+      sessionSource: 'official_device_flow',
+      sessionIdentity: identity,
+    };
+  } catch (error) {
+    const reportedError = callbackFailure ?? error;
+    return {
+      ok: false,
+      reason: officialRegistrationFailureReason(reportedError),
+      message: safeErrorMessage(reportedError),
+      ...(createdAppId ? { appId: createdAppId } : {}),
+    };
+  } finally {
+    options.signal?.removeEventListener('abort', onExternalAbort);
+  }
+}
+
+export type OfficialFeishuSetupResult =
+  | {
+      ok: true;
+      scopeCount: number;
+      subscribedEventCount: number;
+      subscribedCallbackCount: number;
+      eventModeReady: true;
+      callbackModeReady: true;
+      eventSubscriptionReady: true;
+      callbackSubscriptionReady: true;
+      scopeReady: true;
+      onlineVersionReady: true;
+      appEnabledReady: true;
+      botAbilityReady: true;
+      visibilityReady: true;
+      versionId: string;
+      botOpenId: string;
+      botName: string;
+    }
+  | {
+      ok: false;
+      reason: 'aborted' | 'api_error' | 'scope_verification_failed' | 'configuration_verification_failed';
+      message: string;
+    };
+
+export interface ConfigureOfficialFeishuAppOptions {
+  appId: string;
+  appSecret: string;
+  brand: 'feishu' | 'lark';
+  signal?: AbortSignal;
+  scopeManifest?: ScopeManifest;
+  visibility: {
+    isVisibleToAll: boolean;
+    /** App-scoped Open IDs. Group-chat allowlists are enforced at runtime, not here. */
+    userOpenIds: string[];
+  };
+  /** Test seam; production constructs the SDK client with the correct brand domain. */
+  client?: Lark.Client;
+}
+
+function ensureSdkResponse(response: { code?: number; msg?: string } | null | undefined, action: string): void {
+  if (!response || response.code !== 0) {
+    throw new Error(`${action}失败: ${response?.msg ?? response?.code ?? 'empty response'}`);
+  }
+}
+
+function sortedUnique(values: readonly string[]): string[] {
+  return [...new Set(values.map((value) => value.trim()).filter(Boolean))].sort();
+}
+
+function sameStringSet(actual: readonly string[] | undefined, expected: readonly string[]): boolean {
+  const left = sortedUnique(actual ?? []);
+  const right = sortedUnique(expected);
+  return left.length === right.length && left.every((value, index) => value === right[index]);
+}
+
+/**
+ * Configure and then read back every critical public setting. A successful
+ * write alone is never treated as completion. `grant_status === 2` is the
+ * platform's effective/granted state; every other value fails closed and is
+ * included in the error for real-tenant diagnosis.
+ */
+export async function configureOfficialFeishuOpenPlatformApp(
+  options: ConfigureOfficialFeishuAppOptions,
+): Promise<OfficialFeishuSetupResult> {
+  if (options.signal?.aborted) return { ok: false, reason: 'aborted', message: '用户取消配置' };
+  const client = options.client ?? new Lark.Client({
+    appId: options.appId,
+    appSecret: options.appSecret,
+    domain: sdkDomain(options.brand),
+  });
+  const manifest = options.scopeManifest ?? readOfficialBotScopeManifest();
+  const tenantScopes = sortedUnique(manifest.scopes?.tenant ?? []);
+  const userScopes = sortedUnique(manifest.scopes?.user ?? []);
+  const visibleUsers = sortedUnique(options.visibility.userOpenIds);
+  if (!options.visibility.isVisibleToAll && visibleUsers.length === 0) {
+    return { ok: false, reason: 'configuration_verification_failed', message: '非全企业可见模式至少需要扫码创建者 Open ID' };
+  }
+
+  try {
+    const abilityResponse = await client.application.v7.applicationAbility.patch({
+      path: { app_id: options.appId },
+      data: { bot: { enable: true } },
+    });
+    ensureSdkResponse(abilityResponse, '开启机器人能力');
+
+    const configResponse = await client.application.v7.applicationConfig.patch({
+      path: { app_id: options.appId },
+      params: { user_id_type: 'open_id' },
+      data: {
+        scope: {
+          add_scopes: [
+            ...tenantScopes.map((scope_name) => ({ scope_name, token_type: 'tenant' as const })),
+            ...userScopes.map((scope_name) => ({ scope_name, token_type: 'user' as const })),
+          ],
+        },
+        event: {
+          subscription_type: 'websocket',
+          add_events: [...BOT_BASELINE_APP_EVENTS],
+        },
+        callback: {
+          callback_type: 'websocket',
+          add_callbacks: [...BOT_BASELINE_CALLBACKS],
+        },
+        visibility: {
+          is_visible_to_all: options.visibility.isVisibleToAll,
+          ...(!options.visibility.isVisibleToAll
+            ? { visible_list: { user_ids: visibleUsers, department_ids: [] } }
+            : {}),
+        },
+        contacts: { contacts_range_type: 'equal_to_availability' },
+      },
+    });
+    ensureSdkResponse(configResponse, '更新权限、事件、回调与可见范围');
+
+    const publishResponse = await client.application.v7.applicationPublish.create({
+      path: { app_id: options.appId },
+      data: {
+        mobile_default_ability: 'bot',
+        pc_default_ability: 'bot',
+        remark: 'CodyWebUI automatic verified release',
+        changelog: 'Configure bot, least-privilege scopes, WebSocket events and callbacks',
+      },
+    });
+    ensureSdkResponse(publishResponse, '创建并发布应用版本');
+    const versionId = publishResponse.data?.version_id?.trim() ?? '';
+    if (!versionId) throw new Error('发布接口成功但未返回 version_id');
+
+    const managementResponse = await client.application.applicationManagement.update({
+      path: { app_id: options.appId },
+      data: { enable: true },
+    });
+    ensureSdkResponse(managementResponse, '启用应用');
+
+    const [scopeResponse, appResponse, versionResponse, botResponse] = await Promise.all([
+      client.application.scope.list(),
+      client.application.application.get({
+        path: { app_id: options.appId },
+        params: { lang: 'zh_cn', user_id_type: 'open_id' },
+      }),
+      client.application.applicationAppVersion.get({
+        path: { app_id: options.appId, version_id: versionId },
+        params: { lang: 'zh_cn', user_id_type: 'open_id' },
+      }),
+      client.request<{ code?: number; msg?: string; bot?: { open_id?: string; app_name?: string } }>({
+        method: 'GET',
+        url: '/open-apis/bot/v3/info/',
+      }),
+    ]);
+    ensureSdkResponse(scopeResponse, '回读权限');
+    ensureSdkResponse(appResponse, '回读应用配置');
+    ensureSdkResponse(versionResponse, '回读发布版本');
+    ensureSdkResponse(botResponse, '回读机器人身份');
+
+    const scopeRows = scopeResponse.data?.scopes ?? [];
+    const requiredScopes = [
+      ...tenantScopes.map((scope) => `${scope}:tenant`),
+      ...userScopes.map((scope) => `${scope}:user`),
+    ];
+    const grantedScopes = new Set(scopeRows
+      .filter((row) => row.grant_status === 2)
+      .map((row) => `${row.scope_name}:${row.scope_type ?? 'tenant'}`));
+    const missingScopes = requiredScopes.filter((scope) => !grantedScopes.has(scope));
+    if (missingScopes.length > 0) {
+      const observed = scopeRows
+        .filter((row) => missingScopes.some((scope) => scope.startsWith(`${row.scope_name}:`)))
+        .map((row) => `${row.scope_name}:${row.scope_type ?? 'tenant'}=${row.grant_status}`);
+      return {
+        ok: false,
+        reason: 'scope_verification_failed',
+        message: `权限尚未全部生效: ${missingScopes.join(', ')}${observed.length ? `；当前状态 ${observed.join(', ')}` : ''}`,
+      };
+    }
+
+    const app = appResponse.data?.app;
+    const eventNames = sortedUnique(app?.event?.subscribed_events ?? []);
+    const callbackNames = sortedUnique(app?.callback?.subscribed_callbacks ?? app?.callback_info?.subscribed_callbacks ?? []);
+    const eventModeReady = app?.event?.subscription_type === 'websocket';
+    const callbackMode = app?.callback?.callback_type ?? app?.callback_info?.callback_type;
+    const callbackModeReady = callbackMode === 'websocket';
+    const eventsReady = BOT_CRITICAL_APP_EVENTS.every((event) => eventNames.includes(event));
+    const callbacksReady = BOT_BASELINE_CALLBACKS.every((callback) => callbackNames.includes(callback));
+    const onlineVersionReady = app?.online_version_id === versionId;
+    const appEnabledReady = app?.status === 1;
+
+    const version = versionResponse.data?.app_version;
+    const botAbilityReady = Boolean(version?.ability?.bot);
+    const versionVisibility = version?.remark?.visibility;
+    const visibilityReady = options.visibility.isVisibleToAll
+      ? versionVisibility?.is_all === true
+      : versionVisibility?.is_all !== true
+        && sameStringSet(versionVisibility?.visible_list?.open_ids, visibleUsers);
+    const botOpenId = botResponse.bot?.open_id?.trim() ?? '';
+    if (!eventModeReady || !callbackModeReady || !eventsReady || !callbacksReady
+      || !onlineVersionReady || !appEnabledReady || !botAbilityReady || !visibilityReady || !botOpenId) {
+      const failed = [
+        !botAbilityReady && '机器人能力',
+        (!eventModeReady || !eventsReady) && '长连接事件 im.message.receive_v1',
+        (!callbackModeReady || !callbacksReady) && '长连接回调 card.action.trigger',
+        !onlineVersionReady && '已上线版本',
+        !appEnabledReady && '应用启用状态',
+        !visibilityReady && '可见范围',
+        !botOpenId && '机器人身份',
+      ].filter(Boolean).join('、');
+      return { ok: false, reason: 'configuration_verification_failed', message: `配置写入后回读未通过: ${failed}` };
+    }
+
+    return {
+      ok: true,
+      scopeCount: requiredScopes.length,
+      subscribedEventCount: eventNames.length,
+      subscribedCallbackCount: callbackNames.length,
+      eventModeReady: true,
+      callbackModeReady: true,
+      eventSubscriptionReady: true,
+      callbackSubscriptionReady: true,
+      scopeReady: true,
+      onlineVersionReady: true,
+      appEnabledReady: true,
+      botAbilityReady: true,
+      visibilityReady: true,
+      versionId,
+      botOpenId,
+      botName: botResponse.bot?.app_name?.trim() ?? '',
+    };
+  } catch (error) {
+    if (options.signal?.aborted) return { ok: false, reason: 'aborted', message: '用户取消配置' };
+    return { ok: false, reason: 'api_error', message: safeErrorMessage(error) };
+  }
+}
+
+export async function disableFeishuOpenPlatformAppWithCredentials(options: {
+  appId: string;
+  appSecret: string;
+  brand: 'feishu' | 'lark';
+  client?: Lark.Client;
+}): Promise<{ ok: true } | { ok: false; message: string }> {
+  const client = options.client ?? new Lark.Client({
+    appId: options.appId,
+    appSecret: options.appSecret,
+    domain: sdkDomain(options.brand),
+  });
+  try {
+    const ability = await client.application.v7.applicationAbility.patch({
+      path: { app_id: options.appId },
+      data: { bot: { enable: false } },
+    });
+    ensureSdkResponse(ability, '停用机器人能力');
+    const management = await client.application.applicationManagement.update({
+      path: { app_id: options.appId },
+      data: { enable: false },
+    });
+    ensureSdkResponse(management, '停用应用');
+    // A disabled app can immediately lose the token needed for a subsequent
+    // self-readback. The two public mutation responses are therefore the last
+    // authoritative acknowledgements available to the app credential itself.
+    return { ok: true };
+  } catch (error) {
+    return { ok: false, message: safeErrorMessage(error) };
+  }
+}
+
+class CreatedOpenPlatformAppError extends Error {
+  constructor(readonly appId: string, cause: unknown) {
+    super(`应用 ${appId} 已创建，但启用机器人能力或读取 AppSecret 失败: ${safeErrorMessage(cause)}`);
+  }
+}
+
+function pickPayloadString(payload: unknown, keys: string[]): string | undefined {
+  const record = asRecord(payload);
+  return pickString(record, keys) ?? pickString(asRecord(record.data), keys);
+}
+
+function pngCrc32(input: Uint8Array): number {
+  let crc = 0xffffffff;
+  for (const byte of input) {
+    crc ^= byte;
+    for (let bit = 0; bit < 8; bit += 1) crc = (crc >>> 1) ^ (0xedb88320 & -(crc & 1));
+  }
+  return (crc ^ 0xffffffff) >>> 0;
+}
+
+function pngChunk(type: string, data: Uint8Array): Buffer {
+  const typeBytes = Buffer.from(type, 'ascii');
+  const payload = Buffer.concat([typeBytes, data]);
+  const length = Buffer.alloc(4);
+  length.writeUInt32BE(data.length, 0);
+  const crc = Buffer.alloc(4);
+  crc.writeUInt32BE(pngCrc32(payload), 0);
+  return Buffer.concat([length, payload, crc]);
+}
+
+/** Generate a deterministic icon without shipping another binary asset. */
+function createCodyIconPng(): Buffer {
+  const width = 512;
+  const height = 512;
+  const stride = width * 4 + 1;
+  const pixels = Buffer.alloc(stride * height);
+  for (let y = 0; y < height; y += 1) {
+    pixels[y * stride] = 0;
+    for (let x = 0; x < width; x += 1) {
+      const offset = y * stride + 1 + x * 4;
+      const dx = x - 256;
+      const dy = y - 256;
+      const radius = Math.sqrt(dx * dx + dy * dy);
+      const accent = radius > 112 && radius < 184 && !(x > 260 && Math.abs(dy) < 86);
+      const core = radius < 42;
+      const color = core ? [248, 250, 252] : accent ? [52, 211, 153] : [15, 23, 42];
+      pixels[offset] = color[0] ?? 0;
+      pixels[offset + 1] = color[1] ?? 0;
+      pixels[offset + 2] = color[2] ?? 0;
+      pixels[offset + 3] = 255;
+    }
+  }
+  const ihdr = Buffer.alloc(13);
+  ihdr.writeUInt32BE(width, 0);
+  ihdr.writeUInt32BE(height, 4);
+  ihdr[8] = 8;
+  ihdr[9] = 6;
+  return Buffer.concat([
+    Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]),
+    pngChunk('IHDR', ihdr),
+    pngChunk('IDAT', deflateSync(pixels, { level: 9 })),
+    pngChunk('IEND', Buffer.alloc(0)),
+  ]);
+}
+
+/** 「一键创建智能体」(backend_oneclick launcher) 使用的应用清单模板 ID。 */
+export const ONECLICK_APP_MANIFEST_TEMPLATE_ID = 'developer_console';
+
+/**
+ * Build the payload for `POST /developers/v1/manifest/upsert_by_template` —
+ * the console launcher's one-click agent creation endpoint (CDP 抓包确认)。
+ * 该模板建出的应用开箱自带 bot 能力、长连接事件/回调模式、基础事件订阅与
+ * card.action.trigger 回调,正是「正常申请默认带的权限」。
+ */
+export function buildManifestTemplateCreatePayload(
+  name: string,
+  description: string,
+  avatar: string,
+  cid: string,
+) {
+  return {
+    appManifestTemplateID: ONECLICK_APP_MANIFEST_TEMPLATE_ID,
+    createAppUserCustomField: {
+      i18n: { zh_cn: { name, description } },
+      avatar,
+      primaryLang: 'zh_cn',
+    },
+    cid,
+    HTTPHead: {},
+  };
+}
+
+/**
+ * 模板创建是否属于服务端「明确拒绝」——即可确定应用没有建出来,允许安全
+ * 回退 app/create。业务错误码(code!==0,服务端解析请求后拒绝)与 HTTP 404
+ * (端点不存在)算明确拒绝;传输错误(ECONNRESET/timeout,非
+ * OpenPlatformApiError)、HTTP 5xx、code=0 缺 ClientID 都属「结果未知」——
+ * 服务端可能已 commit,跨端点重建会产生孤儿 + 重复应用,必须 fail-closed。
+ */
+function isDefiniteTemplateRejection(err: unknown): boolean {
+  if (!(err instanceof OpenPlatformApiError)) return false;
+  const code = (asRecord(err.payload) as { code?: unknown }).code;
+  if (typeof code === 'number' && code !== 0) return true;
+  return /^HTTP 404\b/.test(err.message);
+}
+
+/**
+ * 用已经登录的开放平台 Web session 创建一个企业自建应用并读取凭证。
+ *
+ * 首选 console launcher 的「一键创建智能体」模板接口
+ * (manifest/upsert_by_template):模板应用出生即带 bot 能力、长连接、基础
+ * 事件与卡片回调,新建 bot 不再依赖后续订阅补齐。模板 ID 属内部契约,被
+ * 服务端明确拒绝时自动回退旧 app/create(裸自建应用,事件/回调由
+ * automateOpenPlatformSetup 增量补齐并 fail-closed 兜底);创建结果未知时
+ * 不回退(见 isDefiniteTemplateRejection)。Secret 只存在返回值中,不打印、
+ * 不写日志。
+ */
+export async function createOpenPlatformAppWithClient(
+  client: OpenPlatformApiClient,
+  // creatorUserId 必填:首次「启用发布」的版本可见范围必须含创建者,否则发布后
+  // 应用不会自动上架启用。调用方(createFeishuOpenPlatformApp)已保证 session
+  // identity 可用才会走到这里。
+  options: { name: string; description?: string; iconFilePath?: string; creatorUserId: string },
+): Promise<{ appId: string; appSecret: string }> {
+  const name = options.name.trim();
+  if (!name) throw new Error('应用名称不能为空');
+  if (!options.creatorUserId) throw new Error('创建应用缺少创建者 userId,无法完成上架启用');
+  const icon = options.iconFilePath ? readFileSync(options.iconFilePath) : createCodyIconPng();
+  const form = new FormData();
+  form.append('file', new Blob([Uint8Array.from(icon)], { type: 'image/png' }), 'cody-web-ui.png');
+  form.append('uploadType', '4'); // Open Platform console enum: Icon
+  form.append('isIsv', 'false'); // 企业自建应用
+  form.append('scale', JSON.stringify({ width: 512, height: 512 }));
+  const uploaded = await client.postForm('/developers/v1/app/upload/image', form);
+  const avatar = pickPayloadString(uploaded, ['url']);
+  if (!avatar) throw new Error('开放平台上传图标后没有返回 url');
+
+  const description = options.description?.trim() || 'AI coding assistant powered by CodyWebUI';
+  let appId: string | undefined;
+  try {
+    const created = await client.postJson(
+      '/developers/v1/manifest/upsert_by_template',
+      buildManifestTemplateCreatePayload(name, description, avatar, randomUUID()),
+    );
+    const templateAppId = pickPayloadString(created, ['ClientID', 'clientID', 'clientId', 'appId']);
+    if (!templateAppId?.startsWith('cli_')) {
+      // code=0 却没有 ClientID:应用可能已建成(响应结构变化),结果未知——
+      // 不能落入 fallback 再 create,让下面的 catch 按「非明确拒绝」抛出。
+      throw new Error('一键智能体模板创建返回成功但没有 ClientID(结果未知);请到开放平台确认是否已创建同名应用后重试');
+    }
+    appId = templateAppId;
+  } catch (err) {
+    if (!isDefiniteTemplateRejection(err)) throw err;
+    console.warn(`一键智能体模板创建被拒,回退普通自建应用: ${safeErrorMessage(err)}`);
+    appId = undefined;
+  }
+  if (!appId) {
+    const created = await client.postJson('/developers/v1/app/create', {
+      appSceneType: 0, // SelfBuild
+      name,
+      desc: description,
+      avatar,
+      i18n: { zh_cn: { name, description } },
+      primaryLang: 'zh_cn',
+    });
+    appId = pickPayloadString(created, ['ClientID', 'clientID', 'clientId', 'appId']);
+  }
+  if (!appId?.startsWith('cli_')) throw new Error('开放平台创建应用后没有返回 ClientID');
+
+  try {
+    // 模板应用出生已带 bot + 长连接(重复调用幂等);fallback 的裸自建应用
+    // 则必须显式开启——这两步是「一扫即用」的必要条件,在返回凭证前完成。
+    await client.postJson(`/developers/v1/robot/switch/${appId}`, { clientId: appId, enable: true });
+    await client.postJson(`/developers/v1/event/switch/${appId}`, { clientId: appId, eventMode: 4 }); // WebSocket
+
+    // 复刻 console launcher「一键创建智能体」的最后一步:立刻用极简版本发布一次,
+    // 让应用**上架启用**(tenantAppStatus 0→2)。这样返回的就是一个「已启用、可
+    // 收发消息」的应用——等价于旧 SDK registerApp 直接产出可用 PersonalAgent 的效果。
+    // 这一步 fail-closed:拿到 versionId 后 commit 失败、或 code=0 却没 versionId
+    // (可能留下未发布草稿),都视为创建失败抛出(带 appId,由调用方兜底/提示),
+    // 不宣称「后续 setup 会软兜底」——setup 的 nextAppVersion 不复用未发布草稿,
+    // 版本号可能撞车导致二次发版继续失败,应用永远停在未启用。
+    const versionCreated = await client.postJson(
+      `/developers/v1/app_version/create/${appId}`,
+      buildAppVersionCreatePayload('1.0.0', [options.creatorUserId]),
+    );
+    const enableVersionId = extractVersionId(versionCreated);
+    if (!enableVersionId) {
+      throw new Error('上架启用版本创建返回成功但没有 versionId(可能已留下未发布草稿);请到开放平台确认后重试');
+    }
+    await client.postJson(`/developers/v1/publish/commit/${appId}/${enableVersionId}`, { clientId: appId });
+
+    const appSecret = await fetchOpenPlatformAppSecret(client, appId);
+    return { appId, appSecret };
+  } catch (err) {
+    throw new CreatedOpenPlatformAppError(appId, err);
+  }
+}
+
+/**
+ * 单次飞书 Web 扫码完成应用创建。session 会写入 ~/.botmux，后续
+ * automateOpenPlatformSetup 会直接复用，因此权限/redirect/发版不再二次扫码。
+ */
+export async function createFeishuOpenPlatformApp(
+  options: CreateFeishuOpenPlatformAppOptions,
+): Promise<CreateFeishuOpenPlatformAppResult> {
+  const prepared = await prepareFeishuWebSession(options);
+  if (!prepared.ok) {
+    return {
+      ok: false,
+      reason: prepared.reason,
+      message: `获取 Feishu Web session 失败: ${prepared.message}`,
+      sessionFile: prepared.sessionFile,
+    };
+  }
+
+  const clientResult = await createOpenPlatformApiClient(prepared.cookies, { fetchImpl: options.fetchImpl });
+  if (!clientResult.ok) {
+    return {
+      ok: false,
+      reason: clientResult.reason,
+      message: clientResult.message,
+      sessionFile: prepared.sessionFile,
+    };
+  }
+  if (!clientResult.identity) {
+    return {
+      ok: false,
+      reason: 'identity_unavailable',
+      message: '开放平台没有返回当前账号与企业信息；为避免创建到错误租户，未创建应用',
+      sessionFile: prepared.sessionFile,
+    };
+  }
+  if (options.expectedIdentity
+    && (clientResult.identity.userId !== options.expectedIdentity.userId
+      || clientResult.identity.tenantId !== options.expectedIdentity.tenantId)) {
+    return {
+      ok: false,
+      reason: 'session_changed',
+      message: `当前登录账号或企业已变化（${clientResult.identity.userName} · ${clientResult.identity.tenantName}）；请重新确认后再创建`,
+      sessionFile: prepared.sessionFile,
+    };
+  }
+
+  try {
+    await options.onSessionReady?.({ source: prepared.source, identity: clientResult.identity });
+    const credentials = await createOpenPlatformAppWithClient(clientResult.client, {
+      ...options,
+      creatorUserId: clientResult.identity.userId,
+    });
+    try {
+      await options.onCredentials?.({ ...credentials, identity: clientResult.identity });
+    } catch (err) {
+      throw new CreatedOpenPlatformAppError(credentials.appId, err);
+    }
+    return {
+      ok: true,
+      ...credentials,
+      brand: 'feishu',
+      registrationMethod: 'web_console',
+      sessionFile: prepared.sessionFile,
+      sessionSource: prepared.source,
+      sessionIdentity: clientResult.identity,
+    };
+  } catch (err) {
+    const message = safeErrorMessage(err);
+    return {
+      ok: false,
+      reason: /默认应用图标/.test(message) ? 'missing_icon' : 'api_error',
+      message,
+      ...(err instanceof CreatedOpenPlatformAppError ? { appId: err.appId } : {}),
+      sessionFile: prepared.sessionFile,
+    };
+  }
+}
+
+/**
+ * 列出当前登录人可见的自建应用（console `getAppList` 同款：
+ * POST /developers/v1/app/list，body {Count, Cursor, QueryFilter}，响应
+ * data.apps + totalCount，分页拉全）。console 是内部接口，item 字段名做
+ * 宽松解析，取不到 cli_ 开头 clientId 的条目丢弃。失败抛错（含 API 错误）。
+ */
+export async function listOpenPlatformApps(
+  client: OpenPlatformApiClient,
+  opts: { pageSize?: number; maxApps?: number } = {},
+): Promise<OpenPlatformAppSummary[]> {
+  const pageSize = opts.pageSize ?? 100;
+  const maxApps = opts.maxApps ?? 500;
+  const out: OpenPlatformAppSummary[] = [];
+  for (let cursor = 0; cursor < maxApps; cursor += pageSize) {
+    const payload = await client.postJson('/developers/v1/app/list', {
+      Count: pageSize,
+      Cursor: cursor,
+      QueryFilter: {},
+    });
+    const record = asRecord(payload);
+    const data = asRecord(record.data);
+    const apps = Array.isArray(data.apps) ? data.apps : Array.isArray(record.apps) ? (record.apps as unknown[]) : [];
+    for (const item of apps) {
+      const rec = asRecord(item);
+      const clientId = pickString(rec, ['clientId', 'client_id', 'appId', 'app_id', 'appID']);
+      if (!clientId || !clientId.startsWith('cli_')) continue;
+      const name = pickString(rec, ['name', 'appName', 'app_name']) ?? clientId;
+      const description = pickString(rec, ['description', 'desc', 'appDesc', 'app_desc']);
+      out.push({ clientId, name, ...(description ? { description } : {}) });
+    }
+    const totalCount = typeof data.totalCount === 'number' ? data.totalCount
+      : typeof record.totalCount === 'number' ? (record.totalCount as number) : undefined;
+    if (apps.length < pageSize) break;
+    if (totalCount !== undefined && cursor + pageSize >= totalCount) break;
+  }
+  return out;
+}
+
+export type FeishuExistingOpenPlatformAppsResult =
+  | { ok: true; identity: FeishuWebSessionIdentity; apps: OpenPlatformAppSummary[] }
+  | { ok: false; reason: string; message: string };
+
+export async function listCachedFeishuOpenPlatformApps(
+  options: Pick<FeishuWebSessionOptions, 'sessionFilePath' | 'fetchImpl' | 'signal'> = {},
+): Promise<FeishuExistingOpenPlatformAppsResult> {
+  const prepared = await prepareFeishuWebSession({
+    ...options,
+    disableQrLogin: true,
+    disableBytedcliFallback: true,
+  });
+  if (!prepared.ok) return { ok: false, reason: prepared.reason, message: prepared.message };
+  const clientResult = await createOpenPlatformApiClient(prepared.cookies, options);
+  if (!clientResult.ok) return clientResult;
+  if (!clientResult.identity) return { ok: false, reason: 'identity_unavailable', message: '无法确认当前开放平台账号与企业' };
+  try {
+    return { ok: true, identity: clientResult.identity, apps: await listOpenPlatformApps(clientResult.client) };
+  } catch (error) {
+    return { ok: false, reason: 'api_error', message: safeErrorMessage(error) };
+  }
+}
+
+export type AdoptFeishuOpenPlatformAppResult =
+  | { ok: true; appId: string; appSecret: string; identity: FeishuWebSessionIdentity }
+  | { ok: false; reason: string; message: string };
+
+export async function adoptFeishuOpenPlatformApp(options: {
+  appId: string
+  sessionFilePath?: string
+  fetchImpl?: typeof fetch
+  signal?: AbortSignal
+}): Promise<AdoptFeishuOpenPlatformAppResult> {
+  const appId = options.appId.trim();
+  if (!appId.startsWith('cli_')) return { ok: false, reason: 'invalid_app_id', message: '请选择有效的企业自建应用' };
+  const prepared = await prepareFeishuWebSession({
+    ...options,
+    disableQrLogin: true,
+    disableBytedcliFallback: true,
+  });
+  if (!prepared.ok) return { ok: false, reason: prepared.reason, message: prepared.message };
+  const clientResult = await createOpenPlatformApiClient(prepared.cookies, options);
+  if (!clientResult.ok) return clientResult;
+  if (!clientResult.identity) return { ok: false, reason: 'identity_unavailable', message: '无法确认当前开放平台账号与企业' };
+  try {
+    const apps = await listOpenPlatformApps(clientResult.client);
+    if (!apps.some(app => app.clientId === appId)) {
+      return { ok: false, reason: 'app_not_visible', message: '当前飞书账号无法管理这个应用，已停止接管' };
+    }
+    const appSecret = await fetchOpenPlatformAppSecret(clientResult.client, appId);
+    return { ok: true, appId, appSecret, identity: clientResult.identity };
+  } catch (error) {
+    return { ok: false, reason: 'api_error', message: safeErrorMessage(error) };
+  }
+}
+
+export type DisableFeishuOpenPlatformAppResult =
+  | { ok: true; appId: string; identity: FeishuWebSessionIdentity }
+  | { ok: false; reason: string; message: string };
+
+/** Disable the remote bot capability only after proving the cached account can manage the app. */
+export async function disableCachedFeishuOpenPlatformApp(options: {
+  appId: string
+  sessionFilePath?: string
+  fetchImpl?: typeof fetch
+  signal?: AbortSignal
+}): Promise<DisableFeishuOpenPlatformAppResult> {
+  const appId = options.appId.trim();
+  if (!appId.startsWith('cli_')) return { ok: false, reason: 'invalid_app_id', message: '应用 App ID 无效，无法远端停用' };
+  const prepared = await prepareFeishuWebSession({
+    ...options,
+    disableQrLogin: true,
+    disableBytedcliFallback: true,
+  });
+  if (!prepared.ok) return { ok: false, reason: prepared.reason, message: prepared.message };
+  const clientResult = await createOpenPlatformApiClient(prepared.cookies, options);
+  if (!clientResult.ok) return clientResult;
+  if (!clientResult.identity) return { ok: false, reason: 'identity_unavailable', message: '无法确认当前开放平台账号与企业' };
+  try {
+    const apps = await listOpenPlatformApps(clientResult.client);
+    if (!apps.some(app => app.clientId === appId)) {
+      return { ok: false, reason: 'app_not_visible', message: '当前飞书账号无法管理这个应用，未执行远端停用' };
+    }
+    await clientResult.client.postJson(`/developers/v1/robot/switch/${appId}`, { clientId: appId, enable: false });
+    return { ok: true, appId, identity: clientResult.identity };
+  } catch (error) {
+    return { ok: false, reason: 'api_error', message: safeErrorMessage(error) };
+  }
+}
+
+/**
+ * 读取指定应用的 App Secret（console `getAppSecret` 同款：
+ * POST /developers/v1/secret/:clientId，响应含 secret 字段）。
+ * 只读接口——绝不触碰 /v1/secret/reset/*（会轮换 secret、打断在跑的 bot）。
+ */
+export async function fetchOpenPlatformAppSecret(
+  client: OpenPlatformApiClient,
+  clientId: string,
+): Promise<string> {
+  const payload = await client.postJson(`/developers/v1/secret/${clientId}`, {});
+  const record = asRecord(payload);
+  const secret = pickString(asRecord(record.data), ['secret']) ?? pickString(record, ['secret']);
+  if (!secret) throw new Error('开放平台没有返回 secret 字段');
+  return secret;
+}
+
+async function validateFeishuWebSession(cookies: StoredCookie[], fetcher: typeof fetch, signal?: AbortSignal): Promise<boolean> {
+  if (cookies.length === 0) return false;
+  const session = new MutableCookieJar(cookies, signal);
+  try {
+    const response = await session.fetchRaw(fetcher, `${ASK_FEISHU_ORIGIN}/`, { method: 'GET' });
+    if (!response.ok) return false;
+    const text = await response.text();
+    return !isFeishuLoginLikeValue(text);
+  } catch {
+    return false;
+  }
+}
+
+async function loginFeishuWebSession(fetcher: typeof fetch, options: FeishuWebSessionOptions): Promise<StoredCookie[]> {
+  const session = new MutableCookieJar([], options.signal);
+  const redirectUrl = `${ASK_FEISHU_ORIGIN}/`;
+  // Implements Feishu Web QR session login directly: initialize
+  // `/accounts/qrlogin/init`, poll `/accounts/qrlogin/polling`, follow the
+  // returned cross-login URI, then persist the resulting cookie jar privately.
+  const qrInit = await initFeishuQrLogin(session, fetcher, redirectUrl);
+  const qrPayload = buildFeishuQrPayload(qrInit.token);
+  const qrText = await renderTerminalQr(qrPayload);
+  const onQrCode = options.onQrCode ?? defaultPrintFeishuQrCode;
+  await onQrCode({ qrText, qrPayload });
+
+  const pollIntervalMs = options.pollIntervalMs ?? 1500;
+  const maxWaitMs = options.maxWaitMs ?? 120_000;
+  const start = Date.now();
+  let lastStatusMessage = '';
+  for (;;) {
+    if (options.signal?.aborted) {
+      throw new FeishuWebSessionError('用户取消扫码', 'aborted');
+    }
+    if (Date.now() - start > maxWaitMs) {
+      throw new FeishuWebSessionError('等待飞书扫码超时', 'timeout');
+    }
+
+    const poll = await pollFeishuQrLogin(session, fetcher, qrInit.flowKey);
+    if (poll.nextStep === 'enter_app') {
+      if (poll.crossLoginUri) {
+        await session.fetchRaw(fetcher, poll.crossLoginUri, { method: 'GET' });
+      }
+      await session.fetchRaw(fetcher, redirectUrl, { method: 'GET' });
+      const cookies = session.toJSON();
+      if (!await validateFeishuWebSession(cookies, fetcher, options.signal)) {
+        throw new FeishuWebSessionError('飞书扫码已完成，但没有拿到可复用的 Web session', 'invalid_session');
+      }
+      return cookies;
+    }
+
+    const statusMessage = mapFeishuQrPollingStatus(poll.status);
+    if (options.onStatus && statusMessage !== lastStatusMessage) {
+      lastStatusMessage = statusMessage;
+      await options.onStatus(statusMessage);
+    }
+    if (poll.status === 5) {
+      throw new FeishuWebSessionError('二维码已过期', 'qr_expired');
+    }
+    await sleep(pollIntervalMs, options.signal);
+  }
+}
+
+async function initFeishuQrLogin(
+  session: MutableCookieJar,
+  fetcher: typeof fetch,
+  authorizeUrl: string,
+): Promise<{ flowKey: string; token: string }> {
+  const endpoint = `${FEISHU_ACCOUNTS_ORIGIN}/accounts/qrlogin/init?_r${10000 + Math.floor(Math.random() * 80000)}=${Date.now()}`;
+  const response = await session.fetchRaw(fetcher, endpoint, {
+    method: 'POST',
+    headers: {
+      ...FEISHU_COMMON_HEADERS,
+      'x-app-id': FEISHU_APP_ID,
+      accept: 'application/json',
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify({
+      biz_type: null,
+      redirect_uri: authorizeUrl,
+    }),
+  });
+  const data = await response.json();
+  assertFeishuApiOk(data, 'Feishu QR init failed');
+  const token = asRecord(asRecord(data).data).step_info
+    ? pickString(asRecord(asRecord(asRecord(data).data).step_info), ['token'])
+    : undefined;
+  const flowKey = response.headers.get('x-flow-key') ?? '';
+  if (!flowKey || !token) {
+    throw new FeishuWebSessionError('Feishu QR init missing flow key or token', 'login_failed');
+  }
+  return { flowKey, token };
+}
+
+async function pollFeishuQrLogin(
+  session: MutableCookieJar,
+  fetcher: typeof fetch,
+  flowKey: string,
+): Promise<{ nextStep: string | null; status: number | null; crossLoginUri: string | null }> {
+  const endpoint = `${FEISHU_ACCOUNTS_ORIGIN}/accounts/qrlogin/polling?_r${10000 + Math.floor(Math.random() * 80000)}=${Date.now()}`;
+  const response = await session.fetchRaw(fetcher, endpoint, {
+    method: 'POST',
+    headers: {
+      ...FEISHU_COMMON_HEADERS,
+      'x-app-id': FEISHU_APP_ID,
+      'x-flow-key': flowKey,
+      accept: 'application/json',
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify({ biz_type: null }),
+  });
+  const data = await response.json();
+  assertFeishuApiOk(data, 'Feishu QR polling failed');
+  const payload = asRecord(asRecord(data).data);
+  const stepInfo = asRecord(payload.step_info);
+  return {
+    nextStep: pickString(payload, ['next_step']) ?? null,
+    status: typeof stepInfo.status === 'number' ? stepInfo.status : null,
+    crossLoginUri: pickString(stepInfo, ['cross_login_uri']) ?? null,
+  };
+}
+
+function readDefaultScopeManifest(): ScopeManifest {
+  const official = readOfficialBotScopeManifest();
+  return {
+    scopes: {
+      tenant: [
+        ...(official.scopes?.tenant ?? []),
+        'contact:user.base:readonly',
+        'contact:user.email:readonly',
+      ],
+      user: [],
+    },
+  };
+}
+
+function readOfficialBotScopeManifest(): ScopeManifest {
+  return {
+    scopes: {
+      tenant: [
+        'im:message',
+        'im:message.p2p_msg:readonly',
+        'im:message.group_at_msg:readonly',
+        'im:message.group_at_msg.include_bot:readonly',
+        'im:message:readonly',
+        'im:resource',
+        'im:chat:read',
+        'im:message:send_as_bot',
+      ],
+      user: [],
+    },
+  };
+}
+
+class MutableCookieJar {
+  private cookies: StoredCookie[];
+
+  constructor(cookies: StoredCookie[], private readonly signal?: AbortSignal) {
+    this.cookies = pruneExpiredCookies(cookies);
+  }
+
+  toJSON(): StoredCookie[] {
+    this.cookies = pruneExpiredCookies(this.cookies);
+    return this.cookies.map(cookie => ({ ...cookie }));
+  }
+
+  async fetchText(fetcher: typeof fetch, url: string): Promise<string> {
+    const response = await this.fetchRaw(fetcher, url, { method: 'GET' });
+    return await response.text();
+  }
+
+  async fetchTextWithUrl(fetcher: typeof fetch, url: string): Promise<{ text: string; finalUrl: string }> {
+    const response = await this.fetchRaw(fetcher, url, { method: 'GET' });
+    return {
+      text: await response.text(),
+      finalUrl: finalResponseUrl(response, url),
+    };
+  }
+
+  async fetchRaw(fetcher: typeof fetch, url: string, init: RequestInit = {}, maxHops = 10): Promise<Response> {
+    let current = url;
+    let referer: string | undefined;
+    for (let hop = 0; hop <= maxHops; hop += 1) {
+      const headers = new Headers(init.headers);
+      const cookieHeader = getCookieHeader(this.cookies, current);
+      if (cookieHeader) headers.set('cookie', cookieHeader);
+      headers.set('user-agent', headers.get('user-agent') ?? DEFAULT_BROWSER_USER_AGENT);
+      if (referer && !headers.has('referer')) headers.set('referer', referer);
+
+      const upstreamSignal = init.signal ?? this.signal;
+      const timeoutSignal = AbortSignal.timeout(30_000);
+      const signal = upstreamSignal ? AbortSignal.any([upstreamSignal, timeoutSignal]) : timeoutSignal;
+      const response = await fetcher(current, { ...init, headers, signal, redirect: 'manual' });
+      this.loadFromResponse(current, response.headers);
+      if (response.status >= 300 && response.status < 400) {
+        const location = response.headers.get('location');
+        if (!location) return response;
+        referer = current;
+        current = new URL(location, current).toString();
+        continue;
+      }
+      markFinalResponseUrl(response, current);
+      return response;
+    }
+    throw new Error('Too many redirects while accessing open platform');
+  }
+
+  private loadFromResponse(responseUrl: string, headers: Headers): void {
+    const rawSetCookies = typeof (headers as any).getSetCookie === 'function'
+      ? (headers as any).getSetCookie()
+      : splitSetCookieHeader(headers.get('set-cookie'));
+    for (const raw of rawSetCookies) {
+      const cookie = parseSetCookie(responseUrl, raw);
+      if (!cookie) continue;
+      const idx = this.cookies.findIndex(item => item.name === cookie.name && item.domain === cookie.domain && item.path === cookie.path);
+      if (cookie.expiresAt !== undefined && cookie.expiresAt <= Date.now()) {
+        if (idx >= 0) this.cookies.splice(idx, 1);
+        continue;
+      }
+      if (idx >= 0) this.cookies[idx] = cookie;
+      else this.cookies.push(cookie);
+    }
+    this.cookies = pruneExpiredCookies(this.cookies);
+  }
+}
+
+export class OpenPlatformApiError extends Error {
+  constructor(message: string, readonly payload: unknown) {
+    super(message);
+  }
+}
+
+class FeishuWebSessionError extends Error {
+  constructor(message: string, readonly reason: FeishuWebSessionFailureReason) {
+    super(message);
+  }
+}
+
+const DEFAULT_BROWSER_USER_AGENT =
+  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36';
+
+function defaultPrintFeishuQrCode(info: { qrText: string }): void {
+  process.stderr.write('\n请用飞书 App 扫码完成开放平台自动配置登录：\n\n');
+  process.stderr.write(`${info.qrText}\n`);
+  process.stderr.write('如果当前环境无法扫码，请改用 CodyWebUI 的手工 App ID / Secret 入口。\n\n');
+}
+
+async function renderTerminalQr(payload: string): Promise<string> {
+  return await QRCode.toString(payload, { type: 'utf8' });
+}
+
+function sleep(ms: number, signal?: AbortSignal): Promise<void> {
+  if (signal?.aborted) return Promise.reject(new FeishuWebSessionError('用户取消扫码', 'aborted'));
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      signal?.removeEventListener('abort', onAbort);
+      resolve();
+    }, ms);
+    const onAbort = () => {
+      clearTimeout(timer);
+      reject(new FeishuWebSessionError('用户取消扫码', 'aborted'));
+    };
+    signal?.addEventListener('abort', onAbort, { once: true });
+  });
+}
+
+function assertFeishuApiOk(payload: unknown, message: string): void {
+  const record = asRecord(payload);
+  if (record.code === 0) return;
+  const msg = pickString(record, ['message', 'msg']) ?? 'unknown error';
+  throw new FeishuWebSessionError(`${message}: ${msg}`, 'login_failed');
+}
+
+function isFeishuLoginLikeValue(value: string): boolean {
+  const normalized = value.toLowerCase();
+  return normalized.includes('/accounts/') || normalized.includes('/login') || normalized.includes('qrlogin');
+}
+
+function classifyFeishuLoginError(err: unknown): FeishuWebSessionFailureReason {
+  if (err instanceof FeishuWebSessionError) return err.reason;
+  const message = err instanceof Error ? err.message : String(err);
+  if (/timeout|timed out|超时/i.test(message)) return 'timeout';
+  if (/expired|过期/i.test(message)) return 'qr_expired';
+  if (/ETIMEDOUT|ECONNREFUSED|ENOTFOUND|ECONNRESET|fetch failed|network/i.test(message)) return 'network';
+  return 'login_failed';
+}
+
+function collectScopeEntries(value: unknown, bucket: 'tenant' | 'user' | undefined, out: OpenPlatformScopeEntry[]): void {
+  if (Array.isArray(value)) {
+    for (const item of value) collectScopeEntries(item, bucket, out);
+    return;
+  }
+  if (!value || typeof value !== 'object') return;
+  const record = value as Record<string, unknown>;
+  const name = pickString(record, ['scope_name', 'scopeName', 'name', 'key', 'scopeKey']);
+  const id = pickString(record, ['id', 'scope_id', 'scopeId', 'scopeID']);
+  if (name && id) out.push({ name, id, bucket });
+  for (const [key, child] of Object.entries(record)) {
+    const nextBucket = /user/i.test(key)
+      ? 'user'
+      : /app|client|tenant/i.test(key)
+        ? 'tenant'
+        : bucket;
+    if (child && typeof child === 'object') collectScopeEntries(child, nextBucket, out);
+  }
+}
+
+function mapScopeIds(scopeNames: string[], catalog: OpenPlatformScopeEntry[], bucket: 'tenant' | 'user') {
+  const ids: string[] = [];
+  const missing: string[] = [];
+  for (const scopeName of scopeNames) {
+    const matched =
+      catalog.find(entry => entry.name === scopeName && entry.bucket === bucket) ??
+      catalog.find(entry => entry.name === scopeName && entry.bucket === undefined) ??
+      catalog.find(entry => entry.name === scopeName);
+    if (matched) ids.push(matched.id);
+    else missing.push(scopeName);
+  }
+  return { ids: uniqueStrings(ids), missing };
+}
+
+/** 从 app_version/list 响应算下一个版本号（最新已发布 +1，无发布版 → 0.0.1）。 */
+export function nextAppVersion(payload: unknown): string {
+  const data = asRecord(asRecord(payload).data);
+  const versions = Array.isArray(data.versions) ? data.versions : [];
+  // 取所有版本(含未发布草稿)里的最大三段号 +1——不能只看已发布版本:若存在
+  // 未发布草稿(如上架启用失败留下的 1.0.0),只看已发布会算出 0.0.1 撞车,导致
+  // 二次发版被平台以「版本号未递增」拒掉,应用永远停在未启用。
+  const triples = versions
+    .map(item => pickString(asRecord(item), ['appVersion']))
+    .filter((version): version is string => Boolean(version))
+    .map(version => version.split('.').map(part => Number.parseInt(part, 10)))
+    .filter(parts => parts.length === 3 && parts.every(part => Number.isFinite(part)));
+  if (triples.length === 0) return '0.0.1';
+  const max = triples.reduce((a, b) => {
+    for (let i = 0; i < 3; i++) {
+      if (b[i] !== a[i]) return b[i] > a[i] ? b : a;
+    }
+    return a;
+  });
+  return [max[0], max[1], max[2] + 1].join('.');
+}
+
+/** 从 app_version/create 响应提取 versionId（多种响应形态兼容）。 */
+export function extractVersionId(payload: unknown): string | undefined {
+  const direct = pickString(asRecord(payload), ['versionId', 'version_id', 'id']);
+  if (direct) return direct;
+  const data = asRecord(asRecord(payload).data);
+  return pickString(data, ['versionId', 'version_id', 'id']) ?? pickString(asRecord(data.appVersion), ['versionId', 'version_id', 'id']);
+}
+
+function extractBalancedJsonObject(input: string, start: number): string | null {
+  if (input[start] !== '{') return null;
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+  for (let i = start; i < input.length; i += 1) {
+    const char = input[i];
+    if (inString) {
+      if (escaped) escaped = false;
+      else if (char === '\\') escaped = true;
+      else if (char === '"') inString = false;
+      continue;
+    }
+    if (char === '"') {
+      inString = true;
+      continue;
+    }
+    if (char === '{') depth += 1;
+    else if (char === '}') {
+      depth -= 1;
+      if (depth === 0) return input.slice(start, i + 1);
+    }
+  }
+  return null;
+}
+
+function pickString(record: Record<string, unknown>, keys: string[]): string | undefined {
+  for (const key of keys) {
+    const value = record[key];
+    if (typeof value === 'string' && value) return value;
+    if (typeof value === 'number' && Number.isFinite(value)) return String(value);
+  }
+  return undefined;
+}
+
+function asRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {};
+}
+
+function uniqueStrings(values: string[]): string[] {
+  return [...new Set(values.filter(Boolean))];
+}
+
+function isStoredCookieRecord(value: unknown): value is StoredCookie {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const cookie = value as Partial<StoredCookie>;
+  return typeof cookie.name === 'string'
+    && typeof cookie.value === 'string'
+    && typeof cookie.domain === 'string'
+    && typeof cookie.path === 'string'
+    && typeof cookie.secure === 'boolean'
+    && typeof cookie.httpOnly === 'boolean'
+    && typeof cookie.hostOnly === 'boolean';
+}
+
+function pruneExpiredCookies(cookies: StoredCookie[]): StoredCookie[] {
+  const now = Date.now();
+  return cookies.filter(cookie => cookie.expiresAt === undefined || cookie.expiresAt > now);
+}
+
+function domainMatches(hostname: string, cookie: StoredCookie): boolean {
+  const host = hostname.toLowerCase();
+  const domain = cookie.domain.replace(/^\./, '').toLowerCase();
+  if (cookie.hostOnly) return host === domain;
+  return host === domain || host.endsWith(`.${domain}`);
+}
+
+function pathMatches(requestPath: string, cookiePath: string): boolean {
+  if (requestPath === cookiePath) return true;
+  if (!requestPath.startsWith(cookiePath)) return false;
+  return cookiePath.endsWith('/') || requestPath[cookiePath.length] === '/';
+}
+
+function splitSetCookieHeader(header: string | null): string[] {
+  if (!header) return [];
+  const parts: string[] = [];
+  let start = 0;
+  let inExpires = false;
+  for (let i = 0; i < header.length; i += 1) {
+    const slice = header.slice(Math.max(0, i - 8), i + 1).toLowerCase();
+    if (slice.endsWith('expires=')) inExpires = true;
+    if (inExpires && header[i] === ';') inExpires = false;
+    if (!inExpires && header[i] === ',') {
+      parts.push(header.slice(start, i).trim());
+      start = i + 1;
+    }
+  }
+  parts.push(header.slice(start).trim());
+  return parts.filter(Boolean);
+}
+
+function parseSetCookie(responseUrl: string, header: string): StoredCookie | null {
+  const url = new URL(responseUrl);
+  const parts = header.split(';').map(part => part.trim()).filter(Boolean);
+  const first = parts.shift();
+  if (!first) return null;
+  const eq = first.indexOf('=');
+  if (eq <= 0) return null;
+  const cookie: StoredCookie = {
+    name: first.slice(0, eq),
+    value: first.slice(eq + 1),
+    domain: url.hostname,
+    path: '/',
+    secure: false,
+    httpOnly: false,
+    hostOnly: true,
+  };
+  for (const part of parts) {
+    const partEq = part.indexOf('=');
+    const key = (partEq >= 0 ? part.slice(0, partEq) : part).trim().toLowerCase();
+    const value = partEq >= 0 ? part.slice(partEq + 1).trim() : '';
+    if (key === 'domain' && value) {
+      cookie.domain = value.toLowerCase();
+      cookie.hostOnly = false;
+    } else if (key === 'path' && value) {
+      cookie.path = value;
+    } else if (key === 'secure') {
+      cookie.secure = true;
+    } else if (key === 'httponly') {
+      cookie.httpOnly = true;
+    } else if (key === 'expires' && value) {
+      const parsed = Date.parse(value);
+      if (Number.isFinite(parsed)) cookie.expiresAt = parsed;
+    } else if (key === 'max-age' && value) {
+      const seconds = Number(value);
+      if (Number.isFinite(seconds)) cookie.expiresAt = Date.now() + seconds * 1000;
+    } else if (key === 'samesite' && value) {
+      cookie.sameSite = value;
+    }
+  }
+  return cookie;
+}
+
+function summarizeOpenPlatformPayload(payload: unknown): string {
+  if (!payload || typeof payload !== 'object') return String(payload);
+  const record = payload as Record<string, unknown>;
+  const summary: Record<string, unknown> = {};
+  for (const key of ['code', 'msg', 'message', 'error', 'error_msg']) {
+    if (record[key] !== undefined) summary[key] = record[key];
+  }
+  return JSON.stringify(summary).slice(0, 500);
+}
+
+function safeErrorMessage(err: unknown): string {
+  const message = err instanceof Error ? err.message : String(err);
+  return message.replace(/[A-Za-z0-9_=-]{24,}/g, '***');
+}
+
+function markFinalResponseUrl(response: Response, finalUrl: string): void {
+  try {
+    Object.defineProperty(response, 'botmuxFinalUrl', {
+      value: finalUrl,
+      configurable: true,
+    });
+  } catch {
+    // Response can be non-extensible in some runtimes; fall back to response.url.
+  }
+}
+
+function finalResponseUrl(response: Response, fallbackUrl: string): string {
+  return typeof (response as any).botmuxFinalUrl === 'string'
+    ? (response as any).botmuxFinalUrl
+    : response.url || fallbackUrl;
+}

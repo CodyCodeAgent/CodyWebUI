@@ -1,0 +1,405 @@
+// @vitest-environment happy-dom
+
+import { flushPromises, mount } from '@vue/test-utils'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import FeishuBotPanel from './FeishuBotPanel.vue'
+
+const api = vi.hoisted(() => ({
+  fetchFeishuBots: vi.fn(),
+  fetchFeishuBindings: vi.fn(),
+  fetchFeishuDiagnostics: vi.fn(),
+  diagnoseFeishuBot: vi.fn(),
+  createFeishuBot: vi.fn(),
+  deleteFeishuBot: vi.fn(),
+  updateFeishuBot: vi.fn(),
+  reconnectFeishuBot: vi.fn(),
+  removeFeishuBinding: vi.fn(),
+  retryFeishuDelivery: vi.fn(),
+  startFeishuQrSetup: vi.fn(),
+  fetchFeishuQrSetup: vi.fn(),
+  fetchFeishuQrSetups: vi.fn(async () => []),
+  cancelFeishuQrSetup: vi.fn(),
+  confirmFeishuQrSetupIdentity: vi.fn(),
+  retryFeishuQrSetup: vi.fn(),
+  fetchFeishuOpenPlatformSession: vi.fn(async () => ({ configured: false, valid: false, account: null, error: null })),
+  clearFeishuOpenPlatformSession: vi.fn(async () => true),
+  fetchFeishuOpenPlatformApps: vi.fn(async () => []),
+  adoptFeishuOpenPlatformApp: vi.fn(),
+}))
+
+vi.mock('../../api/codexFeishuClient', () => api)
+
+const bot = {
+  id: 'bot-1', name: 'Team bot', appId: 'cli_team', secretConfigured: true, enabled: true,
+  platform: 'feishu', tenantId: 't_team', tenantName: 'Example Enterprise',
+  allowAllUsers: false,
+  allowedOpenIds: ['ou_admin'], status: 'connected', lastConnectedAtIso: '2026-07-18T01:00:00.000Z', lastHeartbeatAtIso: '2026-07-18T01:01:00.000Z',
+  groupMentionMode: 'always',
+  lastError: null, createdAtIso: '', updatedAtIso: '',
+}
+
+const binding = {
+  id: 'binding-1', botId: 'bot-1', botName: 'Team bot', scopeType: 'topic', chatId: 'oc_chat',
+  threadId: 'thread-1', projectCwd: '/repo', projectName: 'CodyWebUI', sessionId: 'session-1',
+  sessionTitle: 'Ship Feishu', userOpenId: 'ou_user', createdAtIso: '', updatedAtIso: '', lastMessageAtIso: null,
+}
+
+const diagnostics = {
+  botId: 'bot-1', generatedAtIso: '2026-07-18T01:00:00.000Z',
+  counts: {
+    outbox: { pending: 1, sending: 0, sent: 8, failed: 2, deadLettered: 1 },
+    turns: { queued: 0, running: 1, completed: 7, failed: 1, cancelled: 0 },
+    cards: { creating: 0, streaming: 1, completed: 7, failed: 0, cancelled: 0 },
+    audit: { success: 5, failed: 1 },
+  },
+  recentFailedDeliveries: [{
+    id: 'outbox-1', kind: 'card.update', attempts: 3, error: 'rate limited', updatedAtIso: '2026-07-18T00:59:00.000Z',
+    deadLetteredAtIso: '2026-07-18T00:59:00.000Z',
+  }],
+  recentTurns: [{ status: 'running', error: '', updatedAtIso: '2026-07-18T00:58:00.000Z' }],
+  recentCards: [{ purpose: 'answer', status: 'streaming', version: 2, updatedAtIso: '2026-07-18T00:58:00.000Z' }],
+  recentAuditLogs: [{ action: 'binding.create', success: true, error: '', createdAtIso: '2026-07-18T00:57:00.000Z' }],
+}
+
+const connectivityReport = {
+  botId: 'bot-1', ok: true, generatedAtIso: '2026-07-18T01:01:00.000Z', latencyMs: 24,
+  checks: [
+    { id: 'configuration', status: 'pass', message: 'configured' },
+    { id: 'enabled', status: 'pass', message: 'enabled' },
+    { id: 'runtime', status: 'pass', message: 'running' },
+    { id: 'long_connection', status: 'pass', message: 'connected' },
+    { id: 'credential_api', status: 'pass', message: 'authenticated' },
+    { id: 'bot_identity', status: 'pass', message: 'matched' },
+  ],
+}
+
+afterEach(() => {
+  vi.clearAllMocks()
+  vi.unstubAllGlobals()
+})
+
+describe('FeishuBotPanel', () => {
+  async function openManualCreate(wrapper: ReturnType<typeof mount>): Promise<void> {
+    await wrapper.get('.feishu-empty .feishu-primary-button').trigger('click')
+    const manual = wrapper.findAll('.feishu-create-modes button').find((button) => button.text() === 'App ID / Secret')
+    await manual?.trigger('click')
+    await flushPromises()
+  }
+
+  it('shows connection health and shared session bindings', async () => {
+    api.fetchFeishuBots.mockResolvedValue([bot])
+    api.fetchFeishuBindings.mockResolvedValue([binding])
+    api.fetchFeishuDiagnostics.mockResolvedValue(diagnostics)
+    const wrapper = mount(FeishuBotPanel)
+    await flushPromises()
+    expect(wrapper.text()).toContain('Team bot')
+    expect(wrapper.text()).toContain('Connected')
+    expect(wrapper.text()).toContain('Example Enterprise')
+    expect(wrapper.text()).toContain('Last verified heartbeat')
+    expect(wrapper.text()).toContain('CodyWebUI')
+    expect(wrapper.text()).toContain('Ship Feishu')
+    wrapper.unmount()
+  })
+
+  it('shows persisted setup failures and lets the operator continue recovery', async () => {
+    api.fetchFeishuBots.mockResolvedValue([])
+    api.fetchFeishuBindings.mockResolvedValue([])
+    api.fetchFeishuQrSetups.mockResolvedValueOnce([{
+      id: 'job-failed', name: 'Recover me', status: 'failed', statusMessage: 'Configuration failed',
+      qrDataUrl: null, qrExpiresAtIso: null,
+      account: { userName: 'Alice', email: null, tenantName: 'Example tenant' },
+      bot: { ...bot, enabled: false, status: 'error' }, warnings: [], error: 'Event callback is not active',
+      canRetry: true, canCancel: false, canConfirmIdentity: false, createdAtIso: '', updatedAtIso: '2026-07-18T01:00:00.000Z',
+    }] as never)
+    const wrapper = mount(FeishuBotPanel)
+    await flushPromises()
+    expect(wrapper.text()).toContain('Setup and recovery history')
+    expect(wrapper.text()).toContain('Event callback is not active')
+    await wrapper.get('.feishu-setup-history button').trigger('click')
+    await flushPromises()
+    expect(wrapper.text()).toContain('Retry automatic configuration')
+    expect(api.startFeishuQrSetup).not.toHaveBeenCalled()
+    wrapper.unmount()
+  })
+
+  it('creates a bot without leaking the secret back into the form', async () => {
+    api.fetchFeishuBots.mockResolvedValue([])
+    api.fetchFeishuBindings.mockResolvedValue([])
+    api.fetchFeishuDiagnostics.mockResolvedValue(diagnostics)
+    api.createFeishuBot.mockResolvedValue(bot)
+    const wrapper = mount(FeishuBotPanel)
+    await flushPromises()
+    await openManualCreate(wrapper)
+    const inputs = wrapper.findAll('.feishu-form-grid input')
+    await inputs[0].setValue('Team bot')
+    await inputs[1].setValue('cli_team')
+    await inputs[2].setValue('secret-value')
+    await wrapper.get('.feishu-form').trigger('submit')
+    await flushPromises()
+    expect(api.createFeishuBot).toHaveBeenCalledWith(expect.objectContaining({
+      name: 'Team bot', appId: 'cli_team', appSecret: 'secret-value', enabled: false,
+    }))
+    expect((wrapper.findAll('.feishu-form-grid input')[2].element as HTMLInputElement).value).toBe('')
+    expect(wrapper.text()).toContain('Bot configuration saved.')
+    wrapper.unmount()
+  })
+
+  it('defaults new bots off and confirms explicitly before enabling open access', async () => {
+    api.fetchFeishuBots.mockResolvedValue([])
+    api.fetchFeishuBindings.mockResolvedValue([])
+    api.fetchFeishuDiagnostics.mockResolvedValue(diagnostics)
+    api.createFeishuBot.mockResolvedValue({ ...bot, allowedOpenIds: [] })
+    const confirm = vi.fn().mockReturnValueOnce(false).mockReturnValueOnce(true)
+    vi.stubGlobal('confirm', confirm)
+    const wrapper = mount(FeishuBotPanel)
+    await flushPromises()
+    await openManualCreate(wrapper)
+    expect((wrapper.get('.feishu-enabled-switch input').element as HTMLInputElement).checked).toBe(false)
+    const inputs = wrapper.findAll('.feishu-form-grid input')
+    await inputs[0].setValue('Open bot')
+    await inputs[1].setValue('cli_open')
+    await inputs[2].setValue('secret-value')
+    await wrapper.get('.feishu-enabled-switch input').setValue(true)
+    await wrapper.get('.feishu-open-access-field input').setValue(true)
+    expect(wrapper.text()).toContain('every person who can reach this Feishu app')
+    await wrapper.get('.feishu-form').trigger('submit')
+    expect(api.createFeishuBot).not.toHaveBeenCalled()
+    await wrapper.get('.feishu-form').trigger('submit')
+    await flushPromises()
+    expect(api.createFeishuBot).toHaveBeenCalledWith(expect.objectContaining({ enabled: true, allowAllUsers: true, allowedOpenIds: [] }))
+    expect(confirm).toHaveBeenCalledTimes(2)
+    wrapper.unmount()
+  })
+
+  it('defaults group messages to mention-required and saves an explicit higher-noise mode', async () => {
+    api.fetchFeishuBots.mockResolvedValue([])
+    api.fetchFeishuBindings.mockResolvedValue([])
+    api.fetchFeishuDiagnostics.mockResolvedValue(diagnostics)
+    api.createFeishuBot.mockResolvedValue({ ...bot, groupMentionMode: 'bound' })
+    const wrapper = mount(FeishuBotPanel)
+    await flushPromises()
+    await openManualCreate(wrapper)
+    expect((wrapper.get('input[value="always"]').element as HTMLInputElement).checked).toBe(true)
+    const inputs = wrapper.findAll('.feishu-form-grid input')
+    await inputs[0].setValue('Group bot')
+    await inputs[1].setValue('cli_group')
+    await inputs[2].setValue('secret-value')
+    await wrapper.get('input[value="bound"]').setValue(true)
+    expect(wrapper.text()).toContain('High noise risk')
+    await wrapper.get('.feishu-form').trigger('submit')
+    await flushPromises()
+    expect(api.createFeishuBot).toHaveBeenCalledWith(expect.objectContaining({ groupMentionMode: 'bound' }))
+    wrapper.unmount()
+  })
+
+  it('uses one-scan QR setup as the default creation path', async () => {
+    api.fetchFeishuBots.mockResolvedValue([])
+    api.fetchFeishuBindings.mockResolvedValue([])
+    const job = {
+      id: 'job-1', name: 'Scan bot', status: 'awaiting_scan', statusMessage: 'Please scan',
+      qrDataUrl: 'data:image/png;base64,qr', qrExpiresAtIso: null, account: null, bot: null,
+      warnings: [], error: null, canRetry: false, canCancel: true, canConfirmIdentity: false, createdAtIso: '', updatedAtIso: '',
+    }
+    api.startFeishuQrSetup.mockResolvedValue(job)
+    api.fetchFeishuQrSetup.mockResolvedValue(job)
+    vi.stubGlobal('confirm', vi.fn(() => true))
+    const wrapper = mount(FeishuBotPanel)
+    await flushPromises()
+    await wrapper.get('.feishu-empty .feishu-primary-button').trigger('click')
+    expect(wrapper.text()).toContain('Create a Feishu bot by QR code')
+    expect(wrapper.text()).toContain('Scan once')
+    await wrapper.get('.feishu-qr-name-field input').setValue('Scan bot')
+    await wrapper.get('.feishu-form').trigger('submit')
+    await flushPromises()
+    expect(api.startFeishuQrSetup).toHaveBeenCalledWith({
+      name: 'Scan bot', allowAllUsers: false, allowedOpenIds: [], groupMentionMode: 'always',
+      availability: { mode: 'creator', memberIds: [], groupIds: [] },
+    })
+    expect(wrapper.get('.feishu-qr-code').attributes('src')).toBe('data:image/png;base64,qr')
+    expect(wrapper.text()).toContain('Step 1 of 3')
+    wrapper.unmount()
+  })
+
+  it('shows persisted proof-by-proof setup evidence instead of a generic completed state', async () => {
+    api.fetchFeishuBots.mockResolvedValue([])
+    api.fetchFeishuBindings.mockResolvedValue([])
+    const checks = {
+      credentialsSaved: true, accountVerified: true, botAbilityVerified: true, scopesVerified: true,
+      messageEventVerified: true, cardCallbackVerified: true, eventLongConnectionVerified: true,
+      callbackLongConnectionVerified: true, versionPublishedVerified: true, visibilityVerified: true,
+      appEnabledVerified: true, sdkConnectionVerified: true, botIdentityVerified: true, liveProbeVerified: false,
+    }
+    const job = {
+      id: 'job-proof', name: 'Proof bot', status: 'failed', statusMessage: 'Live probe needs attention',
+      qrDataUrl: null, qrExpiresAtIso: null,
+      account: { userName: 'Alice', email: null, tenantName: 'Example' }, bot,
+      warnings: [], error: 'Live diagnostic failed', canRetry: true, canCancel: false, canConfirmIdentity: false,
+      checks, createdAtIso: '', updatedAtIso: '2026-07-18T01:00:00.000Z',
+    }
+    api.fetchFeishuQrSetups.mockResolvedValueOnce([job] as never)
+    const wrapper = mount(FeishuBotPanel)
+    await flushPromises()
+    await wrapper.get('.feishu-setup-history button').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('Verified setup evidence')
+    expect(wrapper.text()).toContain('Live OpenAPI diagnostic')
+    expect(wrapper.get('.feishu-setup-proofs header small').text()).toBe('7 / 8')
+    expect(wrapper.findAll('.feishu-setup-proofs li[data-passed="true"]')).toHaveLength(7)
+    wrapper.unmount()
+  })
+
+  it('adopts an exact existing App ID through the official scan flow', async () => {
+    api.fetchFeishuBots.mockResolvedValue([])
+    api.fetchFeishuBindings.mockResolvedValue([])
+    const job = {
+      id: 'job-adopt', name: 'Recovered bot', status: 'awaiting_scan', statusMessage: 'Please scan',
+      qrDataUrl: 'data:image/png;base64,adopt', qrExpiresAtIso: null, account: null, bot: null,
+      warnings: [], error: null, canRetry: false, canCancel: true, canConfirmIdentity: false, createdAtIso: '', updatedAtIso: '',
+    }
+    api.adoptFeishuOpenPlatformApp.mockResolvedValue(job)
+    api.fetchFeishuQrSetup.mockResolvedValue(job)
+    vi.stubGlobal('confirm', vi.fn(() => true))
+    const wrapper = mount(FeishuBotPanel)
+    await flushPromises()
+    await wrapper.get('.feishu-empty .feishu-primary-button').trigger('click')
+    await wrapper.get('.feishu-qr-name-field input').setValue('Recovered bot')
+    await wrapper.get('.feishu-existing-apps summary').trigger('click')
+    await wrapper.get('.feishu-existing-app-id input').setValue('cli_existing')
+    await wrapper.get('.feishu-existing-app-id button').trigger('click')
+    await flushPromises()
+    expect(api.adoptFeishuOpenPlatformApp).toHaveBeenCalledWith({
+      appId: 'cli_existing', name: 'Recovered bot', allowAllUsers: false, allowedOpenIds: [], groupMentionMode: 'always',
+      availability: { mode: 'creator', memberIds: [], groupIds: [] },
+    })
+    expect(wrapper.get('.feishu-qr-code').attributes('src')).toBe('data:image/png;base64,adopt')
+    wrapper.unmount()
+  })
+
+  it('requires an explicit account and organization confirmation before app creation continues', async () => {
+    api.fetchFeishuBots.mockResolvedValue([])
+    api.fetchFeishuBindings.mockResolvedValue([])
+    const confirmingJob = {
+      id: 'job-confirm', name: 'Confirm bot', status: 'confirming_identity',
+      statusMessage: 'Confirm account and organization', qrDataUrl: null, qrExpiresAtIso: null,
+      account: { userName: 'Alice', email: 'alice@example.com', tenantName: 'Example Enterprise' },
+      bot: null, warnings: [], error: null, canRetry: false, canCancel: true,
+      canConfirmIdentity: true, createdAtIso: '', updatedAtIso: '2026-07-18T01:00:00.000Z',
+    }
+    api.fetchFeishuQrSetups.mockResolvedValue([confirmingJob] as never)
+    api.confirmFeishuQrSetupIdentity.mockResolvedValue({
+      ...confirmingJob, status: 'creating_app', statusMessage: 'Creating application',
+      canCancel: false, canConfirmIdentity: false,
+    })
+    const wrapper = mount(FeishuBotPanel)
+    await flushPromises()
+    await wrapper.get('.feishu-setup-history button').trigger('click')
+    await flushPromises()
+    expect(wrapper.text()).toContain('Alice')
+    expect(wrapper.text()).toContain('Example Enterprise')
+    expect(wrapper.text()).toContain('Confirm the account and organization before creating the app')
+    const confirmButton = wrapper.findAll('.feishu-form-actions button').find((button) => button.text() === 'Confirm account and organization')
+    expect(confirmButton?.exists()).toBe(true)
+    await confirmButton?.trigger('click')
+    await flushPromises()
+    expect(api.confirmFeishuQrSetupIdentity).toHaveBeenCalledWith('job-confirm')
+    expect(wrapper.text()).toContain('Creating application')
+    wrapper.unmount()
+  })
+
+  it('reconnects bots and confirms before removing a binding', async () => {
+    api.fetchFeishuBots.mockResolvedValue([bot])
+    api.fetchFeishuBindings.mockResolvedValue([binding])
+    api.fetchFeishuDiagnostics.mockResolvedValue(diagnostics)
+    api.reconnectFeishuBot.mockResolvedValue({ ...bot, status: 'connecting' })
+    api.removeFeishuBinding.mockResolvedValue(undefined)
+    vi.stubGlobal('confirm', vi.fn(() => true))
+    const wrapper = mount(FeishuBotPanel)
+    await flushPromises()
+    const reconnectButton = wrapper.findAll('.feishu-form-actions button').find((button) => button.text() === 'Reconnect')
+    await reconnectButton?.trigger('click')
+    await flushPromises()
+    expect(api.reconnectFeishuBot).toHaveBeenCalledWith('bot-1')
+    await wrapper.get('.feishu-bindings .feishu-danger-button').trigger('click')
+    await flushPromises()
+    expect(api.removeFeishuBinding).toHaveBeenCalledWith('binding-1')
+    expect(wrapper.find('.feishu-bindings .feishu-danger-button').exists()).toBe(false)
+    wrapper.unmount()
+  })
+
+  it('shows safe health diagnostics and refreshes the selected bot', async () => {
+    api.fetchFeishuBots.mockResolvedValue([bot])
+    api.fetchFeishuBindings.mockResolvedValue([binding])
+    api.fetchFeishuDiagnostics.mockResolvedValue(diagnostics)
+    const wrapper = mount(FeishuBotPanel)
+    await flushPromises()
+    expect(wrapper.text()).toContain('Health diagnostics')
+    expect(wrapper.text()).toContain('card.update')
+    expect(wrapper.text()).toContain('rate limited')
+    expect(wrapper.text()).toContain('Retry scheduled')
+    expect(wrapper.text()).toContain('Permanently stopped')
+    expect(wrapper.text()).toContain('Message payloads, prompts, secrets, and approval contents are never returned.')
+    await wrapper.get('.feishu-diagnostics-actions .feishu-secondary-button').trigger('click')
+    await flushPromises()
+    expect(api.fetchFeishuDiagnostics).toHaveBeenCalledWith('bot-1')
+    await wrapper.get('.feishu-diagnostic-recents li .feishu-secondary-button').trigger('click')
+    await flushPromises()
+    expect(api.retryFeishuDelivery).toHaveBeenCalledWith('bot-1', 'outbox-1')
+    expect(wrapper.text()).toContain('returned to the retry queue')
+    wrapper.unmount()
+  })
+
+  it('runs a live diagnostic and renders every required connectivity proof', async () => {
+    api.fetchFeishuBots.mockResolvedValue([bot])
+    api.fetchFeishuBindings.mockResolvedValue([binding])
+    api.fetchFeishuDiagnostics.mockResolvedValue(diagnostics)
+    api.diagnoseFeishuBot.mockResolvedValue(connectivityReport)
+    const wrapper = mount(FeishuBotPanel)
+    await flushPromises()
+    await wrapper.get('.feishu-live-diagnostic-button').trigger('click')
+    await flushPromises()
+    expect(api.diagnoseFeishuBot).toHaveBeenCalledWith('bot-1')
+    expect(wrapper.text()).toContain('Live connectivity verified')
+    expect(wrapper.text()).toContain('Event long connection')
+    expect(wrapper.text()).toContain('Feishu credential API')
+    expect(wrapper.text()).toContain('Bot identity match')
+    expect(wrapper.findAll('.feishu-connectivity-report li')).toHaveLength(6)
+    wrapper.unmount()
+  })
+
+  it('requires confirmation and preserves Codex sessions when deleting a bot', async () => {
+    api.fetchFeishuBots.mockResolvedValue([bot])
+    api.fetchFeishuBindings.mockResolvedValue([binding])
+    api.fetchFeishuDiagnostics.mockResolvedValue(diagnostics)
+    api.deleteFeishuBot.mockResolvedValue({ remoteDisabled: false })
+    const confirm = vi.fn(() => true)
+    vi.stubGlobal('confirm', confirm)
+    const wrapper = mount(FeishuBotPanel)
+    await flushPromises()
+    await wrapper.get('.feishu-delete-bot-button').trigger('click')
+    await flushPromises()
+    expect(confirm).toHaveBeenCalledWith(expect.stringContaining('Shared Codex sessions will not be deleted'))
+    expect(api.deleteFeishuBot).toHaveBeenCalledWith('bot-1', 'keep')
+    expect(wrapper.text()).toContain('No Feishu bot configured')
+    wrapper.unmount()
+  })
+
+  it('requires an explicit second confirmation before disabling the remote bot', async () => {
+    api.fetchFeishuBots.mockResolvedValue([bot])
+    api.fetchFeishuBindings.mockResolvedValue([binding])
+    api.fetchFeishuDiagnostics.mockResolvedValue(diagnostics)
+    api.deleteFeishuBot.mockResolvedValue({ remoteDisabled: true })
+    const confirm = vi.fn(() => true)
+    vi.stubGlobal('confirm', confirm)
+    const wrapper = mount(FeishuBotPanel)
+    await flushPromises()
+    const remoteOption = wrapper.get('input[name="feishu-delete-mode"][value="disable"]')
+    await remoteOption.setValue(true)
+    await wrapper.get('.feishu-delete-bot-button').trigger('click')
+    await flushPromises()
+    expect(confirm).toHaveBeenCalledWith(expect.stringContaining('Disable the remote bot capability'))
+    expect(api.deleteFeishuBot).toHaveBeenCalledWith('bot-1', 'disable')
+    expect(wrapper.text()).toContain('remote Feishu bot was disabled')
+    wrapper.unmount()
+  })
+})

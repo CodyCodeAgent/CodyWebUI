@@ -73,7 +73,9 @@ import {
 const execFileAsync = promisify(execFile)
 const tempDirs: string[] = []
 
-vi.setConfig({ testTimeout: 15_000 })
+// This suite provisions real Git worktrees and can cross 15 seconds on a busy
+// CI host even though the underlying operations complete successfully.
+vi.setConfig({ testTimeout: 30_000 })
 
 async function git(cwd: string, args: string[]): Promise<string> {
   const result = await execFileAsync('git', args, { cwd, encoding: 'utf8' })
