@@ -184,6 +184,53 @@ describe('FeishuQrSetupManager', () => {
     expect(manager.get(started.id)?.account).toMatchObject({ tenantName: 'Recovered Enterprise', userName: 'Alice' })
   })
 
+  it('reauthorizes the exact persisted app when a bootstrap management scope is missing', async () => {
+    const identity = {
+      userId: 'ou_owner', openId: 'ou_owner', userName: 'Alice',
+      tenantId: 't_1', tenantName: 'Example', brand: 'feishu' as const,
+    }
+    const createApp = vi.fn(async (options: any) => {
+      if (createApp.mock.calls.length === 2) expect(options.appIdToAdopt).toBe('cli_created')
+      await options.onCredentials?.({
+        appId: 'cli_created', appSecret: 'super-secret', identity, brand: 'feishu',
+      })
+      await options.onSessionReady?.({ source: 'official_device_flow', identity, externallyConfirmed: true })
+      return {
+        ok: true as const, appId: 'cli_created', appSecret: 'super-secret', brand: 'feishu' as const,
+        registrationMethod: 'official_device_flow' as const,
+        sessionSource: 'official_device_flow' as const,
+        sessionIdentity: identity,
+      }
+    })
+    const configureOfficialApp = vi.fn()
+      .mockResolvedValueOnce({
+        ok: false as const, reason: 'api_error' as const,
+        message: '飞书错误 99991672: [application:application:patch]',
+      })
+      .mockResolvedValueOnce(successfulOfficialConfiguration())
+    const createBot = vi.fn(async () => bot(false))
+    const updateBot = vi.fn(async (_botId: string, input: any) => ({ ...bot(input.enabled === true), ...input }))
+    const manager = new FeishuQrSetupManager({
+      createBot,
+      updateBot,
+      findBotByAppId: vi.fn(async () => createApp.mock.calls.length > 1 ? bot(false) : null),
+      createApp: createApp as any,
+      refreshOfficialIdentity: vi.fn(async () => identity),
+      configureOfficialApp,
+      verifyBotConnection: verifyConnectedBot,
+    })
+
+    const started = await manager.start({ name: 'Cody Bot', allowedOpenIds: [], groupMentionMode: 'always' })
+    await vi.waitFor(() => expect(manager.get(started.id)).toMatchObject({ status: 'failed', canRetry: true }))
+    await manager.retry(started.id)
+    await vi.waitFor(() => expect(manager.get(started.id)?.status).toBe('completed'))
+
+    expect(createApp).toHaveBeenCalledTimes(2)
+    expect(createApp.mock.calls[1]?.[0]).toEqual(expect.objectContaining({ appIdToAdopt: 'cli_created' }))
+    expect(createBot).toHaveBeenCalledTimes(1)
+    expect(configureOfficialApp).toHaveBeenCalledTimes(2)
+  })
+
   it('takes over an exact existing app through the official device flow without creating a second local bot', async () => {
     const createApp = vi.fn(async (options: any) => {
       expect(options.appIdToAdopt).toBe('cli_existing')

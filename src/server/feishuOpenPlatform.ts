@@ -2222,6 +2222,13 @@ function readOfficialBotScopeManifest(): ScopeManifest {
         // confirmed. Without it, tenant.tenant.query() fails before the normal
         // configuration pass has a chance to add permissions.
         'tenant:tenant:readonly',
+        // Public self-configuration APIs are used after registration to set
+        // WebSocket modes, visibility, publish the version, and verify the bot
+        // identity. These bootstrap scopes must be granted by the scanner;
+        // an app cannot grant them to itself after credentials are issued.
+        'application:application:patch',
+        'application:application:self_manage',
+        'application:bot.basic_info:read',
         'im:message',
         'im:message.p2p_msg:readonly',
         'im:message.group_at_msg:readonly',
