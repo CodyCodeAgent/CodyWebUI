@@ -141,7 +141,7 @@ describe('parseSetupOpenPlatformAutoFlag', () => {
 });
 
 describe('official Feishu device registration', () => {
-  it('uses the official least-privilege create-only flow and carries scanner identity into credential persistence', async () => {
+  it('keeps the official agent preset and carries scanner identity into credential persistence', async () => {
     const onQrCode = vi.fn();
     const onStatus = vi.fn();
     const onSessionReady = vi.fn();
@@ -177,7 +177,7 @@ describe('official Feishu device registration', () => {
     expect(registerAppImpl).toHaveBeenCalledWith(expect.objectContaining({
       createOnly: true,
       addons: {
-        preset: false,
+        preset: true,
         scopes: { tenant: ['im:message:send_as_bot'], user: [] },
         events: { items: { tenant: ['im.message.receive_v1'], user: [] } },
         callbacks: { items: ['card.action.trigger'] },
@@ -251,7 +251,7 @@ describe('official Feishu device registration', () => {
     const call = (registerAppImpl.mock.calls as unknown as Array<[any]>)[0]?.[0];
     const tenantScopes = call?.addons.scopes.tenant as string[];
     expect(tenantScopes).toContain('tenant:tenant:readonly');
-    expect(tenantScopes).toContain('application:application:patch');
+    expect(tenantScopes).not.toContain('application:application:patch');
     expect(tenantScopes).toContain('application:application:self_manage');
     expect(tenantScopes).toContain('application:bot.basic_info:read');
     expect(tenantScopes).toContain('im:message:send_as_bot');
@@ -308,15 +308,9 @@ describe('official Feishu device registration', () => {
     }
   });
 
-  it('publishes and then readbacks scopes, websocket subscriptions, visibility, ability and bot identity', async () => {
+  it('readbacks the official preset without calling administrator-only mutation APIs', async () => {
     const client = {
       application: {
-        v7: {
-          applicationAbility: { patch: vi.fn(async () => ({ code: 0 })) },
-          applicationConfig: { patch: vi.fn(async () => ({ code: 0 })) },
-          applicationPublish: { create: vi.fn(async () => ({ code: 0, data: { version_id: 'v1' } })) },
-        },
-        applicationManagement: { update: vi.fn(async () => ({ code: 0 })) },
         scope: { list: vi.fn(async () => ({
           code: 0,
           data: { scopes: [
@@ -328,6 +322,8 @@ describe('official Feishu device registration', () => {
           data: { app: {
             status: 1,
             online_version_id: 'v1',
+            mobile_default_ability: 'bot',
+            pc_default_ability: 'bot',
             event: { subscription_type: 'websocket', subscribed_events: ['im.message.receive_v1'] },
             callback: { callback_type: 'websocket', subscribed_callbacks: ['card.action.trigger'] },
           } },
@@ -335,6 +331,7 @@ describe('official Feishu device registration', () => {
         applicationAppVersion: { get: vi.fn(async () => ({
           code: 0,
           data: { app_version: {
+            version_id: 'v1',
             ability: { bot: {} },
             remark: { visibility: { is_all: false, visible_list: { open_ids: ['ou_owner'] } } },
           } },
@@ -354,24 +351,17 @@ describe('official Feishu device registration', () => {
       eventSubscriptionReady: true, callbackSubscriptionReady: true,
       scopeReady: true, onlineVersionReady: true, appEnabledReady: true,
     });
-    expect(client.application.v7.applicationConfig.patch).toHaveBeenCalledWith(expect.objectContaining({
-      data: expect.objectContaining({
-        event: expect.objectContaining({ subscription_type: 'websocket' }),
-        callback: expect.objectContaining({ callback_type: 'websocket' }),
-        visibility: { is_visible_to_all: false, visible_list: { user_ids: ['ou_owner'], department_ids: [] } },
-      }),
-    }));
+    expect(client.application.scope.list).toHaveBeenCalledOnce();
+    expect(client.application.application.get).toHaveBeenCalledOnce();
+    expect(client.application.applicationAppVersion.get).toHaveBeenCalledWith({
+      path: { app_id: 'cli_official', version_id: 'v1' },
+      params: { lang: 'zh_cn', user_id_type: 'open_id' },
+    });
   });
 
   it('does not claim success when a required scope is still pending', async () => {
     const client = {
       application: {
-        v7: {
-          applicationAbility: { patch: vi.fn(async () => ({ code: 0 })) },
-          applicationConfig: { patch: vi.fn(async () => ({ code: 0 })) },
-          applicationPublish: { create: vi.fn(async () => ({ code: 0, data: { version_id: 'v1' } })) },
-        },
-        applicationManagement: { update: vi.fn(async () => ({ code: 0 })) },
         scope: { list: vi.fn(async () => ({ code: 0, data: { scopes: [
           { scope_name: 'im:message:send_as_bot', scope_type: 'tenant', grant_status: 1 },
         ] } })) },

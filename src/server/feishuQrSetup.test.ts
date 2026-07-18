@@ -184,13 +184,12 @@ describe('FeishuQrSetupManager', () => {
     expect(manager.get(started.id)?.account).toMatchObject({ tenantName: 'Recovered Enterprise', userName: 'Alice' })
   })
 
-  it('reauthorizes the exact persisted app when a bootstrap management scope is missing', async () => {
+  it('does not start another QR flow for the obsolete application patch permission', async () => {
     const identity = {
       userId: 'ou_owner', openId: 'ou_owner', userName: 'Alice',
       tenantId: 't_1', tenantName: 'Example', brand: 'feishu' as const,
     }
     const createApp = vi.fn(async (options: any) => {
-      if (createApp.mock.calls.length === 2) expect(options.appIdToAdopt).toBe('cli_created')
       await options.onCredentials?.({
         appId: 'cli_created', appSecret: 'super-secret', identity, brand: 'feishu',
       })
@@ -225,8 +224,7 @@ describe('FeishuQrSetupManager', () => {
     await manager.retry(started.id)
     await vi.waitFor(() => expect(manager.get(started.id)?.status).toBe('completed'))
 
-    expect(createApp).toHaveBeenCalledTimes(2)
-    expect(createApp.mock.calls[1]?.[0]).toEqual(expect.objectContaining({ appIdToAdopt: 'cli_created' }))
+    expect(createApp).toHaveBeenCalledTimes(1)
     expect(createBot).toHaveBeenCalledTimes(1)
     expect(configureOfficialApp).toHaveBeenCalledTimes(2)
   })

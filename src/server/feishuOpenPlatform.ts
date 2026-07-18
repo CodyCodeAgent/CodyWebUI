@@ -1326,7 +1326,11 @@ export async function registerOfficialFeishuOpenPlatformApp(
         desc: options.description?.trim() || 'AI coding assistant powered by CodyWebUI',
       },
       addons: {
-        preset: false,
+        // Keep Feishu's official agent template. It already provisions the
+        // bot ability, publishes the app and configures WebSocket events and
+        // callbacks. `preset: false` drops that template and leaves us trying
+        // to rebuild it through administrator-only application.v7 APIs.
+        preset: true,
         scopes: {
           tenant: [...new Set(manifest.scopes?.tenant ?? [])],
           user: [...new Set(manifest.scopes?.user ?? [])],
@@ -1480,10 +1484,11 @@ function sameStringSet(actual: readonly string[] | undefined, expected: readonly
 }
 
 /**
- * Configure and then read back every critical public setting. A successful
- * write alone is never treated as completion. `grant_status === 2` is the
- * platform's effective/granted state; every other value fails closed and is
- * included in the error for real-tenant diagnosis.
+ * Verify every critical setting provisioned by Feishu's official one-click
+ * agent template. The application credential owns `self_manage`, not the
+ * tenant administrator's `application:application:patch` scope, so this path
+ * intentionally performs no application.v7 mutation. `grant_status === 2`
+ * is the platform's effective/granted state; every other value fails closed.
  */
 export async function configureOfficialFeishuOpenPlatformApp(
   options: ConfigureOfficialFeishuAppOptions,
@@ -1503,68 +1508,10 @@ export async function configureOfficialFeishuOpenPlatformApp(
   }
 
   try {
-    const abilityResponse = await client.application.v7.applicationAbility.patch({
-      path: { app_id: options.appId },
-      data: { bot: { enable: true } },
-    });
-    ensureSdkResponse(abilityResponse, '开启机器人能力');
-
-    const configResponse = await client.application.v7.applicationConfig.patch({
-      path: { app_id: options.appId },
-      params: { user_id_type: 'open_id' },
-      data: {
-        scope: {
-          add_scopes: [
-            ...tenantScopes.map((scope_name) => ({ scope_name, token_type: 'tenant' as const })),
-            ...userScopes.map((scope_name) => ({ scope_name, token_type: 'user' as const })),
-          ],
-        },
-        event: {
-          subscription_type: 'websocket',
-          add_events: [...BOT_BASELINE_APP_EVENTS],
-        },
-        callback: {
-          callback_type: 'websocket',
-          add_callbacks: [...BOT_BASELINE_CALLBACKS],
-        },
-        visibility: {
-          is_visible_to_all: options.visibility.isVisibleToAll,
-          ...(!options.visibility.isVisibleToAll
-            ? { visible_list: { user_ids: visibleUsers, department_ids: [] } }
-            : {}),
-        },
-        contacts: { contacts_range_type: 'equal_to_availability' },
-      },
-    });
-    ensureSdkResponse(configResponse, '更新权限、事件、回调与可见范围');
-
-    const publishResponse = await client.application.v7.applicationPublish.create({
-      path: { app_id: options.appId },
-      data: {
-        mobile_default_ability: 'bot',
-        pc_default_ability: 'bot',
-        remark: 'CodyWebUI automatic verified release',
-        changelog: 'Configure bot, least-privilege scopes, WebSocket events and callbacks',
-      },
-    });
-    ensureSdkResponse(publishResponse, '创建并发布应用版本');
-    const versionId = publishResponse.data?.version_id?.trim() ?? '';
-    if (!versionId) throw new Error('发布接口成功但未返回 version_id');
-
-    const managementResponse = await client.application.applicationManagement.update({
-      path: { app_id: options.appId },
-      data: { enable: true },
-    });
-    ensureSdkResponse(managementResponse, '启用应用');
-
-    const [scopeResponse, appResponse, versionResponse, botResponse] = await Promise.all([
+    const [scopeResponse, appResponse, botResponse] = await Promise.all([
       client.application.scope.list(),
       client.application.application.get({
         path: { app_id: options.appId },
-        params: { lang: 'zh_cn', user_id_type: 'open_id' },
-      }),
-      client.application.applicationAppVersion.get({
-        path: { app_id: options.appId, version_id: versionId },
         params: { lang: 'zh_cn', user_id_type: 'open_id' },
       }),
       client.request<{ code?: number; msg?: string; bot?: { open_id?: string; app_name?: string } }>({
@@ -1574,7 +1521,6 @@ export async function configureOfficialFeishuOpenPlatformApp(
     ]);
     ensureSdkResponse(scopeResponse, '回读权限');
     ensureSdkResponse(appResponse, '回读应用配置');
-    ensureSdkResponse(versionResponse, '回读发布版本');
     ensureSdkResponse(botResponse, '回读机器人身份');
 
     const scopeRows = scopeResponse.data?.scopes ?? [];
@@ -1598,6 +1544,15 @@ export async function configureOfficialFeishuOpenPlatformApp(
     }
 
     const app = appResponse.data?.app;
+    const versionId = app?.online_version_id?.trim() ?? '';
+    if (!versionId) {
+      return { ok: false, reason: 'configuration_verification_failed', message: '飞书一键创建完成后未发现已上线版本' };
+    }
+    const versionResponse = await client.application.applicationAppVersion.get({
+      path: { app_id: options.appId, version_id: versionId },
+      params: { lang: 'zh_cn', user_id_type: 'open_id' },
+    });
+    ensureSdkResponse(versionResponse, '回读发布版本');
     const eventNames = sortedUnique(app?.event?.subscribed_events ?? []);
     const callbackNames = sortedUnique(app?.callback?.subscribed_callbacks ?? app?.callback_info?.subscribed_callbacks ?? []);
     const eventModeReady = app?.event?.subscription_type === 'websocket';
@@ -1605,17 +1560,19 @@ export async function configureOfficialFeishuOpenPlatformApp(
     const callbackModeReady = callbackMode === 'websocket';
     const eventsReady = BOT_CRITICAL_APP_EVENTS.every((event) => eventNames.includes(event));
     const callbacksReady = BOT_BASELINE_CALLBACKS.every((callback) => callbackNames.includes(callback));
-    const onlineVersionReady = app?.online_version_id === versionId;
+    const onlineVersionReady = Boolean(versionResponse.data?.app_version?.version_id === versionId);
     const appEnabledReady = app?.status === 1;
 
     const version = versionResponse.data?.app_version;
-    const botAbilityReady = Boolean(version?.ability?.bot);
+    const botOpenId = botResponse.bot?.open_id?.trim() ?? '';
+    const botAbilityReady = Boolean(version?.ability?.bot
+      || app?.mobile_default_ability === 'bot'
+      || app?.pc_default_ability === 'bot') && Boolean(botOpenId);
     const versionVisibility = version?.remark?.visibility;
     const visibilityReady = options.visibility.isVisibleToAll
       ? versionVisibility?.is_all === true
       : versionVisibility?.is_all !== true
         && sameStringSet(versionVisibility?.visible_list?.open_ids, visibleUsers);
-    const botOpenId = botResponse.bot?.open_id?.trim() ?? '';
     if (!eventModeReady || !callbackModeReady || !eventsReady || !callbacksReady
       || !onlineVersionReady || !appEnabledReady || !botAbilityReady || !visibilityReady || !botOpenId) {
       const failed = [
@@ -1627,7 +1584,7 @@ export async function configureOfficialFeishuOpenPlatformApp(
         !visibilityReady && '可见范围',
         !botOpenId && '机器人身份',
       ].filter(Boolean).join('、');
-      return { ok: false, reason: 'configuration_verification_failed', message: `配置写入后回读未通过: ${failed}` };
+      return { ok: false, reason: 'configuration_verification_failed', message: `飞书预置配置回读未通过: ${failed}` };
     }
 
     return {
@@ -2249,14 +2206,12 @@ function readOfficialBotScopeManifest(): ScopeManifest {
         // confirmed. Without it, tenant.tenant.query() fails before the normal
         // configuration pass has a chance to add permissions.
         'tenant:tenant:readonly',
-        // Public self-configuration APIs are used after registration to set
-        // WebSocket modes, visibility, publish the version, and verify the bot
-        // identity. These bootstrap scopes must be granted by the scanner;
-        // an app cannot grant them to itself after credentials are issued.
-        'application:application:patch',
+        // The official one-click agent template grants self-management and
+        // the runtime permissions below. Never request the tenant-admin
+        // application:application:patch scope: a newly created app cannot use
+        // its own credentials to grant or exercise that permission.
         'application:application:self_manage',
         'application:bot.basic_info:read',
-        'im:message',
         'im:message.p2p_msg:readonly',
         'im:message.group_at_msg:readonly',
         'im:message.group_at_msg.include_bot:readonly',
