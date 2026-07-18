@@ -122,7 +122,6 @@ const ACTIVE_STATUSES = new Set<FeishuQrSetupStatus>([
 
 const REQUIRED_SETUP_CHECKS = Object.keys(emptyFeishuSetupChecks()) as Array<keyof FeishuSetupChecks>
 const OFFICIAL_REAUTHORIZATION_SCOPES = [
-  'application:application:patch',
   'application:application:self_manage',
   'application:bot.basic_info:read',
 ] as const
