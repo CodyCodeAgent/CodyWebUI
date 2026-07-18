@@ -36,14 +36,28 @@ describe('FeishuCodexGateway', () => {
     })
     const gateway = new FeishuCodexGateway({ rpc, respondToServerRequest: vi.fn(), readCatalog: vi.fn(async () => catalog) })
     await expect(gateway.startSession('/repo')).resolves.toMatchObject({ id: 'thread-new', cwd: '/repo' })
+    await expect(gateway.isThreadBusy('thread-new')).resolves.toBe(false)
+    await expect(gateway.findActiveTurnId('thread-new')).resolves.toBeNull()
     await expect(gateway.startTurn('thread-new', 'Ship it', ['/private/one.png', '  ', '/private/two.jpg'])).resolves.toEqual({ threadId: 'thread-new', turnId: 'turn-new' })
-    expect(rpc).toHaveBeenNthCalledWith(2, 'thread/resume', { threadId: 'thread-new' })
-    expect(rpc).toHaveBeenNthCalledWith(3, 'turn/start', {
+    expect(rpc).toHaveBeenNthCalledWith(2, 'turn/start', {
       threadId: 'thread-new', input: [
         { type: 'text', text: 'Ship it', text_elements: [] },
         { type: 'localImage', path: '/private/one.png' },
         { type: 'localImage', path: '/private/two.jpg' },
       ],
+    })
+    expect(rpc).not.toHaveBeenCalledWith('thread/read', expect.anything())
+    expect(rpc).not.toHaveBeenCalledWith('thread/resume', expect.anything())
+  })
+
+  it('resumes a materialized session before starting another turn', async () => {
+    const rpc = vi.fn(async (method: string) => method === 'turn/start' ? { turn: { id: 'turn-next' } } : {})
+    const gateway = new FeishuCodexGateway({ rpc, respondToServerRequest: vi.fn(), readCatalog: vi.fn(async () => catalog) })
+
+    await expect(gateway.startTurn('thread-1', 'Continue')).resolves.toEqual({ threadId: 'thread-1', turnId: 'turn-next' })
+    expect(rpc).toHaveBeenNthCalledWith(1, 'thread/resume', { threadId: 'thread-1' })
+    expect(rpc).toHaveBeenNthCalledWith(2, 'turn/start', {
+      threadId: 'thread-1', input: [{ type: 'text', text: 'Continue', text_elements: [] }],
     })
   })
 

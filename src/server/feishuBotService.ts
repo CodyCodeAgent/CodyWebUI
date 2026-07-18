@@ -1920,7 +1920,19 @@ export class FeishuBotService {
       this.queuedTurnsByThread.set(binding.threadId, queue)
       return
     }
-    if (this.externalBusyThreads.has(binding.threadId) || await this.dependencies.turns.isThreadBusy?.(binding.threadId)) {
+    let externallyBusy = this.externalBusyThreads.has(binding.threadId)
+    if (!externallyBusy && this.dependencies.turns.isThreadBusy) {
+      try {
+        externallyBusy = await this.dependencies.turns.isThreadBusy(binding.threadId)
+      } catch (error) {
+        // A newly created app-server thread is intentionally unreadable until
+        // its first turn materializes it. More generally, a failed advisory
+        // busy check must not strand a durable Feishu turn forever: turn/start
+        // is authoritative and will report an active-turn conflict if needed.
+        this.log('warn', `Unable to read Codex thread busy state; attempting the turn directly: ${String(error)}`)
+      }
+    }
+    if (externallyBusy) {
       this.externalBusyThreads.add(binding.threadId)
       const queue = this.queuedTurnsByThread.get(binding.threadId) ?? []
       queue.push({ active, prompt, sourceMessageId, resources })
@@ -2024,7 +2036,15 @@ export class FeishuBotService {
   private async startNextQueuedTurn(threadId: string): Promise<void> {
     if (this.activeTurnsByThread.has(threadId)) return
     if (this.externalBusyThreads.has(threadId)) return
-    if (await this.dependencies.turns.isThreadBusy?.(threadId)) {
+    let externallyBusy = false
+    if (this.dependencies.turns.isThreadBusy) {
+      try {
+        externallyBusy = await this.dependencies.turns.isThreadBusy(threadId)
+      } catch (error) {
+        this.log('warn', `Unable to read queued Codex thread busy state; attempting the turn directly: ${String(error)}`)
+      }
+    }
+    if (externallyBusy) {
       this.externalBusyThreads.add(threadId)
       return
     }

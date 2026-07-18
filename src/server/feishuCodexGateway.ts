@@ -60,6 +60,8 @@ function mapThread(thread: CatalogThread): FeishuSessionOption {
 }
 
 export class FeishuCodexGateway {
+  private readonly freshThreadIds = new Set<string>()
+
   constructor(private readonly dependencies: {
     rpc: Rpc
     respondToServerRequest: RespondToServerRequest
@@ -100,6 +102,11 @@ export class FeishuCodexGateway {
     const thread = asRecord(payload?.thread)
     const id = readString(thread?.id)
     if (!id) throw new Error('thread/start did not return a thread id')
+    // A thread/start result exists only in the app-server process until its
+    // first user turn materializes the rollout. thread/read(includeTurns) and
+    // thread/resume reject that valid intermediate state, so remember it and
+    // send the first turn directly.
+    this.freshThreadIds.add(id)
     return { id, title: readString(thread?.name) || readString(thread?.title) || 'New session', cwd: normalizedCwd }
   }
 
@@ -109,7 +116,8 @@ export class FeishuCodexGateway {
     if (!normalizedThreadId) throw new Error('A thread id is required to start a turn')
     if (!normalizedText) throw new Error('A text message is required to start a turn')
 
-    await this.dependencies.rpc('thread/resume', { threadId: normalizedThreadId })
+    const isFreshThread = this.freshThreadIds.has(normalizedThreadId)
+    if (!isFreshThread) await this.dependencies.rpc('thread/resume', { threadId: normalizedThreadId })
     const input: Array<Record<string, unknown>> = [
       { type: 'text', text: normalizedText, text_elements: [] },
       ...localImagePaths
@@ -124,6 +132,7 @@ export class FeishuCodexGateway {
     const turn = asRecord(payload?.turn)
     const turnId = readString(turn?.id)
     if (!turnId) throw new Error('turn/start did not return a turn id')
+    this.freshThreadIds.delete(normalizedThreadId)
     return { threadId: normalizedThreadId, turnId }
   }
 
@@ -137,6 +146,7 @@ export class FeishuCodexGateway {
   async isThreadBusy(threadId: string): Promise<boolean> {
     const normalizedThreadId = threadId.trim()
     if (!normalizedThreadId) return false
+    if (this.freshThreadIds.has(normalizedThreadId)) return false
     const payload = asRecord(await this.dependencies.rpc('thread/read', {
       threadId: normalizedThreadId,
       includeTurns: true,
@@ -148,6 +158,7 @@ export class FeishuCodexGateway {
   async findActiveTurnId(threadId: string): Promise<string | null> {
     const normalizedThreadId = threadId.trim()
     if (!normalizedThreadId) return null
+    if (this.freshThreadIds.has(normalizedThreadId)) return null
     const payload = asRecord(await this.dependencies.rpc('thread/read', {
       threadId: normalizedThreadId,
       includeTurns: true,

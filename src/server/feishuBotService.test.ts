@@ -393,6 +393,24 @@ describe('FeishuBotService', () => {
     await service.stop()
   })
 
+  it('starts the authoritative turn when an advisory busy check cannot read a fresh thread', async () => {
+    const isThreadBusy = vi.fn(async () => {
+      throw new Error('thread thread-new is not materialized yet; includeTurns is unavailable before first user message')
+    })
+    const freshBinding = { ...binding(), threadId: 'thread-new', threadTitle: 'New session' }
+    const { service, transport, startTurn } = harness(freshBinding, { isThreadBusy })
+    await service.start()
+
+    transport.handlers?.onMessage(inbound())
+
+    await vi.waitFor(() => expect(startTurn).toHaveBeenCalledOnce())
+    expect(startTurn).toHaveBeenCalledWith(expect.objectContaining({
+      threadId: 'thread-new', prompt: 'hello', source: 'feishu',
+    }))
+    expect(transport.cards.some((row) => row.kind === 'reply')).toBe(true)
+    await service.stop()
+  })
+
   it('queues messages for a busy shared thread and starts the next turn only after completion', async () => {
     const binding: FeishuSessionBinding = {
       botId: 'bot-1', bindingKey: 'bot-1:group:oc_1:oc_1', chatId: 'oc_1', rootId: '', chatType: 'group',
