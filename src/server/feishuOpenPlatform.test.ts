@@ -277,6 +277,37 @@ describe('official Feishu device registration', () => {
     }));
   });
 
+  it('caps the displayed QR lifetime and expires when CodyWebUI maxWaitMs is reached', async () => {
+    vi.useFakeTimers();
+    try {
+      const onQrCode = vi.fn();
+      const registerAppImpl = vi.fn(async (options: any) => {
+        options.onQRCodeReady({ url: 'https://open.feishu.cn/page/launcher?user_code=one', expireIn: 3_600 });
+        return await new Promise((_resolve, reject) => {
+          options.signal.addEventListener('abort', () => reject({ code: 'abort', description: 'Registration was aborted' }), { once: true });
+        });
+      });
+      const pending = registerOfficialFeishuOpenPlatformApp({
+        name: 'Timeout Bot',
+        maxWaitMs: 180_000,
+        registerAppImpl: registerAppImpl as any,
+        onQrCode,
+      });
+
+      await vi.advanceTimersByTimeAsync(1);
+      expect(onQrCode).toHaveBeenCalledWith(expect.objectContaining({ expireIn: 180 }));
+      await vi.advanceTimersByTimeAsync(180_000);
+
+      await expect(pending).resolves.toMatchObject({
+        ok: false,
+        reason: 'qr_expired',
+        message: '飞书扫码确认超时，请重新发起',
+      });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('publishes and then readbacks scopes, websocket subscriptions, visibility, ability and bot identity', async () => {
     const client = {
       application: {

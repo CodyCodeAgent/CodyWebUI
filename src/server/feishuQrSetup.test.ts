@@ -440,6 +440,31 @@ describe('FeishuQrSetupManager', () => {
     await manager.stop()
   })
 
+  it('marks a timed-out official QR as expired and releases the active setup slot', async () => {
+    const createApp = vi.fn(async () => ({
+      ok: false as const,
+      reason: 'qr_expired' as const,
+      message: '飞书扫码确认超时，请重新发起',
+    }))
+    const manager = new FeishuQrSetupManager({
+      createBot: vi.fn(async () => bot(false)),
+      updateBot: vi.fn(async () => bot(true)),
+      createApp: createApp as any,
+    })
+
+    const first = await manager.start({ name: 'Expired One', allowedOpenIds: [], groupMentionMode: 'always' })
+    await vi.waitFor(() => expect(manager.get(first.id)).toMatchObject({
+      status: 'expired',
+      statusMessage: '二维码已过期，请重新发起',
+      error: '飞书扫码确认超时，请重新发起',
+      canCancel: false,
+    }))
+
+    const second = await manager.start({ name: 'Expired Two', allowedOpenIds: [], groupMentionMode: 'always' })
+    await vi.waitFor(() => expect(manager.get(second.id)?.status).toBe('expired'))
+    expect(createApp).toHaveBeenCalledTimes(2)
+  })
+
   it('resumes a persisted post-credential setup without creating another app', async () => {
     const persisted: StoredFeishuQrSetupJob = {
       id: 'job-restart', name: 'Cody Bot', status: 'configuring', statusMessage: 'configuring',
