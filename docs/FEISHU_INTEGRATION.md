@@ -416,6 +416,13 @@ with:
 curl http://127.0.0.1:3000/codex-api/meta/version
 ```
 
+The service launcher also imports standard proxy variables from the user's
+login shell when a non-interactive deployment did not provide them. This is
+important for Feishu-bound Sessions because the Feishu long connection can be
+healthy while the colocated Codex app-server is unable to reach its upstream.
+Use `CODY_IMPORT_LOGIN_PROXY_ENV=0` to opt out, or provide the proxy variables
+explicitly when starting the service.
+
 After deployment, open the selected bot and choose **Run live diagnostic**.
 “Live connectivity verified” means all six checks passed in that invocation;
 the passive delivery/turn/card counters alone are not connectivity proof.

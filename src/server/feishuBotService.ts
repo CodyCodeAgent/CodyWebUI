@@ -897,6 +897,11 @@ export class FeishuBotService {
       return
     }
     if (!active) return
+    if (notification.method === 'turn/started') {
+      if (turnId && !active.turnId) active.turnId = turnId
+      active.state = 'running'
+      return
+    }
     const { delta, completedText } = notificationDelta(notification)
     if (completedText) active.content = completedText
     else if (delta) active.content += delta
@@ -907,15 +912,49 @@ export class FeishuBotService {
       void this.patchActiveTurn(active, true)
       return
     }
-    if (notification.method === 'turn/failed' || notification.method === 'error') {
+    if (notification.method === 'turn/failed') {
       active.error = turnError(notification) || 'Codex 执行失败'
       active.state = 'failed'
       void this.patchActiveTurn(active, true)
       return
     }
+    if (notification.method === 'error') {
+      // Codex emits transient, turn-scoped `error` notifications while its
+      // upstream connection is retrying (for example "Reconnecting... 2/5").
+      // The authoritative turn remains inProgress in that case. Treating this
+      // notification as terminal makes the Feishu card fail early while the
+      // still-running Codex turn keeps the shared Session busy forever.
+      void this.reconcileActiveTurnError(active, turnError(notification) || 'Codex 连接暂时异常')
+      return
+    }
     if (delta || completedText) {
       active.state = 'running'
       this.scheduleStreamPatch(active)
+    }
+  }
+
+  private async reconcileActiveTurnError(active: ActiveTurnCard, notificationError: string): Promise<void> {
+    const readTurnState = this.dependencies.turns.readTurnState
+    if (!readTurnState || !active.turnId) {
+      this.log('warn', `Non-terminal Codex error for ${active.binding.threadId}: ${notificationError}`)
+      return
+    }
+    try {
+      const authoritative = await readTurnState(active.binding.threadId, active.turnId)
+      if (authoritative.status === 'running') {
+        this.log('warn', `Codex turn ${active.turnId} is reconnecting but still active: ${notificationError}`)
+        return
+      }
+      active.content = authoritative.responseText || active.content
+      active.error = authoritative.error || (authoritative.status === 'missing' ? notificationError : '')
+      active.state = authoritative.status === 'failed' || authoritative.status === 'missing'
+        ? 'failed'
+        : authoritative.status === 'cancelled'
+          ? 'stopped'
+          : 'completed'
+      await this.patchActiveTurn(active, true)
+    } catch (error) {
+      this.log('warn', `Failed to reconcile Codex error for turn ${active.turnId}; keeping it active: ${String(error)}`)
     }
   }
 
@@ -1941,6 +1980,10 @@ export class FeishuBotService {
         },
       })
       active.turnId = result.turnId
+      // Notifications can overtake the turn/start RPC response. Do not revive
+      // a turn that already reached a terminal state while the RPC was in
+      // flight; its terminal patch has already released the shared queue.
+      if (['completed', 'failed', 'stopped'].includes(active.state)) return
       active.state = 'running'
       if (active.durableTurnId) {
         await this.dependencies.lifecycle?.updateTurn(active.durableTurnId, {
@@ -1969,6 +2012,7 @@ export class FeishuBotService {
       active.error = message
       if (active.durableTurnId) {
         await this.dependencies.lifecycle?.updateTurn(active.durableTurnId, {
+          turnId: active.turnId,
           status: 'failed',
           lastError: active.error,
         })

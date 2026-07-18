@@ -17,6 +17,28 @@ HOST="${CODY_HOST:-127.0.0.1}"
 PORT="${CODY_PORT:-3000}"
 PASSWORD="${CODY_PASSWORD:-}"
 
+# Non-interactive SSH/deployment shells commonly skip the user's login shell
+# startup files. That can silently drop the proxy environment required by the
+# Codex app-server even though interactive `codex` and `curl` calls work. Import
+# only proxy-related variables from the configured login shell, preserving any
+# values explicitly supplied to this service command.
+load_login_proxy_env() {
+  [[ "${CODY_IMPORT_LOGIN_PROXY_ENV:-1}" != "0" ]] || return 0
+  local login_shell="${SHELL:-}"
+  [[ -n "$login_shell" && -x "$login_shell" ]] || return 0
+  local line name value
+  while IFS= read -r line; do
+    [[ "$line" == *=* ]] || continue
+    name="${line%%=*}"
+    value="${line#*=}"
+    case "$name" in
+      HTTP_PROXY|HTTPS_PROXY|ALL_PROXY|NO_PROXY|http_proxy|https_proxy|all_proxy|no_proxy)
+        [[ -n "${!name:-}" ]] || { printf -v "$name" '%s' "$value"; export "$name"; }
+        ;;
+    esac
+  done < <("$login_shell" -lic 'env' 2>/dev/null)
+}
+
 read_pid() { [[ -f "$PID_FILE" ]] || return 1; local pid; pid="$(tr -dc '0-9' < "$PID_FILE")"; [[ -n "$pid" ]] || return 1; printf '%s' "$pid"; }
 is_our_process() { local command; kill -0 "$1" 2>/dev/null || return 1; command="$(ps -p "$1" -o command= 2>/dev/null || true)"; [[ "$command" == *"$PROJECT_DIR/dist-cli/index.js"* ]]; }
 find_our_pids() {
@@ -49,6 +71,7 @@ start_service() {
   local pid pids args
   pids="$(find_our_pids)"
   if [[ -n "$pids" ]]; then echo "CodyWebUI is already running (PID(s) ${pids//$'\n'/,})."; return 0; fi
+  load_login_proxy_env
   rm -f "$PID_FILE"; args=("$PROJECT_DIR/dist-cli/index.js" --host "$HOST" --port "$PORT")
   if [[ -n "$PASSWORD" ]]; then args+=(--password "$PASSWORD")
   elif [[ "$HOST" == "127.0.0.1" || "$HOST" == "localhost" || "$HOST" == "::1" ]]; then args+=(--no-password)

@@ -113,6 +113,11 @@ function harness(binding?: FeishuSessionBinding, options: {
   bot?: FeishuBotDefinition
   isThreadBusy?: (threadId: string) => Promise<boolean>
   findActiveTurnId?: (threadId: string) => Promise<string | null>
+  readTurnState?: (threadId: string, turnId: string) => Promise<{
+    status: 'running' | 'completed' | 'failed' | 'cancelled' | 'missing'
+    responseText?: string
+    error?: string
+  }>
 } = {}) {
   const store = new MemoryStore(options.bot)
   if (binding) store.bindings.set(binding.bindingKey, binding)
@@ -143,6 +148,7 @@ function harness(binding?: FeishuSessionBinding, options: {
       stopTurn,
       ...(options.isThreadBusy ? { isThreadBusy: options.isThreadBusy } : {}),
       ...(options.findActiveTurnId ? { findActiveTurnId: options.findActiveTurnId } : {}),
+      ...(options.readTurnState ? { readTurnState: options.readTurnState } : {}),
     },
     approvals: { resolve: approvalResolve },
     serverRequests: { respond: respondServerRequest },
@@ -405,6 +411,35 @@ describe('FeishuBotService', () => {
     expect(startTurn).toHaveBeenCalledTimes(1)
 
     service.handleAppServerNotification({ method: 'turn/completed', params: { threadId: 'thread-1', turn: { id: 'turn-1', status: 'completed' } } })
+    await vi.waitFor(() => expect(startTurn).toHaveBeenCalledTimes(2))
+    expect(startTurn).toHaveBeenLastCalledWith(expect.objectContaining({ prompt: 'second' }))
+    await service.stop()
+  })
+
+  it('keeps a reconnecting Codex turn active until an authoritative terminal notification', async () => {
+    const readTurnState = vi.fn(async () => ({ status: 'running' as const }))
+    const { service, transport, startTurn } = harness(binding(), { readTurnState })
+    await service.start()
+    transport.handlers?.onMessage(inbound())
+    await vi.waitFor(() => expect(startTurn).toHaveBeenCalledTimes(1))
+
+    const second = inbound({ message_id: 'om_2', content: JSON.stringify({ text: '@_user_1 second' }) })
+    second.event_id = 'event-2'
+    transport.handlers?.onMessage(second)
+    await vi.waitFor(() => expect(transport.cards.filter((row) => row.kind === 'reply')).toHaveLength(2))
+
+    service.handleAppServerNotification({
+      method: 'error',
+      params: { threadId: 'thread-1', turnId: 'turn-1', message: 'Reconnecting... 2/5' },
+    })
+    await vi.waitFor(() => expect(readTurnState).toHaveBeenCalledWith('thread-1', 'turn-1'))
+    expect(startTurn).toHaveBeenCalledTimes(1)
+    expect(transport.cards.some((row) => row.kind === 'patch' && JSON.stringify(row.card).includes('Reconnecting... 2/5'))).toBe(false)
+
+    service.handleAppServerNotification({
+      method: 'turn/completed',
+      params: { threadId: 'thread-1', turn: { id: 'turn-1', status: 'completed' } },
+    })
     await vi.waitFor(() => expect(startTurn).toHaveBeenCalledTimes(2))
     expect(startTurn).toHaveBeenLastCalledWith(expect.objectContaining({ prompt: 'second' }))
     await service.stop()

@@ -179,6 +179,14 @@ listener through environment variables before deploying:
 CODY_HOST=0.0.0.0 CODY_PORT=8080 CODY_PASSWORD='replace-me' npm run deploy
 ```
 
+When a non-interactive SSH command starts the service, CodyWebUI imports only
+the standard proxy variables (`HTTP_PROXY`, `HTTPS_PROXY`, `ALL_PROXY`,
+`NO_PROXY`, including lowercase variants) from the user's login shell if they
+were not already provided. This keeps the Codex app-server network path aligned
+with an interactive `codex` session. Set `CODY_IMPORT_LOGIN_PROXY_ENV=0` to
+disable this behavior, or define the proxy variables explicitly in the service
+environment.
+
 `CODY_PASSWORD` is mandatory for non-loopback hosts. Service lifecycle commands
 are also available independently:
 
