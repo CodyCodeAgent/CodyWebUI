@@ -2539,6 +2539,8 @@ export class FeishuBotService {
     if (inbound.chatType === 'group' && allowedChatIds.length > 0 && !allowedChatIds.includes(inbound.chatId)) return
     // Never react to ambient group traffic from an unauthorized member.
     if (inbound.chatType === 'group' && !inbound.explicitlyMentioned) return
+    // A message that also names another user/app is not an unambiguous request to this bot.
+    if (inbound.hasNonBotMention) return
     if (bot.allowAllUsers || bot.allowedOpenIds.includes(inbound.senderOpenId)) return
     const ownerOpenId = bot.allowedOpenIds[0]
     if (!ownerOpenId || !runtime.transport.sendUserCard || !this.dependencies.access) return

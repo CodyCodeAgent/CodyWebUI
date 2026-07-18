@@ -85,8 +85,9 @@ allow-list member—a signed approval card and tells the requester to wait. An
 approval atomically adds only that exact `open_id`; it never enables broad
 access. The requester can then retry and use the same group/topic Session.
 Ambient unmentioned group messages and messages from a group outside
-`allowedChatIds` never create an access request. Approval tokens are signed,
-expire after seven days, and cannot be edited to grant a different identity.
+`allowedChatIds` never create an access request. Ambiguous messages that also
+mention another user/app stay silent. Approval tokens are signed, expire after
+seven days, and cannot be edited to grant a different identity.
 
 ## Multiple bots and management
 

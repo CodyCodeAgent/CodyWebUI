@@ -488,6 +488,29 @@ describe('FeishuBotService', () => {
     await service.stop()
   })
 
+  it('does not create access requests from ambiguous multi-mention group traffic', async () => {
+    const { service, store, transport } = harness(binding(), {
+      bot: { ...bot, allowedOpenIds: ['ou_owner'], allowAllUsers: false },
+    })
+    await service.start()
+    const request = inbound({
+      message_id: 'om_access_ambiguous',
+      content: JSON.stringify({ text: '@_user_1 @_user_2 hello' }),
+      mentions: [
+        { key: '@_user_1', name: 'Cody', id: { open_id: 'ou_bot' } },
+        { key: '@_user_2', name: 'Colleague', id: { open_id: 'ou_colleague' } },
+      ],
+    })
+    request.event_id = 'event-access-ambiguous'
+    ;((request.sender as Record<string, unknown>).sender_id as Record<string, unknown>).open_id = 'ou_guest'
+    transport.handlers?.onMessage(request)
+    await new Promise((resolve) => setImmediate(resolve))
+    expect(transport.cards).toHaveLength(0)
+    expect(transport.texts).toHaveLength(0)
+    expect(store.seen.size).toBe(0)
+    await service.stop()
+  })
+
   it('enforces a configured group-chat allowlist before claiming the event', async () => {
     const denied = harness(undefined, {
       bot: { ...bot, allowedChatIds: ['oc_allowed'] },
