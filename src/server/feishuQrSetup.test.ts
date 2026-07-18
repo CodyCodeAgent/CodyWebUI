@@ -184,7 +184,7 @@ describe('FeishuQrSetupManager', () => {
     expect(manager.get(started.id)?.account).toMatchObject({ tenantName: 'Recovered Enterprise', userName: 'Alice' })
   })
 
-  it('does not start another QR flow for the obsolete application patch permission', async () => {
+  it('does not start another QR flow from a scope readback verification error', async () => {
     const identity = {
       userId: 'ou_owner', openId: 'ou_owner', userName: 'Alice',
       tenantId: 't_1', tenantName: 'Example', brand: 'feishu' as const,
@@ -203,8 +203,8 @@ describe('FeishuQrSetupManager', () => {
     })
     const configureOfficialApp = vi.fn()
       .mockResolvedValueOnce({
-        ok: false as const, reason: 'api_error' as const,
-        message: '飞书错误 99991672: [application:application:patch]',
+        ok: false as const, reason: 'scope_verification_failed' as const,
+        message: '权限尚未全部生效: application:application:self_manage:tenant；当前状态 application:application:self_manage:tenant=1',
       })
       .mockResolvedValueOnce(successfulOfficialConfiguration())
     const createBot = vi.fn(async () => bot(false))

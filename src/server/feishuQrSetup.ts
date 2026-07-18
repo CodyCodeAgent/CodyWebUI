@@ -402,6 +402,7 @@ export class FeishuQrSetupManager {
     if (!job.canRetry || !job.appId || !job.bot) return publicJob(job)
     job.controller = new AbortController()
     const needsOfficialReauthorization = job.registrationMethod === 'official_device_flow'
+      && Boolean(job.error?.includes('99991672'))
       && OFFICIAL_REAUTHORIZATION_SCOPES.some((scope) => job.error?.includes(scope))
     if (needsOfficialReauthorization) {
       await this.patchAndPersist(job, {
