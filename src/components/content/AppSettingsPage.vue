@@ -25,6 +25,10 @@
           <dd>{{ BUILD_INFO.version }}</dd>
         </div>
         <div>
+          <dt>{{ t('settings.about.buildId') }}</dt>
+          <dd>{{ BUILD_INFO.buildId }}</dd>
+        </div>
+        <div>
           <dt>{{ t('settings.about.gitSha') }}</dt>
           <dd>{{ BUILD_INFO.gitSha }}</dd>
         </div>
@@ -76,6 +80,16 @@
           <dd>{{ formatCatalogTime(catalogStatus?.nextRunAtIso) }}</dd>
         </div>
       </dl>
+    </section>
+
+    <section v-show="matchesSettings('feishu')" id="settings-feishu" class="app-settings-section">
+      <header class="app-settings-section-header">
+        <div>
+          <h2 class="app-settings-title">{{ t('settings.feishu.title') }}</h2>
+          <p class="app-settings-subtitle">{{ t('settings.feishu.subtitle') }}</p>
+        </div>
+      </header>
+      <FeishuBotPanel />
     </section>
 
     <section v-show="matchesSettings('tasks')" id="settings-tasks" class="app-settings-section">
@@ -166,6 +180,7 @@ import { BUILD_INFO } from '../../buildInfo'
 const WorkspaceThemePanel = defineAsyncComponent(() => import('./WorkspaceThemePanel.vue'))
 const BackgroundTasksPanel = defineAsyncComponent(() => import('./BackgroundTasksPanel.vue'))
 const AgentTasksPanel = defineAsyncComponent(() => import('./AgentTasksPanel.vue'))
+const FeishuBotPanel = defineAsyncComponent(() => import('./FeishuBotPanel.vue'))
 
 withDefaults(defineProps<{ projects?: Array<{ cwd: string; label: string }> }>(), { projects: () => [] })
 defineEmits<{ selectThread: [threadId: string] }>()
@@ -203,6 +218,7 @@ const settingsNavItems = computed(() => [
   { id: 'settings-about', key: 'about', label: t('settings.nav.about'), terms: 'about version build git sha commit 关于 版本 构建 提交' },
   { id: 'settings-language', key: 'language', label: t('settings.nav.language'), terms: 'language locale chinese english 语言 中文 英文' },
   { id: 'settings-catalog', key: 'catalog', label: t('settings.nav.catalog'), terms: 'catalog sync projects conversations 目录 同步 项目 会话' },
+  { id: 'settings-feishu', key: 'feishu', label: t('settings.nav.feishu'), terms: 'feishu lark bot app id secret bindings sessions 飞书 机器人 凭据 会话 绑定' },
   { id: 'settings-tasks', key: 'tasks', label: t('settings.nav.tasks'), terms: 'background tasks sync token diagnostics jobs 后台 任务 校准' },
   { id: 'settings-appearance', key: 'appearance', label: t('settings.nav.appearance'), terms: 'appearance theme skin layout density accent 外观 主题' },
   { id: 'settings-usage', key: 'usage', label: t('settings.nav.usage'), terms: 'usage token flame position motion 用量 火焰' },

@@ -47,6 +47,10 @@ function headerValue(value: string | string[] | undefined): string {
   return value ?? ''
 }
 
+function firstForwardedProtocol(req: IncomingMessage): string {
+  return headerValue(req.headers['x-forwarded-proto']).split(',')[0]?.trim().toLowerCase() ?? ''
+}
+
 function normalizeHostname(value: string): string {
   const trimmed = value.trim().toLowerCase()
   if (!trimmed) return ''
@@ -74,6 +78,49 @@ export function isLoopbackHostname(value: string): boolean {
   )
 }
 
+export function isLoopbackAddress(value: string | undefined): boolean {
+  const address = value?.trim().toLowerCase() ?? ''
+  if (!address) return false
+  if (address === '::1' || /^127(?:\.\d{1,3}){3}$/u.test(address)) return true
+  return /^::ffff:127(?:\.\d{1,3}){3}$/u.test(address)
+}
+
+export type RequestTransportSecurity = {
+  protocol: SecurityAccessSnapshot['network']['protocol']
+  peerAddress: string
+  isLoopbackPeer: boolean
+  forwardedProto: string
+  forwardedProtoTrusted: boolean
+  allowsSensitiveManagement: boolean
+}
+
+/**
+ * Sensitive management APIs may use plain HTTP only over a direct loopback
+ * connection. `X-Forwarded-Proto` is trusted only from a same-host proxy;
+ * otherwise a remote client could spoof the header to bypass the HTTPS gate.
+ */
+export function inspectRequestTransport(req: IncomingMessage): RequestTransportSecurity {
+  const peerAddress = req.socket.remoteAddress?.trim() ?? ''
+  const isLoopbackPeer = isLoopbackAddress(peerAddress)
+  const forwardedProto = firstForwardedProtocol(req)
+  const hasForwardedProto = Boolean(forwardedProto)
+  const forwardedProtoTrusted = isLoopbackPeer && (forwardedProto === 'http' || forwardedProto === 'https')
+  const encrypted = (req.socket as typeof req.socket & { encrypted?: boolean }).encrypted === true
+  const protocol: RequestTransportSecurity['protocol'] = encrypted || (forwardedProtoTrusted && forwardedProto === 'https')
+    ? 'https'
+    : 'http'
+  return {
+    protocol,
+    peerAddress,
+    isLoopbackPeer,
+    forwardedProto,
+    forwardedProtoTrusted,
+    allowsSensitiveManagement: encrypted
+      || (!hasForwardedProto && isLoopbackPeer)
+      || (forwardedProtoTrusted && forwardedProto === 'https'),
+  }
+}
+
 function listenExposureForHost(value: string): SecurityAccessSnapshot['network']['listenExposure'] {
   const host = normalizeHostname(value)
   if (!host) return 'unknown'
@@ -83,11 +130,7 @@ function listenExposureForHost(value: string): SecurityAccessSnapshot['network']
 }
 
 function requestProtocol(req: IncomingMessage): SecurityAccessSnapshot['network']['protocol'] {
-  const forwarded = headerValue(req.headers['x-forwarded-proto']).split(',')[0]?.trim().toLowerCase() ?? ''
-  if (forwarded === 'https') return 'https'
-  if (forwarded === 'http') return 'http'
-  const encrypted = (req.socket as typeof req.socket & { encrypted?: boolean }).encrypted
-  return encrypted ? 'https' : 'http'
+  return inspectRequestTransport(req).protocol
 }
 
 export function buildSecurityAccessSnapshot(

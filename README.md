@@ -47,6 +47,36 @@ protocol.
 - View account rate limits and token usage.
 - Use a configurable token flame widget for daily usage intensity.
 - Protect remote browser access with a password by default.
+- Use Feishu as another client for the same Codex threads: select a visible
+  project, continue an existing Session or create a new one, then share the
+  exact conversation and approval flow with the browser.
+
+### Feishu bot client
+
+Settings → Feishu bots creates a ready-to-use custom application with one
+Feishu QR scan by default, while retaining App ID / Secret entry as a fallback.
+CodyWebUI uses the official SDK device flow: Feishu/Lark shows and confirms the
+account, enterprise, least-privilege permissions, message event, and card
+callback before returning write-only app credentials. CodyWebUI then configures
+and reads back the bot ability, WebSocket event/callback mode, published version,
+availability, permissions, and bot identity before enabling the long connection.
+The setup page persists and displays those results as a proof matrix, then runs
+a fresh live OpenAPI/runtime diagnostic; it cannot report completion while any
+proof remains unverified.
+Private Web-console automation remains only as a recovery fallback. A private chat, flat group, or group topic can select a
+visible CodyWebUI project and an existing or new Codex Session. Feishu and the
+browser then operate on the exact same `app-server` thread—CodyWebUI does not
+start a second CLI process or maintain a second transcript.
+
+The client includes safe group trigger modes, identity and group-chat allow-lists, streamed
+cards, approvals and user-input cards, commands, durable inbound deduplication,
+FIFO turns shared with Web work, retry/dead-letter delivery, attachments, and
+passive plus live connectivity diagnostics. See
+[Feishu integration setup](docs/FEISHU_INTEGRATION.md) for
+the exact permissions, deployment/security setup, REST rich-message handling,
+and troubleshooting. The [botmux capability matrix](docs/FEISHU_BOTMUX_AUDIT.md)
+records what was ported, adapted, and intentionally left outside CodyWebUI's
+app-server architecture.
 
 ### Agent task automation
 
@@ -131,8 +161,10 @@ managed process, and starts the new server in the background:
 npm run deploy
 ```
 
-The deploy command verifies that the running server reports the Git commit it
-just built. You can inspect the active build without signing in:
+The deploy command verifies that the running server reports the exact source
+fingerprint it just built, including tracked edits and untracked files. This
+prevents a dirty worktree from falsely passing verification merely because its
+Git commit is unchanged. You can inspect the active build without signing in:
 
 ```bash
 curl http://127.0.0.1:3000/codex-api/meta/version
@@ -147,6 +179,11 @@ CODY_HOST=0.0.0.0 CODY_PORT=8080 CODY_PASSWORD='replace-me' npm run deploy
 
 `CODY_PASSWORD` is mandatory for non-loopback hosts. Service lifecycle commands
 are also available independently:
+
+Feishu management is stricter: `/codex-api/feishu/*` accepts plain HTTP only
+from a direct loopback connection. Remote administration requires TLS or a
+same-host HTTPS reverse proxy that sets `X-Forwarded-Proto: https`; otherwise
+the service returns HTTP 426 without performing the operation.
 
 ```bash
 npm run service:status

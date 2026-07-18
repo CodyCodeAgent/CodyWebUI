@@ -3,4 +3,5 @@ dist/
 dist-cli/
 .cody-runtime/
 *.tsbuildinfo
+*.config.bundled_*.mjs
 PROJECT_SPEC.md

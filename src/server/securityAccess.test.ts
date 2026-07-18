@@ -1,12 +1,18 @@
 import { EventEmitter } from 'node:events'
 import type { IncomingMessage } from 'node:http'
 import { describe, expect, it } from 'vitest'
-import { buildSecurityAccessSnapshot } from './securityAccess'
+import { buildSecurityAccessSnapshot, inspectRequestTransport } from './securityAccess'
 
-function mockRequest(headers: Record<string, string>): IncomingMessage {
+function mockRequest(
+  headers: Record<string, string>,
+  options: { remoteAddress?: string; encrypted?: boolean } = {},
+): IncomingMessage {
   const req = new EventEmitter() as IncomingMessage
   req.headers = headers
-  req.socket = { encrypted: false } as unknown as IncomingMessage['socket']
+  req.socket = {
+    encrypted: options.encrypted === true,
+    remoteAddress: options.remoteAddress ?? '127.0.0.1',
+  } as unknown as IncomingMessage['socket']
   return req
 }
 
@@ -72,5 +78,43 @@ describe('security access snapshot', () => {
       expect.objectContaining({ id: 'remote-request-host', level: 'danger' }),
       expect.objectContaining({ id: 'remote-http', level: 'danger' }),
     ]))
+  })
+
+  it('allows sensitive management only for loopback, direct TLS, or a trusted same-host HTTPS proxy', () => {
+    expect(inspectRequestTransport(mockRequest({ host: '127.0.0.1:3000' })).allowsSensitiveManagement).toBe(true)
+    expect(inspectRequestTransport(mockRequest(
+      { host: 'codex.example.test' },
+      { remoteAddress: '192.0.2.10', encrypted: true },
+    )).allowsSensitiveManagement).toBe(true)
+    expect(inspectRequestTransport(mockRequest({
+      host: 'codex.example.test',
+      'x-forwarded-proto': 'https',
+    }))).toMatchObject({
+      protocol: 'https',
+      forwardedProtoTrusted: true,
+      allowsSensitiveManagement: true,
+    })
+  })
+
+  it('rejects remote HTTP and does not trust a spoofed forwarded protocol from a remote peer', () => {
+    expect(inspectRequestTransport(mockRequest(
+      { host: 'codex.example.test' },
+      { remoteAddress: '192.0.2.10' },
+    )).allowsSensitiveManagement).toBe(false)
+    expect(inspectRequestTransport(mockRequest(
+      { host: 'codex.example.test', 'x-forwarded-proto': 'https' },
+      { remoteAddress: '192.0.2.10' },
+    ))).toMatchObject({
+      protocol: 'http',
+      forwardedProtoTrusted: false,
+      allowsSensitiveManagement: false,
+    })
+    expect(inspectRequestTransport(mockRequest({
+      host: 'codex.example.test',
+      'x-forwarded-proto': 'http',
+    }))).toMatchObject({
+      forwardedProtoTrusted: true,
+      allowsSensitiveManagement: false,
+    })
   })
 })
