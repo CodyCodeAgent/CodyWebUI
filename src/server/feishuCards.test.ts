@@ -27,6 +27,30 @@ describe('Feishu cards', () => {
     expect(JSON.stringify(sessionCard)).toContain(FEISHU_CARD_ACTIONS.selectSession)
     expect(JSON.stringify(sessionCard)).toContain(FEISHU_CARD_ACTIONS.newSession)
     expect(JSON.stringify(sessionCard)).toContain('thread-1')
+    expect(JSON.stringify(sessionCard)).toContain('/repo')
+  })
+
+  it('disambiguates duplicate project and Session labels', () => {
+    const projectCard = JSON.stringify(buildProjectSelectionCard({
+      bindingKey: 'bot:p2p:chat:chat',
+      projects: [
+        { projectKey: '/home/code/repo', cwd: '/home/code/repo', label: 'repo', sessionCount: 2 },
+        { projectKey: '/data/code/repo', cwd: '/data/code/repo', label: 'repo', sessionCount: 1 },
+      ],
+    }))
+    expect(projectCard).toContain('repo · /home/code/repo')
+    expect(projectCard).toContain('repo · /data/code/repo')
+
+    const sessionCard = JSON.stringify(buildSessionSelectionCard({
+      bindingKey: 'bot:p2p:chat:chat',
+      project: { projectKey: '/home/code/repo', cwd: '/home/code/repo', label: 'repo', sessionCount: 2 },
+      sessions: [
+        { threadId: 'thread-a123', title: 'Same title' },
+        { threadId: 'thread-b456', title: 'Same title' },
+      ],
+    }))
+    expect(sessionCard).toContain('Same title · thread-a')
+    expect(sessionCard).toContain('Same title · thread-b')
   })
 
   it('builds patchable stream states and approval actions', () => {

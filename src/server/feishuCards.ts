@@ -54,6 +54,11 @@ export function buildProjectSelectionCard(input: {
   requesterOpenId?: string
 }): FeishuCard {
   const projects = input.projects.slice(0, 100)
+  const projectLabelCounts = new Map<string, number>()
+  for (const project of projects) {
+    const key = project.label.trim().toLocaleLowerCase()
+    projectLabelCounts.set(key, (projectLabelCounts.get(key) ?? 0) + 1)
+  }
   const elements: unknown[] = [
     { tag: 'div', text: markdown('请选择要连接的 **CodyWebUI 项目**。绑定后，飞书和 Web 会继续同一个 Codex session。') },
   ]
@@ -66,10 +71,14 @@ export function buildProjectSelectionCard(input: {
       actions: [{
         tag: 'select_static',
         placeholder: plainText('选择项目'),
-        options: projects.map((project) => ({
-          text: plainText(truncate(`${project.label} · ${project.sessionCount} 个 session`, 80)),
-          value: project.projectKey,
-        })),
+        options: projects.map((project) => {
+          const duplicateLabel = (projectLabelCounts.get(project.label.trim().toLocaleLowerCase()) ?? 0) > 1
+          const label = duplicateLabel ? `${project.label} · ${project.cwd}` : project.label
+          return {
+            text: plainText(truncate(`${label} · ${project.sessionCount} 个 session`, 80)),
+            value: project.projectKey,
+          }
+        }),
         value: {
           action: FEISHU_CARD_ACTIONS.selectProject,
           binding_key: input.bindingKey,
@@ -93,6 +102,11 @@ export function buildSessionSelectionCard(input: {
   requesterOpenId?: string
 }): FeishuCard {
   const sessions = input.sessions.slice(0, 90)
+  const sessionLabelCounts = new Map<string, number>()
+  for (const session of sessions) {
+    const label = (session.title || session.preview || session.threadId).trim().toLocaleLowerCase()
+    sessionLabelCounts.set(label, (sessionLabelCounts.get(label) ?? 0) + 1)
+  }
   const sharedValue = {
     binding_key: input.bindingKey,
     project_key: input.project.projectKey,
@@ -105,10 +119,14 @@ export function buildSessionSelectionCard(input: {
     actions.push({
       tag: 'select_static',
       placeholder: plainText('选择已有 session'),
-      options: sessions.map((session) => ({
-        text: plainText(truncate(session.title || session.preview || session.threadId, 80)),
-        value: session.threadId,
-      })),
+      options: sessions.map((session) => {
+        const label = session.title || session.preview || session.threadId
+        const duplicateLabel = (sessionLabelCounts.get(label.trim().toLocaleLowerCase()) ?? 0) > 1
+        return {
+          text: plainText(truncate(duplicateLabel ? `${label} · ${session.threadId.slice(0, 8)}` : label, 80)),
+          value: session.threadId,
+        }
+      }),
       value: { action: FEISHU_CARD_ACTIONS.selectSession, ...sharedValue },
     })
   }
@@ -120,7 +138,7 @@ export function buildSessionSelectionCard(input: {
   })
 
   return card('选择 Session', [
-    { tag: 'div', text: markdown(`项目：**${truncate(input.project.label, 80)}**\n\n选择已有 session 会继续其完整上下文；也可以新建。`) },
+    { tag: 'div', text: markdown(`项目：**${truncate(input.project.label, 80)}**\n\n路径：\`${truncate(input.project.cwd, 160)}\`\n\n选择已有 session 会继续其完整上下文；也可以新建。`) },
     { tag: 'action', actions },
   ])
 }
