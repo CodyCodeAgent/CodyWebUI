@@ -339,6 +339,9 @@ scopes separately.
 | Permission | Purpose |
 | --- | --- |
 | `tenant:tenant:readonly` | Bind the app to the verified tenant immediately after official QR registration. |
+| `application:application:patch` | Configure the app's bot ability, WebSocket modes, permissions, and visibility. |
+| `application:application:self_manage` | Publish, enable, and read back the app's own configuration. |
+| `application:bot.basic_info:read` | Verify the bot identity before enabling the local runtime. |
 | `im:message` | Send, reply to, and update bot messages/cards. |
 | `im:message.p2p_msg:readonly` | Receive private-chat messages. |
 | `im:message.group_at_msg:readonly` | Receive group @mentions. |

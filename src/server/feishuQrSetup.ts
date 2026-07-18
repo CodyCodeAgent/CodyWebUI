@@ -121,6 +121,11 @@ const ACTIVE_STATUSES = new Set<FeishuQrSetupStatus>([
 ])
 
 const REQUIRED_SETUP_CHECKS = Object.keys(emptyFeishuSetupChecks()) as Array<keyof FeishuSetupChecks>
+const OFFICIAL_REAUTHORIZATION_SCOPES = [
+  'application:application:patch',
+  'application:application:self_manage',
+  'application:bot.basic_info:read',
+] as const
 
 function safeErrorMessage(error: unknown): string {
   const message = error instanceof Error ? error.message : String(error)
@@ -397,6 +402,26 @@ export class FeishuQrSetupManager {
     if (!job) return null
     if (!job.canRetry || !job.appId || !job.bot) return publicJob(job)
     job.controller = new AbortController()
+    const needsOfficialReauthorization = job.registrationMethod === 'official_device_flow'
+      && OFFICIAL_REAUTHORIZATION_SCOPES.some((scope) => job.error?.includes(scope))
+    if (needsOfficialReauthorization) {
+      await this.patchAndPersist(job, {
+        status: 'starting',
+        statusMessage: '正在为现有应用准备权限修复二维码',
+        qrDataUrl: null,
+        qrExpiresAtIso: null,
+        error: null,
+        canRetry: false,
+        canCancel: true,
+        canConfirmIdentity: false,
+      })
+      // Exact-App adoption: registerApp receives appIdToAdopt, so the official
+      // page can only update this persisted application and cannot create a
+      // duplicate. The scanner explicitly approves the missing bootstrap
+      // scopes, after which the normal idempotent configuration resumes.
+      void this.run(job, job.appId)
+      return publicJob(job)
+    }
     await this.patchAndPersist(job, {
       status: 'configuring',
       statusMessage: '正在重新配置权限、事件与发布版本',

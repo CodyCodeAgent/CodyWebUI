@@ -248,6 +248,9 @@ describe('official Feishu device registration', () => {
     const call = (registerAppImpl.mock.calls as unknown as Array<[any]>)[0]?.[0];
     const tenantScopes = call?.addons.scopes.tenant as string[];
     expect(tenantScopes).toContain('tenant:tenant:readonly');
+    expect(tenantScopes).toContain('application:application:patch');
+    expect(tenantScopes).toContain('application:application:self_manage');
+    expect(tenantScopes).toContain('application:bot.basic_info:read');
     expect(tenantScopes).toContain('im:message:send_as_bot');
     expect(tenantScopes.some((scope) => scope.startsWith('contact:'))).toBe(false);
   });
