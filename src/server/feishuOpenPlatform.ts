@@ -1289,6 +1289,18 @@ export async function registerOfficialFeishuOpenPlatformApp(
   const manifest = options.scopeManifest ?? readOfficialBotScopeManifest();
   let createdAppId: string | undefined;
   const registrationController = new AbortController();
+  const maxWaitMs = typeof options.maxWaitMs === 'number' && Number.isFinite(options.maxWaitMs)
+    ? Math.max(1, options.maxWaitMs)
+    : null;
+  const registrationDeadline = maxWaitMs === null ? null : Date.now() + maxWaitMs;
+  let registrationTimedOut = false;
+  const registrationTimeout = maxWaitMs === null
+    ? null
+    : setTimeout(() => {
+      registrationTimedOut = true;
+      registrationController.abort();
+    }, maxWaitMs);
+  registrationTimeout?.unref();
   const onExternalAbort = () => registrationController.abort();
   if (options.signal?.aborted) registrationController.abort();
   else options.signal?.addEventListener('abort', onExternalAbort, { once: true });
@@ -1323,7 +1335,16 @@ export async function registerOfficialFeishuOpenPlatformApp(
         callbacks: { items: [...BOT_BASELINE_CALLBACKS] },
       },
       onQRCodeReady: ({ url, expireIn }) => {
-        trackCallback(options.onQrCode?.({ qrText: url, qrPayload: url, expireIn }));
+        // The platform may issue a substantially longer device-code lifetime
+        // than CodyWebUI's setup policy. Report the effective lifetime so the
+        // UI countdown and the server-side abort always describe one deadline.
+        const effectiveExpireIn = registrationDeadline === null
+          ? expireIn
+          : Math.max(1, Math.ceil(Math.min(
+            Math.max(1, expireIn) * 1_000,
+            Math.max(1, registrationDeadline - Date.now()),
+          ) / 1_000));
+        trackCallback(options.onQrCode?.({ qrText: url, qrPayload: url, expireIn: effectiveExpireIn }));
       },
       onStatusChange: ({ status, interval }) => {
         const message = status === 'domain_switched'
@@ -1389,13 +1410,15 @@ export async function registerOfficialFeishuOpenPlatformApp(
     };
   } catch (error) {
     const reportedError = callbackFailure ?? error;
+    const timedOut = registrationTimedOut && officialRegistrationFailureReason(reportedError) === 'aborted';
     return {
       ok: false,
-      reason: officialRegistrationFailureReason(reportedError),
-      message: safeErrorMessage(reportedError),
+      reason: timedOut ? 'qr_expired' : officialRegistrationFailureReason(reportedError),
+      message: timedOut ? '飞书扫码确认超时，请重新发起' : safeErrorMessage(reportedError),
       ...(createdAppId ? { appId: createdAppId } : {}),
     };
   } finally {
+    if (registrationTimeout) clearTimeout(registrationTimeout);
     options.signal?.removeEventListener('abort', onExternalAbort);
   }
 }
