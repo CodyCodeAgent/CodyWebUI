@@ -48,6 +48,7 @@
     "smoke:thread": "node scripts/smoke-thread.mjs",
     "smoke:turn": "node scripts/smoke-turn.mjs",
     "smoke:turn-approval": "node scripts/smoke-turn-approval.mjs",
+    "acceptance:feishu:preflight": "node scripts/feishu-acceptance-preflight.mjs",
     "smoke:worklog": "node scripts/smoke-worklog.mjs",
     "build:frontend": "vue-tsc --noEmit && vite build",
     "build:cli": "tsup",

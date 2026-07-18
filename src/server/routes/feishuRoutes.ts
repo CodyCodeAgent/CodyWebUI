@@ -46,7 +46,6 @@ export type FeishuBotWriteInput = {
   name?: string
   appId?: string
   appSecret?: string
-  /** Internal onboarding metadata; HTTP body readers intentionally ignore it. */
   platform?: 'feishu' | 'lark'
   /** Internal onboarding metadata; HTTP body readers intentionally ignore it. */
   tenantId?: string
@@ -123,7 +122,7 @@ export type FeishuConnectivityReportDto = {
 
 export type FeishuRoutesDependencies = {
   listBots: () => Promise<FeishuBotDto[]>
-  createBot: (input: Required<Pick<FeishuBotWriteInput, 'name' | 'appId' | 'enabled' | 'allowAllUsers' | 'allowedOpenIds' | 'groupMentionMode'>> & Pick<FeishuBotWriteInput, 'platform' | 'tenantId' | 'tenantName' | 'allowedChatIds'> & { appSecret: string }) => Promise<FeishuBotDto>
+  createBot: (input: Required<Pick<FeishuBotWriteInput, 'name' | 'appId' | 'platform' | 'enabled' | 'allowAllUsers' | 'allowedOpenIds' | 'groupMentionMode'>> & Pick<FeishuBotWriteInput, 'tenantId' | 'tenantName' | 'allowedChatIds'> & { appSecret: string }) => Promise<FeishuBotDto>
   updateBot: (botId: string, input: FeishuBotWriteInput) => Promise<FeishuBotDto>
   deleteBot: (botId: string, remoteAction: 'keep' | 'disable') => Promise<{ removed: boolean; remoteDisabled: boolean }>
   reconnectBot: (botId: string) => Promise<FeishuBotDto>
@@ -158,6 +157,10 @@ function readGroupMentionMode(value: unknown): FeishuGroupMentionModeDto | null 
   return value === 'always' || value === 'topic' || value === 'bound' ? value : null
 }
 
+function readPlatform(value: unknown): 'feishu' | 'lark' | null {
+  return value === 'feishu' || value === 'lark' ? value : null
+}
+
 function readAvailability(value: unknown): FeishuAvailabilityInputDto | null {
   if (value === undefined) return { mode: 'creator', memberIds: [], groupIds: [] }
   const row = asRecord(value)
@@ -175,13 +178,14 @@ function readCreateInput(body: Record<string, unknown> | null): Parameters<Feish
   const name = readString(body?.name)
   const appId = readString(body?.appId)
   const appSecret = readString(body?.appSecret)
+  const platform = readPlatform(body?.platform)
   const allowedOpenIds = readAllowedOpenIds(body?.allowedOpenIds)
   const allowedChatIds = body && 'allowedChatIds' in body ? readAllowedChatIds(body.allowedChatIds) : undefined
   const allowAllUsers = body?.allowAllUsers === true
   const groupMentionMode = body && 'groupMentionMode' in body ? readGroupMentionMode(body.groupMentionMode) : 'always'
-  if (!name || !appId || !appSecret || typeof body?.enabled !== 'boolean' || !allowedOpenIds || allowedChatIds === null || !groupMentionMode) return null
+  if (!name || !appId || !appSecret || !platform || typeof body?.enabled !== 'boolean' || !allowedOpenIds || allowedChatIds === null || !groupMentionMode) return null
   return {
-    name, appId, appSecret, enabled: body.enabled, allowAllUsers, allowedOpenIds, groupMentionMode,
+    name, appId, appSecret, platform, enabled: body.enabled, allowAllUsers, allowedOpenIds, groupMentionMode,
     ...(allowedChatIds ? { allowedChatIds } : {}),
   }
 }
@@ -210,6 +214,11 @@ function readUpdateInput(body: Record<string, unknown> | null): FeishuBotWriteIn
   if ('appSecret' in body) {
     if (typeof body.appSecret !== 'string' || !body.appSecret.trim()) return null
     input.appSecret = body.appSecret.trim()
+  }
+  if ('platform' in body) {
+    const platform = readPlatform(body.platform)
+    if (!platform) return null
+    input.platform = platform
   }
   if ('enabled' in body) {
     if (typeof body.enabled !== 'boolean') return null
@@ -257,7 +266,7 @@ export function createFeishuRoutes(dependencies: FeishuRoutesDependencies): Doma
     if (req.method === 'POST' && url.pathname === '/codex-api/feishu/bots') {
       const input = readCreateInput(asRecord(await readJsonBody(req)))
       if (!input) {
-        setJson(res, 400, { error: 'Invalid body: expected { name, appId, appSecret, enabled, allowedOpenIds, groupMentionMode? }' })
+        setJson(res, 400, { error: 'Invalid body: expected { name, appId, appSecret, platform, enabled, allowedOpenIds, groupMentionMode? }' })
         return true
       }
       setJson(res, 201, { result: { bot: await dependencies.createBot(input) } })

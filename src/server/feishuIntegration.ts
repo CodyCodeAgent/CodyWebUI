@@ -363,6 +363,7 @@ function safeBotAuditMetadata(input: FeishuBotWriteInput): Record<string, unknow
   return {
     ...(typeof input.enabled === 'boolean' ? { enabled: input.enabled } : {}),
     ...(typeof input.allowAllUsers === 'boolean' ? { allowAllUsers: input.allowAllUsers } : {}),
+    ...(input.platform ? { platform: input.platform } : {}),
     ...(input.groupMentionMode ? { groupMentionMode: input.groupMentionMode } : {}),
     ...(input.allowedOpenIds ? { allowedOpenIdCount: input.allowedOpenIds.length } : {}),
     ...(input.allowedChatIds ? { allowedChatIdCount: input.allowedChatIds.length } : {}),

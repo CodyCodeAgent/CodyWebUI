@@ -327,9 +327,9 @@ offer retry/manual fallback instead of claiming a broken bot is ready.
 The official flow distinguishes **Feishu domestic** from **Lark international**
 using `tenant_brand`. REST clients and SDK long connections are constructed with
 the matching domain, and the platform value participates in runtime
-reconciliation. Manual entry currently defaults to Feishu domestic until the UI
-offers an explicit platform selector; do not enter Lark credentials through
-that manual form.
+reconciliation. Manual entry requires the operator to select the platform that
+issued the App ID and Secret; the API rejects missing or unknown platform values
+instead of trying credentials against both domains.
 
 For manual fallback, create a Feishu custom application, enable its bot
 capability, and grant the permissions below. Feishu's permission page is
@@ -389,17 +389,18 @@ CODY_PUBLIC_URL=https://cody.example.internal npm run deploy
 `CODY_PUBLIC_URL` only builds browser links. It does not replace CodyWebUI's
 password, network controls, HTTPS, or firewall. For a non-loopback listener,
 terminate TLS at CodyWebUI or a trusted reverse proxy, set a strong
-`CODY_PASSWORD`, and never expose the management API over plain HTTP. Run the
+`CODY_PASSWORD`; use HTTPS whenever the network is shared or untrusted. Run the
 service as the same OS user that owns
 Codex configuration and target workspaces. The default settings directory is
 mode `0700` and its SQLite DB is mode `0600`; protect custom database parents,
 backups, and SQLite WAL/SHM files too.
 
-CodyWebUI enforces this boundary for `/codex-api/feishu/*`. Direct loopback
-HTTP remains available for local administration, while remote plain HTTP gets
-HTTP 426 before authentication or any Feishu operation. A same-host HTTPS
-reverse proxy must pass `X-Forwarded-Proto: https`; forwarded protocol headers
-from non-loopback peers are ignored so a remote client cannot spoof the gate.
+Like botmux's local dashboard, CodyWebUI allows authenticated Feishu management
+over HTTP instead of blocking the workflow. The settings page shows a persistent
+warning on remote plain-HTTP origins, CodyWebUI login protection still applies,
+and App Secrets are persisted server-side. This is a usability fallback for
+trusted networks, not transport encryption; use a trusted HTTPS reverse proxy
+on shared or untrusted networks.
 
 The deploy script starts Node in a new session and disconnects standard input,
 so it survives the invoking SSH/Codex shell. It also compares the running
@@ -414,6 +415,27 @@ curl http://127.0.0.1:3000/codex-api/meta/version
 After deployment, open the selected bot and choose **Run live diagnostic**.
 “Live connectivity verified” means all six checks passed in that invocation;
 the passive delivery/turn/card counters alone are not connectivity proof.
+
+Before starting the real-tenant acceptance matrix, collect a versioned,
+redacted preflight record:
+
+```bash
+CODY_FEISHU_ACCEPTANCE_PASSWORD='replace-me' \
+  npm run acceptance:feishu:preflight -- \
+  --base-url https://cody.example.internal \
+  --bot-id <bot-id> \
+  --output .cody-runtime/acceptance/feishu/preflight.json
+```
+
+The command logs in without placing the password in the process arguments,
+records the public build ID, requires a completed QR setup proof matrix, runs a
+fresh six-check connectivity diagnostic, and saves only management-safe counts
+and identifiers. Evidence files are mode `0600`. Remote HTTP is rejected unless
+`--allow-http` is supplied explicitly for a trusted network; the evidence still
+records the unencrypted protocol and server security risk IDs. A passing
+preflight does **not** mark the integration complete: it prints the remaining
+interactive tenant gates for chat, authorization, attachments, retries, and
+restart recovery.
 
 When deleting a bot, choose one option explicitly:
 

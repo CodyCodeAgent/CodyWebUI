@@ -34,6 +34,7 @@ export type FeishuBotInput = {
   name: string
   appId: string
   appSecret?: string
+  platform: 'feishu' | 'lark'
   enabled: boolean
   allowAllUsers?: boolean
   allowedOpenIds: string[]

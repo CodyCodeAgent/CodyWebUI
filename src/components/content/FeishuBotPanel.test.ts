@@ -26,8 +26,12 @@ const api = vi.hoisted(() => ({
   fetchFeishuOpenPlatformApps: vi.fn(async () => []),
   adoptFeishuOpenPlatformApp: vi.fn(),
 }))
+const transport = vi.hoisted(() => ({
+  isRemotePlainHttpLocation: vi.fn(() => false),
+}))
 
 vi.mock('../../api/codexFeishuClient', () => api)
+vi.mock('../../composables/feishuTransport', () => transport)
 
 const bot = {
   id: 'bot-1', name: 'Team bot', appId: 'cli_team', secretConfigured: true, enabled: true,
@@ -75,6 +79,7 @@ const connectivityReport = {
 
 afterEach(() => {
   vi.clearAllMocks()
+  transport.isRemotePlainHttpLocation.mockReturnValue(false)
   vi.unstubAllGlobals()
 })
 
@@ -85,6 +90,19 @@ describe('FeishuBotPanel', () => {
     await manual?.trigger('click')
     await flushPromises()
   }
+
+  it('shows a non-blocking warning for remote plain HTTP management', async () => {
+    transport.isRemotePlainHttpLocation.mockReturnValue(true)
+    api.fetchFeishuBots.mockResolvedValue([])
+    api.fetchFeishuBindings.mockResolvedValue([])
+    const wrapper = mount(FeishuBotPanel)
+    await flushPromises()
+    const warning = wrapper.get('.feishu-transport-warning')
+    expect(warning.attributes('role')).toBe('status')
+    expect(warning.text()).toContain('browser connection is not encrypted')
+    expect(wrapper.text()).toContain('Add the first bot')
+    wrapper.unmount()
+  })
 
   it('shows connection health and shared session bindings', async () => {
     api.fetchFeishuBots.mockResolvedValue([bot])
@@ -126,20 +144,22 @@ describe('FeishuBotPanel', () => {
     api.fetchFeishuBots.mockResolvedValue([])
     api.fetchFeishuBindings.mockResolvedValue([])
     api.fetchFeishuDiagnostics.mockResolvedValue(diagnostics)
-    api.createFeishuBot.mockResolvedValue(bot)
+    api.createFeishuBot.mockResolvedValue({ ...bot, platform: 'lark' })
     const wrapper = mount(FeishuBotPanel)
     await flushPromises()
     await openManualCreate(wrapper)
     const inputs = wrapper.findAll('.feishu-form-grid input')
     await inputs[0].setValue('Team bot')
     await inputs[1].setValue('cli_team')
-    await inputs[2].setValue('secret-value')
+    await wrapper.get('input[value="lark"]').setValue(true)
+    await wrapper.get('.feishu-secret-input input').setValue('secret-value')
     await wrapper.get('.feishu-form').trigger('submit')
     await flushPromises()
     expect(api.createFeishuBot).toHaveBeenCalledWith(expect.objectContaining({
-      name: 'Team bot', appId: 'cli_team', appSecret: 'secret-value', enabled: false,
+      name: 'Team bot', appId: 'cli_team', appSecret: 'secret-value', platform: 'lark', enabled: false,
     }))
-    expect((wrapper.findAll('.feishu-form-grid input')[2].element as HTMLInputElement).value).toBe('')
+    expect((wrapper.get('.feishu-secret-input input').element as HTMLInputElement).value).toBe('')
+    expect((wrapper.get('input[value="lark"]').element as HTMLInputElement).checked).toBe(true)
     expect(wrapper.text()).toContain('Bot configuration saved.')
     wrapper.unmount()
   })
@@ -158,7 +178,7 @@ describe('FeishuBotPanel', () => {
     const inputs = wrapper.findAll('.feishu-form-grid input')
     await inputs[0].setValue('Open bot')
     await inputs[1].setValue('cli_open')
-    await inputs[2].setValue('secret-value')
+    await wrapper.get('.feishu-secret-input input').setValue('secret-value')
     await wrapper.get('.feishu-enabled-switch input').setValue(true)
     await wrapper.get('.feishu-open-access-field input').setValue(true)
     expect(wrapper.text()).toContain('every person who can reach this Feishu app')
@@ -183,7 +203,7 @@ describe('FeishuBotPanel', () => {
     const inputs = wrapper.findAll('.feishu-form-grid input')
     await inputs[0].setValue('Group bot')
     await inputs[1].setValue('cli_group')
-    await inputs[2].setValue('secret-value')
+    await wrapper.get('.feishu-secret-input input').setValue('secret-value')
     await wrapper.get('input[value="bound"]').setValue(true)
     expect(wrapper.text()).toContain('High noise risk')
     await wrapper.get('.feishu-form').trigger('submit')

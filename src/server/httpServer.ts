@@ -4,7 +4,7 @@ import type { Server as HttpServer } from 'node:http'
 import express, { type Express } from 'express'
 import { attachCodexBridgeWebSocketServer, createCodexBridgeMiddleware } from './codexAppServerBridge.js'
 import { createAuthMiddleware, type AuthMiddleware } from './authMiddleware.js'
-import { buildSecurityAccessSnapshot, inspectRequestTransport } from './securityAccess.js'
+import { buildSecurityAccessSnapshot } from './securityAccess.js'
 import { BUILD_INFO } from '../buildInfo.js'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
@@ -45,24 +45,6 @@ export function createServer(options: ServerOptions = {}): ServerInstance {
   app.get('/codex-api/meta/version', (_req, res) => {
     res.setHeader('Cache-Control', 'no-store')
     res.json({ result: BUILD_INFO })
-  })
-
-  // Feishu management includes encrypted credentials, access policy, remote
-  // application mutations, and shared Session controls. Refuse it over a raw
-  // remote HTTP connection even when the general UI has password protection.
-  // A same-host reverse proxy may attest HTTPS through X-Forwarded-Proto.
-  app.use('/codex-api/feishu', (req, res, next) => {
-    if (inspectRequestTransport(req).allowsSensitiveManagement) {
-      next()
-      return
-    }
-    res.setHeader('Cache-Control', 'no-store')
-    res.status(426).json({
-      error: {
-        code: 'https_required',
-        message: 'Remote Feishu management requires HTTPS. Use a trusted same-host HTTPS reverse proxy, or open CodyWebUI through 127.0.0.1 locally.',
-      },
-    })
   })
 
   // 1. Auth middleware (if password is set)

@@ -110,22 +110,13 @@ describe('httpServer', () => {
         },
       })
 
-      const insecureFeishuResponse = await fetch(`${baseUrl}/codex-api/feishu/bots`, {
-        headers: { 'x-forwarded-proto': 'http' },
-      })
-      expect(insecureFeishuResponse.status).toBe(426)
-      await expect(insecureFeishuResponse.json()).resolves.toEqual({
-        error: {
-          code: 'https_required',
-          message: expect.stringContaining('requires HTTPS'),
-        },
-      })
-
-      const proxiedHttpsFeishuResponse = await fetch(`${baseUrl}/codex-api/feishu/bots`, {
-        headers: { 'x-forwarded-proto': 'https' },
-      })
-      expect(proxiedHttpsFeishuResponse.status).toBe(200)
-      await expect(proxiedHttpsFeishuResponse.text()).resolves.toContain('app shell')
+      for (const forwardedProto of ['http', 'https']) {
+        const feishuResponse = await fetch(`${baseUrl}/codex-api/feishu/bots`, {
+          headers: { 'x-forwarded-proto': forwardedProto },
+        })
+        expect(feishuResponse.status).toBe(200)
+        await expect(feishuResponse.text()).resolves.toContain('app shell')
+      }
 
       await expect(fetch(`${baseUrl}/asset.txt`).then((response) => response.text())).resolves.toBe('static asset')
       await expect(fetch(`${baseUrl}/thread/example`).then((response) => response.text())).resolves.toContain('app shell')
@@ -136,5 +127,36 @@ describe('httpServer', () => {
 
     expect(bridgeMock.createCodexBridgeMiddleware).toHaveBeenCalledTimes(1)
     expect(bridgeMock.bridgeDispose).toHaveBeenCalledTimes(1)
+  })
+
+  it('keeps Feishu management behind the normal CodyWebUI login on plain HTTP', async () => {
+    const { createServer } = await import('./httpServer.js')
+    const distDir = await createDistFixture()
+    const instance = createServer({ distDir, host: '0.0.0.0', port: null, password: 'test-password' })
+    const server = createHttpServer(instance.app)
+
+    try {
+      const port = await listen(server)
+      const baseUrl = `http://127.0.0.1:${String(port)}`
+      const beforeLogin = await fetch(`${baseUrl}/codex-api/feishu/bots`)
+      expect(beforeLogin.status).toBe(200)
+      await expect(beforeLogin.text()).resolves.toContain('Password')
+
+      const login = await fetch(`${baseUrl}/auth/login`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ password: 'test-password' }),
+      })
+      const rows = (login.headers as Headers & { getSetCookie?: () => string[] }).getSetCookie?.()
+        ?? [login.headers.get('set-cookie') ?? '']
+      const cookie = rows.flatMap(row => row.split(/,(?=\s*cody_web_ui_)/u))
+        .map(row => row.split(';')[0]?.trim() ?? '').filter(Boolean).join('; ')
+      const afterLogin = await fetch(`${baseUrl}/codex-api/feishu/bots`, { headers: { cookie } })
+      expect(afterLogin.status).toBe(200)
+      await expect(afterLogin.text()).resolves.toContain('app shell')
+    } finally {
+      instance.dispose()
+      await closeServer(server)
+    }
   })
 })

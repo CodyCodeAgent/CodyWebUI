@@ -122,23 +122,31 @@ describe('createFeishuRoutes', () => {
   it('validates and creates a bot', async () => {
     const deps = dependencies()
     const result = await invoke(createFeishuRoutes(deps), 'POST', '/codex-api/feishu/bots', {
-      name: ' Cody ', appId: ' cli_a ', appSecret: ' secret ', enabled: true, allowedOpenIds: [' ou_a ', 'ou_a'],
+      name: ' Cody ', appId: ' cli_a ', appSecret: ' secret ', platform: 'lark', enabled: true, allowedOpenIds: [' ou_a ', 'ou_a'],
     })
     expect(result.statusCode).toBe(201)
     expect(deps.createBot).toHaveBeenCalledWith({
-      name: 'Cody', appId: 'cli_a', appSecret: 'secret', enabled: true, allowAllUsers: false, allowedOpenIds: ['ou_a'], groupMentionMode: 'always',
+      name: 'Cody', appId: 'cli_a', appSecret: 'secret', platform: 'lark', enabled: true, allowAllUsers: false, allowedOpenIds: ['ou_a'], groupMentionMode: 'always',
     })
+  })
+
+  it('rejects missing or unknown manual credential platforms', async () => {
+    const route = createFeishuRoutes(dependencies())
+    const base = { name: 'Cody', appId: 'cli_a', appSecret: 'secret', enabled: false, allowedOpenIds: [] }
+    expect((await invoke(route, 'POST', '/codex-api/feishu/bots', base)).statusCode).toBe(400)
+    expect((await invoke(route, 'POST', '/codex-api/feishu/bots', { ...base, platform: 'auto' })).statusCode).toBe(400)
+    expect((await invoke(route, 'PATCH', '/codex-api/feishu/bots/bot-1', { platform: 'auto' })).statusCode).toBe(400)
   })
 
   it('requires an explicit allowAllUsers flag for broad access', async () => {
     const deps = dependencies()
     const route = createFeishuRoutes(deps)
     await invoke(route, 'POST', '/codex-api/feishu/bots', {
-      name: 'Closed', appId: 'cli_closed', appSecret: 'secret', enabled: true, allowedOpenIds: [],
+      name: 'Closed', appId: 'cli_closed', appSecret: 'secret', platform: 'feishu', enabled: true, allowedOpenIds: [],
     })
     expect(deps.createBot).toHaveBeenLastCalledWith(expect.objectContaining({ allowAllUsers: false, allowedOpenIds: [] }))
     await invoke(route, 'POST', '/codex-api/feishu/bots', {
-      name: 'Open', appId: 'cli_open', appSecret: 'secret', enabled: true,
+      name: 'Open', appId: 'cli_open', appSecret: 'secret', platform: 'feishu', enabled: true,
       allowAllUsers: true, allowedOpenIds: [],
     })
     expect(deps.createBot).toHaveBeenLastCalledWith(expect.objectContaining({ allowAllUsers: true, allowedOpenIds: [] }))
@@ -149,6 +157,9 @@ describe('createFeishuRoutes', () => {
     const updated = await invoke(createFeishuRoutes(deps), 'PATCH', '/codex-api/feishu/bots/bot-1', { groupMentionMode: 'topic' })
     expect(updated.statusCode).toBe(200)
     expect(deps.updateBot).toHaveBeenCalledWith('bot-1', { groupMentionMode: 'topic' })
+    const platform = await invoke(createFeishuRoutes(deps), 'PATCH', '/codex-api/feishu/bots/bot-1', { platform: 'lark' })
+    expect(platform.statusCode).toBe(200)
+    expect(deps.updateBot).toHaveBeenCalledWith('bot-1', { platform: 'lark' })
     const invalid = await invoke(createFeishuRoutes(deps), 'PATCH', '/codex-api/feishu/bots/bot-1', { groupMentionMode: 'never' })
     expect(invalid.statusCode).toBe(400)
   })
