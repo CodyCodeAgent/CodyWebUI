@@ -492,6 +492,28 @@ describe('FeishuQrSetupManager', () => {
     expect(saves.at(-1)).toMatchObject({ status: 'completed', appId: 'cli_created', botId: 'bot-1' })
   })
 
+  it('retains completed setup evidence for the persisted seven-day history window', async () => {
+    const persisted: StoredFeishuQrSetupJob = {
+      id: 'job-completed', name: 'Cody Bot', status: 'completed', statusMessage: 'done',
+      account: { userName: 'Alice', email: null, tenantName: 'Example' }, warnings: [], error: null,
+      canRetry: false, canCancel: false, canConfirmIdentity: false,
+      input: { name: 'Cody Bot', allowAllUsers: false, allowedOpenIds: ['ou_a'], groupMentionMode: 'always' },
+      appId: 'cli_created', botId: 'bot-1', checks: Object.fromEntries(
+        Object.keys(emptyFeishuSetupChecks()).map((key) => [key, true]),
+      ) as StoredFeishuQrSetupJob['checks'],
+      createdAtIso: '2026-07-18T00:00:00.000Z', updatedAtIso: '2026-07-18T01:00:00.000Z',
+    }
+    const manager = new FeishuQrSetupManager({
+      createBot: vi.fn(async () => bot(false)), updateBot: vi.fn(async () => bot(true)),
+      findBot: vi.fn(async () => bot(true)), loadPersistedJobs: vi.fn(async () => [persisted]),
+      savePersistedJob: vi.fn(async () => undefined), createApp: vi.fn() as any,
+      now: () => new Date('2026-07-18T02:00:00.000Z'),
+    })
+
+    await manager.restore()
+    expect(manager.list()).toEqual([expect.objectContaining({ id: 'job-completed', status: 'completed' })])
+  })
+
   it('fails closed after a restart in an outcome-unknown app creation phase', async () => {
     const persisted: StoredFeishuQrSetupJob = {
       id: 'job-unknown', name: 'Cody Bot', status: 'creating_app', statusMessage: 'creating',

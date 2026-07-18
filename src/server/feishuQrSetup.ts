@@ -877,7 +877,11 @@ export class FeishuQrSetupManager {
   }
 
   private prune(): void {
-    const cutoff = this.now().getTime() - 30 * 60_000
+    // Keep in-memory history aligned with the persisted seven-day retention.
+    // The settings UI and tenant acceptance preflight need completed setup
+    // evidence after normal service restarts; dropping it after 30 minutes made
+    // a healthy bot look as if it had never completed setup.
+    const cutoff = this.now().getTime() - 7 * 24 * 60 * 60_000
     for (const [id, job] of this.jobs) {
       if (ACTIVE_STATUSES.has(job.status)) continue
       if (Date.parse(job.updatedAtIso) < cutoff) this.jobs.delete(id)
