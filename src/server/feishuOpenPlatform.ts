@@ -1487,8 +1487,9 @@ function sameStringSet(actual: readonly string[] | undefined, expected: readonly
  * Verify every critical setting provisioned by Feishu's official one-click
  * agent template. The application credential owns `self_manage`, not the
  * tenant administrator's `application:application:patch` scope, so this path
- * intentionally performs no application.v7 mutation. `grant_status === 2`
- * is the platform's effective/granted state; every other value fails closed.
+ * intentionally performs no application.v7 mutation. Feishu's application
+ * scope API reports `grant_status === 1` for an effective grant; every other
+ * value fails closed.
  */
 export async function configureOfficialFeishuOpenPlatformApp(
   options: ConfigureOfficialFeishuAppOptions,
@@ -1529,7 +1530,7 @@ export async function configureOfficialFeishuOpenPlatformApp(
       ...userScopes.map((scope) => `${scope}:user`),
     ];
     const grantedScopes = new Set(scopeRows
-      .filter((row) => row.grant_status === 2)
+      .filter((row) => row.grant_status === 1)
       .map((row) => `${row.scope_name}:${row.scope_type ?? 'tenant'}`));
     const missingScopes = requiredScopes.filter((scope) => !grantedScopes.has(scope));
     if (missingScopes.length > 0) {
@@ -1553,17 +1554,27 @@ export async function configureOfficialFeishuOpenPlatformApp(
       params: { lang: 'zh_cn', user_id_type: 'open_id' },
     });
     ensureSdkResponse(versionResponse, '回读发布版本');
-    const eventNames = sortedUnique(app?.event?.subscribed_events ?? []);
+    const version = versionResponse.data?.app_version;
+    const configuredEventNames = sortedUnique(app?.event?.subscribed_events ?? []);
+    const publishedEventNames = sortedUnique(version?.events ?? []);
+    // For official one-click agent apps, application.get omits `event` while
+    // the published version returns localized event names. With lang=zh_cn,
+    // “接收消息” is the published representation of im.message.receive_v1.
+    // The device-flow template provisions it as a WebSocket subscription, and
+    // the setup manager subsequently requires a real WS connection as proof.
+    const publishedMessageEventReady = publishedEventNames.includes('接收消息');
+    const eventNames = configuredEventNames.length > 0 ? configuredEventNames : publishedEventNames;
     const callbackNames = sortedUnique(app?.callback?.subscribed_callbacks ?? app?.callback_info?.subscribed_callbacks ?? []);
-    const eventModeReady = app?.event?.subscription_type === 'websocket';
+    const eventModeReady = app?.event?.subscription_type === 'websocket'
+      || (!app?.event?.subscription_type && publishedMessageEventReady);
     const callbackMode = app?.callback?.callback_type ?? app?.callback_info?.callback_type;
     const callbackModeReady = callbackMode === 'websocket';
-    const eventsReady = BOT_CRITICAL_APP_EVENTS.every((event) => eventNames.includes(event));
+    const eventsReady = BOT_CRITICAL_APP_EVENTS.every((event) => configuredEventNames.includes(event))
+      || publishedMessageEventReady;
     const callbacksReady = BOT_BASELINE_CALLBACKS.every((callback) => callbackNames.includes(callback));
-    const onlineVersionReady = Boolean(versionResponse.data?.app_version?.version_id === versionId);
+    const onlineVersionReady = Boolean(version?.version_id === versionId && version?.status === 1);
     const appEnabledReady = app?.status === 1;
 
-    const version = versionResponse.data?.app_version;
     const botOpenId = botResponse.bot?.open_id?.trim() ?? '';
     const botAbilityReady = Boolean(version?.ability?.bot
       || app?.mobile_default_ability === 'bot'
