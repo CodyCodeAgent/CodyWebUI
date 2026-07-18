@@ -244,7 +244,7 @@
                   <div><strong>{{ qrSetupJob.statusMessage }}</strong><small>{{ qrStatusLabel(qrSetupJob.status) }}</small></div>
                 </div>
                 <img v-if="qrSetupJob.qrDataUrl" class="feishu-qr-code" :src="qrSetupJob.qrDataUrl" :alt="t('settings.feishu.qr.codeAlt')" width="320" height="320" />
-                <p v-if="qrSetupJob.qrDataUrl" class="feishu-qr-expiry">{{ t('settings.feishu.qr.expiry') }}</p>
+                <p v-if="qrSetupJob.qrDataUrl" class="feishu-qr-expiry">{{ qrExpiryLabel(qrSetupJob.qrExpiresAtIso) }}</p>
                 <dl v-if="qrSetupJob.account" class="feishu-qr-account">
                   <div><dt>{{ t('settings.feishu.qr.account') }}</dt><dd>{{ qrSetupJob.account.userName }}<small v-if="qrSetupJob.account.email">{{ qrSetupJob.account.email }}</small></dd></div>
                   <div><dt>{{ t('settings.feishu.qr.tenant') }}</dt><dd>{{ qrSetupJob.account.tenantName }}</dd></div>
@@ -1262,6 +1262,16 @@ function connectivityCheckLabel(id: FeishuConnectivityReport['checks'][number]['
 
 function qrStatusLabel(status: FeishuQrSetupJob['status']): string {
   return t(`settings.feishu.qr.status.${status}` as const)
+}
+
+function qrExpiryLabel(expiresAtIso: string | null): string {
+  const expiresAt = expiresAtIso ? Date.parse(expiresAtIso) : Number.NaN
+  if (!Number.isFinite(expiresAt)) return t('settings.feishu.qr.expiry')
+  const remainingMs = expiresAt - Date.now()
+  if (remainingMs <= 0) return t('settings.feishu.qr.expiredHint')
+  return t('settings.feishu.qr.expiryRemaining', {
+    minutes: String(Math.max(1, Math.ceil(remainingMs / 60_000))),
+  })
 }
 
 function formatTime(value: string | null): string {

@@ -1330,7 +1330,11 @@ export async function registerOfficialFeishuOpenPlatformApp(
           ? '已识别为 Lark 国际版企业，正在切换授权域'
           : status === 'slow_down'
             ? `飞书要求降低查询频率${interval ? `（${interval} 秒）` : ''}`
-            : '已打开飞书官方确认页，等待完成应用创建';
+            // RFC 8628 only exposes `authorization_pending` here. It does not
+            // distinguish an untouched QR code from a scanned code whose
+            // phone-side confirmation is still pending, so never claim that
+            // the confirmation page has already been opened.
+            : '等待扫码或手机确认；扫码后请在飞书中点击确认';
         trackCallback(options.onStatus?.(message));
       },
     });
