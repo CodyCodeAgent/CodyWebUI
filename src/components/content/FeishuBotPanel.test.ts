@@ -217,7 +217,7 @@ describe('FeishuBotPanel', () => {
     api.fetchFeishuBindings.mockResolvedValue([])
     const job = {
       id: 'job-1', name: 'Scan bot', status: 'awaiting_scan', statusMessage: 'Please scan',
-      qrDataUrl: 'data:image/png;base64,qr', qrExpiresAtIso: null, account: null, bot: null,
+      qrDataUrl: 'data:image/png;base64,qr', qrExpiresAtIso: new Date(Date.now() + 10 * 60_000).toISOString(), account: null, bot: null,
       warnings: [], error: null, canRetry: false, canCancel: true, canConfirmIdentity: false, createdAtIso: '', updatedAtIso: '',
     }
     api.startFeishuQrSetup.mockResolvedValue(job)
@@ -236,7 +236,9 @@ describe('FeishuBotPanel', () => {
       availability: { mode: 'creator', memberIds: [], groupIds: [] },
     })
     expect(wrapper.get('.feishu-qr-code').attributes('src')).toBe('data:image/png;base64,qr')
-    expect(wrapper.text()).toContain('Step 1 of 3')
+    expect(wrapper.text()).toContain('Step 1 of 3 · Waiting for scan or phone confirmation')
+    expect(wrapper.text()).toContain('tap Confirm on your phone')
+    expect(wrapper.text()).toContain('About 10 minutes remaining')
     wrapper.unmount()
   })
 

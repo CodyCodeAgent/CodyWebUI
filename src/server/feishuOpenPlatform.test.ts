@@ -143,6 +143,7 @@ describe('parseSetupOpenPlatformAutoFlag', () => {
 describe('official Feishu device registration', () => {
   it('uses the official least-privilege create-only flow and carries scanner identity into credential persistence', async () => {
     const onQrCode = vi.fn();
+    const onStatus = vi.fn();
     const onSessionReady = vi.fn();
     const onCredentials = vi.fn();
     const registerAppImpl = vi.fn(async (options: any) => {
@@ -163,6 +164,7 @@ describe('official Feishu device registration', () => {
       registerAppImpl: registerAppImpl as any,
       resolveIdentity: vi.fn(async () => identity),
       onQrCode,
+      onStatus,
       onSessionReady,
       onCredentials,
       scopeManifest: { scopes: { tenant: ['im:message:send_as_bot'], user: [] } },
@@ -184,6 +186,7 @@ describe('official Feishu device registration', () => {
     expect(onQrCode).toHaveBeenCalledWith(expect.objectContaining({
       qrPayload: 'https://accounts.feishu.cn/device?code=one', expireIn: 600,
     }));
+    expect(onStatus).toHaveBeenCalledWith('等待扫码或手机确认；扫码后请在飞书中点击确认');
     expect(onSessionReady).toHaveBeenCalledWith({
       source: 'official_device_flow', identity, externallyConfirmed: true,
     });

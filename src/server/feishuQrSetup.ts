@@ -474,7 +474,10 @@ export class FeishuQrSetupManager {
         onStatus: async (message) => {
           if (job.controller.signal.aborted) return
           await this.patchAndPersist(job, {
-            status: message.includes('已经扫码') ? 'authorizing' : job.status,
+            // The official SDK reports the same authorization_pending state
+            // both before scanning and while the phone confirmation is open.
+            // Keep the combined waiting state until credentials arrive.
+            status: job.status,
             statusMessage: message,
           })
         },
