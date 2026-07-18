@@ -1,5 +1,18 @@
 <template>
   <div class="feishu-panel">
+    <aside
+      v-if="showTransportWarning"
+      class="feishu-alert feishu-transport-warning"
+      data-tone="warning"
+      role="status"
+      aria-live="polite"
+    >
+      <div>
+        <strong>{{ t('settings.feishu.transportWarning.title') }}</strong>
+        <p>{{ t('settings.feishu.transportWarning.body') }}</p>
+      </div>
+    </aside>
+
     <div v-if="isLoading" class="feishu-loading" role="status" aria-live="polite">
       <span class="feishu-loading-bar" />
       <span class="feishu-loading-bar" />
@@ -117,6 +130,7 @@
               </span>
             </span>
             <span class="feishu-bot-tenant">{{ bot.tenantName || t('settings.feishu.tenantUnknown') }}</span>
+            <span class="feishu-bot-platform">{{ platformLabel(bot.platform) }}</span>
             <span class="feishu-bot-app-id">{{ bot.appId }}</span>
             <span v-if="!bot.enabled" class="feishu-bot-disabled">{{ t('settings.feishu.disabled') }}</span>
           </button>
@@ -290,6 +304,16 @@
                 <span>{{ t('settings.feishu.field.appId') }} *</span>
                 <input ref="appIdInput" v-model.trim="draft.appId" required autocomplete="off" spellcheck="false" placeholder="cli_…" />
               </label>
+              <fieldset class="feishu-mention-mode-field feishu-platform-field">
+                <legend>{{ t('settings.feishu.field.platform') }} *</legend>
+                <p>{{ t('settings.feishu.field.platformHint') }}</p>
+                <div class="feishu-mention-mode-options">
+                  <label v-for="platform in platformOptions" :key="platform.value">
+                    <input v-model="draft.platform" type="radio" name="feishu-platform" :value="platform.value" />
+                    <span><strong>{{ platform.label }}</strong><small>{{ platform.description }}</small></span>
+                  </label>
+                </div>
+              </fieldset>
               <label class="feishu-secret-field">
                 <span>{{ t('settings.feishu.field.appSecret') }}<template v-if="isCreating"> *</template></span>
                 <span class="feishu-secret-input">
@@ -596,11 +620,13 @@ import {
   type FeishuOpenPlatformApp,
 } from '../../api/codexFeishuClient'
 import { useLocale } from '../../composables/useLocale'
+import { isRemotePlainHttpLocation } from '../../composables/feishuTransport'
 
 type BotDraft = {
   name: string
   appId: string
   appSecret: string
+  platform: 'feishu' | 'lark'
   enabled: boolean
   allowAllUsers: boolean
   availabilityMode: 'creator' | 'members' | 'groups' | 'all'
@@ -612,6 +638,7 @@ type BotDraft = {
 }
 
 const { locale, t } = useLocale()
+const showTransportWarning = typeof window !== 'undefined' && isRemotePlainHttpLocation(window.location)
 const bots = ref<FeishuBot[]>([])
 const bindings = ref<FeishuBinding[]>([])
 const diagnostics = ref<FeishuDiagnostics | null>(null)
@@ -670,6 +697,10 @@ const availabilityOptions = computed(() => ([
   { value: 'groups', label: t('settings.feishu.availability.groups'), description: t('settings.feishu.availability.groupsHint') },
   { value: 'all', label: t('settings.feishu.availability.all'), description: t('settings.feishu.availability.allHint') },
 ] satisfies Array<{ value: BotDraft['availabilityMode']; label: string; description: string }>))
+const platformOptions = computed(() => ([
+  { value: 'feishu', label: t('settings.feishu.platform.feishu'), description: t('settings.feishu.platform.feishuHint') },
+  { value: 'lark', label: t('settings.feishu.platform.lark'), description: t('settings.feishu.platform.larkHint') },
+] satisfies Array<{ value: BotDraft['platform']; label: string; description: string }>))
 const setupProofs = computed(() => {
   const checks = qrSetupJob.value?.checks
   const all = (...keys: Array<keyof NonNullable<typeof checks>>) => Boolean(checks && keys.every((key) => checks[key]))
@@ -687,7 +718,7 @@ const setupProofs = computed(() => {
 
 function emptyDraft(): BotDraft {
   return {
-    name: '', appId: '', appSecret: '', enabled: false, allowAllUsers: false,
+    name: '', appId: '', appSecret: '', platform: 'feishu', enabled: false, allowAllUsers: false,
     availabilityMode: 'creator', availabilityMemberIdsText: '', availabilityGroupIdsText: '',
     allowedOpenIdsText: '', allowedChatIdsText: '', groupMentionMode: 'always',
   }
@@ -702,6 +733,7 @@ function botDraft(bot: FeishuBot): BotDraft {
     name: bot.name,
     appId: bot.appId,
     appSecret: '',
+    platform: bot.platform,
     enabled: bot.enabled,
     allowAllUsers: bot.allowAllUsers,
     availabilityMode: 'creator',
@@ -1021,6 +1053,10 @@ function parseOpenIds(value: string): string[] {
   return [...new Set(value.split(/[\s,;]+/).map((item) => item.trim()).filter(Boolean))]
 }
 
+function platformLabel(platform: FeishuBot['platform']): string {
+  return t(platform === 'lark' ? 'settings.feishu.platform.lark' : 'settings.feishu.platform.feishu')
+}
+
 async function saveDraft(): Promise<void> {
   actionError.value = ''
   successMessage.value = ''
@@ -1035,6 +1071,7 @@ async function saveDraft(): Promise<void> {
     const input = {
       name: draft.name,
       appId: draft.appId,
+      platform: draft.platform,
       enabled: draft.enabled,
       allowAllUsers: draft.allowAllUsers,
       allowedOpenIds,
@@ -1286,7 +1323,7 @@ onBeforeUnmount(() => {
 .feishu-bot-card-heading { display: flex; min-width: 0; align-items: center; justify-content: space-between; gap: 0.5rem; }
 .feishu-bot-card-heading strong { overflow: hidden; font-size: 0.8rem; text-overflow: ellipsis; white-space: nowrap; }
 .feishu-bot-app-id { overflow: hidden; color: var(--color-text-muted); font-family: var(--font-mono); font-size: 0.68rem; text-overflow: ellipsis; white-space: nowrap; }
-.feishu-bot-tenant { overflow: hidden; color: var(--color-text-muted); font-size: 0.65rem; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.feishu-bot-tenant, .feishu-bot-platform { overflow: hidden; color: var(--color-text-muted); font-size: 0.65rem; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
 .feishu-bot-disabled { color: var(--color-warning); font-size: 0.68rem; }
 .feishu-status { display: inline-flex; flex-shrink: 0; align-items: center; gap: 0.28rem; color: var(--color-text-muted); font-size: 0.65rem; font-weight: 600; }
 .feishu-status-dot { width: 0.45rem; height: 0.45rem; border-radius: 999px; background: var(--color-text-muted); }
@@ -1364,12 +1401,14 @@ onBeforeUnmount(() => {
 .feishu-mention-mode-options { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.5rem; }
 .feishu-mention-mode-options label { display: grid; min-width: 0; min-height: 4.5rem; cursor: pointer; grid-template-columns: auto minmax(0, 1fr); align-items: start; gap: 0.5rem; border: 1px solid var(--color-border); border-radius: var(--radius-md); background: var(--color-elevated); padding: 0.65rem; transition: border-color 180ms ease, background 180ms ease; }
 .feishu-mention-mode-options label:hover { background: var(--color-panel); }
+.feishu-mention-mode-options label:has(input:focus-visible) { outline: 2px solid var(--color-accent); outline-offset: 2px; }
 .feishu-mention-mode-options label:has(input:checked) { border-color: var(--color-accent); background: color-mix(in srgb, var(--color-accent) 8%, var(--color-surface)); }
 .feishu-mention-mode-options label[data-risk='high']:has(input:checked) { border-color: var(--color-warning); background: color-mix(in srgb, var(--color-warning) 8%, var(--color-surface)); }
 .feishu-mention-mode-options input { width: 1rem; height: 1rem; margin: 0.1rem 0 0; accent-color: var(--color-accent); }
 .feishu-mention-mode-options span { display: grid; min-width: 0; gap: 0.2rem; }
 .feishu-mention-mode-options strong { color: var(--color-text); font-size: 0.72rem; }
 .feishu-mention-mode-options small { color: var(--color-text-muted); font-size: 0.65rem; line-height: 1.45; }
+.feishu-platform-field .feishu-mention-mode-options { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .feishu-availability-field { display: grid; min-width: 0; gap: 0.55rem; margin: 0; border: 0; padding: 0; }
 .feishu-availability-field legend { padding: 0; color: var(--color-text-muted); font-size: 0.7rem; font-weight: 650; }
 .feishu-availability-field > p { margin: 0; color: var(--color-text-muted); font-size: 0.67rem; line-height: 1.45; }
@@ -1465,6 +1504,9 @@ button:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2
 .feishu-alert[data-tone='danger'] { border-color: color-mix(in srgb, var(--color-danger) 42%, var(--color-border)); background: color-mix(in srgb, var(--color-danger) 8%, var(--color-surface)); color: var(--color-danger); }
 .feishu-alert[data-tone='success'] { border-color: color-mix(in srgb, var(--color-success) 42%, var(--color-border)); background: color-mix(in srgb, var(--color-success) 8%, var(--color-surface)); color: color-mix(in srgb, var(--color-success) 52%, var(--color-text)); }
 .feishu-alert[data-tone='warning'] { border-color: color-mix(in srgb, var(--color-warning) 48%, var(--color-border)); background: color-mix(in srgb, var(--color-warning) 10%, var(--color-surface)); color: color-mix(in srgb, var(--color-warning) 58%, var(--color-text)); }
+.feishu-transport-warning { align-items: flex-start; }
+.feishu-transport-warning > div { display: grid; gap: 0.18rem; }
+.feishu-transport-warning p { color: var(--color-text-muted); }
 .feishu-loading { display: grid; min-height: 8rem; place-content: center; gap: 0.5rem; color: var(--color-text-muted); font-size: 0.75rem; text-align: center; }
 .feishu-loading-bar { width: min(15rem, 70vw); height: 0.7rem; border-radius: 999px; background: var(--color-elevated); animation: feishu-pulse 1.4s ease-in-out infinite alternate; }
 .feishu-loading-bar:nth-child(2) { width: min(10rem, 50vw); }
@@ -1482,6 +1524,7 @@ button:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2
   .feishu-secret-field, .feishu-allowlist-field, .feishu-open-access-field, .feishu-availability-field, .feishu-mention-mode-field { grid-column: auto; }
   .feishu-availability-options { grid-template-columns: minmax(0, 1fr); }
   .feishu-mention-mode-options { grid-template-columns: minmax(0, 1fr); }
+  .feishu-platform-field .feishu-mention-mode-options { grid-template-columns: minmax(0, 1fr); }
   .feishu-qr-intro ol { grid-template-columns: minmax(0, 1fr); }
   .feishu-diagnostic-counts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .feishu-diagnostic-recents { grid-template-columns: minmax(0, 1fr); }

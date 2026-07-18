@@ -50,7 +50,7 @@ describe('Feishu client', () => {
 
   it('creates, updates and reconnects a bot with the expected contract', async () => {
     httpMock.fetchCodexResultRecord.mockResolvedValue({ result: { bot }, status: 200 })
-    const input = { name: 'Release bot', appId: 'cli_a', appSecret: 'secret', enabled: true, allowedOpenIds: [], groupMentionMode: 'topic' as const }
+    const input = { name: 'Release bot', appId: 'cli_a', appSecret: 'secret', platform: 'lark' as const, enabled: true, allowedOpenIds: [], groupMentionMode: 'topic' as const }
     await createFeishuBot(input)
     expect(httpMock.fetchCodexResultRecord).toHaveBeenLastCalledWith('/codex-api/feishu/bots', expect.objectContaining({
       init: expect.objectContaining({ method: 'POST', body: JSON.stringify(input) }),

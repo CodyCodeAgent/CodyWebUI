@@ -40,6 +40,7 @@ describe('Feishu integration management audit', () => {
       name: 'Team bot',
       appId: 'cli_sensitive_identifier',
       appSecret: 'test-secret',
+      platform: 'feishu',
       enabled: false,
       allowAllUsers: false,
       allowedOpenIds: ['ou_one'],
@@ -48,6 +49,7 @@ describe('Feishu integration management audit', () => {
     await value.routes.updateBot(created.id, {
       appSecret: 'replacement-secret',
       enabled: false,
+      platform: 'lark',
       allowedOpenIds: ['ou_one', 'ou_two'],
       groupMentionMode: 'bound',
     })
@@ -78,6 +80,7 @@ describe('Feishu integration management audit', () => {
     expect(serialized).not.toContain('ou_one')
     expect(audits.find((row) => row.action === 'bot.update')?.metadata).toMatchObject({
       enabled: false,
+      platform: 'lark',
       groupMentionMode: 'bound',
       allowedOpenIdCount: 2,
       credentialChanged: true,
@@ -87,7 +90,7 @@ describe('Feishu integration management audit', () => {
   it('reports retryable failures separately from terminal dead letters', async () => {
     const value = integration()
     const created = await value.routes.createBot({
-      name: 'Diagnostics bot', appId: 'cli_diagnostics', appSecret: 'secret', enabled: false, allowAllUsers: false,
+      name: 'Diagnostics bot', appId: 'cli_diagnostics', appSecret: 'secret', platform: 'feishu', enabled: false, allowAllUsers: false,
       allowedOpenIds: [], groupMentionMode: 'always',
     })
     const retrying = await enqueueFeishuOutbox({

@@ -55,6 +55,8 @@ protocol.
 
 Settings → Feishu bots creates a ready-to-use custom application with one
 Feishu QR scan by default, while retaining App ID / Secret entry as a fallback.
+Manual entry requires an explicit Feishu China or Lark International platform
+choice so credentials are never probed against the wrong API domain.
 CodyWebUI uses the official SDK device flow: Feishu/Lark shows and confirms the
 account, enterprise, least-privilege permissions, message event, and card
 callback before returning write-only app credentials. CodyWebUI then configures
@@ -180,10 +182,11 @@ CODY_HOST=0.0.0.0 CODY_PORT=8080 CODY_PASSWORD='replace-me' npm run deploy
 `CODY_PASSWORD` is mandatory for non-loopback hosts. Service lifecycle commands
 are also available independently:
 
-Feishu management is stricter: `/codex-api/feishu/*` accepts plain HTTP only
-from a direct loopback connection. Remote administration requires TLS or a
-same-host HTTPS reverse proxy that sets `X-Forwarded-Proto: https`; otherwise
-the service returns HTTP 426 without performing the operation.
+Feishu management follows the same CodyWebUI login boundary as the rest of the
+control surface. It remains usable on authenticated HTTP deployments, matching
+botmux's local-dashboard workflow, while the UI displays an unencrypted
+transport warning. App Secrets are persisted server-side. Use an HTTPS reverse
+proxy on shared or untrusted networks.
 
 ```bash
 npm run service:status

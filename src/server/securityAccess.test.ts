@@ -80,41 +80,34 @@ describe('security access snapshot', () => {
     ]))
   })
 
-  it('allows sensitive management only for loopback, direct TLS, or a trusted same-host HTTPS proxy', () => {
-    expect(inspectRequestTransport(mockRequest({ host: '127.0.0.1:3000' })).allowsSensitiveManagement).toBe(true)
+  it('reports direct TLS and a trusted same-host HTTPS proxy as encrypted', () => {
     expect(inspectRequestTransport(mockRequest(
       { host: 'codex.example.test' },
       { remoteAddress: '192.0.2.10', encrypted: true },
-    )).allowsSensitiveManagement).toBe(true)
+    )).protocol).toBe('https')
     expect(inspectRequestTransport(mockRequest({
       host: 'codex.example.test',
       'x-forwarded-proto': 'https',
     }))).toMatchObject({
       protocol: 'https',
       forwardedProtoTrusted: true,
-      allowsSensitiveManagement: true,
     })
   })
 
-  it('rejects remote HTTP and does not trust a spoofed forwarded protocol from a remote peer', () => {
-    expect(inspectRequestTransport(mockRequest(
-      { host: 'codex.example.test' },
-      { remoteAddress: '192.0.2.10' },
-    )).allowsSensitiveManagement).toBe(false)
+  it('reports remote HTTP honestly and ignores a spoofed forwarded protocol', () => {
     expect(inspectRequestTransport(mockRequest(
       { host: 'codex.example.test', 'x-forwarded-proto': 'https' },
       { remoteAddress: '192.0.2.10' },
     ))).toMatchObject({
       protocol: 'http',
       forwardedProtoTrusted: false,
-      allowsSensitiveManagement: false,
     })
     expect(inspectRequestTransport(mockRequest({
       host: 'codex.example.test',
       'x-forwarded-proto': 'http',
     }))).toMatchObject({
+      protocol: 'http',
       forwardedProtoTrusted: true,
-      allowsSensitiveManagement: false,
     })
   })
 })

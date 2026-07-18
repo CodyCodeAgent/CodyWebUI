@@ -91,19 +91,17 @@ export type RequestTransportSecurity = {
   isLoopbackPeer: boolean
   forwardedProto: string
   forwardedProtoTrusted: boolean
-  allowsSensitiveManagement: boolean
 }
 
 /**
- * Sensitive management APIs may use plain HTTP only over a direct loopback
- * connection. `X-Forwarded-Proto` is trusted only from a same-host proxy;
- * otherwise a remote client could spoof the header to bypass the HTTPS gate.
+ * Resolve the request transport for security diagnostics. `X-Forwarded-Proto`
+ * is trusted only from a same-host proxy so a remote client cannot make an
+ * HTTP request appear encrypted in the access-status UI.
  */
 export function inspectRequestTransport(req: IncomingMessage): RequestTransportSecurity {
   const peerAddress = req.socket.remoteAddress?.trim() ?? ''
   const isLoopbackPeer = isLoopbackAddress(peerAddress)
   const forwardedProto = firstForwardedProtocol(req)
-  const hasForwardedProto = Boolean(forwardedProto)
   const forwardedProtoTrusted = isLoopbackPeer && (forwardedProto === 'http' || forwardedProto === 'https')
   const encrypted = (req.socket as typeof req.socket & { encrypted?: boolean }).encrypted === true
   const protocol: RequestTransportSecurity['protocol'] = encrypted || (forwardedProtoTrusted && forwardedProto === 'https')
@@ -115,9 +113,6 @@ export function inspectRequestTransport(req: IncomingMessage): RequestTransportS
     isLoopbackPeer,
     forwardedProto,
     forwardedProtoTrusted,
-    allowsSensitiveManagement: encrypted
-      || (!hasForwardedProto && isLoopbackPeer)
-      || (forwardedProtoTrusted && forwardedProto === 'https'),
   }
 }
 

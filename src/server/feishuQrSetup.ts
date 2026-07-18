@@ -78,9 +78,8 @@ type MutableJob = Omit<FeishuQrSetupJobDto, 'checks'> & {
   input: FeishuQrSetupInput & { allowAllUsers: boolean }
 }
 
-type CreateBotInput = Required<Pick<FeishuBotWriteInput, 'name' | 'appId' | 'enabled' | 'allowAllUsers' | 'allowedOpenIds' | 'groupMentionMode'>> & Pick<FeishuBotWriteInput, 'allowedChatIds'> & {
+type CreateBotInput = Required<Pick<FeishuBotWriteInput, 'name' | 'appId' | 'platform' | 'enabled' | 'allowAllUsers' | 'allowedOpenIds' | 'groupMentionMode'>> & Pick<FeishuBotWriteInput, 'allowedChatIds'> & {
   appSecret: string
-  platform?: 'feishu' | 'lark'
   tenantId?: string
   tenantName?: string
 }
