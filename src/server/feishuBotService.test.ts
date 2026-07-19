@@ -452,6 +452,34 @@ describe('FeishuBotService', () => {
     await service.stop()
   })
 
+  it('sends project selection to the private chat in explicit flat mode', async () => {
+    const { service, store, transport } = harness(undefined, { bot: { ...bot, p2pMode: 'chat' } })
+    await service.start()
+    transport.handlers?.onMessage(inbound({
+      chat_type: 'p2p', message_id: 'om_private_reply', root_id: 'om_old_topic', thread_id: 'omt_old_topic',
+    }))
+    await vi.waitFor(() => expect(transport.cards).toHaveLength(1))
+    expect(store.pending.get('bot-1:p2p:oc_1:chat')).toMatchObject({ rootId: '' })
+    expect(transport.cards[0]?.kind).toBe('send')
+    expect(transport.repliesInThread).toEqual([])
+    await service.stop()
+  })
+
+  it('sends the streaming reply to the private chat in explicit flat mode', async () => {
+    const flatBinding: FeishuSessionBinding = {
+      ...binding(), bindingKey: 'bot-1:p2p:oc_1:chat', rootId: '', chatType: 'p2p',
+    }
+    const { service, transport, startTurn } = harness(flatBinding, { bot: { ...bot, p2pMode: 'chat' } })
+    await service.start()
+    transport.handlers?.onMessage(inbound({
+      chat_type: 'p2p', message_id: 'om_private_reply', root_id: 'om_old_topic', thread_id: 'omt_old_topic',
+    }))
+    await vi.waitFor(() => expect(startTurn).toHaveBeenCalledOnce())
+    expect(transport.cards[0]?.kind).toBe('send')
+    expect(transport.repliesInThread).toEqual([])
+    await service.stop()
+  })
+
   it('ignores unmentioned messages in an unbound group', async () => {
     const { service, transport } = harness()
     await service.start()
@@ -1411,6 +1439,26 @@ describe('FeishuBotService', () => {
     transport.handlers?.onMessage(inbound())
     await vi.waitFor(() => expect(transport.cards.some((row) => row.kind === 'send')).toBe(true))
     await vi.waitFor(() => expect(startTurn).toHaveBeenCalledOnce())
+    await service.stop()
+  })
+
+  it('keeps a private topic reply in its topic when the immediate source was withdrawn', async () => {
+    const topicBinding: FeishuSessionBinding = {
+      ...binding(), bindingKey: 'bot-1:p2p:oc_1:om_root', rootId: 'om_root', chatType: 'p2p',
+    }
+    const { service, transport, startTurn } = harness(topicBinding)
+    const replyCard = vi.fn()
+      .mockRejectedValueOnce(new FeishuPermanentDeliveryError('230011: message withdrawn', 'outbox-card'))
+      .mockResolvedValueOnce('root-card')
+    transport.replyCard = replyCard
+    await service.start()
+    transport.handlers?.onMessage(inbound({
+      chat_type: 'p2p', message_id: 'om_child', root_id: 'om_root', thread_id: 'omt_topic',
+    }))
+    await vi.waitFor(() => expect(startTurn).toHaveBeenCalledOnce())
+    expect(replyCard).toHaveBeenNthCalledWith(1, 'om_child', expect.any(Object), true)
+    expect(replyCard).toHaveBeenNthCalledWith(2, 'om_root', expect.any(Object), true)
+    expect(transport.cards.some((row) => row.kind === 'send')).toBe(false)
     await service.stop()
   })
 

@@ -1,8 +1,10 @@
+import { createHash } from 'node:crypto'
 import { appendFile, mkdir, readFile, realpath, stat } from 'node:fs/promises'
 import type { ServerResponse } from 'node:http'
-import { isAbsolute, join, relative, resolve } from 'node:path'
+import { dirname, isAbsolute, join, relative, resolve } from 'node:path'
 import { runControlledProcess } from './controlledProcess.js'
 import { dataAuthorityPolicy } from '../composables/dataAuthorityPolicy.js'
+import { localDatabasePath } from './localDatabase.js'
 
 const MAX_SESSION_EVENT_METADATA_CHARS = 800
 
@@ -113,7 +115,7 @@ export type CodexDailyTokenUsage = {
 type SessionWorkspace = {
   cwd: string
   repoRoot: string
-  gitCommonDir: string
+  eventRoot: string
 }
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -312,11 +314,15 @@ async function runGitForCatalogWorkspace(args: string[], cwd: string, timeoutMs:
 async function getCatalogSessionWorkspace(cwd: string, timeoutMs: number): Promise<SessionWorkspace> {
   const requestedCwd = resolve(cwd.trim())
   if (!cwd.trim()) throw new Error('cwd is required')
-  const repoRoot = (await runGitForCatalogWorkspace(['rev-parse', '--show-toplevel'], requestedCwd, timeoutMs)).trim()
-  const gitCommonDirRaw = (await runGitForCatalogWorkspace(['rev-parse', '--git-common-dir'], requestedCwd, timeoutMs)).trim()
-  if (!repoRoot || !gitCommonDirRaw) throw new Error('cwd is not a git workspace')
-  const gitCommonDir = isAbsolute(gitCommonDirRaw) ? gitCommonDirRaw : resolve(repoRoot, gitCommonDirRaw)
-  return { cwd: requestedCwd, repoRoot, gitCommonDir }
+  try {
+    const repoRoot = (await runGitForCatalogWorkspace(['rev-parse', '--show-toplevel'], requestedCwd, timeoutMs)).trim()
+    const gitCommonDirRaw = (await runGitForCatalogWorkspace(['rev-parse', '--git-common-dir'], requestedCwd, timeoutMs)).trim()
+    if (!repoRoot || !gitCommonDirRaw) throw new Error('cwd is not a git workspace')
+    const gitCommonDir = isAbsolute(gitCommonDirRaw) ? gitCommonDirRaw : resolve(repoRoot, gitCommonDirRaw)
+    return { cwd: requestedCwd, repoRoot, eventRoot: join(gitCommonDir, 'cody-web-ui-audit') }
+  } catch {
+    return { cwd: requestedCwd, repoRoot: requestedCwd, eventRoot: nonGitSessionEventRoot(requestedCwd) }
+  }
 }
 
 async function getSessionWorkspace(cwd: string): Promise<SessionWorkspace> {
@@ -327,20 +333,31 @@ async function getSessionWorkspace(cwd: string): Promise<SessionWorkspace> {
   const cwdStat = await stat(resolvedCwd)
   if (!cwdStat.isDirectory()) throw new Error('cwd must be a directory')
 
-  const repoRoot = (await runGit(['rev-parse', '--show-toplevel'], resolvedCwd)).trim()
-  const gitCommonDirRaw = (await runGit(['rev-parse', '--git-common-dir'], resolvedCwd)).trim()
-  const gitCommonDir = isAbsolute(gitCommonDirRaw)
-    ? gitCommonDirRaw
-    : resolve(repoRoot, gitCommonDirRaw)
+  try {
+    const repoRoot = (await runGit(['rev-parse', '--show-toplevel'], resolvedCwd)).trim()
+    const gitCommonDirRaw = (await runGit(['rev-parse', '--git-common-dir'], resolvedCwd)).trim()
+    const gitCommonDir = isAbsolute(gitCommonDirRaw)
+      ? gitCommonDirRaw
+      : resolve(repoRoot, gitCommonDirRaw)
 
-  if (!isInside(repoRoot, resolvedCwd)) {
-    throw new Error('cwd is outside the git workspace root')
-  }
+    if (!isInside(repoRoot, resolvedCwd)) {
+      throw new Error('cwd is outside the git workspace root')
+    }
 
-  return {
-    cwd: resolvedCwd,
-    repoRoot,
-    gitCommonDir,
+    return {
+      cwd: resolvedCwd,
+      repoRoot,
+      eventRoot: join(gitCommonDir, 'cody-web-ui-audit'),
+    }
+  } catch {
+    // Codex supports sessions rooted in ordinary directories too. Keep their
+    // audit trail in the private CodyWeb data directory instead of requiring
+    // a .git directory or dropping every notification from that session.
+    return {
+      cwd: resolvedCwd,
+      repoRoot: resolvedCwd,
+      eventRoot: nonGitSessionEventRoot(resolvedCwd),
+    }
   }
 }
 
@@ -380,7 +397,12 @@ function emptyDailyTokenUsage(input: {
 }
 
 function sessionEventRoot(workspace: SessionWorkspace): string {
-  return join(workspace.gitCommonDir, 'cody-web-ui-audit')
+  return workspace.eventRoot
+}
+
+function nonGitSessionEventRoot(cwd: string): string {
+  const workspaceKey = createHash('sha256').update(resolve(cwd)).digest('hex').slice(0, 24)
+  return join(dirname(resolve(localDatabasePath())), 'workspace-audit', workspaceKey)
 }
 
 function sessionEventPath(workspace: SessionWorkspace): string {

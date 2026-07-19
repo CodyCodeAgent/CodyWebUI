@@ -584,7 +584,7 @@
                 <div class="feishu-binding-main">
                   <strong>{{ binding.projectName || binding.projectCwd }}</strong>
                   <span>{{ binding.sessionTitle || binding.sessionId || t('settings.feishu.newSession') }}</span>
-                  <code>{{ scopeLabel(binding.scopeType) }} · {{ binding.collaborationMode }} · {{ binding.chatId }}</code>
+                  <code>{{ bindingScopeLabel(binding) }} · {{ binding.collaborationMode }} · {{ binding.threadId || binding.chatId }}</code>
                 </div>
                 <div class="feishu-binding-meta">
                   <time :datetime="binding.lastMessageAtIso || undefined">{{ formatTime(binding.lastMessageAtIso) }}</time>
@@ -1278,8 +1278,9 @@ function statusLabel(status: FeishuBotStatus): string {
   return t(`settings.feishu.status.${status}` as const)
 }
 
-function scopeLabel(scope: FeishuBinding['scopeType']): string {
-  return t(`settings.feishu.scope.${scope}` as const)
+function bindingScopeLabel(binding: FeishuBinding): string {
+  if (binding.scopeType === 'private' && binding.threadId) return t('settings.feishu.scope.privateTopic')
+  return t(`settings.feishu.scope.${binding.scopeType}` as const)
 }
 
 function diagnosticStatusLabel(status: FeishuDiagnostics['recentTurns'][number]['status'] | FeishuDiagnostics['recentCards'][number]['status']): string {

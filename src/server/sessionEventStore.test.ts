@@ -431,4 +431,28 @@ describe('session event store', () => {
       source: 'none',
     })
   })
+
+  it('persists and replays session events for non-git directories', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'cody-web-ui-session-events-non-git-'))
+    tempDirs.push(dir)
+    const previousDatabasePath = process.env.CODY_WEB_UI_SETTINGS_DB
+    process.env.CODY_WEB_UI_SETTINGS_DB = join(dir, '.data', 'settings.sqlite3')
+    try {
+      await appendCodexSessionEvent(dir, {
+        method: 'turn/started',
+        atIso: '2026-07-19T10:00:00.000Z',
+        params: { turn: { id: 'turn-plain', threadId: 'thread-plain' } },
+      })
+
+      const trail = await listCodexSessionEvents({ cwd: dir, threadId: 'thread-plain' })
+      const resolvedDir = await realpath(dir)
+      expect(trail).toMatchObject({ cwd: resolvedDir, repoRoot: resolvedDir, truncated: false })
+      expect(trail.events).toEqual([
+        expect.objectContaining({ kind: 'task_started', threadId: 'thread-plain', cwd: resolvedDir, repoRoot: resolvedDir }),
+      ])
+    } finally {
+      if (previousDatabasePath === undefined) delete process.env.CODY_WEB_UI_SETTINGS_DB
+      else process.env.CODY_WEB_UI_SETTINGS_DB = previousDatabasePath
+    }
+  })
 })

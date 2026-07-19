@@ -1074,7 +1074,7 @@ export class FeishuBotService {
     const messageId = binding.chatType === 'group'
       ? await runtime.transport.sendUserCard!(binding.senderOpenId, approvalCard)
       : binding.rootId
-        ? await this.replyCardWithFallback(runtime, binding.rootId, binding.chatId, approvalCard, true)
+        ? await this.replyCardWithFallback(runtime, binding.rootId, binding.chatId, approvalCard, binding.rootId, binding.chatType)
         : await runtime.transport.sendCard(binding.chatId, approvalCard)
     this.pendingRequestCards.set(requestKey(binding.botId, String(request.id)), {
       requestId: String(request.id),
@@ -1124,7 +1124,7 @@ export class FeishuBotService {
     const messageId = binding.chatType === 'group'
       ? await runtime.transport.sendUserCard!(binding.senderOpenId, card)
       : binding.rootId
-        ? await this.replyCardWithFallback(runtime, binding.rootId, binding.chatId, card, true)
+        ? await this.replyCardWithFallback(runtime, binding.rootId, binding.chatId, card, binding.rootId, binding.chatType)
         : await runtime.transport.sendCard(binding.chatId, card)
     this.pendingRequestCards.set(requestKey(binding.botId, requestId), {
       requestId,
@@ -1700,7 +1700,7 @@ export class FeishuBotService {
 
     if (chatModeLookupFailed) {
       if (inbound.explicitlyMentioned) {
-        await this.replyTextWithFallback(runtime, inbound.messageId, inbound.chatId, '暂时无法确认群聊模式，为避免绑定到错误的 Session，本次未处理。请稍后重试。', false)
+        await this.replyTextWithFallback(runtime, inbound.messageId, inbound.chatId, '暂时无法确认群聊模式，为避免绑定到错误的 Session，本次未处理。请稍后重试。', '', inbound.chatType)
       }
       return
     }
@@ -1728,52 +1728,52 @@ export class FeishuBotService {
       return
     }
     if (inbound.prompt.startsWith('/') && (!command || !knownCommands.has(command))) {
-      await this.replyTextWithFallback(runtime, inbound.messageId, inbound.chatId, `未知命令${command ? ` /${command}` : ''}。发送 /help 查看可用命令。`, Boolean(inbound.rootId))
+      await this.replyTextWithFallback(runtime, inbound.messageId, inbound.chatId, `未知命令${command ? ` /${command}` : ''}。发送 /help 查看可用命令。`, inbound.rootId, inbound.chatType)
       return
     }
 
     if (command === 'answer') {
       const parsed = commandArgument.match(/^(\S+)\s+(\S+)\s+([\s\S]+)$/u)
       if (!parsed) {
-        await this.replyTextWithFallback(runtime, inbound.messageId, inbound.chatId, '用法：/answer 请求ID 问题ID 你的答案', Boolean(inbound.rootId))
+        await this.replyTextWithFallback(runtime, inbound.messageId, inbound.chatId, '用法：/answer 请求ID 问题ID 你的答案', inbound.rootId, inbound.chatType)
         return
       }
       const [, requestId = '', questionId = '', rawAnswer = ''] = parsed
       const answer = rawAnswer.trim()
       const pending = this.pendingRequestCards.get(requestKey(inbound.botId, requestId))
       if (!pending || pending.kind !== 'user_input') {
-        await this.replyTextWithFallback(runtime, inbound.messageId, inbound.chatId, '该问题已回答、已过期或不属于当前机器人。', Boolean(inbound.rootId))
+        await this.replyTextWithFallback(runtime, inbound.messageId, inbound.chatId, '该问题已回答、已过期或不属于当前机器人。', inbound.rootId, inbound.chatType)
         return
       }
       if (!this.isOperatorAuthorized(runtime.bot, inbound.senderOpenId, pending.requesterOpenId)) {
-        await this.replyTextWithFallback(runtime, inbound.messageId, inbound.chatId, '只有请求发起者或机器人管理员可以回答。', Boolean(inbound.rootId))
+        await this.replyTextWithFallback(runtime, inbound.messageId, inbound.chatId, '只有请求发起者或机器人管理员可以回答。', inbound.rootId, inbound.chatType)
         return
       }
       const question = pending.questions.find((row) => row.id === questionId)
       if (!question) {
-        await this.replyTextWithFallback(runtime, inbound.messageId, inbound.chatId, '问题 ID 不存在，请按卡片中的命令格式重试。', Boolean(inbound.rootId))
+        await this.replyTextWithFallback(runtime, inbound.messageId, inbound.chatId, '问题 ID 不存在，请按卡片中的命令格式重试。', inbound.rootId, inbound.chatType)
         return
       }
       if (!answer || answer.length > 2_000) {
-        await this.replyTextWithFallback(runtime, inbound.messageId, inbound.chatId, '答案不能为空，且不能超过 2000 个字符。', Boolean(inbound.rootId))
+        await this.replyTextWithFallback(runtime, inbound.messageId, inbound.chatId, '答案不能为空，且不能超过 2000 个字符。', inbound.rootId, inbound.chatType)
         return
       }
       if (!question.isOther && question.options.length > 0 && !question.isSecret) {
-        await this.replyTextWithFallback(runtime, inbound.messageId, inbound.chatId, '该问题只接受卡片中的选项。', Boolean(inbound.rootId))
+        await this.replyTextWithFallback(runtime, inbound.messageId, inbound.chatId, '该问题只接受卡片中的选项。', inbound.rootId, inbound.chatType)
         return
       }
       if (question.isSecret) {
         if (inbound.chatType !== 'p2p') {
-          await this.replyTextWithFallback(runtime, inbound.messageId, inbound.chatId, '敏感答案只能在与机器人私聊中发送。', Boolean(inbound.rootId))
+          await this.replyTextWithFallback(runtime, inbound.messageId, inbound.chatId, '敏感答案只能在与机器人私聊中发送。', inbound.rootId, inbound.chatType)
           return
         }
         const unanswered = pending.questions.filter((row) => row.id !== question.id && !pending.selections[row.id])
         if (unanswered.length > 0) {
-          await this.replyTextWithFallback(runtime, inbound.messageId, inbound.chatId, `请先回答其他问题：${unanswered.map((row) => row.header || row.question || row.id).join('、')}，最后再发送敏感答案。`, false)
+          await this.replyTextWithFallback(runtime, inbound.messageId, inbound.chatId, `请先回答其他问题：${unanswered.map((row) => row.header || row.question || row.id).join('、')}，最后再发送敏感答案。`, '', inbound.chatType)
           return
         }
         if (!this.dependencies.serverRequests) {
-          await this.replyTextWithFallback(runtime, inbound.messageId, inbound.chatId, '问题答复通道尚未连接。', false)
+          await this.replyTextWithFallback(runtime, inbound.messageId, inbound.chatId, '问题答复通道尚未连接。', '', inbound.chatType)
           return
         }
         const submitted = { ...pending.selections, [question.id]: answer }
@@ -1790,7 +1790,7 @@ export class FeishuBotService {
           resolvedAtIso: this.now().toISOString(),
           answers: Object.fromEntries(pending.questions.map((row) => [row.header || row.id, pending.selections[row.id] ?? ''])),
         })).catch((error) => this.log('warn', `[feishu:${inbound.botId}] failed to freeze secret answer card: ${String(error)}`))
-        await this.replyTextWithFallback(runtime, inbound.messageId, inbound.chatId, '敏感答案已提交，内容不会显示在卡片或诊断页面中。', false)
+        await this.replyTextWithFallback(runtime, inbound.messageId, inbound.chatId, '敏感答案已提交，内容不会显示在卡片或诊断页面中。', '', inbound.chatType)
         return
       }
       pending.selections = { ...pending.selections, [question.id]: answer }
@@ -1802,7 +1802,7 @@ export class FeishuBotService {
         questions: pending.questions,
         selections: pending.selections,
       })).catch((error) => this.log('warn', `[feishu:${inbound.botId}] failed to update custom answer card: ${String(error)}`))
-      await this.replyTextWithFallback(runtime, inbound.messageId, inbound.chatId, '已记录自定义答案，请在原卡片中提交。', Boolean(inbound.rootId))
+      await this.replyTextWithFallback(runtime, inbound.messageId, inbound.chatId, '已记录自定义答案，请在原卡片中提交。', inbound.rootId, inbound.chatType)
       return
     }
     if (binding && managementCommands.has(command) && !this.isOperatorAuthorized(runtime.bot, inbound.senderOpenId, binding.senderOpenId)) {
@@ -2002,7 +2002,7 @@ export class FeishuBotService {
         bindingKey: inbound.bindingKey,
         pendingMessageId: inbound.messageId,
         requesterOpenId: inbound.senderOpenId,
-      }), Boolean(inbound.rootId))
+      }), inbound.rootId, inbound.chatType)
       return
     }
     await this.dependencies.store.touchBinding(inbound.botId, inbound.bindingKey)
@@ -2044,7 +2044,7 @@ export class FeishuBotService {
       sessionTitle: binding.threadTitle,
       threadId: binding.threadId,
       webUrl: this.dependencies.webThreadUrl?.(binding.threadId),
-    }), Boolean(binding.rootId))
+    }), binding.rootId, binding.chatType)
     const active: ActiveTurnCard = {
       botId: binding.botId,
       binding,
@@ -2584,7 +2584,8 @@ export class FeishuBotService {
           inbound.messageId,
           inbound.chatId,
           '当前账号尚未加入机器人白名单，已向管理员发送访问申请。批准后请重试。',
-          Boolean(inbound.rootId),
+          inbound.rootId,
+          inbound.chatType,
         )
       }
       if (runtime.transport.withDeliveryScope) {
@@ -2608,13 +2609,23 @@ export class FeishuBotService {
     sourceMessageId: string,
     chatId: string,
     card: FeishuCard,
-    replyInThread: boolean,
+    rootId: string,
+    chatType: 'p2p' | 'group',
   ): Promise<string> {
+    if (chatType === 'p2p' && !rootId) return runtime.transport.sendCard(chatId, card)
     try {
-      return await runtime.transport.replyCard(sourceMessageId, card, replyInThread)
+      return await runtime.transport.replyCard(sourceMessageId, card, Boolean(rootId))
     } catch (error) {
       if (!(error instanceof FeishuPermanentDeliveryError)
         || !/230011|230110|withdraw|deleted|撤回|删除/iu.test(error.message)) throw error
+      if (rootId && rootId !== sourceMessageId) {
+        try {
+          return await runtime.transport.replyCard(rootId, card, true)
+        } catch (rootError) {
+          if (!(rootError instanceof FeishuPermanentDeliveryError)
+            || !/230011|230110|withdraw|deleted|撤回|删除/iu.test(rootError.message)) throw rootError
+        }
+      }
       this.log('warn', `[feishu:${runtime.bot.botId}] reply source ${sourceMessageId} unavailable; falling back to chat send`)
       return runtime.transport.sendCard(chatId, card)
     }
@@ -2625,13 +2636,23 @@ export class FeishuBotService {
     sourceMessageId: string,
     chatId: string,
     message: string,
-    replyInThread: boolean,
+    rootId: string,
+    chatType: 'p2p' | 'group',
   ): Promise<string> {
+    if (chatType === 'p2p' && !rootId) return runtime.transport.sendText(chatId, message)
     try {
-      return await runtime.transport.replyText(sourceMessageId, message, replyInThread)
+      return await runtime.transport.replyText(sourceMessageId, message, Boolean(rootId))
     } catch (error) {
       if (!(error instanceof FeishuPermanentDeliveryError)
         || !/230011|230110|withdraw|deleted|撤回|删除/iu.test(error.message)) throw error
+      if (rootId && rootId !== sourceMessageId) {
+        try {
+          return await runtime.transport.replyText(rootId, message, true)
+        } catch (rootError) {
+          if (!(rootError instanceof FeishuPermanentDeliveryError)
+            || !/230011|230110|withdraw|deleted|撤回|删除/iu.test(rootError.message)) throw rootError
+        }
+      }
       this.log('warn', `[feishu:${runtime.bot.botId}] reply source ${sourceMessageId} unavailable; falling back to chat text`)
       return runtime.transport.sendText(chatId, message)
     }

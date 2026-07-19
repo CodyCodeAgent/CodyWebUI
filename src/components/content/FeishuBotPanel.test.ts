@@ -107,7 +107,7 @@ describe('FeishuBotPanel', () => {
 
   it('shows connection health and shared session bindings', async () => {
     api.fetchFeishuBots.mockResolvedValue([bot])
-    api.fetchFeishuBindings.mockResolvedValue([binding])
+    api.fetchFeishuBindings.mockResolvedValue([{ ...binding, scopeType: 'private' }])
     api.fetchFeishuDiagnostics.mockResolvedValue(diagnostics)
     const wrapper = mount(FeishuBotPanel)
     await flushPromises()
@@ -117,6 +117,8 @@ describe('FeishuBotPanel', () => {
     expect(wrapper.text()).toContain('Last verified heartbeat')
     expect(wrapper.text()).toContain('CodyWeb')
     expect(wrapper.text()).toContain('Ship Feishu')
+    expect(wrapper.text()).toContain('Private topic')
+    expect(wrapper.text()).toContain('thread-1')
     wrapper.unmount()
   })
 
