@@ -277,7 +277,7 @@ describe('official Feishu device registration', () => {
     }));
   });
 
-  it('caps the displayed QR lifetime and expires when CodyWebUI maxWaitMs is reached', async () => {
+  it('caps the displayed QR lifetime and expires when CodyWeb maxWaitMs is reached', async () => {
     vi.useFakeTimers();
     try {
       const onQrCode = vi.fn();

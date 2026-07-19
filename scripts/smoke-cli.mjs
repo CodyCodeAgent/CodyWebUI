@@ -109,7 +109,7 @@ const child = spawn(process.execPath, [
 })
 
 try {
-  await waitForOutput(child, /CodyWebUI is running!/u, STARTUP_TIMEOUT_MS)
+  await waitForOutput(child, /CodyWeb is running!/u, STARTUP_TIMEOUT_MS)
   const baseUrl = `http://${HOST}:${String(port)}`
 
   const meta = await fetchJson(`${baseUrl}/codex-api/meta/access-security`)

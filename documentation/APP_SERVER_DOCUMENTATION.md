@@ -1,8 +1,8 @@
 # Codex App-Server Protocol Reference
 
 This reference tracks the local Codex app-server protocol materialized for
-CodyWebUI. The schemas are generated from upstream Codex protocol definitions
-and should be treated as read-only inputs to CodyWebUI adapters.
+CodyWeb. The schemas are generated from upstream Codex protocol definitions
+and should be treated as read-only inputs to CodyWeb adapters.
 
 ## Local Schema Materialization
 

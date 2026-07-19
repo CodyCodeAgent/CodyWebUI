@@ -44,7 +44,7 @@ const bot = {
 
 const binding = {
   id: 'binding-1', botId: 'bot-1', botName: 'Team bot', scopeType: 'topic', chatId: 'oc_chat',
-  threadId: 'thread-1', projectCwd: '/repo', projectName: 'CodyWebUI', sessionId: 'session-1',
+  threadId: 'thread-1', projectCwd: '/repo', projectName: 'CodyWeb', sessionId: 'session-1',
   sessionTitle: 'Ship Feishu', userOpenId: 'ou_user', createdAtIso: '', updatedAtIso: '', lastMessageAtIso: null,
 }
 
@@ -114,7 +114,7 @@ describe('FeishuBotPanel', () => {
     expect(wrapper.text()).toContain('Connected')
     expect(wrapper.text()).toContain('Example Enterprise')
     expect(wrapper.text()).toContain('Last verified heartbeat')
-    expect(wrapper.text()).toContain('CodyWebUI')
+    expect(wrapper.text()).toContain('CodyWeb')
     expect(wrapper.text()).toContain('Ship Feishu')
     wrapper.unmount()
   })

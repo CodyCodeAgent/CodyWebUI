@@ -161,13 +161,13 @@ describe('Feishu tenant acceptance preflight', () => {
     ]))
   })
 
-  it('does not silently continue when CodyWebUI authentication fails', async () => {
+  it('does not silently continue when CodyWeb authentication fails', async () => {
     const fixture = fetchFixture()
     await expect(runFeishuAcceptancePreflight({
       baseUrl: 'https://cody.example.test',
       password: 'wrong-password',
       fetchImpl: fixture.fetchImpl,
-    })).rejects.toThrow('CodyWebUI login failed: Invalid password')
+    })).rejects.toThrow('CodyWeb login failed: Invalid password')
   })
 
   it('writes private evidence files', async () => {

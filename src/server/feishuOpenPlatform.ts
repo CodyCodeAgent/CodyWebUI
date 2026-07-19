@@ -772,7 +772,7 @@ export async function automateOpenPlatformSetup(
     };
   }
 
-  // CodyWebUI exposes local projects and command approvals. Missing messaging
+  // CodyWeb exposes local projects and command approvals. Missing messaging
   // permissions must therefore fail closed; a partially configured app must
   // never be reported as ready merely because event names were accepted.
   let importedScopeCount = mapped.tenantScopeIds.length + mapped.userScopeIds.length;
@@ -1172,7 +1172,7 @@ export type CreateFeishuOpenPlatformAppResult =
 export interface CreateFeishuOpenPlatformAppOptions extends FeishuWebSessionOptions {
   name: string;
   description?: string;
-  /** 测试/定制图标；默认生成 CodyWebUI 的 512x512 PNG 图标。 */
+  /** 测试/定制图标；默认生成 CodyWeb 的 512x512 PNG 图标。 */
   iconFilePath?: string;
   /** Dashboard 表单打开时显示过的缓存身份；创建前必须仍是同一人、同一企业。 */
   expectedIdentity?: Pick<FeishuWebSessionIdentity, 'userId' | 'tenantId'>;
@@ -1323,7 +1323,7 @@ export async function registerOfficialFeishuOpenPlatformApp(
       ...(options.appIdToAdopt ? { appId: options.appIdToAdopt } : {}),
       appPreset: {
         name: options.name.trim(),
-        desc: options.description?.trim() || 'AI coding assistant powered by CodyWebUI',
+        desc: options.description?.trim() || 'AI coding assistant powered by CodyWeb',
       },
       addons: {
         // Keep Feishu's official agent template. It already provisions the
@@ -1340,7 +1340,7 @@ export async function registerOfficialFeishuOpenPlatformApp(
       },
       onQRCodeReady: ({ url, expireIn }) => {
         // The platform may issue a substantially longer device-code lifetime
-        // than CodyWebUI's setup policy. Report the effective lifetime so the
+        // than CodyWeb's setup policy. Report the effective lifetime so the
         // UI countdown and the server-side abort always describe one deadline.
         const effectiveExpireIn = registrationDeadline === null
           ? expireIn
@@ -1790,7 +1790,7 @@ export async function createOpenPlatformAppWithClient(
   const avatar = pickPayloadString(uploaded, ['url']);
   if (!avatar) throw new Error('开放平台上传图标后没有返回 url');
 
-  const description = options.description?.trim() || 'AI coding assistant powered by CodyWebUI';
+  const description = options.description?.trim() || 'AI coding assistant powered by CodyWeb';
   let appId: string | undefined;
   try {
     const created = await client.postJson(
@@ -2212,7 +2212,7 @@ function readOfficialBotScopeManifest(): ScopeManifest {
   return {
     scopes: {
       tenant: [
-        // Required immediately after the official device flow so CodyWebUI can
+        // Required immediately after the official device flow so CodyWeb can
         // bind the newly issued App ID to the tenant that the scanner just
         // confirmed. Without it, tenant.tenant.query() fails before the normal
         // configuration pass has a chance to add permissions.
@@ -2326,7 +2326,7 @@ const DEFAULT_BROWSER_USER_AGENT =
 function defaultPrintFeishuQrCode(info: { qrText: string }): void {
   process.stderr.write('\n请用飞书 App 扫码完成开放平台自动配置登录：\n\n');
   process.stderr.write(`${info.qrText}\n`);
-  process.stderr.write('如果当前环境无法扫码，请改用 CodyWebUI 的手工 App ID / Secret 入口。\n\n');
+  process.stderr.write('如果当前环境无法扫码，请改用 CodyWeb 的手工 App ID / Secret 入口。\n\n');
 }
 
 async function renderTerminalQr(payload: string): Promise<string> {

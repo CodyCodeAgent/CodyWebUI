@@ -62,7 +62,7 @@ const server = spawn(process.execPath, ['dist-cli/index.js', '--host', HOST, '--
 })
 
 try {
-  await waitForOutput(server, /CodyWebUI is running!/u)
+  await waitForOutput(server, /CodyWeb is running!/u)
   const baseUrl = `http://${HOST}:${String(port)}`
   const taskInput = {
     name: 'Smoke review', description: 'API lifecycle smoke', cwd: process.cwd(), prompt: 'Inspect this workspace without changing it.',

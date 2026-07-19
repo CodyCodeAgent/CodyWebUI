@@ -1,6 +1,6 @@
 # App Server Schema Usage Guide
 
-This guide explains how CodyWebUI should consume the local Codex app-server
+This guide explains how CodyWeb should consume the local Codex app-server
 schemas under `documentation/app-server-schemas`. Treat these schemas as the
 source of truth whenever frontend state is translated into app-server RPC
 params or app-server events are translated back into UI state.
@@ -214,7 +214,7 @@ Server requests are app-server-to-client calls listed in:
 - `documentation/app-server-schemas/typescript/CommandExecutionRequestApprovalParams.ts`
 - `documentation/app-server-schemas/typescript/FileChangeRequestApprovalParams.ts`
 
-For `turn/start` flows, command approval reaches CodyWebUI as a server request
+For `turn/start` flows, command approval reaches CodyWeb as a server request
 with method `item/commandExecution/requestApproval`. File-change approval uses
 `item/fileChange/requestApproval`.
 
@@ -235,7 +235,7 @@ Testing rule:
   approval UI, bridge pending queue, and response path.
 - Use real `turn/start` approval smokes only as diagnostic checks. If the model
   does not invoke command execution, the smoke should report an inconclusive
-  model/tool-use outcome rather than implying CodyWebUI failed to render a
+  model/tool-use outcome rather than implying CodyWeb failed to render a
   request that never existed.
 - When a real server request exists, verify both surfaces: the floating
   approval UI renders the request, and posting a response removes the request
@@ -248,7 +248,7 @@ Testing rule:
 `thread/list` and `thread/archive` may not behave like they do for threads that
 already contain a user turn.
 
-CodyWebUI should therefore treat these as separate guarantees:
+CodyWeb should therefore treat these as separate guarantees:
 
 - `thread/start` returning an id plus `thread/read` returning the same id proves
   that the empty thread exists.

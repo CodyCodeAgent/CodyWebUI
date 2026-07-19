@@ -48,7 +48,7 @@ function card(title: string, elements: unknown[], template = 'blue'): FeishuCard
   }
 }
 
-/** First step of the binding flow: choose a CodyWebUI workspace. */
+/** First step of the binding flow: choose a CodyWeb workspace. */
 export function buildProjectSelectionCard(input: {
   projects: FeishuCardProject[]
   bindingKey: string
@@ -62,11 +62,11 @@ export function buildProjectSelectionCard(input: {
     projectLabelCounts.set(key, (projectLabelCounts.get(key) ?? 0) + 1)
   }
   const elements: unknown[] = [
-    { tag: 'div', text: markdown('请选择要连接的 **CodyWebUI 项目**。绑定后，飞书和 Web 会继续同一个 Codex session。') },
+    { tag: 'div', text: markdown('请选择要连接的 **CodyWeb 项目**。绑定后，飞书和 Web 会继续同一个 Codex session。') },
   ]
 
   if (projects.length === 0) {
-    elements.push({ tag: 'div', text: markdown('当前没有可见项目。请先在 CodyWebUI 中打开一个项目并同步目录。') })
+    elements.push({ tag: 'div', text: markdown('当前没有可见项目。请先在 CodyWeb 中打开一个项目并同步目录。') })
   } else {
     elements.push({
       tag: 'action',
@@ -92,7 +92,7 @@ export function buildProjectSelectionCard(input: {
   }
 
   elements.push({ tag: 'note', elements: [{ tag: 'plain_text', content: '群聊按群/话题绑定，私聊按会话绑定。' }] })
-  return card('连接 CodyWebUI', elements)
+  return card('连接 CodyWeb', elements)
 }
 
 /** Second step: reuse an existing Codex thread or start a new one. */
@@ -173,7 +173,7 @@ export function buildStreamingReplyCard(input: {
   if (input.webUrl) {
     elements.push({
       tag: 'action',
-      actions: [{ tag: 'button', text: plainText('在 CodyWebUI 中打开'), type: 'default', url: input.webUrl }],
+      actions: [{ tag: 'button', text: plainText('在 CodyWeb 中打开'), type: 'default', url: input.webUrl }],
     })
   }
   return card(`${presentation.icon} ${presentation.label}`, elements, presentation.template)
@@ -244,7 +244,7 @@ export function buildAccessRequestCard(input: {
   return card('飞书机器人访问申请', [
     {
       tag: 'div',
-      text: markdown(`用户 \`${truncate(input.requesterOpenId, 100)}\` 在${source}中请求使用 CodyWebUI。\n\n批准只会把这个 Open ID 精确加入白名单，不会开启全员访问。`),
+      text: markdown(`用户 \`${truncate(input.requesterOpenId, 100)}\` 在${source}中请求使用 CodyWeb。\n\n批准只会把这个 Open ID 精确加入白名单，不会开启全员访问。`),
     },
     {
       tag: 'action',
@@ -459,7 +459,7 @@ export function buildBotHelpCard(input: {
   const status = input.sessionTitle
     ? `当前绑定：**${truncate(input.projectLabel || '未知项目', 80)} / ${truncate(input.sessionTitle, 100)}**`
     : '当前状态：**尚未绑定 Session**'
-  return card('CodyWebUI 机器人帮助', [
+  return card('CodyWeb 机器人帮助', [
     { tag: 'div', text: markdown(`${status}\n当前模式：**${input.collaborationMode ?? 'default'}**`) },
     { tag: 'div', text: markdown([
       '`/project` 选择项目',

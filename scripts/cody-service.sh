@@ -53,8 +53,8 @@ find_our_pids() {
 stop_service() {
   local pid pids
   pids="$(find_our_pids)"
-  if [[ -z "$pids" ]]; then echo "CodyWebUI is not running."; rm -f "$PID_FILE"; return 0; fi
-  for pid in $pids; do echo "Stopping CodyWebUI (PID $pid)..."; kill -TERM "$pid" 2>/dev/null || true; done
+  if [[ -z "$pids" ]]; then echo "CodyWeb is not running."; rm -f "$PID_FILE"; return 0; fi
+  for pid in $pids; do echo "Stopping CodyWeb (PID $pid)..."; kill -TERM "$pid" 2>/dev/null || true; done
   for _ in {1..50}; do
     local remaining=false
     for pid in $pids; do kill -0 "$pid" 2>/dev/null && remaining=true; done
@@ -70,16 +70,16 @@ stop_service() {
 start_service() {
   local pid pids args
   pids="$(find_our_pids)"
-  if [[ -n "$pids" ]]; then echo "CodyWebUI is already running (PID(s) ${pids//$'\n'/,})."; return 0; fi
+  if [[ -n "$pids" ]]; then echo "CodyWeb is already running (PID(s) ${pids//$'\n'/,})."; return 0; fi
   load_login_proxy_env
   rm -f "$PID_FILE"; args=("$PROJECT_DIR/dist-cli/index.js" --host "$HOST" --port "$PORT")
   if [[ -n "$PASSWORD" ]]; then args+=(--password "$PASSWORD")
   elif [[ "$HOST" == "127.0.0.1" || "$HOST" == "localhost" || "$HOST" == "::1" ]]; then args+=(--no-password)
   else echo "CODY_PASSWORD is required when CODY_HOST is not loopback." >&2; return 1; fi
-  echo "Starting CodyWebUI on $HOST:$PORT..."; nohup setsid node "${args[@]}" >> "$LOG_FILE" 2>&1 < /dev/null & pid=$!; printf '%s\n' "$pid" > "$PID_FILE"
+  echo "Starting CodyWeb on $HOST:$PORT..."; nohup setsid node "${args[@]}" >> "$LOG_FILE" 2>&1 < /dev/null & pid=$!; printf '%s\n' "$pid" > "$PID_FILE"
   for _ in {1..50}; do
-    if ! kill -0 "$pid" 2>/dev/null; then echo "CodyWebUI exited during startup. See $LOG_FILE" >&2; tail -n 30 "$LOG_FILE" >&2 || true; rm -f "$PID_FILE"; return 1; fi
-    if node -e "fetch('http://$HOST:$PORT/').then(r=>process.exit(r.status<500?0:1)).catch(()=>process.exit(1))"; then echo "CodyWebUI is running (PID $pid). Log: $LOG_FILE"; return 0; fi
+    if ! kill -0 "$pid" 2>/dev/null; then echo "CodyWeb exited during startup. See $LOG_FILE" >&2; tail -n 30 "$LOG_FILE" >&2 || true; rm -f "$PID_FILE"; return 1; fi
+    if node -e "fetch('http://$HOST:$PORT/').then(r=>process.exit(r.status<500?0:1)).catch(()=>process.exit(1))"; then echo "CodyWeb is running (PID $pid). Log: $LOG_FILE"; return 0; fi
     sleep 0.2
   done
   echo "Process is running but the HTTP readiness check timed out. See $LOG_FILE" >&2; return 1

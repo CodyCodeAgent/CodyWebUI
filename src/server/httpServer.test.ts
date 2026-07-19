@@ -26,7 +26,7 @@ const tempDirs: string[] = []
 async function createDistFixture(): Promise<string> {
   const dir = await mkdtemp(join(tmpdir(), 'cody-web-ui-http-'))
   tempDirs.push(dir)
-  await writeFile(join(dir, 'index.html'), '<!doctype html><title>CodyWebUI</title><main>app shell</main>', 'utf8')
+  await writeFile(join(dir, 'index.html'), '<!doctype html><title>CodyWeb</title><main>app shell</main>', 'utf8')
   await writeFile(join(dir, 'asset.txt'), 'static asset', 'utf8')
   return dir
 }
@@ -129,7 +129,7 @@ describe('httpServer', () => {
     expect(bridgeMock.bridgeDispose).toHaveBeenCalledTimes(1)
   })
 
-  it('keeps Feishu management behind the normal CodyWebUI login on plain HTTP', async () => {
+  it('keeps Feishu management behind the normal CodyWeb login on plain HTTP', async () => {
     const { createServer } = await import('./httpServer.js')
     const distDir = await createDistFixture()
     const instance = createServer({ distDir, host: '0.0.0.0', port: null, password: 'test-password' })

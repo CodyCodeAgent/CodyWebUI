@@ -1,7 +1,7 @@
 {
   "name": "cody-web-ui",
   "version": "0.1.0",
-  "description": "CodyWebUI is a local-first web control surface for Codex and future AI coding agents",
+  "description": "CodyWeb is a local-first web control surface for Codex and future AI coding agents",
   "type": "module",
   "license": "MIT",
   "author": "Pavel Voronin",

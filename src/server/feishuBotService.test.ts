@@ -1288,7 +1288,7 @@ describe('FeishuBotService', () => {
     const { service, transport, startTurn } = harness(binding())
     await service.start()
     transport.handlers?.onMessage(commandMessage('om_help', '/help'))
-    await vi.waitFor(() => expect(transport.cards.some((row) => JSON.stringify(row.card).includes('CodyWebUI 机器人帮助'))).toBe(true))
+    await vi.waitFor(() => expect(transport.cards.some((row) => JSON.stringify(row.card).includes('CodyWeb 机器人帮助'))).toBe(true))
     transport.handlers?.onMessage(commandMessage('om_unknown', '/definitely_unknown'))
     await vi.waitFor(() => expect(transport.texts.some((text) => text.includes('未知命令'))).toBe(true))
     expect(startTurn).not.toHaveBeenCalled()

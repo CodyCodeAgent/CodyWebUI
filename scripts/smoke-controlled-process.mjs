@@ -80,13 +80,13 @@ const child = spawn(process.execPath, [
 })
 
 try {
-  await waitForOutput(child, /CodyWebUI is running!/u, STARTUP_TIMEOUT_MS)
+  await waitForOutput(child, /CodyWeb is running!/u, STARTUP_TIMEOUT_MS)
   const baseUrl = `http://${HOST}:${String(port)}`
   const epipe = await fetchJson(`${baseUrl}/codex-api/smoke/controlled-process-epipe`, { method: 'POST' })
   assert(epipe.response.ok, `EPIPE smoke returned HTTP ${String(epipe.response.status)}: ${JSON.stringify(epipe.payload)}`)
   assert(epipe.payload?.result?.exitCode === 0, `EPIPE smoke child did not exit cleanly: ${JSON.stringify(epipe.payload)}`)
   await new Promise((resolve) => setTimeout(resolve, 100))
-  assert(child.exitCode === null && child.signalCode === null, 'Built CodyWebUI process exited after the controlled-process EPIPE probe')
+  assert(child.exitCode === null && child.signalCode === null, 'Built CodyWeb process exited after the controlled-process EPIPE probe')
 
   const health = await fetchJson(`${baseUrl}/codex-api/meta/access-security`)
   assert(health.response.ok, `post-EPIPE health request returned HTTP ${String(health.response.status)}`)

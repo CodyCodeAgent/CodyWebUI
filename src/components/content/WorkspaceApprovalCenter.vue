@@ -200,7 +200,7 @@ function respondEmptyResult(requestId: number): void {
 function rejectRequest(requestId: number): void {
   emit('respondServerRequest', buildRejectedServerRequestReply(
     requestId,
-    'Rejected from cody-web-ui approval center.',
+    'Rejected from CodyWeb approval center.',
   ))
 }
 

@@ -434,7 +434,7 @@ const allowTurn = readFlag('--allow-turn') || process.env.CODY_WEB_UI_SMOKE_ALLO
 const requireLiveRender = readFlag('--require-live-render')
 const turnTimeoutMs = Number.parseInt(readArgValue('--timeout-ms') || '', 10) || DEFAULT_TURN_TIMEOUT_MS
 const message = readArgValue('--message') || (allowTurn
-  ? `CodyWebUI browser realtime smoke ${String(Date.now())}: do not use tools; reply with exactly twelve numbered lines, each containing the words "cody web ui live".`
+  ? `CodyWeb browser realtime smoke ${String(Date.now())}: do not use tools; reply with exactly twelve numbered lines, each containing the words "cody web ui live".`
   : 'browser composer smoke')
 
 const serverPort = await findFreePort()
@@ -454,7 +454,7 @@ let browser = null
 let realtime = null
 let createdThreadId = ''
 try {
-  await waitForOutput(server, /CodyWebUI is running!/u, STARTUP_TIMEOUT_MS)
+  await waitForOutput(server, /CodyWeb is running!/u, STARTUP_TIMEOUT_MS)
   const baseUrl = `http://${HOST}:${String(serverPort)}`
   if (allowTurn) {
     realtime = createRealtimeRecorder(baseUrl)

@@ -6,7 +6,7 @@
 
 ---
 
-**Project:** CodyWebUI
+**Project:** CodyWeb
 **Generated:** 2026-07-17 16:37:43
 **Category:** Developer Tool / IDE
 **Design Dials:** Variance 6/10 (Balanced / Modern) | Motion 3/10 (Subtle) | Density 8/10 (Dense / Dashboard)

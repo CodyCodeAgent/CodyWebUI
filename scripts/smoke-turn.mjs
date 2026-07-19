@@ -6,7 +6,7 @@ const HOST = '127.0.0.1'
 const STARTUP_TIMEOUT_MS = 15_000
 const REQUEST_TIMEOUT_MS = 30_000
 const DEFAULT_TURN_TIMEOUT_MS = 180_000
-const DEFAULT_MESSAGE = 'CodyWebUI smoke test: reply with exactly "cody-web-ui smoke ok".'
+const DEFAULT_MESSAGE = 'CodyWeb smoke test: reply with exactly "cody-web-ui smoke ok".'
 const LIVE_DELTA_METHODS = new Set([
   'item/agentMessage/delta',
   'item/plan/delta',
@@ -380,7 +380,7 @@ const child = spawn(process.execPath, [
 let createdThreadId = ''
 let realtime = null
 try {
-  await waitForOutput(child, /CodyWebUI is running!/u, STARTUP_TIMEOUT_MS)
+  await waitForOutput(child, /CodyWeb is running!/u, STARTUP_TIMEOUT_MS)
   const baseUrl = `http://${HOST}:${String(port)}`
   realtime = createRealtimeRecorder(baseUrl)
   await realtime.waitUntilReady()

@@ -79,7 +79,7 @@ function cookieHeader(headers) {
 async function responsePayload(response, action) {
   const contentType = response.headers.get('content-type') ?? ''
   if (!contentType.includes('application/json')) {
-    throw new Error(`${action} did not return JSON (HTTP ${String(response.status)}). The CodyWebUI login may be required.`)
+    throw new Error(`${action} did not return JSON (HTTP ${String(response.status)}). The CodyWeb login may be required.`)
   }
   const payload = await response.json()
   if (!response.ok) {
@@ -108,7 +108,7 @@ async function requestResult(fetchImpl, url, cookie, timeoutMs, init = {}) {
   const response = await fetchWithTimeout(fetchImpl, url, { ...init, headers }, timeoutMs)
   const payload = await responsePayload(response, `${init.method ?? 'GET'} ${new URL(url).pathname}`)
   if (!payload || typeof payload !== 'object' || !payload.result || typeof payload.result !== 'object') {
-    throw new Error(`${init.method ?? 'GET'} ${new URL(url).pathname} returned a malformed CodyWebUI result`)
+    throw new Error(`${init.method ?? 'GET'} ${new URL(url).pathname} returned a malformed CodyWeb result`)
   }
   return payload.result
 }
@@ -120,9 +120,9 @@ async function login(fetchImpl, baseUrl, password, timeoutMs) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ password }),
   }, timeoutMs)
-  await responsePayload(response, 'CodyWebUI login')
+  await responsePayload(response, 'CodyWeb login')
   const cookie = cookieHeader(response.headers)
-  if (!cookie) throw new Error('CodyWebUI login succeeded without returning a session cookie')
+  if (!cookie) throw new Error('CodyWeb login succeeded without returning a session cookie')
   return cookie
 }
 
@@ -156,9 +156,9 @@ export async function runFeishuAcceptancePreflight(options) {
   const version = await requestResult(fetchImpl, new URL('/codex-api/meta/version', baseUrl), '', timeoutMs)
   const cookie = await login(fetchImpl, baseUrl, options.password ?? '', timeoutMs)
   const access = await requestResult(fetchImpl, new URL('/codex-api/meta/access-security', baseUrl), cookie, timeoutMs)
-  if (!access.auth?.enabled && !access.network?.isLoopbackRequest) failures.push('Remote CodyWebUI access is not password protected.')
+  if (!access.auth?.enabled && !access.network?.isLoopbackRequest) failures.push('Remote CodyWeb access is not password protected.')
   if (access.network?.protocol !== 'https' && !access.network?.isLoopbackRequest && options.allowHttp !== true) {
-    failures.push('Remote CodyWebUI access is using unencrypted HTTP.')
+    failures.push('Remote CodyWeb access is using unencrypted HTTP.')
   }
 
   const botsResult = await requestResult(fetchImpl, new URL('/codex-api/feishu/bots', baseUrl), cookie, timeoutMs)
@@ -259,7 +259,7 @@ function printUsage() {
     --base-url https://cody.example.internal [--bot-id <id>] [--output <evidence.json>]
 
 Options:
-  --base-url   CodyWebUI browser origin (or CODY_FEISHU_ACCEPTANCE_URL)
+  --base-url   CodyWeb browser origin (or CODY_FEISHU_ACCEPTANCE_URL)
   --bot-id     Required when more than one bot exists
   --output     Write redacted JSON evidence with mode 0600
   --allow-http Explicitly allow remote HTTP on a trusted network

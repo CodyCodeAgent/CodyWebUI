@@ -5,7 +5,7 @@ description: Create accurate technical diagrams in Mermaid or PlantUML. Use for 
 
 # Technical Diagrams
 
-Select the simplest engine that expresses the requested system accurately, then return a fenced Markdown block with an explicit language tag so CodyWebUI can render it.
+Select the simplest engine that expresses the requested system accurately, then return a fenced Markdown block with an explicit language tag so CodyWeb can render it.
 
 ## Select the engine
 
@@ -42,7 +42,7 @@ API --> User: Response
 ```
 ````
 
-Keep diagrams self-contained. Standard-library includes such as `!include <C4/C4_Container>` are allowed. Do not use filesystem includes, `!includeurl`, `!import`, or remote themes because CodyWebUI renders PlantUML locally and blocks external access.
+Keep diagrams self-contained. Standard-library includes such as `!include <C4/C4_Container>` are allowed. Do not use filesystem includes, `!includeurl`, `!import`, or remote themes because CodyWeb renders PlantUML locally and blocks external access.
 
 ## Quality check
 

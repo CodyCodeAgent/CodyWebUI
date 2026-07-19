@@ -139,7 +139,7 @@ describe('WorkspaceApprovalCenter', () => {
           id: 22,
           error: {
             code: -32000,
-            message: 'Rejected from cody-web-ui approval center.',
+            message: 'Rejected from CodyWeb approval center.',
           },
         },
       ],

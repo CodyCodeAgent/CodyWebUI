@@ -502,7 +502,7 @@ const server = spawn(process.execPath, [
 const requireWorkLogDiff = readFlag('--require-diff') || process.env.CODY_WEB_UI_SMOKE_REQUIRE_WORKLOG === '1'
 
 try {
-  await waitForOutput(server, /CodyWebUI is running!/u, STARTUP_TIMEOUT_MS)
+  await waitForOutput(server, /CodyWeb is running!/u, STARTUP_TIMEOUT_MS)
   const baseUrl = `http://${HOST}:${String(serverPort)}`
   const candidates = await findThreadsWithDiff(baseUrl)
   const isExplicitThread = Boolean(readArgValue('--thread-id') || process.env.CODY_WEB_UI_SMOKE_THREAD_ID?.trim())

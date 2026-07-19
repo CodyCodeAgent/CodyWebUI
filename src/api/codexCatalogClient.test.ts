@@ -62,7 +62,7 @@ describe('codex catalog client', () => {
     })
   })
 
-  it('sends visibility and ordering mutations only to CodyWebUI catalog APIs', async () => {
+  it('sends visibility and ordering mutations only to CodyWeb catalog APIs', async () => {
     const fetchMock = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => jsonResponse({ result: { ok: true } }))
     vi.stubGlobal('fetch', fetchMock)
 

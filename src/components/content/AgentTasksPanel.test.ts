@@ -29,7 +29,7 @@ describe('AgentTasksPanel', () => {
   it('guides the first task and opens a safe task editor', async () => {
     api.fetchAgentTasks.mockResolvedValue({ tasks: [], runs: [] })
     api.fetchPromptTemplates.mockResolvedValue([])
-    const wrapper = mount(AgentTasksPanel, { props: { projects: [{ cwd: '/repo', label: 'CodyWebUI' }] } })
+    const wrapper = mount(AgentTasksPanel, { props: { projects: [{ cwd: '/repo', label: 'CodyWeb' }] } })
     await flushPromises()
     expect(wrapper.text()).toContain('No Agent missions scheduled')
     await wrapper.get('.agent-task-empty button').trigger('click')
@@ -43,7 +43,7 @@ describe('AgentTasksPanel', () => {
     api.fetchAgentTasks.mockResolvedValue({ tasks: [], runs: [] })
     api.fetchPromptTemplates.mockResolvedValue([])
     api.parseAgentTask.mockResolvedValue({ name: 'Weekday review', prompt: 'Review CI', schedule: { kind: 'daily', time: '09:00', weekdaysOnly: true }, timezone: 'Asia/Shanghai', confidence: 'high', explanation: 'Weekday schedule detected.' })
-    const wrapper = mount(AgentTasksPanel, { props: { projects: [{ cwd: '/repo', label: 'CodyWebUI' }] } })
+    const wrapper = mount(AgentTasksPanel, { props: { projects: [{ cwd: '/repo', label: 'CodyWeb' }] } })
     await flushPromises()
     await wrapper.get('.agent-task-command input').setValue('每个工作日上午 9 点检查 CI')
     await wrapper.get('.agent-task-command').trigger('submit')
@@ -70,7 +70,7 @@ describe('AgentTasksPanel', () => {
         summary: 'No regressions found.', error: '', inputTokens: 100, outputTokens: 20, totalTokens: 120, retryNumber: 0,
       }],
     })
-    const wrapper = mount(AgentTasksPanel, { props: { projects: [{ cwd: '/repo', label: 'CodyWebUI' }] } })
+    const wrapper = mount(AgentTasksPanel, { props: { projects: [{ cwd: '/repo', label: 'CodyWeb' }] } })
     await flushPromises()
     expect(wrapper.text()).toContain('Daily review')
     await wrapper.get('.agent-task-history-toggle').trigger('click')

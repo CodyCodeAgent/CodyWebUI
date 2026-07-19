@@ -369,7 +369,7 @@ export class AgentTaskService {
     if (catalog.projects.length > 0) {
       const requested = await realpath(path)
       const allowed = await Promise.all(catalog.projects.map((project) => realpath(project.cwd).catch(() => '')))
-      if (!allowed.includes(requested)) throw new Error('Workspace must be a visible project from the CodyWebUI catalog')
+      if (!allowed.includes(requested)) throw new Error('Workspace must be a visible project from the CodyWeb catalog')
     }
   }
 

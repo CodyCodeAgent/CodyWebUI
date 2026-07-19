@@ -869,8 +869,8 @@ export class FeishuBotService {
       ? 'App ID and encrypted App Secret are configured.'
       : configured ? 'App ID or App Secret is missing.' : 'Bot configuration was not found.')
     add('enabled', configured?.enabled === true, configured?.enabled
-      ? 'The bot is enabled in CodyWebUI.'
-      : 'The bot is disabled in CodyWebUI.')
+      ? 'The bot is enabled in CodyWeb.'
+      : 'The bot is disabled in CodyWeb.')
 
     const runtime = this.runtimes.get(botId)
     add('runtime', Boolean(runtime), runtime

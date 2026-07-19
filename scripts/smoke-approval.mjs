@@ -301,7 +301,7 @@ const server = spawn(process.execPath, [
 
 let browser = null
 try {
-  await waitForOutput(server, /CodyWebUI is running!/u, STARTUP_TIMEOUT_MS)
+  await waitForOutput(server, /CodyWeb is running!/u, STARTUP_TIMEOUT_MS)
   const baseUrl = `http://${HOST}:${String(serverPort)}`
   const started = await rpc(baseUrl, 'thread/start', { cwd: process.cwd() })
   const threadId = typeof started?.thread?.id === 'string' ? started.thread.id.trim() : ''

@@ -1,13 +1,13 @@
-# CodyWebUI
+# CodyWeb
 
-CodyWebUI is a local-first web control surface for AI coding agents.
+CodyWeb is a local-first web control surface for AI coding agents.
 
 Today it supports **Codex only**. It runs a Node.js web server, starts and
 bridges to the local Codex `app-server`, and gives you a browser-based
 workspace for starting threads, supervising tool calls, reviewing diffs,
 approving risky operations, and tracking local agent activity.
 
-The project name is CodyWebUI. The npm package and CLI command are
+The project name is CodyWeb. The npm package and CLI command are
 `cody-web-ui`.
 
 The project is early but already aims at a larger shape: a practical,
@@ -57,17 +57,17 @@ Settings → Feishu bots creates a ready-to-use custom application with one
 Feishu QR scan by default, while retaining App ID / Secret entry as a fallback.
 Manual entry requires an explicit Feishu China or Lark International platform
 choice so credentials are never probed against the wrong API domain.
-CodyWebUI uses the official SDK device flow: Feishu/Lark shows and confirms the
+CodyWeb uses the official SDK device flow: Feishu/Lark shows and confirms the
 account, enterprise, least-privilege permissions, message event, and card
-callback before returning write-only app credentials. CodyWebUI then configures
+callback before returning write-only app credentials. CodyWeb then configures
 and reads back the bot ability, WebSocket event/callback mode, published version,
 availability, permissions, and bot identity before enabling the long connection.
 The setup page persists and displays those results as a proof matrix, then runs
 a fresh live OpenAPI/runtime diagnostic; it cannot report completion while any
 proof remains unverified.
 Private Web-console automation remains only as a recovery fallback. A private chat, flat group, or group topic can select a
-visible CodyWebUI project and an existing or new Codex Session. Feishu and the
-browser then operate on the exact same `app-server` thread—CodyWebUI does not
+visible CodyWeb project and an existing or new Codex Session. Feishu and the
+browser then operate on the exact same `app-server` thread—CodyWeb does not
 start a second CLI process or maintain a second transcript.
 
 The client includes safe group trigger modes, identity and group-chat allow-lists,
@@ -78,7 +78,7 @@ passive plus live connectivity diagnostics. See
 [Feishu integration setup](docs/FEISHU_INTEGRATION.md) for
 the exact permissions, deployment/security setup, REST rich-message handling,
 and troubleshooting. The [botmux capability matrix](docs/FEISHU_BOTMUX_AUDIT.md)
-records what was ported, adapted, and intentionally left outside CodyWebUI's
+records what was ported, adapted, and intentionally left outside CodyWeb's
 app-server architecture.
 
 ### Agent task automation
@@ -88,16 +88,16 @@ saved prompt template. Each run creates a separate Codex thread so its context,
 approval requests, token usage, and result remain independently auditable.
 
 Task definitions, immutable definition versions, run timelines, delivery state,
-and run history are stored in the CodyWebUI SQLite database. The scheduler
+and run history are stored in the CodyWeb SQLite database. The scheduler
 recovers after service restarts, retries failures with bounded backoff, and
 supports three explicit overlap policies: skip the new run, keep one queued
 run, or cancel the old run and replace it. Active runs can be cancelled from
 the UI.
 
 Retries are tracked per scheduled run rather than across the lifetime of the
-task. On restart, CodyWebUI reads the associated Codex thread before deciding
+task. On restart, CodyWeb reads the associated Codex thread before deciding
 whether an interrupted local scheduler record succeeded or failed. A SQLite
-lease elects one scheduler when multiple CodyWebUI Node processes share the
+lease elects one scheduler when multiple CodyWeb Node processes share the
 same settings database; run completion and delivery are committed once.
 
 Safety controls include per-run time and token limits, automatic pause after a
@@ -121,7 +121,7 @@ confirmation. Batch imports are validated completely before any definition is
 created. For daylight-saving transitions, nonexistent local times shift forward
 by the DST gap and ambiguous times use the first occurrence.
 
-When multiple CodyWebUI processes share one settings database, manual queue and
+When multiple CodyWeb processes share one settings database, manual queue and
 replace requests are persisted in SQLite. The elected scheduler process performs
 the actual Codex interrupt and replacement, so a request handled by a standby
 web process cannot attempt to control a turn owned by another process.
@@ -132,7 +132,7 @@ web process cannot attempt to control a turn owned by another process.
 - npm.
 - Codex CLI installed and available in `PATH`.
 
-CodyWebUI uses the npm package `better-sqlite3` for local settings. On common
+CodyWeb uses the npm package `better-sqlite3` for local settings. On common
 platforms npm installs a prebuilt native binary. On less common platforms, npm
 may need a working native build toolchain.
 
@@ -180,7 +180,7 @@ listener through environment variables before deploying:
 CODY_HOST=0.0.0.0 CODY_PORT=8080 CODY_PASSWORD='replace-me' npm run deploy
 ```
 
-When a non-interactive SSH command starts the service, CodyWebUI imports only
+When a non-interactive SSH command starts the service, CodyWeb imports only
 the standard proxy variables (`HTTP_PROXY`, `HTTPS_PROXY`, `ALL_PROXY`,
 `NO_PROXY`, including lowercase variants) from the user's login shell if they
 were not already provided. This keeps the Codex app-server network path aligned
@@ -191,7 +191,7 @@ environment.
 `CODY_PASSWORD` is mandatory for non-loopback hosts. Service lifecycle commands
 are also available independently:
 
-Feishu management follows the same CodyWebUI login boundary as the rest of the
+Feishu management follows the same CodyWeb login boundary as the rest of the
 control surface. It remains usable on authenticated HTTP deployments, matching
 botmux's local-dashboard workflow, while the UI displays an unencrypted
 transport warning. App Secrets are persisted server-side. Use an HTTPS reverse
@@ -234,25 +234,25 @@ cody-web-ui --no-password
 ```
 
 Use `--host 0.0.0.0` only on trusted networks or behind your own HTTPS,
-authentication, and firewall controls. Browser access to CodyWebUI can expose
+authentication, and firewall controls. Browser access to CodyWeb can expose
 local code, commands, credentials, and Codex capabilities.
 
 ## Production Deployment and File Permissions
 
-Run CodyWebUI as the same operating-system user that owns the Codex
-configuration and the workspaces it manages. Do not start CodyWebUI with
+Run CodyWeb as the same operating-system user that owns the Codex
+configuration and the workspaces it manages. Do not start CodyWeb with
 `sudo`: doing so can leave root-owned files inside a repository and make later
 runs under a normal account fail.
 
-CodyWebUI and Codex need read and write access to the workspace and its Git
-metadata. CodyWebUI also creates automatic turn checkpoints under:
+CodyWeb and Codex need read and write access to the workspace and its Git
+metadata. CodyWeb also creates automatic turn checkpoints under:
 
 ```text
 <repository>/.git/cody-web-ui-checkpoints/
 ```
 
 The runtime user must be able to create, read, update, and delete entries in
-this directory. Checkpoints are CodyWebUI recovery data rather than Git commits;
+this directory. Checkpoints are CodyWeb recovery data rather than Git commits;
 deleting them removes those recovery points but does not delete committed Git
 history.
 
@@ -290,7 +290,7 @@ example:
 
 ```ini
 [Unit]
-Description=CodyWebUI
+Description=CodyWeb
 After=network.target
 
 [Service]
@@ -331,7 +331,7 @@ the same `EACCES` errors as incorrect host permissions.
 
 ### Repair an existing checkpoint directory
 
-Stop CodyWebUI before changing checkpoint ownership. If the service runs as
+Stop CodyWeb before changing checkpoint ownership. If the service runs as
 `gouchao`, repair the existing recovery data with:
 
 ```bash
@@ -346,7 +346,7 @@ sudo chmod -R u+rwX "$CHECKPOINT_DIR"
 sudo systemctl start cody-web-ui
 ```
 
-If old CodyWebUI recovery points are not needed, rebuilding the directory is
+If old CodyWeb recovery points are not needed, rebuilding the directory is
 cleaner:
 
 ```bash
@@ -367,7 +367,7 @@ mount | grep /data00
 ```
 
 After upgrading an installation that was previously run as root or another
-user, perform the workspace checks above before starting CodyWebUI.
+user, perform the workspace checks above before starting CodyWeb.
 
 ## Local Development
 
@@ -427,7 +427,7 @@ Manual smoke checks before publishing or sharing a build:
 - Run `npm run build && npm run smoke:cli` to verify the packaged CLI can
   start, serve the app shell, and answer the local meta API.
 - Run `npm run smoke:controlled-process` after a build to make a bundled child
-  process close stdin early, then verify the packaged CodyWebUI server remains
+  process close stdin early, then verify the packaged CodyWeb server remains
   alive and continues answering health requests.
 - Run `npm run smoke:package` after a build to verify `npm pack --dry-run`
   contains the expected `cody-web-ui` package name, CLI bin, built frontend,
@@ -457,7 +457,7 @@ Manual smoke checks before publishing or sharing a build:
 
   This check reads an existing app-server thread and does not start a model
   turn or spend model tokens.
-- Run `npm run smoke:catalog` to start CodyWebUI with a temporary SQLite
+- Run `npm run smoke:catalog` to start CodyWeb with a temporary SQLite
   database, perform the first Codex catalog import, and verify project/thread
   hide and restore behavior without changing Codex archive state.
 - Run `npm run smoke:theme` to browser-test Settings theme controls against a
@@ -470,7 +470,7 @@ Manual smoke checks before publishing or sharing a build:
 - Run `npm run smoke:thread` to verify the real app-server thread lifecycle:
   create an empty thread and read it back. Empty app-server threads can be
   readable before they appear in `thread/list` or accept archive cleanup because
-  they may not have a materialized rollout yet; CodyWebUI keeps newly created
+  they may not have a materialized rollout yet; CodyWeb keeps newly created
   threads visible in the UI with an optimistic local row while the first turn is
   starting. Add `--require-listed` or set
   `CODY_WEB_UI_SMOKE_REQUIRE_THREAD_LIST=1` when you specifically want to
@@ -479,7 +479,7 @@ Manual smoke checks before publishing or sharing a build:
   default it skips without starting a model turn.
 - Run `npm run smoke:turn-approval` to confirm the opt-in natural approval
   smoke is installed. By default it skips without starting a model turn.
-- Run `npm run smoke:worklog` to let CodyWebUI find a recent real Codex thread
+- Run `npm run smoke:worklog` to let CodyWeb find a recent real Codex thread
   with file changes and browser-test the header Work log badge, panel layout,
   file search, fullscreen diff, split/unified switching, and populated desktop
   screenshots. Use `npm run smoke:worklog -- --thread-id <id>` when you want a
@@ -527,7 +527,7 @@ Manual smoke checks before publishing or sharing a build:
   cleared, and archives the created thread best-effort. It starts the diagnostic
   turn with `approvalPolicy: "untrusted"` and a read-only sandbox override, but
   the check is still not deterministic: if the model answers without actually
-  invoking command execution, no approval request exists for CodyWebUI to render.
+  invoking command execution, no approval request exists for CodyWeb to render.
   Use `npm run smoke:approval` as the deterministic browser regression for the
   approval UI, bridge pending queue, and response path.
 - Start the built server with `npm start -- --no-password`.
@@ -540,7 +540,7 @@ Manual smoke checks before publishing or sharing a build:
 
 ## Architecture
 
-CodyWebUI has three main layers:
+CodyWeb has three main layers:
 
 - **Frontend**: Vue, Vite, and TypeScript. The UI lives under `src/components`
   and `src/composables`.

@@ -1,17 +1,17 @@
 # Local Project And Thread Catalog
 
-CodyWebUI treats Codex as the source of truth for thread content and SQLite as
+CodyWeb treats Codex as the source of truth for thread content and SQLite as
 the source of truth for presentation state.
 
 ## User Semantics
 
-- Hiding a project only removes it from CodyWebUI's active list.
-- Hiding a thread only removes it from CodyWebUI's active list.
-- Restoring changes only CodyWebUI presentation state.
-- CodyWebUI does not call `thread/archive` or `thread/unarchive` for sidebar
+- Hiding a project only removes it from CodyWeb's active list.
+- Hiding a thread only removes it from CodyWeb's active list.
+- Restoring changes only CodyWeb presentation state.
+- CodyWeb does not call `thread/archive` or `thread/unarchive` for sidebar
   visibility actions.
 - Threads that were already archived in Codex before the first catalog import
-  enter CodyWebUI's Hidden view by default.
+  enter CodyWeb's Hidden view by default.
 
 ## Bootstrap And Reconciliation
 
@@ -39,7 +39,7 @@ application settings:
 ```
 
 Source metadata may be refreshed by Codex, while presentation columns remain
-owned by CodyWebUI.
+owned by CodyWeb.
 
 ## HTTP API
 

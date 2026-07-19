@@ -422,7 +422,7 @@ export function buildToolCallFailureReply(requestId: number): UiServerRequestRep
       contentItems: [
         {
           type: 'inputText',
-          text: 'Tool call rejected from cody-web-ui UI.',
+          text: 'Tool call rejected from CodyWeb UI.',
         },
       ],
     },

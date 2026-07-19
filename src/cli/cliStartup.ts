@@ -44,7 +44,7 @@ export function startupSecurityWarning(host: string): string {
 export function buildStartupBanner(options: StartupBannerOptions): string {
   const lines = [
     '',
-    'CodyWebUI is running!',
+    'CodyWeb is running!',
     '',
     `  Local:    http://${options.host === '127.0.0.1' ? '127.0.0.1' : options.host}:${String(options.port)}`,
   ]

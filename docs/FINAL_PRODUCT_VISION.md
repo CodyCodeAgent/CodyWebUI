@@ -1,14 +1,14 @@
-# CodyWebUI 最终产品目标
+# CodyWeb 最终产品目标
 
-本文档定义 CodyWebUI 的长期目标。
+本文档定义 CodyWeb 的长期目标。
 
-当前 CodyWebUI 只支持 Codex。本愿景文档仍以 Codex 为第一运行时来描述能力边界；未来如果接入其他 agent runtime，也应该沿用这里定义的本地优先、浏览器可控、可并行、可审计、可回滚的产品原则。
+当前 CodyWeb 只支持 Codex。本愿景文档仍以 Codex 为第一运行时来描述能力边界；未来如果接入其他 agent runtime，也应该沿用这里定义的本地优先、浏览器可控、可并行、可审计、可回滚的产品原则。
 
 最终目标不是简单把 Codex 桌面版搬到浏览器里，而是把它做成一个本地优先、浏览器可控、可并行、可审计、可回滚的 AI 软件工程操作系统。用户应该可以在任意设备上启动、监督、审批、审查、验证、回滚和交付 AI 编程任务。
 
 ## 一句话定位
 
-CodyWebUI 应该先演进成一个 **Codex Agent Control Tower**，再逐步沉淀为更通用的 AI coding agent control tower。
+CodyWeb 应该先演进成一个 **Codex Agent Control Tower**，再逐步沉淀为更通用的 AI coding agent control tower。
 
 它应该融合：
 
@@ -684,6 +684,6 @@ src/theme/
 
 最终目标是一个 AI 软件工程控制台。
 
-CodyWebUI 应该让用户像操作一个工程系统一样操作 Codex：任务化、多 Agent、安全、可审查、可验证、可回放、可回滚、支持移动端，并且支持视觉皮肤和布局自定义。
+CodyWeb 应该让用户像操作一个工程系统一样操作 Codex：任务化、多 Agent、安全、可审查、可验证、可回放、可回滚、支持移动端，并且支持视觉皮肤和布局自定义。
 
 最短路径是先把可信远程控制层做好。最雄心勃勃的终局，是一个可自定义的 AI coding agent control tower，用于严肃的本地和远程软件工程工作。Codex 是当前唯一支持的运行时，也是最优先打磨的运行时。

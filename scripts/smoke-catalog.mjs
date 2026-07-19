@@ -96,7 +96,7 @@ const server = spawn(process.execPath, [
 })
 
 try {
-  await waitForOutput(server, /CodyWebUI is running!/u, TIMEOUT_MS)
+  await waitForOutput(server, /CodyWeb is running!/u, TIMEOUT_MS)
   const baseUrl = `http://${HOST}:${String(port)}`
   const visible = await json(`${baseUrl}/codex-api/catalog?visibility=visible`)
   const sync = visible?.result?.sync

@@ -312,7 +312,7 @@ const server = spawn(process.execPath, [
 
 let browser = null
 try {
-  await waitForOutput(server, /CodyWebUI is running!/u, STARTUP_TIMEOUT_MS)
+  await waitForOutput(server, /CodyWeb is running!/u, STARTUP_TIMEOUT_MS)
   const baseUrl = `http://${HOST}:${String(serverPort)}`
   const thread = await rpc(baseUrl, 'thread/read', { threadId, includeTurns: true })
   const rawItemCount = rawThreadItemCount(thread)

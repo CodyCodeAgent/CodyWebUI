@@ -115,7 +115,7 @@ describe('FeishuCodexGateway', () => {
     expect(rpc).toHaveBeenNthCalledWith(2, 'thread/archive', { threadId: 'thread-1' })
   })
 
-  it('finds the active turn so another CodyWebUI client can stop it', async () => {
+  it('finds the active turn so another CodyWeb client can stop it', async () => {
     const rpc = vi.fn(async () => ({
       thread: { turns: [
         { id: 'turn-done', status: 'completed' },

@@ -385,7 +385,7 @@ export class NotificationDispatcher {
       id: `notification-test:${generatedAt.toISOString()}`,
       kind: 'ready_for_review',
       title: 'Notification channel test',
-      summary: 'CodyWebUI sent a test notification from the workspace dashboard.',
+      summary: 'CodyWeb sent a test notification from the workspace dashboard.',
       severity: 'info',
       createdAtIso: generatedAt.toISOString(),
       threadId: '',

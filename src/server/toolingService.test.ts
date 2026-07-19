@@ -87,7 +87,7 @@ async function createRepo(): Promise<string> {
   tempDirs.push(dir)
   await git(dir, ['init'])
   await git(dir, ['config', 'user.email', 'cody-web-ui@example.test'])
-  await git(dir, ['config', 'user.name', 'CodyWebUI'])
+  await git(dir, ['config', 'user.name', 'CodyWeb'])
   await writeFile(join(dir, 'example.txt'), 'one\n', 'utf8')
   await git(dir, ['add', 'example.txt'])
   await git(dir, ['commit', '-m', 'initial'])

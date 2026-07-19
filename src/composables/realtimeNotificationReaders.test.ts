@@ -99,8 +99,8 @@ describe('realtime notification readers', () => {
       thread: {
         id: 'thread-1',
         title: 'Fresh task',
-        projectName: 'CodyWebUI',
-        cwd: '/workspace/CodyWebUI',
+        projectName: 'CodyWeb',
+        cwd: '/workspace/CodyWeb',
         createdAt: 1783414904,
         updatedAt: '2026-07-07T09:02:00.000Z',
         preview: 'first prompt',
@@ -108,8 +108,8 @@ describe('realtime notification readers', () => {
     }))).toMatchObject({
       id: 'thread-1',
       title: 'Fresh task',
-      projectName: 'CodyWebUI',
-      cwd: '/workspace/CodyWebUI',
+      projectName: 'CodyWeb',
+      cwd: '/workspace/CodyWeb',
       createdAtIso: '2026-07-07T09:01:44.000Z',
       updatedAtIso: '2026-07-07T09:02:00.000Z',
       preview: 'first prompt',

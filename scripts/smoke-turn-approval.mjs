@@ -13,7 +13,7 @@ const DEFAULT_TURN_SANDBOX_POLICY = {
 }
 const DEFAULT_COMMAND = 'node -e "console.log(\\"cody-web-ui approval smoke\\")"'
 const DEFAULT_MESSAGE = [
-  'CodyWebUI approval smoke test.',
+  'CodyWeb approval smoke test.',
   'You must use the shell/command execution tool to run exactly this command now.',
   'Do not only describe the command. Do not ask a follow-up question.',
   DEFAULT_COMMAND,
@@ -334,7 +334,7 @@ const child = spawn(process.execPath, [
 
 let createdThreadId = ''
 try {
-  await waitForOutput(child, /CodyWebUI is running!/u, STARTUP_TIMEOUT_MS)
+  await waitForOutput(child, /CodyWeb is running!/u, STARTUP_TIMEOUT_MS)
   const baseUrl = `http://${HOST}:${String(port)}`
   const startParams = { cwd }
   if (model) startParams.model = model

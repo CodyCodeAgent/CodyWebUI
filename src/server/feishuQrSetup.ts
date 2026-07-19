@@ -455,7 +455,7 @@ export class FeishuQrSetupManager {
     try {
       const created = await this.createApp({
         name: job.name,
-        description: 'CodyWebUI 飞书 AI 编程助手',
+        description: 'CodyWeb 飞书 AI 编程助手',
         signal: job.controller.signal,
         forceQrLogin: true,
         disableBytedcliFallback: true,
@@ -573,7 +573,7 @@ export class FeishuQrSetupManager {
         })
         return
       }
-      if (!job.bot || job.appId !== created.appId) throw new Error('应用凭据未能持久化到 CodyWebUI')
+      if (!job.bot || job.appId !== created.appId) throw new Error('应用凭据未能持久化到 CodyWeb')
       job.registrationMethod = created.registrationMethod
         ?? (created.sessionSource === 'official_device_flow' ? 'official_device_flow' : 'web_console')
       job.account = this.accountDto(created.sessionIdentity)
@@ -767,7 +767,7 @@ export class FeishuQrSetupManager {
       }
       await this.patchAndPersist(job, {
         status: 'failed',
-        statusMessage: '应用已保存在 CodyWebUI，但自动配置未完成',
+        statusMessage: '应用已保存在 CodyWeb，但自动配置未完成',
         error: `${safeErrorMessage(error)}${rollbackError}`,
         bot: job.bot,
         canRetry: true,
@@ -836,7 +836,7 @@ export class FeishuQrSetupManager {
     const owner = job.ownerPlatformUserId?.trim() ?? ''
     if (availability?.mode === 'all') return { isVisibleToAll: true, userOpenIds: [] }
     if (!owner) throw new Error('缺少扫码创建者 Open ID，不能安全设置应用可见范围')
-    // `groups` means Feishu conversation allowlist in CodyWebUI. Feishu app
+    // `groups` means Feishu conversation allowlist in CodyWeb. Feishu app
     // availability accepts members/departments/user-groups, not chat IDs, so
     // the application itself remains creator-only and chat IDs are enforced by
     // the runtime authorization layer.

@@ -1,7 +1,7 @@
-# Feishu capability audit: botmux → CodyWebUI
+# Feishu capability audit: botmux → CodyWeb
 
 This is an architectural comparison, not a promise of byte-for-byte source
-copying. botmux is a broad multi-agent/CLI product; CodyWebUI is a Web and
+copying. botmux is a broad multi-agent/CLI product; CodyWeb is a Web and
 `app-server` control plane for Codex. The useful goal is to retain mature
 Feishu interaction and reliability behaviour while preserving one authoritative
 Codex thread.
@@ -9,15 +9,15 @@ Codex thread.
 ## Decision rule
 
 Port or adapt a botmux capability when it improves Feishu conversation safety,
-durability, user experience, or operational visibility for CodyWebUI's Codex
+durability, user experience, or operational visibility for CodyWeb's Codex
 threads. Do not import a parallel execution/runtime layer that would create a
 second owner of a Session.
 
 ## Capability matrix
 
-| botmux capability | CodyWebUI decision | Current CodyWebUI state |
+| botmux capability | CodyWeb decision | Current CodyWeb state |
 | --- | --- | --- |
-| One-scan Open Platform app creation | Adapt | Implemented with the official SDK `registerApp` device flow as the default: Feishu/Lark confirms account, tenant and exact addons; CodyWebUI persists credentials, configures via public Open APIs, and readbacks scopes, WebSocket event/callbacks, bot ability, published version, visibility and bot identity before enablement. Exact-App-ID adoption uses the SDK `appId` update flow and cannot create a replacement. Private Web-session discovery and manual credentials remain recovery fallbacks. |
+| One-scan Open Platform app creation | Adapt | Implemented with the official SDK `registerApp` device flow as the default: Feishu/Lark confirms account, tenant and exact addons; CodyWeb persists credentials, configures via public Open APIs, and readbacks scopes, WebSocket event/callbacks, bot ability, published version, visibility and bot identity before enablement. Exact-App-ID adoption uses the SDK `appId` update flow and cannot create a replacement. Private Web-session discovery and manual credentials remain recovery fallbacks. |
 | Long connection, reconnect, bot identity | Adapt | Implemented through the Feishu SDK transport and per-bot runtime state. |
 | Direct/group/topic routing and mention handling | Adapt | Implemented; topic lookup fails closed, and both `open_id` and `app_id` bot mentions are distinguished from mentions of other users/apps. `always`/`topic`/`bound` group trigger modes are per bot. |
 | Stable event dedupe and queued input | Adapt | Implemented in SQLite with claimed inbound events, durable pending selections, and FIFO turns. |
@@ -27,23 +27,23 @@ second owner of a Session.
 | Card interaction authorization | Adapt | Implemented using verified callback operator plus persisted binding/request ownership; action value identity is untrusted. |
 | In-chat access request and narrow grant | Adapt | Implemented for explicit unauthorized private/@ messages. The first allow-listed administrator receives a private signed approval card; approval atomically grants only the requesting Open ID, preserves `allowAllUsers=false`, and takes effect without reconnecting. Disallowed chats and ambient group traffic stay silent. |
 | Streaming/terminal cards | Adapt | Implemented with durable card versions and terminal freeze. |
-| Existing Session/new Session picker | Adapt | Implemented against the CodyWebUI visible project catalog and `thread/start`; the opening prompt and creation intent remain durable until a turn is prepared, including restart recovery. |
-| Approval and request-user-input cards | Adapt | Implemented through CodyWebUI's existing app-server server-request response path; group prompts are private when supported. |
+| Existing Session/new Session picker | Adapt | Implemented against the CodyWeb visible project catalog and `thread/start`; the opening prompt and creation intent remain durable until a turn is prepared, including restart recovery. |
+| Approval and request-user-input cards | Adapt | Implemented through CodyWeb's existing app-server server-request response path; group prompts are private when supported. |
 | Rich message parser | Adapt | Implemented for text/post/card/file/media/audio/image/sticker, mentions and quote hints. |
 | Attachment download and local handoff | Adapt | Implemented for supported resource types with streaming, 100 MB cap, private storage, retention, and failure notes. |
 | `im.message.get` card/quote/merge-forward completion | Adapt | Implemented in the live long-connection path with bounded depth and event-body fallback when REST is unavailable. |
-| Settings/admin status and audit | Adapt | Implemented as authenticated CodyWebUI management UI/API with setup history, bindings, redacted passive diagnostics, retry/dead-letter evidence, and an active six-check connectivity probe. Local-only deletion and remote bot disable are explicit separate choices. |
-| Botmux CLI worker / PTY / tmux / zellij lifecycle | Intentionally not migrated | CodyWebUI delegates execution to its existing Codex `app-server`; another process owner would split Session truth. |
-| Botmux web terminal/transcript copying | Intentionally not migrated | CodyWebUI already has a Web UI and the authoritative Codex thread. |
-| Multi-backend agent runners (Claude/Cursor/etc.) | Intentionally not migrated | CodyWebUI currently supports Codex only. |
+| Settings/admin status and audit | Adapt | Implemented as authenticated CodyWeb management UI/API with setup history, bindings, redacted passive diagnostics, retry/dead-letter evidence, and an active six-check connectivity probe. Local-only deletion and remote bot disable are explicit separate choices. |
+| Botmux CLI worker / PTY / tmux / zellij lifecycle | Intentionally not migrated | CodyWeb delegates execution to its existing Codex `app-server`; another process owner would split Session truth. |
+| Botmux web terminal/transcript copying | Intentionally not migrated | CodyWeb already has a Web UI and the authoritative Codex thread. |
+| Multi-backend agent runners (Claude/Cursor/etc.) | Intentionally not migrated | CodyWeb currently supports Codex only. |
 | Voice, meetings, docs subscriptions, federation/team boards | Intentionally not migrated | Product scope is Feishu IM as a shared Codex client; these are separate products/features. |
 | Tunnel/webhook bridge infrastructure | Intentionally not migrated | Long connection removes the public callback endpoint need for this integration. |
 
 ## API limits that shape the design
 
-| Constraint | CodyWebUI treatment |
+| Constraint | CodyWeb treatment |
 | --- | --- |
-| Long connection needs a live client but no public callback URL/token/encrypt key | The CodyWebUI service owns a reconnecting SDK connection for each enabled bot. |
+| Long connection needs a live client but no public callback URL/token/encrypt key | The CodyWeb service owns a reconnecting SDK connection for each enabled bot. |
 | Card callbacks have a short response deadline | Action handling acknowledges quickly and performs catalog/thread/request work in background, then patches the original card. |
 | Feishu resource download is limited to 100 MB by this integration | Resources are streamed to disk with a hard cap; no in-memory buffering. |
 | The resource endpoint cannot retrieve stickers, card-embedded resources (`234043`), or merge-forward child resources | Preserve text and append an explicit failure note; never pretend the asset reached Codex. |

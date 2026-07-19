@@ -1,7 +1,7 @@
 # Feishu bot integration
 
-Feishu is a first-class CodyWebUI client. It lets a person choose a visible
-CodyWebUI project, attach a Feishu conversation to an existing Codex Session or
+Feishu is a first-class CodyWeb client. It lets a person choose a visible
+CodyWeb project, attach a Feishu conversation to an existing Codex Session or
 create one, then continue the **same Codex thread** from Feishu and the Web UI.
 It is not a notification-only bot and it does not maintain a parallel transcript.
 
@@ -12,21 +12,21 @@ runtime actually calls it.
 ## Product target and hard boundary
 
 The completed product offers one or more Feishu bots as safe, durable remote
-clients for the local CodyWebUI service. A private chat, a flat group, and each
+clients for the local CodyWeb service. A private chat, a flat group, and each
 group topic can independently choose a project and Session. A person can move
 between Feishu and the browser without losing context, approvals, or turn state.
 
 ```mermaid
 flowchart LR
   U["Feishu user"] --> F["Feishu custom app\nlong connection"]
-  F --> R["CodyWebUI Feishu runtime\nrouting, cards, commands"]
+  F --> R["CodyWeb Feishu runtime\nrouting, cards, commands"]
   R <--> S[("Local SQLite\nbindings, inbox, outbox, turns, cards, audit")]
   R --> G["Codex app-server\nthread/*, turn/*, server/request"]
-  W["CodyWebUI Web UI"] --> G
+  W["CodyWeb Web UI"] --> G
   R --> C["Feishu reply / card API"]
 ```
 
-`app-server` is the sole execution boundary. Feishu reuses CodyWebUI's
+`app-server` is the sole execution boundary. Feishu reuses CodyWeb's
 `thread/*`, `turn/*`, notification, and server-request paths; it never creates
 a second Codex CLI process, PTY, tmux/zellij session, Worker, or separate
 transcript. botmux is a reference for mature Feishu transport and interaction
@@ -38,7 +38,7 @@ An unbound conversation works as follows:
 
 1. In a private chat, send a message. In a group, @mention the bot according
    to the bot's group-trigger policy.
-2. CodyWebUI stores that opening message durably and presents only visible
+2. CodyWeb stores that opening message durably and presents only visible
    projects.
 3. Choose a project, then choose a recent Session or **New session**.
 4. The selection creates or updates a binding and submits the retained message
@@ -79,7 +79,7 @@ Broad access is represented separately by `allowAllUsers=true`, and the UI
 requires explicit acknowledgement before saving that higher-risk policy.
 
 When a person outside that identity allow-list explicitly @mentions the bot in
-an allowed group (or messages it directly), CodyWebUI does not silently discard
+an allowed group (or messages it directly), CodyWeb does not silently discard
 the request. It privately sends the bot administrator—the first configured
 allow-list member—a signed approval card and tells the requester to wait. An
 approval atomically adds only that exact `open_id`; it never enables broad
@@ -96,7 +96,7 @@ its own App ID/secret, enabled state, identity allow-list, group policy,
 connection health, bindings, inbox/outbox records, and audit trail. App secrets
 are write-only: browser/API DTOs only reveal whether a secret is configured.
 Secrets in SQLite and the reusable Open Platform Web session are encrypted with
-AES-256-GCM. CodyWebUI creates a private `credentials.key` beside the settings
+AES-256-GCM. CodyWeb creates a private `credentials.key` beside the settings
 store, or operators can provide `CODY_WEB_UI_CREDENTIAL_KEY` /
 `CODY_WEB_UI_CREDENTIAL_KEY_FILE` so the encryption key is managed separately.
 Existing plaintext bot secrets are encrypted during the first database read.
@@ -116,16 +116,16 @@ The authenticated management API and UI can:
   delivery queue, with a fresh bounded retry budget and a management audit row.
 
 Adding a bot defaults to Feishu's official one-click device flow exposed by the
-Node SDK `registerApp`. CodyWebUI renders the official verification URL as a QR
+Node SDK `registerApp`. CodyWeb renders the official verification URL as a QR
 code. The Feishu/Lark confirmation page shows the scanning account, enterprise,
 application information, least-privilege scopes, `im.message.receive_v1`, and
 `card.action.trigger`; `createOnly=true` prevents accidentally selecting and
 overwriting an existing app. Because that official page already performs the
-account/enterprise confirmation, CodyWebUI does not ask for a misleading second
+account/enterprise confirmation, CodyWeb does not ask for a misleading second
 confirmation after the app has been created.
 
 The returned App Secret goes directly into encrypted write-only local storage
-and is never returned in the setup job or browser API. CodyWebUI then uses public
+and is never returned in the setup job or browser API. CodyWeb then uses public
 Open APIs to enable the bot, force event and callback delivery to WebSocket,
 publish and enable a version, and read back scopes, subscriptions, version,
 visibility, bot ability, and bot identity. A failed post-creation configuration
@@ -134,23 +134,23 @@ App ID/Secret, avoiding a second scan and a duplicate app. Private Web-console
 automation, cached-session adoption, and manual App ID/Secret entry remain
 compatibility/recovery paths, not the normal onboarding path.
 
-Application availability and CodyWebUI authorization are deliberately separate:
+Application availability and CodyWeb authorization are deliberately separate:
 
 - **Feishu availability** controls who can discover/contact the application in
   Feishu. QR setup offers creator only, explicit member Open IDs, or the whole
   enterprise. Whole-enterprise availability requires confirmation.
-- **Specified group chats** are a CodyWebUI runtime allow-list of Feishu chat
+- **Specified group chats** are a CodyWeb runtime allow-list of Feishu chat
   IDs (`oc_...`). They are not sent to Open Platform as organization user-group
   availability. In this mode the app remains creator-only at the platform layer,
   and non-listed chat IDs are rejected before the inbound event is claimed.
-- **CodyWebUI access** controls whose messages may operate projects and Sessions.
+- **CodyWeb access** controls whose messages may operate projects and Sessions.
   The QR creator is added automatically. An empty allow-list denies everyone;
   `allowAllUsers` is a separate, explicitly confirmed broad-access switch. A
   denied user's explicit request can be approved privately by the first
   allow-listed administrator, granting only the signed requesting `open_id`.
 
 Publishing an app to a broad Feishu audience therefore never silently grants
-them CodyWebUI access.
+them CodyWeb access.
 
 ## SQLite state, ordering, and recovery
 
@@ -297,7 +297,7 @@ keep the safe group trigger default, generate the QR code, then scan and confirm
 the account, enterprise, app information, permissions, event, and callback on
 Feishu's official page. The device flow may create either a Feishu domestic or
 Lark international app and returns the platform brand together with the scanner
-Open ID. CodyWebUI stores that scanner as the default administrator.
+Open ID. CodyWeb stores that scanner as the default administrator.
 
 The setup job and every completed stage are persisted in SQLite. The creation
 screen exposes a proof matrix instead of collapsing the process into a generic
@@ -374,8 +374,8 @@ Under **Events and Callbacks**:
 4. Publish a version whose availability includes the intended people/groups.
 
 Long connection requires no public callback URL, verification token, or encrypt
-key. Keep CodyWebUI running while validating events. Card callbacks must return
-quickly; CodyWebUI acknowledges long work then finishes it asynchronously.
+key. Keep CodyWeb running while validating events. Card callbacks must return
+quickly; CodyWeb acknowledges long work then finishes it asynchronously.
 
 Useful official references:
 
@@ -397,25 +397,25 @@ manager (or point `CODY_WEB_UI_CREDENTIAL_KEY_FILE` at a root-owned mounted
 secret). Back up that key separately: encrypted bot credentials and Web session
 cookies cannot be recovered without it.
 
-Use the normal CodyWebUI deployment command and supply an externally reachable,
-authenticated browser origin to enable **Open in CodyWebUI** buttons:
+Use the normal CodyWeb deployment command and supply an externally reachable,
+authenticated browser origin to enable **Open in CodyWeb** buttons:
 
 ```bash
 CODY_PUBLIC_URL=https://cody.example.internal npm run deploy
 ```
 
-`CODY_PUBLIC_URL` only builds browser links. It does not replace CodyWebUI's
+`CODY_PUBLIC_URL` only builds browser links. It does not replace CodyWeb's
 password, network controls, HTTPS, or firewall. For a non-loopback listener,
-terminate TLS at CodyWebUI or a trusted reverse proxy, set a strong
+terminate TLS at CodyWeb or a trusted reverse proxy, set a strong
 `CODY_PASSWORD`; use HTTPS whenever the network is shared or untrusted. Run the
 service as the same OS user that owns
 Codex configuration and target workspaces. The default settings directory is
 mode `0700` and its SQLite DB is mode `0600`; protect custom database parents,
 backups, and SQLite WAL/SHM files too.
 
-Like botmux's local dashboard, CodyWebUI allows authenticated Feishu management
+Like botmux's local dashboard, CodyWeb allows authenticated Feishu management
 over HTTP instead of blocking the workflow. The settings page shows a persistent
-warning on remote plain-HTTP origins, CodyWebUI login protection still applies,
+warning on remote plain-HTTP origins, CodyWeb login protection still applies,
 and App Secrets are persisted server-side. This is a usability fallback for
 trusted networks, not transport encryption; use a trusted HTTPS reverse proxy
 on shared or untrusted networks.
@@ -464,7 +464,7 @@ restart recovery.
 
 When deleting a bot, choose one option explicitly:
 
-- **Delete CodyWebUI configuration only** leaves the remote app unchanged so it
+- **Delete CodyWeb configuration only** leaves the remote app unchanged so it
   can be adopted again.
 - **Disable the remote bot, then delete locally** first proves that the cached
   Open Platform account can manage the app, disables its bot capability, and

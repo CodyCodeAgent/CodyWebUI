@@ -16,14 +16,14 @@ describe('Feishu cards', () => {
   it('builds the project to session binding flow with namespaced actions', () => {
     const projectCard = buildProjectSelectionCard({
       bindingKey: 'bot:group:chat:chat',
-      projects: [{ projectKey: '/repo', cwd: '/repo', label: 'CodyWebUI', sessionCount: 2 }],
+      projects: [{ projectKey: '/repo', cwd: '/repo', label: 'CodyWeb', sessionCount: 2 }],
     })
     expect(JSON.stringify(projectCard)).toContain(FEISHU_CARD_ACTIONS.selectProject)
-    expect(JSON.stringify(projectCard)).toContain('CodyWebUI')
+    expect(JSON.stringify(projectCard)).toContain('CodyWeb')
 
     const sessionCard = buildSessionSelectionCard({
       bindingKey: 'bot:group:chat:chat',
-      project: { projectKey: '/repo', cwd: '/repo', label: 'CodyWebUI', sessionCount: 2 },
+      project: { projectKey: '/repo', cwd: '/repo', label: 'CodyWeb', sessionCount: 2 },
       sessions: [{ threadId: 'thread-1', title: 'Fix scrolling' }],
     })
     expect(JSON.stringify(sessionCard)).toContain(FEISHU_CARD_ACTIONS.selectSession)

@@ -143,7 +143,7 @@ const child = spawn(process.execPath, [
 
 let createdThreadId = ''
 try {
-  await waitForOutput(child, /CodyWebUI is running!/u, STARTUP_TIMEOUT_MS)
+  await waitForOutput(child, /CodyWeb is running!/u, STARTUP_TIMEOUT_MS)
   const baseUrl = `http://${HOST}:${String(port)}`
 
   const started = await rpc(baseUrl, 'thread/start', { cwd })
