@@ -56,7 +56,8 @@ Each binding is namespaced by bot id and has one of these scopes:
 
 | Scope | Binding identity | Meaning |
 | --- | --- | --- |
-| Private | bot + private chat | One direct-message conversation. |
+| Private topic (default) | bot + private chat + top-level message | Each top-level direct message starts a Feishu topic and gets its own Session binding. Replies in that topic reuse it. |
+| Flat private chat | bot + private chat | Optional continuous mode where the whole direct-message conversation shares one Session binding. |
 | Flat group | bot + group chat | One group-wide Session. |
 | Topic | bot + group + root/topic | Each topic gets its own Session. |
 
@@ -64,6 +65,15 @@ The runtime identifies a top-level group message's real chat mode before
 binding it. If that lookup fails, it fails closed rather than accidentally
 placing a topic message into a flat-group Session. Messages authored by apps or
 bots are ignored, as are messages aimed at another mentioned user.
+
+Every bot also chooses one `p2pMode`. The default `topic` mode matches
+botmux: a top-level private message is answered with `reply_in_thread=true`,
+which creates a Feishu topic rooted at that message; messages carrying both
+`root_id` and `thread_id` continue the same project and CodyWeb Session. A
+quoted message that only carries `root_id` is not mistaken for a topic reply.
+The optional `chat` mode keeps the legacy flat behaviour and reuses one binding
+for the entire private chat. Existing flat bindings remain available when a bot
+is switched back to `chat` mode.
 
 Every bot chooses one `groupMentionMode`; the default is the safest option:
 

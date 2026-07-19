@@ -8,6 +8,7 @@ import {
 
 export type FeishuBotStatus = 'connected' | 'connecting' | 'disconnected' | 'error'
 export type FeishuGroupMentionMode = 'always' | 'topic' | 'bound'
+export type FeishuP2pMode = 'topic' | 'chat'
 
 export type FeishuBot = {
   id: string
@@ -22,6 +23,7 @@ export type FeishuBot = {
   allowedOpenIds: string[]
   allowedChatIds: string[]
   groupMentionMode: FeishuGroupMentionMode
+  p2pMode?: FeishuP2pMode
   status: FeishuBotStatus
   lastConnectedAtIso: string | null
   lastHeartbeatAtIso: string | null
@@ -40,6 +42,7 @@ export type FeishuBotInput = {
   allowedOpenIds: string[]
   allowedChatIds?: string[]
   groupMentionMode: FeishuGroupMentionMode
+  p2pMode?: FeishuP2pMode
 }
 
 export type FeishuQrSetupStatus = 'starting' | 'awaiting_scan' | 'authorizing' | 'confirming_identity' | 'creating_app' | 'configuring' | 'connecting' | 'completed' | 'failed' | 'expired' | 'cancelled'
@@ -184,6 +187,7 @@ function normalizeBot(value: unknown): FeishuBot | null {
       ? row.allowedChatIds.filter((item): item is string => typeof item === 'string' && Boolean(item.trim()))
       : [],
     groupMentionMode: row.groupMentionMode === 'topic' || row.groupMentionMode === 'bound' ? row.groupMentionMode : 'always',
+    p2pMode: row.p2pMode === 'chat' ? 'chat' : 'topic',
     status,
     lastConnectedAtIso: optionalString(row.lastConnectedAtIso),
     lastHeartbeatAtIso: optionalString(row.lastHeartbeatAtIso),
@@ -365,7 +369,7 @@ function readQrSetupJob(value: unknown, method: string, status: number): FeishuQ
   return normalizeQrSetupJob(value) ?? invalidResponse('Feishu QR setup returned malformed response', method, status)
 }
 
-export async function startFeishuQrSetup(input: Pick<FeishuBotInput, 'name' | 'allowAllUsers' | 'allowedOpenIds' | 'groupMentionMode'> & { availability?: FeishuAvailabilityInput }): Promise<FeishuQrSetupJob> {
+export async function startFeishuQrSetup(input: Pick<FeishuBotInput, 'name' | 'allowAllUsers' | 'allowedOpenIds' | 'groupMentionMode' | 'p2pMode'> & { availability?: FeishuAvailabilityInput }): Promise<FeishuQrSetupJob> {
   const { result, status } = await fetchCodexResultRecord('/codex-api/feishu/qr-setup', {
     init: jsonPostInit(input),
     method: 'feishu/qr-setup/start',
@@ -462,7 +466,7 @@ export async function fetchFeishuOpenPlatformApps(): Promise<FeishuOpenPlatformA
   })
 }
 
-export async function adoptFeishuOpenPlatformApp(input: Pick<FeishuBotInput, 'name' | 'allowAllUsers' | 'allowedOpenIds' | 'groupMentionMode'> & { appId: string; availability?: FeishuAvailabilityInput }): Promise<FeishuQrSetupJob> {
+export async function adoptFeishuOpenPlatformApp(input: Pick<FeishuBotInput, 'name' | 'allowAllUsers' | 'allowedOpenIds' | 'groupMentionMode' | 'p2pMode'> & { appId: string; availability?: FeishuAvailabilityInput }): Promise<FeishuQrSetupJob> {
   const { result, status } = await fetchCodexResultRecord('/codex-api/feishu/qr-setup/adopt', {
     init: jsonPostInit(input),
     method: 'feishu/qr-setup/adopt',

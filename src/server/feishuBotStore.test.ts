@@ -81,7 +81,7 @@ describe('feishuBotStore bots', () => {
       id: 'alpha', botId: 'alpha', name: 'alpha bot', status: 'connecting',
       platform: 'feishu', tenantId: 'tenant-alpha', tenantName: 'alpha enterprise',
       connectionState: 'connecting', allowAllUsers: false, allowedOpenIds: ['ou_a', 'ou_b'],
-      allowedChatIds: ['oc_a', 'oc_b'],
+      allowedChatIds: ['oc_a', 'oc_b'], p2pMode: 'topic',
     })
     expect(beta.appSecret).toBe('secret-beta')
     await withLocalDatabase((db) => {
@@ -115,10 +115,18 @@ describe('feishuBotStore bots', () => {
     expect(preserved).toMatchObject({ platform: 'feishu', tenantId: 'tenant-alpha', tenantName: 'alpha enterprise' })
     expect(preserved.allowAllUsers).toBe(true)
     expect(preserved.allowedChatIds).toEqual(['oc_a', 'oc_b'])
+    expect(preserved.p2pMode).toBe('topic')
     expect(preserved.status).toBe('disconnected')
 
     await expect(deleteFeishuBot('beta')).resolves.toBe(true)
     await expect(findFeishuBot('beta')).resolves.toBeNull()
+  })
+
+  it('persists the private-chat mode and defaults legacy configs to topic mode', async () => {
+    await bot('routing')
+    await expect(findFeishuBot('routing')).resolves.toMatchObject({ p2pMode: 'topic' })
+    await upsertFeishuBot({ id: 'routing', appId: 'cli_routing', enabled: true, p2pMode: 'chat' })
+    await expect(findFeishuBot('routing')).resolves.toMatchObject({ p2pMode: 'chat' })
   })
 
   it('keeps the original single-bot API useful', async () => {

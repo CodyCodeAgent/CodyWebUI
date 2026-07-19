@@ -165,6 +165,7 @@ function createStorePort(): FeishuBotStorePort {
       allowedOpenIds: bot.allowedOpenIds,
       allowedChatIds: bot.allowedChatIds,
       groupMentionMode: bot.groupMentionMode,
+      p2pMode: bot.p2pMode,
       botOpenId: bot.botOpenId,
       botName: bot.botName || bot.name,
     })),
@@ -232,6 +233,7 @@ function botDto(bot: FeishuBotConfig): FeishuBotDto {
   const safe = publicFeishuBotConfig(bot)
   const storedMode = (safe as typeof safe & { groupMentionMode?: unknown }).groupMentionMode
   const groupMentionMode: FeishuGroupMentionModeDto = storedMode === 'topic' || storedMode === 'bound' ? storedMode : 'always'
+  const p2pMode = safe.p2pMode === 'chat' ? 'chat' : 'topic'
   return {
     id: safe.id,
     name: safe.name,
@@ -245,6 +247,7 @@ function botDto(bot: FeishuBotConfig): FeishuBotDto {
     allowedOpenIds: safe.allowedOpenIds,
     allowedChatIds: safe.allowedChatIds,
     groupMentionMode,
+    p2pMode,
     status: safe.status,
     lastConnectedAtIso: safe.lastConnectedAtIso,
     lastHeartbeatAtIso: safe.lastHeartbeatAtIso,
@@ -369,6 +372,7 @@ function safeBotAuditMetadata(input: FeishuBotWriteInput): Record<string, unknow
     ...(typeof input.allowAllUsers === 'boolean' ? { allowAllUsers: input.allowAllUsers } : {}),
     ...(input.platform ? { platform: input.platform } : {}),
     ...(input.groupMentionMode ? { groupMentionMode: input.groupMentionMode } : {}),
+    ...(input.p2pMode ? { p2pMode: input.p2pMode } : {}),
     ...(input.allowedOpenIds ? { allowedOpenIdCount: input.allowedOpenIds.length } : {}),
     ...(input.allowedChatIds ? { allowedChatIdCount: input.allowedChatIds.length } : {}),
     credentialChanged: typeof input.appSecret === 'string' && input.appSecret.length > 0,
@@ -513,6 +517,7 @@ export function createFeishuIntegration(input: {
         if (!current) throw new Error('Feishu bot not found')
         const storedMode = (current as FeishuBotConfig & { groupMentionMode?: unknown }).groupMentionMode
         const currentGroupMentionMode: FeishuGroupMentionModeDto = storedMode === 'topic' || storedMode === 'bound' ? storedMode : 'always'
+        const currentP2pMode = current.p2pMode === 'chat' ? 'chat' : 'topic'
         const update = {
           id: current.id,
           name: payload.name ?? current.name,
@@ -526,6 +531,7 @@ export function createFeishuIntegration(input: {
           allowedOpenIds: payload.allowedOpenIds ?? current.allowedOpenIds,
           allowedChatIds: payload.allowedChatIds ?? current.allowedChatIds,
           groupMentionMode: payload.groupMentionMode ?? currentGroupMentionMode,
+          p2pMode: payload.p2pMode ?? currentP2pMode,
           defaultProjectKey: current.defaultProjectKey,
         } as Parameters<typeof upsertFeishuBot>[0] & { groupMentionMode: FeishuGroupMentionModeDto }
         const bot = await upsertFeishuBot(update)
@@ -578,6 +584,7 @@ export function createFeishuIntegration(input: {
           allowedOpenIds: current.allowedOpenIds,
           allowedChatIds: current.allowedChatIds,
           groupMentionMode: current.groupMentionMode,
+          p2pMode: current.p2pMode,
           defaultProjectKey: current.defaultProjectKey,
         })
         await service.reconcile(botId)
@@ -727,6 +734,7 @@ export function createFeishuIntegration(input: {
         allowedOpenIds: bot.allowedOpenIds,
         allowedChatIds: bot.allowedChatIds,
         groupMentionMode: bot.groupMentionMode,
+        p2pMode: bot.p2pMode,
         defaultProjectKey: bot.defaultProjectKey,
       })
       return identity

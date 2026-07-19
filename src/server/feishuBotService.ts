@@ -41,6 +41,8 @@ export type FeishuBotDefinition = {
   /** Optional group-chat IDs (`oc_...`). Empty means no chat-level restriction. */
   allowedChatIds?: string[]
   groupMentionMode?: 'always' | 'topic' | 'bound'
+  /** Private-chat routing: one topic per top-level DM (default), or one flat chat session. */
+  p2pMode?: 'topic' | 'chat'
   botOpenId?: string
   botName?: string
 }
@@ -344,6 +346,7 @@ function botFingerprint(bot: FeishuBotDefinition): string {
     bot.allowedOpenIds.slice().sort(),
     (bot.allowedChatIds ?? []).slice().sort(),
     bot.groupMentionMode ?? 'always',
+    bot.p2pMode ?? 'topic',
   ])
 }
 
@@ -381,10 +384,14 @@ export function normalizeFeishuInbound(bot: FeishuBotDefinition, payload: unknow
   const resources = parsedMessage.resources.map((resource) => downloadUnsupportedReason
     ? { ...resource, downloadUnsupportedReason }
     : resource)
+  const rawRootId = readString(message.root_id || message.rootId)
+  const rawThreadId = readString(message.thread_id || message.threadId)
+  // Feishu quote replies may expose root_id without actually being inside a
+  // topic. Only the root_id + thread_id pair is a reliable topic signal.
+  const isThreadReply = Boolean(rawRootId && rawThreadId)
   const rootId = chatType === 'p2p'
-    ? ''
-    : readString(message.root_id || message.rootId || message.thread_id || message.threadId)
-      || ''
+    ? (bot.p2pMode === 'chat' ? '' : isThreadReply ? rawRootId : messageId)
+    : rawRootId || rawThreadId || ''
   const anchor = rootId || (chatType === 'group' ? chatId : '')
   const eventId = readString(envelope?.event_id || envelope?.eventId || nestedRecord(envelope, 'header')?.event_id)
   const hasNonBotMention = parsedMessage.mentions.some((mention) => {
@@ -408,7 +415,7 @@ export function normalizeFeishuInbound(bot: FeishuBotDefinition, payload: unknow
     hasNonBotMention,
     senderType,
     eventKey: eventId || messageId,
-    topLevel: chatType === 'group' && !rootId,
+    topLevel: chatType === 'group' ? !rootId : !isThreadReply,
   }
 }
 
@@ -1675,7 +1682,7 @@ export class FeishuBotService {
     // Query the mutable group_message_type so it gets its own binding instead
     // of accidentally sharing the flat group's chat-scoped session.
     let chatModeLookupFailed = false
-    if (inbound.topLevel && runtime.transport.getChatMode) {
+    if (inbound.chatType === 'group' && inbound.topLevel && runtime.transport.getChatMode) {
       try {
         if (await runtime.transport.getChatMode(inbound.chatId, { forceRefresh: true }) === 'topic') {
           inbound = {

@@ -3,6 +3,7 @@ import type { FeishuQrSetupJobDto } from '../feishuQrSetup.js'
 
 export type FeishuBotStatusDto = 'connected' | 'connecting' | 'disconnected' | 'error'
 export type FeishuGroupMentionModeDto = 'always' | 'topic' | 'bound'
+export type FeishuP2pModeDto = 'topic' | 'chat'
 
 export type FeishuBotDto = {
   id: string
@@ -17,6 +18,7 @@ export type FeishuBotDto = {
   allowedOpenIds: string[]
   allowedChatIds?: string[]
   groupMentionMode: FeishuGroupMentionModeDto
+  p2pMode?: FeishuP2pModeDto
   status: FeishuBotStatusDto
   lastConnectedAtIso: string | null
   lastHeartbeatAtIso: string | null
@@ -57,6 +59,7 @@ export type FeishuBotWriteInput = {
   allowedOpenIds?: string[]
   allowedChatIds?: string[]
   groupMentionMode?: FeishuGroupMentionModeDto
+  p2pMode?: FeishuP2pModeDto
 }
 
 export type FeishuOpenPlatformSessionDto = {
@@ -123,7 +126,7 @@ export type FeishuConnectivityReportDto = {
 
 export type FeishuRoutesDependencies = {
   listBots: () => Promise<FeishuBotDto[]>
-  createBot: (input: Required<Pick<FeishuBotWriteInput, 'name' | 'appId' | 'platform' | 'enabled' | 'allowAllUsers' | 'allowedOpenIds' | 'groupMentionMode'>> & Pick<FeishuBotWriteInput, 'tenantId' | 'tenantName' | 'allowedChatIds'> & { appSecret: string }) => Promise<FeishuBotDto>
+  createBot: (input: Required<Pick<FeishuBotWriteInput, 'name' | 'appId' | 'platform' | 'enabled' | 'allowAllUsers' | 'allowedOpenIds' | 'groupMentionMode'>> & Pick<FeishuBotWriteInput, 'tenantId' | 'tenantName' | 'allowedChatIds' | 'p2pMode'> & { appSecret: string }) => Promise<FeishuBotDto>
   updateBot: (botId: string, input: FeishuBotWriteInput) => Promise<FeishuBotDto>
   deleteBot: (botId: string, remoteAction: 'keep' | 'disable') => Promise<{ removed: boolean; remoteDisabled: boolean }>
   reconnectBot: (botId: string) => Promise<FeishuBotDto>
@@ -132,7 +135,7 @@ export type FeishuRoutesDependencies = {
   removeBinding: (bindingId: string) => Promise<boolean>
   getDiagnostics: (botId?: string) => Promise<FeishuDiagnosticsDto>
   retryDelivery: (botId: string, outboxId: string) => Promise<boolean>
-  startQrSetup: (input: { name: string; allowAllUsers: boolean; allowedOpenIds: string[]; groupMentionMode: FeishuGroupMentionModeDto; availability: FeishuAvailabilityInputDto }) => Promise<FeishuQrSetupJobDto>
+  startQrSetup: (input: { name: string; allowAllUsers: boolean; allowedOpenIds: string[]; groupMentionMode: FeishuGroupMentionModeDto; p2pMode: FeishuP2pModeDto; availability: FeishuAvailabilityInputDto }) => Promise<FeishuQrSetupJobDto>
   listQrSetups: () => FeishuQrSetupJobDto[]
   getQrSetup: (jobId: string) => FeishuQrSetupJobDto | null
   cancelQrSetup: (jobId: string) => Promise<FeishuQrSetupJobDto | null>
@@ -141,7 +144,7 @@ export type FeishuRoutesDependencies = {
   inspectOpenPlatformSession: () => Promise<FeishuOpenPlatformSessionDto>
   clearOpenPlatformSession: () => Promise<boolean>
   listOpenPlatformApps: () => Promise<FeishuOpenPlatformAppDto[]>
-  adoptOpenPlatformApp: (appId: string, input: { name: string; allowAllUsers: boolean; allowedOpenIds: string[]; groupMentionMode: FeishuGroupMentionModeDto; availability: FeishuAvailabilityInputDto }) => Promise<FeishuQrSetupJobDto>
+  adoptOpenPlatformApp: (appId: string, input: { name: string; allowAllUsers: boolean; allowedOpenIds: string[]; groupMentionMode: FeishuGroupMentionModeDto; p2pMode: FeishuP2pModeDto; availability: FeishuAvailabilityInputDto }) => Promise<FeishuQrSetupJobDto>
 }
 
 function readAllowedOpenIds(value: unknown): string[] | null {
@@ -156,6 +159,10 @@ function readAllowedChatIds(value: unknown): string[] | null {
 
 function readGroupMentionMode(value: unknown): FeishuGroupMentionModeDto | null {
   return value === 'always' || value === 'topic' || value === 'bound' ? value : null
+}
+
+function readP2pMode(value: unknown): FeishuP2pModeDto | null {
+  return value === 'topic' || value === 'chat' ? value : null
 }
 
 function readPlatform(value: unknown): 'feishu' | 'lark' | null {
@@ -184,9 +191,10 @@ function readCreateInput(body: Record<string, unknown> | null): Parameters<Feish
   const allowedChatIds = body && 'allowedChatIds' in body ? readAllowedChatIds(body.allowedChatIds) : undefined
   const allowAllUsers = body?.allowAllUsers === true
   const groupMentionMode = body && 'groupMentionMode' in body ? readGroupMentionMode(body.groupMentionMode) : 'always'
-  if (!name || !appId || !appSecret || !platform || typeof body?.enabled !== 'boolean' || !allowedOpenIds || allowedChatIds === null || !groupMentionMode) return null
+  const p2pMode = body && 'p2pMode' in body ? readP2pMode(body.p2pMode) : 'topic'
+  if (!name || !appId || !appSecret || !platform || typeof body?.enabled !== 'boolean' || !allowedOpenIds || allowedChatIds === null || !groupMentionMode || !p2pMode) return null
   return {
-    name, appId, appSecret, platform, enabled: body.enabled, allowAllUsers, allowedOpenIds, groupMentionMode,
+    name, appId, appSecret, platform, enabled: body.enabled, allowAllUsers, allowedOpenIds, groupMentionMode, p2pMode,
     ...(allowedChatIds ? { allowedChatIds } : {}),
   }
 }
@@ -196,9 +204,10 @@ function readQrSetupInput(body: Record<string, unknown> | null): Parameters<Feis
   const allowedOpenIds = body && 'allowedOpenIds' in body ? readAllowedOpenIds(body.allowedOpenIds) : []
   const allowAllUsers = body?.allowAllUsers === true
   const groupMentionMode = body && 'groupMentionMode' in body ? readGroupMentionMode(body.groupMentionMode) : 'always'
+  const p2pMode = body && 'p2pMode' in body ? readP2pMode(body.p2pMode) : 'topic'
   const availability = readAvailability(body?.availability)
-  if (!name || !allowedOpenIds || !groupMentionMode || !availability) return null
-  return { name, allowAllUsers, allowedOpenIds, groupMentionMode, availability }
+  if (!name || !allowedOpenIds || !groupMentionMode || !p2pMode || !availability) return null
+  return { name, allowAllUsers, allowedOpenIds, groupMentionMode, p2pMode, availability }
 }
 
 function readUpdateInput(body: Record<string, unknown> | null): FeishuBotWriteInput | null {
@@ -243,6 +252,11 @@ function readUpdateInput(body: Record<string, unknown> | null): FeishuBotWriteIn
     const groupMentionMode = readGroupMentionMode(body.groupMentionMode)
     if (!groupMentionMode) return null
     input.groupMentionMode = groupMentionMode
+  }
+  if ('p2pMode' in body) {
+    const p2pMode = readP2pMode(body.p2pMode)
+    if (!p2pMode) return null
+    input.p2pMode = p2pMode
   }
   return Object.keys(input).length > 0 ? input : null
 }

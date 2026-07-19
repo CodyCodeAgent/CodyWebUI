@@ -17,6 +17,7 @@ const bot: FeishuBotDto = {
   allowAllUsers: false,
   allowedOpenIds: ['ou_a'],
   groupMentionMode: 'always',
+  p2pMode: 'topic',
   status: 'connected',
   lastConnectedAtIso: '2026-07-18T00:00:00.000Z',
   lastHeartbeatAtIso: '2026-07-18T00:01:00.000Z',
@@ -126,7 +127,7 @@ describe('createFeishuRoutes', () => {
     })
     expect(result.statusCode).toBe(201)
     expect(deps.createBot).toHaveBeenCalledWith({
-      name: 'Cody', appId: 'cli_a', appSecret: 'secret', platform: 'lark', enabled: true, allowAllUsers: false, allowedOpenIds: ['ou_a'], groupMentionMode: 'always',
+      name: 'Cody', appId: 'cli_a', appSecret: 'secret', platform: 'lark', enabled: true, allowAllUsers: false, allowedOpenIds: ['ou_a'], groupMentionMode: 'always', p2pMode: 'topic',
     })
   })
 
@@ -164,6 +165,15 @@ describe('createFeishuRoutes', () => {
     expect(invalid.statusCode).toBe(400)
   })
 
+  it('accepts only supported private-chat session modes', async () => {
+    const deps = dependencies()
+    const updated = await invoke(createFeishuRoutes(deps), 'PATCH', '/codex-api/feishu/bots/bot-1', { p2pMode: 'chat' })
+    expect(updated.statusCode).toBe(200)
+    expect(deps.updateBot).toHaveBeenCalledWith('bot-1', { p2pMode: 'chat' })
+    const invalid = await invoke(createFeishuRoutes(deps), 'PATCH', '/codex-api/feishu/bots/bot-1', { p2pMode: 'forever' })
+    expect(invalid.statusCode).toBe(400)
+  })
+
   it('starts, reads, confirms identity, cancels, and retries QR setup jobs', async () => {
     const deps = dependencies()
     deps.startQrSetup = vi.fn(async () => qrJob)
@@ -176,7 +186,7 @@ describe('createFeishuRoutes', () => {
     const started = await invoke(route, 'POST', '/codex-api/feishu/qr-setup', { name: 'Cody' })
     expect(started.statusCode).toBe(202)
     expect(deps.startQrSetup).toHaveBeenCalledWith({
-      name: 'Cody', allowAllUsers: false, allowedOpenIds: [], groupMentionMode: 'always',
+      name: 'Cody', allowAllUsers: false, allowedOpenIds: [], groupMentionMode: 'always', p2pMode: 'topic',
       availability: { mode: 'creator', memberIds: [], groupIds: [] },
     })
     expect((started.body as any).result.job.qrDataUrl).toContain('data:image/png')
@@ -231,7 +241,7 @@ describe('createFeishuRoutes', () => {
     const adopted = await invoke(route, 'POST', '/codex-api/feishu/qr-setup/adopt', { appId: 'cli_existing', name: 'Recovered' })
     expect(adopted.statusCode).toBe(202)
     expect(deps.adoptOpenPlatformApp).toHaveBeenCalledWith('cli_existing', {
-      name: 'Recovered', allowAllUsers: false, allowedOpenIds: [], groupMentionMode: 'always',
+      name: 'Recovered', allowAllUsers: false, allowedOpenIds: [], groupMentionMode: 'always', p2pMode: 'topic',
       availability: { mode: 'creator', memberIds: [], groupIds: [] },
     })
   })

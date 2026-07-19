@@ -13,6 +13,7 @@ import type {
   FeishuBotDto,
   FeishuBotWriteInput,
   FeishuGroupMentionModeDto,
+  FeishuP2pModeDto,
 } from './routes/feishuRoutes.js'
 import {
   emptyFeishuSetupChecks,
@@ -61,6 +62,7 @@ export type FeishuQrSetupInput = {
   allowAllUsers?: boolean
   allowedOpenIds: string[]
   groupMentionMode: FeishuGroupMentionModeDto
+  p2pMode?: FeishuP2pModeDto
   availability?: {
     mode: 'creator' | 'members' | 'groups' | 'all'
     memberIds: string[]
@@ -75,10 +77,10 @@ type MutableJob = Omit<FeishuQrSetupJobDto, 'checks'> & {
   ownerPlatformUserId: string | null
   registrationMethod: 'official_device_flow' | 'web_console' | null
   controller: AbortController
-  input: FeishuQrSetupInput & { allowAllUsers: boolean }
+  input: Omit<FeishuQrSetupInput, 'allowAllUsers' | 'p2pMode'> & { allowAllUsers: boolean; p2pMode: FeishuP2pModeDto }
 }
 
-type CreateBotInput = Required<Pick<FeishuBotWriteInput, 'name' | 'appId' | 'platform' | 'enabled' | 'allowAllUsers' | 'allowedOpenIds' | 'groupMentionMode'>> & Pick<FeishuBotWriteInput, 'allowedChatIds'> & {
+type CreateBotInput = Required<Pick<FeishuBotWriteInput, 'name' | 'appId' | 'platform' | 'enabled' | 'allowAllUsers' | 'allowedOpenIds' | 'groupMentionMode'>> & Pick<FeishuBotWriteInput, 'allowedChatIds' | 'p2pMode'> & {
   appSecret: string
   tenantId?: string
   tenantName?: string
@@ -202,7 +204,7 @@ export class FeishuQrSetupManager {
           credentialsSaved: stored.checks.credentialsSaved || Boolean(bot?.secretConfigured),
         },
         controller: new AbortController(),
-        input: stored.input,
+        input: { ...stored.input, p2pMode: stored.input.p2pMode === 'chat' ? 'chat' : 'topic' },
       }
       this.jobs.set(job.id, job)
 
@@ -268,6 +270,7 @@ export class FeishuQrSetupManager {
         allowAllUsers: input.allowAllUsers === true,
         allowedOpenIds: [...new Set(input.allowedOpenIds.map((value) => value.trim()).filter(Boolean))],
         groupMentionMode: input.groupMentionMode,
+        p2pMode: input.p2pMode === 'chat' ? 'chat' : 'topic',
         availability: this.normalizeAvailability(input.availability),
       },
     }
@@ -300,6 +303,7 @@ export class FeishuQrSetupManager {
         allowAllUsers: input.allowAllUsers === true,
         allowedOpenIds: [...new Set(input.allowedOpenIds.map((value) => value.trim()).filter(Boolean))],
         groupMentionMode: input.groupMentionMode,
+        p2pMode: input.p2pMode === 'chat' ? 'chat' : 'topic',
         availability: this.normalizeAvailability(input.availability),
       },
     }
@@ -333,6 +337,7 @@ export class FeishuQrSetupManager {
         allowAllUsers: input.allowAllUsers === true,
         allowedOpenIds: [...new Set(input.allowedOpenIds.map((value) => value.trim()).filter(Boolean))],
         groupMentionMode: input.groupMentionMode,
+        p2pMode: input.p2pMode === 'chat' ? 'chat' : 'topic',
         availability: this.normalizeAvailability(input.availability),
       },
     }
@@ -545,6 +550,7 @@ export class FeishuQrSetupManager {
             allowedOpenIds,
             allowedChatIds: job.input.availability?.mode === 'groups' ? job.input.availability.groupIds : [],
             groupMentionMode: job.input.groupMentionMode,
+            p2pMode: job.input.p2pMode,
           }
           const existing = await this.deps.findBotByAppId?.(appId)
           job.bot = existing
@@ -614,6 +620,7 @@ export class FeishuQrSetupManager {
             allowedOpenIds: job.input.allowedOpenIds,
             allowedChatIds: job.input.availability?.mode === 'groups' ? job.input.availability.groupIds : [],
             groupMentionMode: job.input.groupMentionMode,
+            p2pMode: job.input.p2pMode,
           })
         : await this.deps.createBot({
             name: job.name,
@@ -627,6 +634,7 @@ export class FeishuQrSetupManager {
             allowedOpenIds: job.input.allowedOpenIds,
             allowedChatIds: job.input.availability?.mode === 'groups' ? job.input.availability.groupIds : [],
             groupMentionMode: job.input.groupMentionMode,
+            p2pMode: job.input.p2pMode,
           })
       job.botId = job.bot.id
       job.checks.credentialsSaved = true

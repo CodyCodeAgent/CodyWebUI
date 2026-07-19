@@ -28,7 +28,7 @@ function job(status: StoredFeishuQrSetupJob['status'] = 'configuring'): StoredFe
     account: { userName: 'Alice', email: 'alice@example.com', tenantName: 'Example' },
     warnings: [], error: null, canRetry: false, canCancel: false, canConfirmIdentity: false,
     input: {
-      name: 'Cody', allowAllUsers: false, allowedOpenIds: ['ou_a'], groupMentionMode: 'always',
+      name: 'Cody', allowAllUsers: false, allowedOpenIds: ['ou_a'], groupMentionMode: 'always', p2pMode: 'topic',
       availability: { mode: 'creator', memberIds: [], groupIds: [] },
     },
     appId: 'cli_created', botId: 'bot-1',

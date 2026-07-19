@@ -39,6 +39,7 @@ const bot = {
   allowAllUsers: false,
   allowedOpenIds: ['ou_admin'], status: 'connected', lastConnectedAtIso: '2026-07-18T01:00:00.000Z', lastHeartbeatAtIso: '2026-07-18T01:01:00.000Z',
   groupMentionMode: 'always',
+  p2pMode: 'topic',
   lastError: null, createdAtIso: '', updatedAtIso: '',
 }
 
@@ -223,6 +224,27 @@ describe('FeishuBotPanel', () => {
     wrapper.unmount()
   })
 
+  it('defaults private chats to one topic per message and can save flat chat mode', async () => {
+    api.fetchFeishuBots.mockResolvedValue([])
+    api.fetchFeishuBindings.mockResolvedValue([])
+    api.fetchFeishuDiagnostics.mockResolvedValue(diagnostics)
+    api.createFeishuBot.mockResolvedValue({ ...bot, p2pMode: 'chat' })
+    const wrapper = mount(FeishuBotPanel)
+    await flushPromises()
+    await openManualCreate(wrapper)
+    const topic = wrapper.get('input[name="feishu-p2p-mode"][value="topic"]')
+    expect((topic.element as HTMLInputElement).checked).toBe(true)
+    const inputs = wrapper.findAll('.feishu-form-grid input')
+    await inputs[0].setValue('Private bot')
+    await inputs[1].setValue('cli_private')
+    await wrapper.get('.feishu-secret-input input').setValue('secret-value')
+    await wrapper.get('input[name="feishu-p2p-mode"][value="chat"]').setValue(true)
+    await wrapper.get('.feishu-form').trigger('submit')
+    await flushPromises()
+    expect(api.createFeishuBot).toHaveBeenCalledWith(expect.objectContaining({ p2pMode: 'chat' }))
+    wrapper.unmount()
+  })
+
   it('uses one-scan QR setup as the default creation path', async () => {
     api.fetchFeishuBots.mockResolvedValue([])
     api.fetchFeishuBindings.mockResolvedValue([])
@@ -243,7 +265,7 @@ describe('FeishuBotPanel', () => {
     await wrapper.get('.feishu-form').trigger('submit')
     await flushPromises()
     expect(api.startFeishuQrSetup).toHaveBeenCalledWith({
-      name: 'Scan bot', allowAllUsers: false, allowedOpenIds: [], groupMentionMode: 'always',
+      name: 'Scan bot', allowAllUsers: false, allowedOpenIds: [], groupMentionMode: 'always', p2pMode: 'topic',
       availability: { mode: 'creator', memberIds: [], groupIds: [] },
     })
     expect(wrapper.get('.feishu-qr-code').attributes('src')).toBe('data:image/png;base64,qr')
@@ -302,7 +324,7 @@ describe('FeishuBotPanel', () => {
     await wrapper.get('.feishu-existing-app-id button').trigger('click')
     await flushPromises()
     expect(api.adoptFeishuOpenPlatformApp).toHaveBeenCalledWith({
-      appId: 'cli_existing', name: 'Recovered bot', allowAllUsers: false, allowedOpenIds: [], groupMentionMode: 'always',
+      appId: 'cli_existing', name: 'Recovered bot', allowAllUsers: false, allowedOpenIds: [], groupMentionMode: 'always', p2pMode: 'topic',
       availability: { mode: 'creator', memberIds: [], groupIds: [] },
     })
     expect(wrapper.get('.feishu-qr-code').attributes('src')).toBe('data:image/png;base64,adopt')

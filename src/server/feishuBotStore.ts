@@ -23,6 +23,7 @@ export type FeishuBotConfig = {
   allowedOpenIds: string[]
   allowedChatIds: string[]
   groupMentionMode: 'always' | 'topic' | 'bound'
+  p2pMode: 'topic' | 'chat'
   defaultProjectKey: string
   botOpenId: string
   botName: string
@@ -212,6 +213,7 @@ function ensureFeishuTables(db: Database.Database): void {
       allowed_open_ids_json TEXT NOT NULL DEFAULT '[]',
       allowed_chat_ids_json TEXT NOT NULL DEFAULT '[]',
       group_mention_mode TEXT NOT NULL DEFAULT 'always' CHECK (group_mention_mode IN ('always', 'topic', 'bound')),
+      p2p_mode TEXT NOT NULL DEFAULT 'topic' CHECK (p2p_mode IN ('topic', 'chat')),
       default_project_key TEXT NOT NULL DEFAULT '',
       created_at_iso TEXT NOT NULL,
       updated_at_iso TEXT NOT NULL
@@ -368,6 +370,9 @@ function ensureFeishuTables(db: Database.Database): void {
   if (!botColumns.some((column) => column.name === 'group_mention_mode')) {
     db.exec("ALTER TABLE feishu_bots ADD COLUMN group_mention_mode TEXT NOT NULL DEFAULT 'always'")
   }
+  if (!botColumns.some((column) => column.name === 'p2p_mode')) {
+    db.exec("ALTER TABLE feishu_bots ADD COLUMN p2p_mode TEXT NOT NULL DEFAULT 'topic'")
+  }
   if (!botColumns.some((column) => column.name === 'allow_all_users')) {
     db.exec('ALTER TABLE feishu_bots ADD COLUMN allow_all_users INTEGER NOT NULL DEFAULT 0 CHECK (allow_all_users IN (0, 1))')
   }
@@ -500,6 +505,7 @@ function normalizeBot(row: BotRow): FeishuBotConfig {
     allowedOpenIds,
     allowedChatIds,
     groupMentionMode: row.groupMentionMode === 'topic' || row.groupMentionMode === 'bound' ? row.groupMentionMode : 'always',
+    p2pMode: row.p2pMode === 'chat' ? 'chat' : 'topic',
     defaultProjectKey: typeof row.defaultProjectKey === 'string' ? row.defaultProjectKey : '',
     botOpenId: typeof row.botOpenId === 'string' ? row.botOpenId : '',
     botName: typeof row.botName === 'string' ? row.botName : '',
@@ -520,6 +526,7 @@ const BOT_SELECT = `
     b.enabled, b.allow_all_users AS allowAllUsers,
     b.allowed_open_ids_json AS allowedOpenIdsJson,
     b.allowed_chat_ids_json AS allowedChatIdsJson, b.group_mention_mode AS groupMentionMode,
+    b.p2p_mode AS p2pMode,
     b.default_project_key AS defaultProjectKey,
     r.bot_open_id AS botOpenId, r.bot_name AS botName,
     COALESCE(r.status, 'disconnected') AS status,
@@ -574,13 +581,14 @@ export async function upsertFeishuBot(input: {
   allowedOpenIds?: string[]
   allowedChatIds?: string[]
   groupMentionMode?: 'always' | 'topic' | 'bound'
+  p2pMode?: 'topic' | 'chat'
   defaultProjectKey?: string
 }): Promise<FeishuBotConfig> {
   const id = normalizeBotId(input.id ?? input.botId)
   const timestamp = nowIso()
   return withLocalDatabase((db) => {
     ensureFeishuTables(db)
-    const previous = db.prepare('SELECT app_secret AS appSecret, platform, tenant_id AS tenantId, tenant_name AS tenantName, allow_all_users AS allowAllUsers, allowed_open_ids_json AS allowedOpenIdsJson, allowed_chat_ids_json AS allowedChatIdsJson, group_mention_mode AS groupMentionMode, created_at_iso AS createdAtIso FROM feishu_bots WHERE bot_id = ?').get(id) as { appSecret: string; platform: 'feishu' | 'lark'; tenantId: string; tenantName: string; allowAllUsers: number; allowedOpenIdsJson: string; allowedChatIdsJson: string; groupMentionMode: 'always' | 'topic' | 'bound'; createdAtIso: string } | undefined
+    const previous = db.prepare('SELECT app_secret AS appSecret, platform, tenant_id AS tenantId, tenant_name AS tenantName, allow_all_users AS allowAllUsers, allowed_open_ids_json AS allowedOpenIdsJson, allowed_chat_ids_json AS allowedChatIdsJson, group_mention_mode AS groupMentionMode, p2p_mode AS p2pMode, created_at_iso AS createdAtIso FROM feishu_bots WHERE bot_id = ?').get(id) as { appSecret: string; platform: 'feishu' | 'lark'; tenantId: string; tenantName: string; allowAllUsers: number; allowedOpenIdsJson: string; allowedChatIdsJson: string; groupMentionMode: 'always' | 'topic' | 'bound'; p2pMode: 'topic' | 'chat'; createdAtIso: string } | undefined
     const secret = input.appSecret === undefined
       ? previous?.appSecret ?? ''
       : sealCredential(input.appSecret.trim(), secretContext(id))
@@ -589,8 +597,8 @@ export async function upsertFeishuBot(input: {
       db.prepare(`
         INSERT INTO feishu_bots
           (bot_id, name, app_id, app_secret, platform, tenant_id, tenant_name, enabled, allow_all_users,
-           allowed_open_ids_json, allowed_chat_ids_json, group_mention_mode, default_project_key, created_at_iso, updated_at_iso)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+           allowed_open_ids_json, allowed_chat_ids_json, group_mention_mode, p2p_mode, default_project_key, created_at_iso, updated_at_iso)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(bot_id) DO UPDATE SET
           name = excluded.name, app_id = excluded.app_id, app_secret = excluded.app_secret,
           platform = excluded.platform, tenant_id = excluded.tenant_id, tenant_name = excluded.tenant_name,
@@ -598,13 +606,14 @@ export async function upsertFeishuBot(input: {
           allowed_open_ids_json = excluded.allowed_open_ids_json,
           allowed_chat_ids_json = excluded.allowed_chat_ids_json,
           group_mention_mode = excluded.group_mention_mode,
+          p2p_mode = excluded.p2p_mode,
           default_project_key = excluded.default_project_key, updated_at_iso = excluded.updated_at_iso
       `).run(id, name, input.appId.trim(), secret, input.platform ?? previous?.platform ?? 'feishu',
         clean(input.tenantId, previous?.tenantId ?? ''), clean(input.tenantName, previous?.tenantName ?? ''), input.enabled ? 1 : 0,
         input.allowAllUsers === undefined ? previous?.allowAllUsers ?? 0 : input.allowAllUsers ? 1 : 0,
         stringifyJson(input.allowedOpenIds === undefined ? parseJson(previous?.allowedOpenIdsJson, []) : uniqueStrings(input.allowedOpenIds)),
         stringifyJson(input.allowedChatIds === undefined ? parseJson(previous?.allowedChatIdsJson, []) : uniqueStrings(input.allowedChatIds)),
-        input.groupMentionMode ?? previous?.groupMentionMode ?? 'always', clean(input.defaultProjectKey),
+        input.groupMentionMode ?? previous?.groupMentionMode ?? 'always', input.p2pMode ?? previous?.p2pMode ?? 'topic', clean(input.defaultProjectKey),
         previous?.createdAtIso ?? timestamp, timestamp)
       db.prepare(`
         INSERT INTO feishu_bot_runtime (bot_id, status, updated_at_iso)

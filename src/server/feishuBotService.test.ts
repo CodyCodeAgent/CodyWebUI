@@ -283,6 +283,38 @@ describe('FeishuBotService', () => {
     })
   })
 
+  it('routes each top-level private message to its own topic by default', () => {
+    const normalized = normalizeFeishuInbound(bot, inbound({ chat_type: 'p2p', message_id: 'om_private' }))
+    expect(normalized).toMatchObject({
+      bindingKey: 'bot-1:p2p:oc_1:om_private', rootId: 'om_private', topLevel: true,
+    })
+  })
+
+  it('reuses a private topic only when both root_id and thread_id are present', () => {
+    const threaded = normalizeFeishuInbound(bot, inbound({
+      chat_type: 'p2p', message_id: 'om_reply', root_id: 'om_root', thread_id: 'omt_thread',
+    }))
+    expect(threaded).toMatchObject({
+      bindingKey: 'bot-1:p2p:oc_1:om_root', rootId: 'om_root', topLevel: false,
+    })
+
+    const quoted = normalizeFeishuInbound(bot, inbound({
+      chat_type: 'p2p', message_id: 'om_quote', root_id: 'om_quoted',
+    }))
+    expect(quoted).toMatchObject({
+      bindingKey: 'bot-1:p2p:oc_1:om_quote', rootId: 'om_quote', topLevel: true,
+    })
+  })
+
+  it('keeps private messages chat-scoped in explicit flat mode', () => {
+    const normalized = normalizeFeishuInbound({ ...bot, p2pMode: 'chat' }, inbound({
+      chat_type: 'p2p', message_id: 'om_reply', root_id: 'om_root', thread_id: 'omt_thread',
+    }))
+    expect(normalized).toMatchObject({
+      bindingKey: 'bot-1:p2p:oc_1:chat', rootId: '',
+    })
+  })
+
   it('distinguishes own and other bot app_id mentions', () => {
     const own = normalizeFeishuInbound(bot, inbound({
       content: JSON.stringify({ text: '@_user_1 hello' }),
@@ -406,6 +438,17 @@ describe('FeishuBotService', () => {
     expect(store.pending.get('bot-1:group:oc_1:oc_1')?.prompt).toBe('hello')
     expect(JSON.stringify(transport.cards[0]?.card)).toContain('cody_feishu_select_project')
     expect(transport.repliesInThread).toEqual([false])
+    await service.stop()
+  })
+
+  it('opens the project selection card inside a new private-message topic', async () => {
+    const { service, store, transport } = harness()
+    await service.start()
+    transport.chatModeError = new Error('private chats must not query group mode')
+    transport.handlers?.onMessage(inbound({ chat_type: 'p2p', message_id: 'om_private' }))
+    await vi.waitFor(() => expect(transport.cards).toHaveLength(1))
+    expect(store.pending.get('bot-1:p2p:oc_1:om_private')).toMatchObject({ rootId: 'om_private' })
+    expect(transport.repliesInThread).toEqual([true])
     await service.stop()
   })
 

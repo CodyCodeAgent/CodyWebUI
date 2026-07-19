@@ -228,6 +228,16 @@
                   <span><strong>{{ t('settings.feishu.field.allowAllUsers') }}</strong><small>{{ t('settings.feishu.field.allowAllUsersHint') }}</small></span>
                 </label>
                 <fieldset class="feishu-mention-mode-field">
+                  <legend>{{ t('settings.feishu.field.p2pMode') }}</legend>
+                  <p>{{ t('settings.feishu.field.p2pModeHint') }}</p>
+                  <div class="feishu-mention-mode-options">
+                    <label v-for="mode in p2pModeOptions" :key="`qr-p2p-${mode.value}`">
+                      <input v-model="draft.p2pMode" type="radio" name="feishu-qr-p2p-mode" :value="mode.value" />
+                      <span><strong>{{ mode.label }}</strong><small>{{ mode.description }}</small></span>
+                    </label>
+                  </div>
+                </fieldset>
+                <fieldset class="feishu-mention-mode-field">
                   <legend>{{ t('settings.feishu.field.groupMentionMode') }}</legend>
                   <div class="feishu-mention-mode-options">
                     <label v-for="mode in mentionModeOptions" :key="`qr-${mode.value}`" :data-risk="mode.value === 'bound' ? 'high' : 'normal'">
@@ -345,6 +355,16 @@
                 <input v-model="draft.allowAllUsers" type="checkbox" />
                 <span><strong>{{ t('settings.feishu.field.allowAllUsers') }}</strong><small>{{ t('settings.feishu.field.allowAllUsersHint') }}</small></span>
               </label>
+              <fieldset class="feishu-mention-mode-field">
+                <legend>{{ t('settings.feishu.field.p2pMode') }}</legend>
+                <p>{{ t('settings.feishu.field.p2pModeHint') }}</p>
+                <div class="feishu-mention-mode-options">
+                  <label v-for="mode in p2pModeOptions" :key="`p2p-${mode.value}`">
+                    <input v-model="draft.p2pMode" type="radio" name="feishu-p2p-mode" :value="mode.value" />
+                    <span><strong>{{ mode.label }}</strong><small>{{ mode.description }}</small></span>
+                  </label>
+                </div>
+              </fieldset>
               <fieldset class="feishu-mention-mode-field">
                 <legend>{{ t('settings.feishu.field.groupMentionMode') }}</legend>
                 <p>{{ t('settings.feishu.field.groupMentionModeHint') }}</p>
@@ -615,6 +635,7 @@ import {
   type FeishuConnectivityReport,
   type FeishuDiagnostics,
   type FeishuGroupMentionMode,
+  type FeishuP2pMode,
   type FeishuQrSetupJob,
   type FeishuOpenPlatformSession,
   type FeishuOpenPlatformApp,
@@ -635,6 +656,7 @@ type BotDraft = {
   allowedOpenIdsText: string
   allowedChatIdsText: string
   groupMentionMode: FeishuGroupMentionMode
+  p2pMode: FeishuP2pMode
 }
 
 const { locale, t } = useLocale()
@@ -691,6 +713,10 @@ const mentionModeOptions = computed(() => ([
   { value: 'topic', label: t('settings.feishu.groupMentionMode.topic'), description: t('settings.feishu.groupMentionMode.topicHint') },
   { value: 'bound', label: t('settings.feishu.groupMentionMode.bound'), description: t('settings.feishu.groupMentionMode.boundHint') },
 ] satisfies Array<{ value: FeishuGroupMentionMode; label: string; description: string }>))
+const p2pModeOptions = computed(() => ([
+  { value: 'topic', label: t('settings.feishu.p2pMode.topic'), description: t('settings.feishu.p2pMode.topicHint') },
+  { value: 'chat', label: t('settings.feishu.p2pMode.chat'), description: t('settings.feishu.p2pMode.chatHint') },
+] satisfies Array<{ value: FeishuP2pMode; label: string; description: string }>))
 const availabilityOptions = computed(() => ([
   { value: 'creator', label: t('settings.feishu.availability.creator'), description: t('settings.feishu.availability.creatorHint') },
   { value: 'members', label: t('settings.feishu.availability.members'), description: t('settings.feishu.availability.membersHint') },
@@ -720,7 +746,7 @@ function emptyDraft(): BotDraft {
   return {
     name: '', appId: '', appSecret: '', platform: 'feishu', enabled: false, allowAllUsers: false,
     availabilityMode: 'creator', availabilityMemberIdsText: '', availabilityGroupIdsText: '',
-    allowedOpenIdsText: '', allowedChatIdsText: '', groupMentionMode: 'always',
+    allowedOpenIdsText: '', allowedChatIdsText: '', groupMentionMode: 'always', p2pMode: 'topic',
   }
 }
 
@@ -742,6 +768,7 @@ function botDraft(bot: FeishuBot): BotDraft {
     allowedOpenIdsText: bot.allowedOpenIds.join('\n'),
     allowedChatIdsText: (bot.allowedChatIds ?? []).join('\n'),
     groupMentionMode: bot.groupMentionMode,
+    p2pMode: bot.p2pMode === 'chat' ? 'chat' : 'topic',
   }
 }
 
@@ -858,6 +885,7 @@ async function beginQrSetup(): Promise<void> {
       allowAllUsers: draft.allowAllUsers,
       allowedOpenIds,
       groupMentionMode: draft.groupMentionMode,
+      p2pMode: draft.p2pMode,
       availability: { mode: draft.availabilityMode, memberIds, groupIds },
     })
     replaceSetupJob(qrSetupJob.value)
@@ -902,6 +930,7 @@ async function adoptExistingApp(app: FeishuOpenPlatformApp): Promise<void> {
       allowAllUsers: draft.allowAllUsers,
       allowedOpenIds: parseOpenIds(draft.allowedOpenIdsText),
       groupMentionMode: draft.groupMentionMode,
+      p2pMode: draft.p2pMode,
       availability: { mode: draft.availabilityMode, memberIds, groupIds },
     })
     replaceSetupJob(qrSetupJob.value)
@@ -1077,6 +1106,7 @@ async function saveDraft(): Promise<void> {
       allowedOpenIds,
       allowedChatIds,
       groupMentionMode: draft.groupMentionMode,
+      p2pMode: draft.p2pMode,
       ...(draft.appSecret ? { appSecret: draft.appSecret } : {}),
     }
     const saved = isCreating.value

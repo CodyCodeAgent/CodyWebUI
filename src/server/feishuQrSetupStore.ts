@@ -55,6 +55,7 @@ export type StoredFeishuQrSetupJob = {
     allowAllUsers: boolean
     allowedOpenIds: string[]
     groupMentionMode: 'always' | 'topic' | 'bound'
+    p2pMode?: 'topic' | 'chat'
     availability?: {
       mode: 'creator' | 'members' | 'groups' | 'all'
       memberIds: string[]
@@ -154,6 +155,7 @@ function normalize(row: Record<string, unknown>): StoredFeishuQrSetupJob | null 
   const groupMentionMode = input.groupMentionMode === 'topic' || input.groupMentionMode === 'bound'
     ? input.groupMentionMode
     : 'always'
+  const p2pMode = input.p2pMode === 'chat' ? 'chat' : 'topic'
   const rawAvailability = input.availability && typeof input.availability === 'object' && !Array.isArray(input.availability)
     ? input.availability as Record<string, unknown>
     : null
@@ -176,6 +178,7 @@ function normalize(row: Record<string, unknown>): StoredFeishuQrSetupJob | null 
       allowAllUsers: input.allowAllUsers === true,
       allowedOpenIds: strings(input.allowedOpenIds),
       groupMentionMode,
+      p2pMode,
       availability: {
         mode: availabilityMode,
         memberIds: strings(rawAvailability?.memberIds),
