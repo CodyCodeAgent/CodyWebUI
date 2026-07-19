@@ -3,6 +3,7 @@ import { createHash, randomUUID } from 'node:crypto'
 import type { FeishuCard } from './feishuCards.js'
 import type { FeishuDownloadedResource } from './feishuAttachments.js'
 import type { FeishuMessageResource } from './feishuMessageParser.js'
+import type { FeishuImageUpload } from './feishuReplyImages.js'
 import type {
   FeishuBotDefinition,
   FeishuTransport,
@@ -243,6 +244,11 @@ export class FeishuReliableTransport implements FeishuTransport {
   downloadResource(messageId: string, resource: FeishuMessageResource): Promise<FeishuDownloadedResource> {
     if (!this.inner.downloadResource) return Promise.reject(new Error('Feishu transport does not support resource downloads'))
     return this.inner.downloadResource(messageId, resource)
+  }
+
+  uploadImage(image: FeishuImageUpload): Promise<string> {
+    if (!this.inner.uploadImage) return Promise.reject(new Error('Feishu transport does not support image uploads'))
+    return this.inner.uploadImage(image)
   }
 
   /** Runs one recovery pass now. Exposed for startup orchestration and tests. */

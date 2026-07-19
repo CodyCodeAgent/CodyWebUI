@@ -1,7 +1,16 @@
 import MarkdownIt from 'markdown-it'
 import type Token from 'markdown-it/lib/token.mjs'
 
+// Image-row and fence handling are adapted from botmux (MIT); see THIRD_PARTY_NOTICES.md.
+
 const markdown = new MarkdownIt({ html: false, linkify: false, breaks: false })
+const FEISHU_IMAGE_KEY = /^img_v\d+_[A-Za-z0-9_-]+$/iu
+const IMAGE_TOKEN = /!\[[^\]]*\]\(([^)\s]+)\)/gu
+const IMAGE_ROW = /^ {0,3}(?:!\[[^\]]*\]\([^)\s]+\)\s*)+$/u
+
+function unescapeFenceLines(input: string): string {
+  return input.replace(/^[ ]{0,3}(?:\\`){3,}[^\n`]*$/gmu, (line) => line.replace(/\\`/gu, '`'))
+}
 
 function sourceLines(lines: string[], map: [number, number]): string {
   return lines.slice(map[0], map[1]).join('\n')
@@ -71,8 +80,7 @@ function nativeTable(tokens: Token[]): Record<string, unknown> | null {
   }
 }
 
-/** Convert CommonMark/GFM output into Feishu card-v2 content elements. */
-export function buildFeishuMarkdownElements(input: string): Record<string, unknown>[] {
+function markdownElements(input: string): Record<string, unknown>[] {
   if (!input.trim()) return []
   const tokens = markdown.parse(input, {})
   const lines = input.split('\n')
@@ -133,6 +141,66 @@ export function buildFeishuMarkdownElements(input: string): Record<string, unkno
     index += 1
   }
 
+  flush()
+  return elements
+}
+
+function singleImage(imageKey: string): Record<string, unknown> {
+  return {
+    tag: 'img',
+    img_key: imageKey,
+    alt: { tag: 'plain_text', content: 'AI 生成图片' },
+    mode: 'fit_horizontal',
+    preview: true,
+  }
+}
+
+function imageRow(imageKeys: string[]): Record<string, unknown> {
+  return {
+    tag: 'column_set',
+    flex_mode: 'none',
+    horizontal_spacing: 'small',
+    columns: imageKeys.map((imageKey) => ({
+      tag: 'column',
+      width: 'weighted',
+      weight: 1,
+      vertical_align: 'center',
+      elements: [singleImage(imageKey)],
+    })),
+  }
+}
+
+/** Convert CommonMark/GFM output into Feishu card-v2 content elements. */
+export function buildFeishuMarkdownElements(input: string): Record<string, unknown>[] {
+  input = unescapeFenceLines(input)
+  const elements: Record<string, unknown>[] = []
+  let buffered: string[] = []
+  let fenceChar = ''
+  let fenceLength = 0
+  const flush = () => {
+    if (buffered.length > 0) elements.push(...markdownElements(buffered.join('\n')))
+    buffered = []
+  }
+
+  for (const line of input.split('\n')) {
+    const fence = line.match(/^ {0,3}(`{3,}|~{3,})(.*)$/u)
+    if (fence) {
+      const run = fence[1]
+      if (!fenceChar) { fenceChar = run[0]; fenceLength = run.length }
+      else if (run[0] === fenceChar && run.length >= fenceLength && !fence[2].trim()) { fenceChar = ''; fenceLength = 0 }
+      buffered.push(line)
+      continue
+    }
+    if (!fenceChar && IMAGE_ROW.test(line)) {
+      const imageKeys = Array.from(line.matchAll(IMAGE_TOKEN), (match) => match[1])
+      if (imageKeys.every((imageKey) => FEISHU_IMAGE_KEY.test(imageKey))) {
+        flush()
+        elements.push(imageKeys.length === 1 ? singleImage(imageKeys[0]) : imageRow(imageKeys))
+        continue
+      }
+    }
+    buffered.push(line)
+  }
   flush()
   return elements
 }

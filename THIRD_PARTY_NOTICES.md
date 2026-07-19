@@ -2,8 +2,8 @@
 
 ## botmux
 
-Parts of CodyWeb's Feishu Open Platform onboarding implementation were
-adapted from [botmux](https://github.com/deepcoldy/botmux).
+Parts of CodyWeb's Feishu Open Platform onboarding and Markdown/image card
+rendering were adapted from [botmux](https://github.com/deepcoldy/botmux).
 
 MIT License
 

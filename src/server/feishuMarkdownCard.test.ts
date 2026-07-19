@@ -19,4 +19,33 @@ describe('Feishu Markdown card rendering', () => {
     const content = buildFeishuMarkdownElements('- `one`\n- [two](https://example.com)\n\n> note')
     expect(content).toEqual([{ tag: 'markdown', content: '- `one`\n- [two](https://example.com)\n\n> note' }])
   })
+
+  it('renders multiple uploaded images on one line as a previewable row', () => {
+    const content = buildFeishuMarkdownElements('Before\n\n![](img_v2_one) ![](img_v2_two)\n\nAfter')
+    expect(content).toEqual([
+      { tag: 'markdown', content: 'Before' },
+      expect.objectContaining({
+        tag: 'column_set',
+        columns: [
+          expect.objectContaining({ elements: [expect.objectContaining({ tag: 'img', img_key: 'img_v2_one', preview: true })] }),
+          expect.objectContaining({ elements: [expect.objectContaining({ tag: 'img', img_key: 'img_v2_two', preview: true })] }),
+        ],
+      }),
+      { tag: 'markdown', content: 'After' },
+    ])
+  })
+
+  it('renders one uploaded image as a native previewable image element', () => {
+    expect(buildFeishuMarkdownElements('Before\n\n![Poster](img_v3_0213o_uploaded)\n\nAfter')).toEqual([
+      { tag: 'markdown', content: 'Before' },
+      expect.objectContaining({ tag: 'img', img_key: 'img_v3_0213o_uploaded', preview: true }),
+      { tag: 'markdown', content: 'After' },
+    ])
+  })
+
+  it('leaves image-looking content inside fences untouched and repairs escaped fences', () => {
+    expect(buildFeishuMarkdownElements('\\`\\`\\`md\n![](img_v2_one) ![](img_v2_two)\n\\`\\`\\`')).toEqual([
+      { tag: 'markdown', content: '```md\n![](img_v2_one) ![](img_v2_two)\n```' },
+    ])
+  })
 })

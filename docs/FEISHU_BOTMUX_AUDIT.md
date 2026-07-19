@@ -27,6 +27,7 @@ second owner of a Session.
 | Card interaction authorization | Adapt | Implemented using verified callback operator plus persisted binding/request ownership; action value identity is untrusted. |
 | In-chat access request and narrow grant | Adapt | Implemented for explicit unauthorized private/@ messages. The first allow-listed administrator receives a private signed approval card; approval atomically grants only the requesting Open ID, preserves `allowAllUsers=false`, and takes effect without reconnecting. Disallowed chats and ambient group traffic stay silent. |
 | Streaming/terminal cards | Adapt | Implemented with durable card versions and terminal freeze. |
+| Markdown/table/image reply cards | Adapt | Implemented with card-v2 Markdown, native paginated tables, repaired code fences, previewable image rows, local Markdown image uploads, and direct AI/MCP image-result capture. Images are deduplicated, capped at 9 and 10 MB each, and upload failures preserve the text answer. |
 | Existing Session/new Session picker | Adapt | Implemented against the CodyWeb visible project catalog and `thread/start`; the opening prompt and creation intent remain durable until a turn is prepared, including restart recovery. |
 | Approval and request-user-input cards | Adapt | Implemented through CodyWeb's existing app-server server-request response path; group prompts are private when supported. |
 | Rich message parser | Adapt | Implemented for text/post/card/file/media/audio/image/sticker, mentions and quote hints. |
@@ -46,6 +47,7 @@ second owner of a Session.
 | Long connection needs a live client but no public callback URL/token/encrypt key | The CodyWeb service owns a reconnecting SDK connection for each enabled bot. |
 | Card callbacks have a short response deadline | Action handling acknowledges quickly and performs catalog/thread/request work in background, then patches the original card. |
 | Feishu resource download is limited to 100 MB by this integration | Resources are streamed to disk with a hard cap; no in-memory buffering. |
+| Feishu message images must be uploaded before a card can reference them, with a 10 MB per-image limit | AI tool output and permitted local Markdown images are deduplicated, uploaded through `im.v1.image.create`, and replaced by `image_key`; remote URLs are never server-fetched. |
 | The resource endpoint cannot retrieve stickers, card-embedded resources (`234043`), or merge-forward child resources | Preserve text and append an explicit failure note; never pretend the asset reached Codex. |
 | Interactive cards may have different event and REST representations | The inbound resolver unions bounded REST views and falls back visibly to the event body if unavailable. |
 | A remote send may succeed just before local process failure | Persisted Feishu `uuid` plus SQLite outbox identity makes retry idempotent at the provider boundary. |

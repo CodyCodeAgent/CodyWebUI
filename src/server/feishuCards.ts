@@ -42,6 +42,16 @@ function truncate(value: string, max: number): string {
   return text.length <= max ? text : `${text.slice(0, Math.max(0, max - 1))}…`
 }
 
+function truncateReplyMarkdown(value: string, max: number): string {
+  const imagePattern = /!\[[^\]\r\n]*\]\(img_v\d+_[A-Za-z0-9_-]+\)/giu
+  const images = [...new Set(value.match(imagePattern) ?? [])]
+  const reserved = images.reduce((total, image) => total + image.length + 2, 0)
+  let result = truncate(value, Math.max(1_000, max - reserved))
+  const missing = images.filter((image) => !result.includes(image))
+  if (missing.length > 0) result = `${result}\n\n${missing.join('\n\n')}`
+  return result
+}
+
 function card(title: string, elements: unknown[], template = 'blue'): FeishuCard {
   return {
     config: { wide_screen_mode: true, enable_forward: true },
@@ -170,7 +180,7 @@ export function buildStreamingReplyCard(input: {
     ? `**错误**\n${truncate(input.error, 8_000)}`
     : input.content?.trim() || (input.state === 'queued' ? '正在排队…' : '正在思考…')
   const meta = [input.projectLabel, input.sessionTitle].filter(Boolean).map((value) => truncate(value ?? '', 80)).join(' · ')
-  const elements: Record<string, unknown>[] = buildFeishuMarkdownElements(truncate(body, 20_000))
+  const elements: Record<string, unknown>[] = buildFeishuMarkdownElements(truncateReplyMarkdown(body, 20_000))
   const footer = ['[CodyWeb](https://github.com/CodyCodeAgent/CodyWebUI)', meta]
   if (input.webUrl) footer.push(`[打开 Session](${input.webUrl})`)
   elements.push({ tag: 'hr' })

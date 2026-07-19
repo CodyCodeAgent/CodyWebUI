@@ -300,6 +300,23 @@ Resource handling described above remains limited by the Feishu resource API;
 completion of a message body does not make stickers, card resources, or
 merge-forward child resources downloadable.
 
+## Assistant Markdown and images
+
+Terminal Codex replies use Feishu card JSON 2.0. Headings, lists, blockquotes,
+links, inline/fenced code, and horizontal rules remain readable Markdown;
+pipe tables become native paginated table components. Completed replies stay
+content-first, while queued/running/failed states keep compact status chrome.
+
+Assistant images follow Feishu's required upload flow. CodyWeb recognizes both
+image blocks returned by AI/MCP tools and local/data-URL images explicitly
+referenced in the final Markdown. It uploads each unique image once, replaces
+the local destination with Feishu's `image_key`, and embeds the result in the
+same terminal card with preview enabled. Local Markdown paths are limited to
+the bound project or the OS temporary directory; remote HTTP(S) images are
+rendered as links and are never fetched by the server. Images are limited to
+9 per reply and Feishu's 10 MB per-image upload limit. Upload failure degrades
+to a visible note without losing the text answer.
+
 ## Feishu Open Platform setup
 
 The default path is **Settings → Feishu bots → QR setup**. Enter a bot name,
@@ -371,7 +388,7 @@ scopes separately.
 | `im:message.group_at_msg:readonly` | Receive group @mentions. |
 | `im:message.group_at_msg.include_bot:readonly` | Receive messages that mention this and other bots. |
 | `im:message:readonly` | Read message metadata for REST message completion. |
-| `im:resource` | Download image/file/audio/video resources. |
+| `im:resource` | Download inbound resources and upload assistant images/files. |
 | `im:chat:read` | Determine flat versus topic group routing. |
 | `im:message:send_as_bot` | Send as the application bot. |
 
@@ -393,6 +410,8 @@ Useful official references:
 - [Node SDK `registerApp`](https://github.com/larksuite/node-sdk/blob/main/README.zh.md)
 - [Long-connection event subscription](https://open.feishu.cn/document/server-docs/event-subscription-guide/event-subscription-configure-/request-url-configuration-case)
 - [Card callback communication](https://open.feishu.cn/document/feishu-cards/card-callback-communication?lang=zh-CN)
+- [Card Markdown syntax](https://open.feishu.cn/document/common-capabilities/message-card/message-cards-content/using-markdown-tags?lang=zh-CN)
+- [Message and image APIs](https://open.feishu.cn/document/server-docs/im-v1/introduction?lang=zh-CN)
 - [Message/resource API](https://open.feishu.cn/document/server-docs/im-v1/message/get-2)
 
 ## Deployment
@@ -496,6 +515,7 @@ Neither option deletes the shared Codex Sessions.
 | A button appears to do nothing | Subscribe to `card.action.trigger` as a long-connection callback, then inspect safe delivery/card diagnostics. |
 | Open-in-Web button is absent | Configure `CODY_PUBLIC_URL`, redeploy, and use an authenticated public origin. |
 | Attachments only show a failure note | Grant `im:resource`, check the 100 MB limit, then check whether the type is a platform-restricted sticker/card/merge-forward child. |
+| An assistant image shows an upload-failure note | Grant `im:resource`; confirm the image is a supported format, non-empty, and below Feishu's 10 MB image limit. Local Markdown images must be inside the bound project or OS temporary directory. |
 | A reply is duplicated after restart | Check outbox diagnostics. Stable inbound claims and Feishu `uuid` are designed to make retries idempotent. |
 | A failed delivery stopped retrying | Open **Health diagnostics → Recent failed deliveries** and choose **Retry now** after correcting the underlying permission/network problem. |
 | A message waits behind Web work | This is expected: it is stored FIFO until the shared Codex thread becomes terminal. Use `/status`. |
