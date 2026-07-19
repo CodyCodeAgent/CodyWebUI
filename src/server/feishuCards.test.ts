@@ -67,6 +67,44 @@ describe('Feishu cards', () => {
     expect(approval).toContain('42')
   })
 
+  it('renders completed Markdown as a content-first card with a native paginated table', () => {
+    const result = buildStreamingReplyCard({
+      state: 'completed',
+      content: '# Result\n\n| ID | Status |\n| --- | --- |\n| 42 | **done** |\n| 43 | queued |',
+      projectLabel: 'Repo',
+      sessionTitle: 'Table polish',
+      webUrl: 'https://cody.example/thread/1',
+    }) as Record<string, any>
+
+    expect(result.schema).toBe('2.0')
+    expect(result.header).toBeUndefined()
+    expect(result.body.elements).toEqual(expect.arrayContaining([
+      expect.objectContaining({ tag: 'markdown', content: '**Result**' }),
+      expect.objectContaining({
+        tag: 'table',
+        page_size: 2,
+        columns: [
+          expect.objectContaining({ display_name: 'ID', data_type: 'lark_md' }),
+          expect.objectContaining({ display_name: 'Status', data_type: 'lark_md' }),
+        ],
+        rows: [{ c0: '42', c1: '**done**' }, { c0: '43', c1: 'queued' }],
+      }),
+    ]))
+    expect(JSON.stringify(result)).toContain('Repo · Table polish')
+    expect(JSON.stringify(result)).toContain('打开 Session')
+  })
+
+  it('keeps status chrome while a reply is running and preserves fenced code', () => {
+    const result = buildStreamingReplyCard({
+      state: 'running',
+      content: 'Before\n\n```ts\nconst answer = 42\n```\n\nAfter',
+    }) as Record<string, any>
+
+    expect(result.schema).toBe('2.0')
+    expect(result.header.title.content).toContain('Codex 正在处理')
+    expect(JSON.stringify(result.body.elements)).toContain('```ts\\nconst answer = 42\\n```')
+  })
+
   it('builds a narrow user-access request and freezes the result', () => {
     const request = JSON.stringify(buildAccessRequestCard({
       requesterOpenId: 'ou_guest', chatId: 'oc_team', chatType: 'group',

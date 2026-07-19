@@ -1,3 +1,5 @@
+import { buildFeishuMarkdownElements } from './feishuMarkdownCard'
+
 export const FEISHU_CARD_ACTIONS = {
   selectProject: 'cody_feishu_select_project',
   selectSession: 'cody_feishu_select_session',
@@ -168,15 +170,24 @@ export function buildStreamingReplyCard(input: {
     ? `**错误**\n${truncate(input.error, 8_000)}`
     : input.content?.trim() || (input.state === 'queued' ? '正在排队…' : '正在思考…')
   const meta = [input.projectLabel, input.sessionTitle].filter(Boolean).map((value) => truncate(value ?? '', 80)).join(' · ')
-  const elements: unknown[] = [{ tag: 'div', text: markdown(truncate(body, 20_000)) }]
-  if (meta) elements.push({ tag: 'note', elements: [{ tag: 'plain_text', content: meta }] })
-  if (input.webUrl) {
-    elements.push({
-      tag: 'action',
-      actions: [{ tag: 'button', text: plainText('在 CodyWeb 中打开'), type: 'default', url: input.webUrl }],
-    })
+  const elements: Record<string, unknown>[] = buildFeishuMarkdownElements(truncate(body, 20_000))
+  const footer = ['[CodyWeb](https://github.com/CodyCodeAgent/CodyWebUI)', meta]
+  if (input.webUrl) footer.push(`[打开 Session](${input.webUrl})`)
+  elements.push({ tag: 'hr' })
+  elements.push({
+    tag: 'markdown',
+    text_size: 'notation_small_v2',
+    content: `<font color='grey'>${footer.filter(Boolean).join(' · ')}</font>`,
+  })
+
+  return {
+    schema: '2.0',
+    config: { update_multi: true },
+    ...(input.state === 'completed'
+      ? {}
+      : { header: { template: presentation.template, title: plainText(`${presentation.icon} ${presentation.label}`) } }),
+    body: { direction: 'vertical', elements },
   }
-  return card(`${presentation.icon} ${presentation.label}`, elements, presentation.template)
 }
 
 export function buildBoundSessionCard(input: {
