@@ -105,6 +105,16 @@ describe('Feishu cards', () => {
     expect(JSON.stringify(result.body.elements)).toContain('```ts\\nconst answer = 42\\n```')
   })
 
+  it('preserves uploaded images when a long reply is truncated', () => {
+    const result = JSON.stringify(buildStreamingReplyCard({
+      state: 'completed',
+      content: `${'A'.repeat(25_000)}\n\n![Diagram](img_v2_keep_me)`,
+    }))
+    expect(result).toContain('…')
+    expect(result).toContain('"tag":"img"')
+    expect(result).toContain('"img_key":"img_v2_keep_me"')
+  })
+
   it('builds a narrow user-access request and freezes the result', () => {
     const request = JSON.stringify(buildAccessRequestCard({
       requesterOpenId: 'ou_guest', chatId: 'oc_team', chatType: 'group',

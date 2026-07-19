@@ -24,6 +24,14 @@ import {
 import { persistFeishuAttachment, type FeishuDownloadedResource } from './feishuAttachments.js'
 import { parseFeishuMessage, type FeishuMessageResource } from './feishuMessageParser.js'
 import { resolveFeishuMessage, type FeishuMessageGetOptions } from './feishuMessageResolver.js'
+import {
+  discoverCodexGeneratedReplyImages,
+  extractFeishuToolReplyImages,
+  feishuReplyImageLimits,
+  prepareFeishuReplyMarkdown,
+  type FeishuImageUpload,
+  type FeishuUploadedReplyImage,
+} from './feishuReplyImages.js'
 import type { FeishuCard as StoredFeishuCard, FeishuTurn as StoredFeishuTurn } from './feishuBotStore.js'
 import { FeishuPermanentDeliveryError } from './feishuReliableTransport.js'
 
@@ -198,6 +206,7 @@ export interface FeishuTransport {
   replyCard(messageId: string, card: FeishuCard, replyInThread?: boolean, providerUuid?: string): Promise<string>
   updateCard(messageId: string, card: FeishuCard, delivery?: { version?: number; terminal?: boolean }): Promise<void>
   downloadResource?(messageId: string, resource: FeishuMessageResource): Promise<FeishuDownloadedResource>
+  uploadImage?(image: FeishuImageUpload): Promise<string>
 }
 
 export type FeishuBotRuntimeSnapshot = {
@@ -268,10 +277,17 @@ type ActiveTurnCard = {
   sourceMessageId: string
   resources: FeishuMessageResource[]
   requesterOpenId: string
+  startedAtIso: string
   durableTurnId?: string
   durableCardId?: string
   cardVersion: number
   stopRequested: boolean
+  preparedContent: string
+  replyImages: FeishuUploadedReplyImage[]
+  replyImageFingerprints: Set<string>
+  replyImageUploads: Promise<void>[]
+  replyPreparation: Promise<void> | null
+  replyImageFailures: string[]
 }
 
 type QueuedTurnCard = {
@@ -313,8 +329,12 @@ type DurableTurnCardState = {
   resources: FeishuMessageResource[]
   streamState: FeishuStreamState
   content: string
+  preparedContent?: string
+  replyImages?: FeishuUploadedReplyImage[]
+  replyImageFailures?: string[]
   error: string
   requesterOpenId?: string
+  startedAtIso?: string
 }
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -722,6 +742,15 @@ export class LarkSdkTransport implements FeishuTransport {
     if (response.code !== 0) throw new Error(`Feishu card patch failed: ${response.msg} (${response.code})`)
   }
 
+  async uploadImage(image: FeishuImageUpload): Promise<string> {
+    const response = await this.client.im.v1.image.create({
+      data: { image_type: 'message', image: image.buffer },
+    })
+    const imageKey = response?.image_key?.trim() ?? ''
+    if (!imageKey) throw new Error('Feishu image upload did not include image_key')
+    return imageKey
+  }
+
   async downloadResource(messageId: string, resource: FeishuMessageResource): Promise<FeishuDownloadedResource> {
     if (resource.downloadUnsupportedReason) throw new Error(resource.downloadUnsupportedReason)
     if (resource.type === 'sticker') {
@@ -967,14 +996,15 @@ export class FeishuBotService {
       return
     }
     if (!active) return
+    this.captureToolReplyImages(active, notification)
     if (notification.method === 'turn/started') {
       if (turnId && !active.turnId) active.turnId = turnId
       if (!active.stopRequested) active.state = 'running'
       return
     }
     const { delta, completedText } = notificationDelta(notification)
-    if (completedText) active.content = completedText
-    else if (delta) active.content += delta
+    if (completedText) { active.content = completedText; active.preparedContent = '' }
+    else if (delta) { active.content += delta; active.preparedContent = '' }
     if (notification.method === 'turn/completed') {
       const error = turnError(notification)
       active.error = error
@@ -1007,6 +1037,73 @@ export class FeishuBotService {
       active.state = 'running'
       this.scheduleStreamPatch(active)
     }
+  }
+
+  private captureToolReplyImages(active: ActiveTurnCard, notification: FeishuAppServerNotification): void {
+    const runtime = this.runtimes.get(active.botId)
+    if (!runtime?.transport.uploadImage) return
+    for (const image of extractFeishuToolReplyImages(notification)) {
+      if (active.replyImageFingerprints.size >= feishuReplyImageLimits.maxImages) break
+      if (active.replyImageFingerprints.has(image.fingerprint)) continue
+      active.replyImageFingerprints.add(image.fingerprint)
+      const upload = runtime.transport.uploadImage(image).then((imageKey) => {
+        active.replyImages.push({ imageKey, alt: image.alt, fingerprint: image.fingerprint })
+        this.scheduleStreamPatch(active)
+      }).catch((error) => {
+        active.replyImageFingerprints.delete(image.fingerprint)
+        if (!active.replyImageFailures.includes(image.alt)) active.replyImageFailures.push(image.alt)
+        this.scheduleStreamPatch(active)
+        this.log('warn', `Failed to upload generated image to Feishu: ${String(error)}`)
+      })
+      active.replyImageUploads.push(upload)
+    }
+  }
+
+  private async prepareActiveReply(active: ActiveTurnCard): Promise<void> {
+    if (active.preparedContent || active.state !== 'completed') return
+    if (active.replyPreparation) return active.replyPreparation
+    active.replyPreparation = (async () => {
+      await Promise.all(active.replyImageUploads)
+      active.replyImageUploads = []
+      const runtime = this.runtimes.get(active.botId)
+      if (!runtime?.transport.uploadImage) {
+        active.preparedContent = active.content
+        return
+      }
+      try {
+        const generatedImages = await discoverCodexGeneratedReplyImages({
+          threadId: active.binding.threadId,
+          startedAtMs: Date.parse(active.startedAtIso),
+        })
+        for (const image of generatedImages) {
+          if (active.replyImageFingerprints.size >= feishuReplyImageLimits.maxImages) break
+          if (active.replyImageFingerprints.has(image.fingerprint)) continue
+          active.replyImageFingerprints.add(image.fingerprint)
+          try {
+            const imageKey = await runtime.transport.uploadImage(image)
+            active.replyImages.push({ imageKey, alt: image.alt, fingerprint: image.fingerprint })
+          } catch (error) {
+            active.replyImageFingerprints.delete(image.fingerprint)
+            active.replyImageFailures.push(image.alt)
+            this.log('warn', `Failed to upload Codex generated image to Feishu: ${String(error)}`)
+          }
+        }
+        const prepared = await prepareFeishuReplyMarkdown({
+          markdown: active.content,
+          cwd: active.binding.cwd,
+          upload: (image) => runtime.transport.uploadImage!(image),
+          appendedImages: active.replyImages,
+        })
+        const failureNote = active.replyImageFailures.length > 0
+          ? `> ⚠️ ${String(active.replyImageFailures.length)} 张 AI 图片上传失败，文本回答已保留。`
+          : ''
+        active.preparedContent = [prepared, failureNote].filter(Boolean).join('\n\n')
+      } catch (error) {
+        active.preparedContent = active.content
+        this.log('warn', `Failed to prepare Feishu reply images: ${String(error)}`)
+      }
+    })().finally(() => { active.replyPreparation = null })
+    return active.replyPreparation
   }
 
   private async reconcileActiveTurnError(active: ActiveTurnCard, notificationError: string): Promise<void> {
@@ -2057,10 +2154,17 @@ export class FeishuBotService {
       sourceMessageId,
       resources,
       requesterOpenId,
+      startedAtIso: this.now().toISOString(),
       durableTurnId: durableTurn?.id,
       durableCardId: durableTurn ? (durableTurn.cardId ?? `turn:${durableTurn.id}`) : undefined,
       cardVersion: 0,
       stopRequested: false,
+      preparedContent: '',
+      replyImages: [],
+      replyImageFingerprints: new Set(),
+      replyImageUploads: [],
+      replyPreparation: null,
+      replyImageFailures: [],
     }
     await this.persistActiveCard(active)
     if (active.durableTurnId && active.durableCardId) {
@@ -2290,6 +2394,18 @@ export class FeishuBotService {
       const resources = Array.isArray(state?.resources)
         ? state.resources.filter((item): item is FeishuMessageResource => Boolean(asRecord(item)?.key && asRecord(item)?.name))
         : []
+      const replyImages = Array.isArray(state?.replyImages)
+        ? state.replyImages.map(asRecord).filter((item): item is Record<string, unknown> => Boolean(item))
+          .map((item) => ({
+            imageKey: readString(item.imageKey),
+            alt: readString(item.alt) || 'AI 生成图片',
+            fingerprint: readString(item.fingerprint),
+          }))
+          .filter((item) => item.imageKey && item.fingerprint)
+        : []
+      const replyImageFailures = Array.isArray(state?.replyImageFailures)
+        ? state.replyImageFailures.filter((item): item is string => typeof item === 'string').slice(0, 9)
+        : []
       const active: ActiveTurnCard = {
         botId: turn.botId,
         binding,
@@ -2302,10 +2418,17 @@ export class FeishuBotService {
         sourceMessageId,
         resources,
         requesterOpenId,
+        startedAtIso: readString(state?.startedAtIso) || turn.createdAtIso,
         durableTurnId: turn.id,
         durableCardId: card.id,
         cardVersion: card.version,
         stopRequested: turn.status === 'cancelled',
+        preparedContent: readString(state?.preparedContent),
+        replyImages,
+        replyImageFingerprints: new Set(replyImages.map((image) => image.fingerprint)),
+        replyImageUploads: [],
+        replyPreparation: null,
+        replyImageFailures,
       }
       if (turn.status === 'running' && turn.turnId && this.dependencies.turns.readTurnState) {
         try {
@@ -2323,11 +2446,12 @@ export class FeishuBotService {
               responseText: active.content,
               lastError: active.error,
             })
+            await this.prepareActiveReply(active)
             await this.persistActiveCard(active)
             const runtime = this.runtimes.get(active.botId)
             await runtime?.transport.updateCard(active.messageId, buildStreamingReplyCard({
               state: active.state,
-              content: active.content,
+              content: active.preparedContent || active.content,
               error: active.error,
               projectLabel: active.binding.projectLabel,
               sessionTitle: active.binding.threadTitle,
@@ -2374,8 +2498,12 @@ export class FeishuBotService {
       resources: active.resources,
       streamState: active.state,
       content: active.content,
+      preparedContent: active.preparedContent || undefined,
+      replyImages: active.replyImages.length > 0 ? active.replyImages : undefined,
+      replyImageFailures: active.replyImageFailures.length > 0 ? active.replyImageFailures : undefined,
       error: active.error,
       requesterOpenId: active.requesterOpenId,
+      startedAtIso: active.startedAtIso,
     }
     await this.dependencies.lifecycle.upsertCard({
       id: active.durableCardId,
@@ -2475,6 +2603,7 @@ export class FeishuBotService {
 
   private async patchActiveTurn(active: ActiveTurnCard, terminal: boolean): Promise<void> {
     if (terminal && active.patchTimer) { clearTimeout(active.patchTimer); active.patchTimer = null }
+    if (terminal) await this.prepareActiveReply(active)
     const runtime = this.runtimes.get(active.botId)
     if (active.durableTurnId) {
       const status: StoredFeishuTurn['status'] = active.state === 'failed'
@@ -2497,7 +2626,7 @@ export class FeishuBotService {
     try {
       await runtime?.transport.updateCard(active.messageId, buildStreamingReplyCard({
         state: active.state,
-        content: active.content,
+        content: active.preparedContent || active.content,
         error: active.error,
         projectLabel: active.binding.projectLabel,
         sessionTitle: active.binding.threadTitle,

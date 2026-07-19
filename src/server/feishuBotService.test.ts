@@ -149,10 +149,12 @@ class FakeTransport implements FeishuTransport {
   chatModeError: Error | null = null
   permanentReplyFailure = false
   failCardUpdates = false
+  failImageUploads = false
   failedResourceKeys = new Set<string>()
   identityOpenId = 'ou_bot'
   identityError: Error | null = null
   downloadedResources: Array<{ messageId: string; resource: FeishuMessageResource }> = []
+  uploadedImages: Array<{ fileName: string; mimeType: string; size: number }> = []
   async getBotIdentity() {
     if (this.identityError) throw this.identityError
     return { openId: this.identityOpenId, name: 'Cody' }
@@ -169,6 +171,11 @@ class FakeTransport implements FeishuTransport {
   async updateCard(messageId: string, card: Record<string, unknown>) {
     if (this.failCardUpdates) throw new Error('patch unavailable')
     this.cards.push({ kind: 'patch', id: messageId, card })
+  }
+  async uploadImage(image: { buffer: Buffer; fileName: string; mimeType: string }) {
+    if (this.failImageUploads) throw new Error('image upload unavailable')
+    this.uploadedImages.push({ fileName: image.fileName, mimeType: image.mimeType, size: image.buffer.byteLength })
+    return `img_v2_fake_${String(this.uploadedImages.length)}`
   }
   async downloadResource(messageId: string, resource: FeishuMessageResource) {
     this.downloadedResources.push({ messageId, resource })
@@ -722,6 +729,64 @@ describe('FeishuBotService', () => {
     service.handleAppServerNotification({ method: 'item/agentMessage/delta', params: { threadId: 'thread-1', turnId: 'turn-1', delta: 'world' } })
     service.handleAppServerNotification({ method: 'turn/completed', params: { threadId: 'thread-1', turn: { id: 'turn-1', status: 'completed' } } })
     await vi.waitFor(() => expect(transport.cards.some((row) => row.kind === 'patch' && JSON.stringify(row.card).includes('Hello world'))).toBe(true))
+    await service.stop()
+  })
+
+  it('uploads an AI-generated image once and embeds it in the terminal reply card', async () => {
+    const { service, transport, startTurn } = harness(binding())
+    await service.start()
+    transport.handlers?.onMessage(inbound())
+    await vi.waitFor(() => expect(startTurn).toHaveBeenCalledOnce())
+    const imageData = Buffer.from('generated-png').toString('base64')
+
+    service.handleAppServerNotification({
+      method: 'item/completed',
+      params: {
+        threadId: 'thread-1', turnId: 'turn-1',
+        item: {
+          type: 'mcpToolCall',
+          result: { content: [{ type: 'image', data: imageData, mimeType: 'image/png', alt: 'System diagram' }] },
+        },
+      },
+    })
+    service.handleAppServerNotification({
+      method: 'item/completed',
+      params: { threadId: 'thread-1', turnId: 'turn-1', item: { type: 'agentMessage', text: '图已经画好了。' } },
+    })
+    service.handleAppServerNotification({ method: 'turn/completed', params: { threadId: 'thread-1', turn: { id: 'turn-1', status: 'completed' } } })
+
+    await vi.waitFor(() => expect(transport.cards.some((row) => row.kind === 'patch' && JSON.stringify(row.card).includes('img_v2_fake_1'))).toBe(true))
+    expect(transport.uploadedImages).toEqual([{ fileName: 'generated-image.png', mimeType: 'image/png', size: 13 }])
+    await service.stop()
+  })
+
+  it('preserves the text reply and shows a note when an AI image upload fails', async () => {
+    const { service, transport, startTurn } = harness(binding())
+    transport.failImageUploads = true
+    await service.start()
+    transport.handlers?.onMessage(inbound())
+    await vi.waitFor(() => expect(startTurn).toHaveBeenCalledOnce())
+
+    service.handleAppServerNotification({
+      method: 'item/completed',
+      params: {
+        threadId: 'thread-1', turnId: 'turn-1',
+        item: {
+          type: 'mcpToolCall',
+          result: { content: [{ type: 'image', data: Buffer.from('image').toString('base64'), mimeType: 'image/png' }] },
+        },
+      },
+    })
+    service.handleAppServerNotification({
+      method: 'item/completed',
+      params: { threadId: 'thread-1', turnId: 'turn-1', item: { type: 'agentMessage', text: '文字结论仍然在。' } },
+    })
+    service.handleAppServerNotification({ method: 'turn/completed', params: { threadId: 'thread-1', turn: { id: 'turn-1' } } })
+
+    await vi.waitFor(() => expect(transport.cards.some((row) => {
+      const card = JSON.stringify(row.card)
+      return row.kind === 'patch' && card.includes('文字结论仍然在') && card.includes('1 张 AI 图片上传失败')
+    })).toBe(true))
     await service.stop()
   })
 
