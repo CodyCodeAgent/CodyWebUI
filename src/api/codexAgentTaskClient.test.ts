@@ -13,6 +13,7 @@ const task = {
   id: 'task-1', name: 'Review', description: '', cwd: '/repo', prompt: 'Review it',
   schedule: { kind: 'daily', time: '09:00' }, timezone: 'UTC', model: '', effort: null,
   permission: 'read-only', enabled: true, timeoutMinutes: 45, maxRetries: 1,
+  conversationMode: 'new', fixedThreadId: '',
   nextRunAtIso: '2026-07-17T09:00:00.000Z', lastRunAtIso: null, consecutiveFailures: 0,
   createdAtIso: '2026-07-16T00:00:00.000Z', updatedAtIso: '2026-07-16T00:00:00.000Z',
 }

@@ -24,6 +24,7 @@ export type AgentTaskInput = {
   maxRetries: number
   concurrencyPolicy: 'skip' | 'queue' | 'replace'
   notificationPolicy: 'off' | 'important' | 'all'
+  conversationMode: 'new' | 'reuse'
   outputMode: 'conversation' | 'file' | 'notification' | 'file-and-notification'
   outputPath: string
   maxTokens: number
@@ -32,6 +33,7 @@ export type AgentTaskInput = {
 
 export type AgentTask = AgentTaskInput & {
   id: string
+  fixedThreadId: string
   nextRunAtIso: string | null
   lastRunAtIso: string | null
   consecutiveFailures: number
@@ -98,6 +100,8 @@ function task(value: unknown): AgentTask | null {
     maxRetries: typeof row.maxRetries === 'number' ? row.maxRetries : 0,
     concurrencyPolicy: ['skip', 'queue', 'replace'].includes(String(row.concurrencyPolicy)) ? row.concurrencyPolicy as AgentTask['concurrencyPolicy'] : 'skip',
     notificationPolicy: ['off', 'important', 'all'].includes(String(row.notificationPolicy)) ? row.notificationPolicy as AgentTask['notificationPolicy'] : 'important',
+    conversationMode: row.conversationMode === 'reuse' ? 'reuse' : 'new',
+    fixedThreadId: typeof row.fixedThreadId === 'string' ? row.fixedThreadId : '',
     outputMode: ['conversation', 'file', 'notification', 'file-and-notification'].includes(String(row.outputMode)) ? row.outputMode as AgentTask['outputMode'] : 'conversation',
     outputPath: typeof row.outputPath === 'string' ? row.outputPath : '',
     maxTokens: typeof row.maxTokens === 'number' ? row.maxTokens : 0,
@@ -217,7 +221,7 @@ export async function fetchAgentTaskVersions(taskId: string): Promise<AgentTaskV
     const definition = asRecord(row.definition)
     const parsed = definition ? task({ ...definition, id: row.taskId, version: row.version }) : null
     if (!parsed) return []
-    const { id: _id, version: _version, nextRunAtIso: _next, lastRunAtIso: _last, consecutiveFailures: _failures,
+    const { id: _id, fixedThreadId: _fixedThreadId, version: _version, nextRunAtIso: _next, lastRunAtIso: _last, consecutiveFailures: _failures,
       archivedAtIso: _archived, createdAtIso: _created, updatedAtIso: _updated, ...input } = parsed
     return [{ taskId: String(row.taskId), version: Number(row.version), definition: input, createdAtIso: String(row.createdAtIso ?? '') }]
   })

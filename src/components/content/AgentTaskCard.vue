@@ -32,6 +32,7 @@
         <span><IconTablerPin /> {{ scheduleLabel }}</span>
         <span><IconTablerSettings /> {{ permissionLabel }}</span>
         <span>{{ t(`agentTasks.concurrency.${task.concurrencyPolicy}` as Parameters<typeof t>[0]) }}</span>
+        <span>{{ task.conversationMode === 'reuse' ? t('agentTasks.conversationMode.reuse') : t('agentTasks.conversationMode.new') }}</span>
         <span>v{{ task.version }}</span>
       </div>
       <div class="agent-task-timing">

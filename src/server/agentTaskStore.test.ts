@@ -17,6 +17,7 @@ import {
   permanentlyDeleteAgentTask,
   restoreAgentTask,
   rollbackAgentTask,
+  setAgentTaskFixedThreadId,
   setAgentTaskEnabled,
   updateAgentTask,
   type AgentTaskInput,
@@ -41,6 +42,7 @@ function input(overrides: Partial<AgentTaskInput> = {}): AgentTaskInput {
     maxRetries: 1,
     concurrencyPolicy: 'skip',
     notificationPolicy: 'important',
+    conversationMode: 'new',
     outputMode: 'conversation',
     outputPath: '',
     maxTokens: 0,
@@ -104,6 +106,20 @@ describe('Agent task persistence', () => {
     expect((await setAgentTaskEnabled(created.id, true, new Date('2026-07-16T00:00:00.000Z'))).nextRunAtIso).not.toBeNull()
     await deleteAgentTask(created.id)
     expect(await getAgentTask(created.id)).toBeNull()
+  })
+
+  it('persists a reusable conversation and clears it when the mode changes', async () => {
+    const created = await createAgentTask(input({ conversationMode: 'reuse' }), new Date('2026-07-16T00:00:00.000Z'))
+    expect(created).toMatchObject({ conversationMode: 'reuse', fixedThreadId: '' })
+
+    await setAgentTaskFixedThreadId(created.id, 'thread-fixed')
+    expect(await getAgentTask(created.id)).toMatchObject({ fixedThreadId: 'thread-fixed' })
+
+    const preserved = await updateAgentTask(created.id, input({ conversationMode: 'reuse', name: 'Updated review' }), new Date('2026-07-16T00:01:00.000Z'))
+    expect(preserved.fixedThreadId).toBe('thread-fixed')
+
+    const reset = await updateAgentTask(created.id, input({ conversationMode: 'new' }), new Date('2026-07-16T00:02:00.000Z'))
+    expect(reset).toMatchObject({ conversationMode: 'new', fixedThreadId: '' })
   })
 
   it('claims a due task once and releases it after completion', async () => {

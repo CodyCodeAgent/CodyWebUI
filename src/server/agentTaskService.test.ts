@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { AgentTaskService } from './agentTaskService'
-import type { AgentTaskInput } from './agentTaskStore'
+import { getAgentTask, setAgentTaskFixedThreadId, type AgentTaskInput } from './agentTaskStore'
 
 let tempDir = ''
 const previousDb = process.env.CODY_WEB_UI_SETTINGS_DB
@@ -14,7 +14,7 @@ function taskInput(permission: AgentTaskInput['permission'] = 'read-only'): Agen
     prompt: 'Inspect the repository and report risks.',
     schedule: { kind: 'interval', intervalMinutes: 60 }, timezone: 'UTC', model: 'gpt-test', effort: 'high',
     permission, enabled: true, timeoutMinutes: 30, maxRetries: 1,
-    concurrencyPolicy: 'skip', notificationPolicy: 'important', outputMode: 'conversation', outputPath: '',
+    concurrencyPolicy: 'skip', notificationPolicy: 'important', conversationMode: 'new', outputMode: 'conversation', outputPath: '',
     maxTokens: 0, pauseAfterFailures: 3,
   }
 }
@@ -113,6 +113,40 @@ describe('AgentTaskService', () => {
       const result = await service.list()
       expect(result.runs[0]).toMatchObject({ status: 'succeeded', summary: 'Everything is healthy.', totalTokens: 120 })
     })
+    service.stop()
+  })
+
+  it('resumes a fixed conversation instead of creating a new thread', async () => {
+    const rpc = vi.fn(async (method: string) => method === 'turn/start'
+      ? { turn: { id: 'turn-reused' } }
+      : method === 'thread/resume' ? {} : { thread: { id: 'unexpected-new-thread' } })
+    const service = new AgentTaskService(rpc)
+    const task = await service.create({ ...taskInput(), conversationMode: 'reuse' })
+    await setAgentTaskFixedThreadId(task.id, 'thread-fixed')
+
+    await service.runNow(task.id)
+    await vi.waitFor(() => expect(rpc).toHaveBeenCalledWith('turn/start', expect.objectContaining({ threadId: 'thread-fixed' })))
+
+    expect(rpc).toHaveBeenCalledWith('thread/resume', { threadId: 'thread-fixed' })
+    expect(rpc).not.toHaveBeenCalledWith('thread/start', expect.anything())
+    service.stop()
+  })
+
+  it('replaces a fixed conversation when it can no longer be resumed', async () => {
+    const rpc = vi.fn(async (method: string) => {
+      if (method === 'thread/resume') throw new Error('Thread not found')
+      if (method === 'thread/start') return { thread: { id: 'thread-replacement' } }
+      return { turn: { id: 'turn-replacement' } }
+    })
+    const service = new AgentTaskService(rpc)
+    const task = await service.create({ ...taskInput(), conversationMode: 'reuse' })
+    await setAgentTaskFixedThreadId(task.id, 'thread-stale')
+
+    await service.runNow(task.id)
+    await vi.waitFor(async () => expect((await getAgentTask(task.id))?.fixedThreadId).toBe('thread-replacement'))
+
+    expect(rpc).toHaveBeenCalledWith('thread/resume', { threadId: 'thread-stale' })
+    expect(rpc).toHaveBeenCalledWith('thread/start', { cwd: tempDir, model: 'gpt-test' })
     service.stop()
   })
 

@@ -54,6 +54,23 @@ describe('AgentTasksPanel', () => {
     wrapper.unmount()
   })
 
+  it('saves the reusable conversation mode from the task editor', async () => {
+    api.fetchAgentTasks.mockResolvedValue({ tasks: [], runs: [] })
+    api.fetchPromptTemplates.mockResolvedValue([])
+    api.createAgentTask.mockResolvedValue({ id: 'task-fixed' })
+    const wrapper = mount(AgentTasksPanel, { props: { projects: [{ cwd: '/repo', label: 'CodyWeb' }] } })
+    await flushPromises()
+    await wrapper.get('.agent-task-empty button').trigger('click')
+    await wrapper.get('input[maxlength="120"]').setValue('Daily context review')
+    await wrapper.get('textarea[required]').setValue('Continue reviewing this project.')
+    await wrapper.get('.agent-task-conversation-mode input[value="reuse"]').setValue(true)
+    await wrapper.get('.agent-task-editor').trigger('submit')
+    await flushPromises()
+
+    expect(api.createAgentTask).toHaveBeenCalledWith(expect.objectContaining({ conversationMode: 'reuse' }))
+    wrapper.unmount()
+  })
+
   it('renders run health and links completed runs back to their conversation', async () => {
     api.fetchPromptTemplates.mockResolvedValue([])
     api.fetchAgentTasks.mockResolvedValue({

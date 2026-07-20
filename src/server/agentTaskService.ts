@@ -28,6 +28,7 @@ import {
   setAgentTaskEnabled,
   rollbackAgentTask,
   restoreAgentTask,
+  setAgentTaskFixedThreadId,
   setAgentTaskRunDeliveryPending,
   updateAgentTask,
   updateAgentTaskRunState,
@@ -224,7 +225,7 @@ export class AgentTaskService {
     const source = await getAgentTask(id)
     if (!source) throw new Error('Agent task not found')
     const { id: _id, version: _version, nextRunAtIso: _next, lastRunAtIso: _last, consecutiveFailures: _failures,
-      archivedAtIso: _archived,
+      archivedAtIso: _archived, fixedThreadId: _fixedThreadId,
       createdAtIso: _created, updatedAtIso: _updated, ...input } = source
     return this.create({ ...input, name: `${source.name} copy`, enabled: false })
   }
@@ -243,7 +244,8 @@ export class AgentTaskService {
       version: 1,
       exportedAtIso: this.now().toISOString(),
       tasks: selected.map(({ id: _id, version: _version, nextRunAtIso: _next, lastRunAtIso: _last,
-        consecutiveFailures: _failures, archivedAtIso: _archived, createdAtIso: _created, updatedAtIso: _updated, ...input }) => input),
+        consecutiveFailures: _failures, archivedAtIso: _archived, fixedThreadId: _fixedThreadId,
+        createdAtIso: _created, updatedAtIso: _updated, ...input }) => input),
     }
   }
 
@@ -427,12 +429,7 @@ export class AgentTaskService {
   private async launch(task: AgentTask, run: AgentTaskRun): Promise<void> {
     try {
       await this.assertWorkspace(task.cwd)
-      const threadPayload = await this.rpc('thread/start', {
-        cwd: task.cwd,
-        ...(task.model ? { model: task.model } : {}),
-      })
-      const threadId = parseRpcId(threadPayload, 'thread')
-      if (!threadId) throw new Error('thread/start did not return a thread id')
+      const threadId = await this.prepareThread(task, run)
       run.threadId = threadId
       this.activeRunsByThread.set(threadId, run)
       const turnPayload = await this.rpc('turn/start', {
@@ -447,6 +444,13 @@ export class AgentTaskService {
       })
       const turnId = parseRpcId(turnPayload, 'turn')
       if (!turnId) throw new Error('turn/start did not return a turn id')
+      if (task.conversationMode === 'reuse' && task.fixedThreadId !== threadId) {
+        try {
+          await setAgentTaskFixedThreadId(task.id, threadId)
+        } catch (error) {
+          await appendAgentTaskRunEvent(run.id, 'progress', `Fixed conversation id could not be saved. ${error instanceof Error ? error.message : String(error)}`)
+        }
+      }
       if (this.finishedRunIds.has(run.id)) return
       if (!await markAgentTaskRunStarted(run.id, threadId, turnId, this.now())) {
         this.activeRunsByThread.delete(threadId)
@@ -464,6 +468,25 @@ export class AgentTaskService {
     } catch (error) {
       await this.finish(run, { status: 'failed', error: error instanceof Error ? error.message : String(error) })
     }
+  }
+
+  private async prepareThread(task: AgentTask, run: AgentTaskRun): Promise<string> {
+    if (task.conversationMode === 'reuse' && task.fixedThreadId) {
+      try {
+        await this.rpc('thread/resume', { threadId: task.fixedThreadId })
+        return task.fixedThreadId
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error)
+        await appendAgentTaskRunEvent(run.id, 'progress', `Fixed conversation could not be resumed; creating a replacement. ${message}`)
+      }
+    }
+    const threadPayload = await this.rpc('thread/start', {
+      cwd: task.cwd,
+      ...(task.model ? { model: task.model } : {}),
+    })
+    const threadId = parseRpcId(threadPayload, 'thread')
+    if (!threadId) throw new Error('thread/start did not return a thread id')
+    return threadId
   }
 
   private async recoverRun(task: AgentTask, run: AgentTaskRun): Promise<void> {

@@ -16,6 +16,7 @@ export type AgentTaskRunStatus = 'queued' | 'running' | 'waiting_approval' | 'su
 export type AgentTaskConcurrencyPolicy = 'skip' | 'queue' | 'replace'
 export type AgentTaskNotificationPolicy = 'off' | 'important' | 'all'
 export type AgentTaskOutputMode = 'conversation' | 'file' | 'notification' | 'file-and-notification'
+export type AgentTaskConversationMode = 'new' | 'reuse'
 
 export type AgentTask = {
   id: string
@@ -33,6 +34,8 @@ export type AgentTask = {
   maxRetries: number
   concurrencyPolicy: AgentTaskConcurrencyPolicy
   notificationPolicy: AgentTaskNotificationPolicy
+  conversationMode: AgentTaskConversationMode
+  fixedThreadId: string
   outputMode: AgentTaskOutputMode
   outputPath: string
   maxTokens: number
@@ -82,7 +85,7 @@ export type AgentTaskVersion = {
   createdAtIso: string
 }
 
-export type AgentTaskInput = Omit<AgentTask, 'id' | 'version' | 'nextRunAtIso' | 'lastRunAtIso' | 'consecutiveFailures' | 'archivedAtIso' | 'createdAtIso' | 'updatedAtIso'>
+export type AgentTaskInput = Omit<AgentTask, 'id' | 'fixedThreadId' | 'version' | 'nextRunAtIso' | 'lastRunAtIso' | 'consecutiveFailures' | 'archivedAtIso' | 'createdAtIso' | 'updatedAtIso'>
 
 type AgentTaskRow = {
   id: string
@@ -100,6 +103,8 @@ type AgentTaskRow = {
   maxRetries: number
   concurrencyPolicy: string
   notificationPolicy: string
+  conversationMode: string
+  fixedThreadId: string
   outputMode: string
   outputPath: string
   maxTokens: number
@@ -141,6 +146,7 @@ const TASK_SELECT = `SELECT id, name, description, cwd, prompt,
   schedule_json AS scheduleJson, timezone, model, effort, permission, enabled,
   timeout_minutes AS timeoutMinutes, max_retries AS maxRetries,
   concurrency_policy AS concurrencyPolicy, notification_policy AS notificationPolicy,
+  conversation_mode AS conversationMode, fixed_thread_id AS fixedThreadId,
   output_mode AS outputMode, output_path AS outputPath, max_tokens AS maxTokens,
   pause_after_failures AS pauseAfterFailures, version,
   next_run_at_iso AS nextRunAtIso, retry_at_iso AS retryAtIso,
@@ -178,6 +184,8 @@ function ensureTables(db: Database.Database): void {
     max_retries INTEGER NOT NULL DEFAULT 1,
     concurrency_policy TEXT NOT NULL DEFAULT 'skip',
     notification_policy TEXT NOT NULL DEFAULT 'important',
+    conversation_mode TEXT NOT NULL DEFAULT 'new',
+    fixed_thread_id TEXT NOT NULL DEFAULT '',
     output_mode TEXT NOT NULL DEFAULT 'conversation',
     output_path TEXT NOT NULL DEFAULT '',
     max_tokens INTEGER NOT NULL DEFAULT 0,
@@ -239,6 +247,8 @@ function ensureTables(db: Database.Database): void {
   );`)
   addColumn(db, 'agent_tasks', 'concurrency_policy', "TEXT NOT NULL DEFAULT 'skip'")
   addColumn(db, 'agent_tasks', 'notification_policy', "TEXT NOT NULL DEFAULT 'important'")
+  addColumn(db, 'agent_tasks', 'conversation_mode', "TEXT NOT NULL DEFAULT 'new'")
+  addColumn(db, 'agent_tasks', 'fixed_thread_id', "TEXT NOT NULL DEFAULT ''")
   addColumn(db, 'agent_tasks', 'output_mode', "TEXT NOT NULL DEFAULT 'conversation'")
   addColumn(db, 'agent_tasks', 'output_path', "TEXT NOT NULL DEFAULT ''")
   addColumn(db, 'agent_tasks', 'max_tokens', 'INTEGER NOT NULL DEFAULT 0')
@@ -425,6 +435,7 @@ function normalizeInput(value: AgentTaskInput): AgentTaskInput {
   const effort = value.effort && allowedEfforts.has(value.effort) ? value.effort : null
   const concurrencyPolicy: AgentTaskConcurrencyPolicy = ['skip', 'queue', 'replace'].includes(value.concurrencyPolicy) ? value.concurrencyPolicy : 'skip'
   const notificationPolicy: AgentTaskNotificationPolicy = ['off', 'important', 'all'].includes(value.notificationPolicy) ? value.notificationPolicy : 'important'
+  const conversationMode: AgentTaskConversationMode = value.conversationMode === 'reuse' ? 'reuse' : 'new'
   const outputMode: AgentTaskOutputMode = ['conversation', 'file', 'notification', 'file-and-notification'].includes(value.outputMode) ? value.outputMode : 'conversation'
   const outputPath = value.outputPath?.trim().slice(0, 500) ?? ''
   if ((outputMode === 'file' || outputMode === 'file-and-notification') && (!outputPath || outputPath.startsWith('/') || outputPath.includes('..'))) {
@@ -445,6 +456,7 @@ function normalizeInput(value: AgentTaskInput): AgentTaskInput {
     maxRetries: Math.min(5, Math.max(0, Math.round(value.maxRetries || 0))),
     concurrencyPolicy,
     notificationPolicy,
+    conversationMode,
     outputMode,
     outputPath,
     maxTokens: Math.min(10_000_000, Math.max(0, Math.round(value.maxTokens || 0))),
@@ -491,6 +503,8 @@ function mapTask(row: AgentTaskRow): AgentTask {
     enabled: row.enabled === 1, timeoutMinutes: row.timeoutMinutes, maxRetries: row.maxRetries,
     concurrencyPolicy: row.concurrencyPolicy as AgentTaskConcurrencyPolicy,
     notificationPolicy: row.notificationPolicy as AgentTaskNotificationPolicy,
+    conversationMode: row.conversationMode === 'reuse' ? 'reuse' : 'new',
+    fixedThreadId: row.fixedThreadId,
     outputMode: row.outputMode as AgentTaskOutputMode, outputPath: row.outputPath,
     maxTokens: row.maxTokens, pauseAfterFailures: row.pauseAfterFailures, version: row.version,
     nextRunAtIso: effectiveNextRunAtIso, lastRunAtIso: row.lastRunAtIso,
@@ -513,7 +527,7 @@ function mapRun(row: AgentTaskRunRow): AgentTaskRun {
 
 function inputFromTask(task: AgentTask): AgentTaskInput {
   const { id: _id, version: _version, nextRunAtIso: _next, lastRunAtIso: _last, consecutiveFailures: _failures,
-    archivedAtIso: _archived,
+    archivedAtIso: _archived, fixedThreadId: _fixedThreadId,
     createdAtIso: _created, updatedAtIso: _updated, ...input } = task
   return input
 }
@@ -539,6 +553,18 @@ export async function getAgentTask(id: string): Promise<AgentTask | null> {
   })
 }
 
+export async function setAgentTaskFixedThreadId(id: string, threadId: string): Promise<void> {
+  const normalizedThreadId = threadId.trim()
+  if (!normalizedThreadId) throw new Error('A fixed conversation thread id is required')
+  const changed = await withLocalDatabase((db) => {
+    ensureTables(db)
+    return db.prepare(`UPDATE agent_tasks SET fixed_thread_id = ?
+      WHERE id = ? AND archived_at_iso IS NULL AND conversation_mode = 'reuse'`)
+      .run(normalizedThreadId, id).changes
+  })
+  if (!changed) throw new Error('Agent task is not configured to reuse a conversation')
+}
+
 export async function createAgentTask(value: AgentTaskInput, now = new Date()): Promise<AgentTask> {
   const input = normalizeInput(value)
   const id = randomUUID()
@@ -548,12 +574,12 @@ export async function createAgentTask(value: AgentTaskInput, now = new Date()): 
   await withLocalDatabase((db) => {
     ensureTables(db)
     db.prepare(`INSERT INTO agent_tasks (id, name, description, cwd, prompt, schedule_json, timezone, model, effort,
-      permission, enabled, timeout_minutes, max_retries, concurrency_policy, notification_policy, output_mode,
-      output_path, max_tokens, pause_after_failures, next_run_at_iso, created_at_iso, updated_at_iso)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+      permission, enabled, timeout_minutes, max_retries, concurrency_policy, notification_policy, conversation_mode,
+      output_mode, output_path, max_tokens, pause_after_failures, next_run_at_iso, created_at_iso, updated_at_iso)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
       .run(id, input.name, input.description, input.cwd, input.prompt, JSON.stringify(input.schedule), input.timezone,
         input.model, input.effort, input.permission, input.enabled ? 1 : 0, input.timeoutMinutes, input.maxRetries,
-        input.concurrencyPolicy, input.notificationPolicy, input.outputMode, input.outputPath, input.maxTokens,
+        input.concurrencyPolicy, input.notificationPolicy, input.conversationMode, input.outputMode, input.outputPath, input.maxTokens,
         input.pauseAfterFailures, nextRunAtIso, createdAtIso, createdAtIso)
     const task = mapTask(db.prepare(`${TASK_SELECT} WHERE id = ?`).get(id) as AgentTaskRow)
     saveVersion(db, task, createdAtIso)
@@ -572,12 +598,12 @@ export async function createAgentTaskBatch(values: AgentTaskInput[], now = new D
       const nextRunAtIso = input.enabled ? calculateNextAgentTaskRun(input.schedule, input.timezone, now.getTime() - 1) : null
       if (input.schedule.kind === 'once' && input.enabled && !nextRunAtIso) throw new Error('One-time schedule must be in the future')
       db.prepare(`INSERT INTO agent_tasks (id, name, description, cwd, prompt, schedule_json, timezone, model, effort,
-        permission, enabled, timeout_minutes, max_retries, concurrency_policy, notification_policy, output_mode,
-        output_path, max_tokens, pause_after_failures, next_run_at_iso, created_at_iso, updated_at_iso)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+        permission, enabled, timeout_minutes, max_retries, concurrency_policy, notification_policy, conversation_mode,
+        output_mode, output_path, max_tokens, pause_after_failures, next_run_at_iso, created_at_iso, updated_at_iso)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
         .run(id, input.name, input.description, input.cwd, input.prompt, JSON.stringify(input.schedule), input.timezone,
           input.model, input.effort, input.permission, input.enabled ? 1 : 0, input.timeoutMinutes, input.maxRetries,
-          input.concurrencyPolicy, input.notificationPolicy, input.outputMode, input.outputPath, input.maxTokens,
+          input.concurrencyPolicy, input.notificationPolicy, input.conversationMode, input.outputMode, input.outputPath, input.maxTokens,
           input.pauseAfterFailures, nextRunAtIso, createdAtIso, createdAtIso)
       const task = mapTask(db.prepare(`${TASK_SELECT} WHERE id = ?`).get(id) as AgentTaskRow)
       saveVersion(db, task, createdAtIso)
@@ -597,14 +623,17 @@ export async function updateAgentTask(id: string, value: AgentTaskInput, now = n
       const current = db.prepare(`${TASK_SELECT} WHERE id = ?`).get(id) as AgentTaskRow | undefined
       if (!current) return 0
       const nextVersion = current.version + 1
+      const fixedThreadId = input.conversationMode === 'reuse' && current.conversationMode === 'reuse' && current.cwd === input.cwd
+        ? current.fixedThreadId
+        : ''
       const changes = db.prepare(`UPDATE agent_tasks SET name = ?, description = ?, cwd = ?, prompt = ?, schedule_json = ?,
       timezone = ?, model = ?, effort = ?, permission = ?, enabled = ?, timeout_minutes = ?, max_retries = ?,
-      concurrency_policy = ?, notification_policy = ?, output_mode = ?, output_path = ?, max_tokens = ?,
+      concurrency_policy = ?, notification_policy = ?, conversation_mode = ?, fixed_thread_id = ?, output_mode = ?, output_path = ?, max_tokens = ?,
       pause_after_failures = ?, next_run_at_iso = ?, retry_at_iso = NULL, retry_scheduled_at_iso = NULL,
       retry_attempt = 0, version = ?, updated_at_iso = ? WHERE id = ?`)
       .run(input.name, input.description, input.cwd, input.prompt, JSON.stringify(input.schedule), input.timezone,
         input.model, input.effort, input.permission, input.enabled ? 1 : 0, input.timeoutMinutes, input.maxRetries,
-        input.concurrencyPolicy, input.notificationPolicy, input.outputMode, input.outputPath, input.maxTokens,
+        input.concurrencyPolicy, input.notificationPolicy, input.conversationMode, fixedThreadId, input.outputMode, input.outputPath, input.maxTokens,
         input.pauseAfterFailures, nextRunAtIso, nextVersion, updatedAtIso, id).changes
       if (changes) saveVersion(db, mapTask(db.prepare(`${TASK_SELECT} WHERE id = ?`).get(id) as AgentTaskRow), updatedAtIso)
       return changes
