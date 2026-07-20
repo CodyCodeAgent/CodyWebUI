@@ -1,182 +1,241 @@
 <template>
   <main class="app-settings-page" :aria-label="t('settings.aria')">
-    <aside class="app-settings-nav" aria-label="Settings sections">
-      <label class="app-settings-search">
-        <span>{{ t('settings.search.label') }}</span>
-        <input v-model="settingsQuery" type="search" :placeholder="t('settings.search.placeholder')" />
-      </label>
-      <nav>
-        <a v-for="item in visibleNavItems" :key="item.id" :href="`#${item.id}`">{{ item.label }}</a>
-      </nav>
-      <p class="app-settings-save-state" :data-tone="saveTone">{{ unifiedSaveState }}</p>
-    </aside>
+    <header class="app-settings-page-header">
+      <div>
+        <p class="app-settings-eyebrow">{{ t('settings.page.eyebrow') }}</p>
+        <h1>{{ t('settings.page.title') }}</h1>
+        <p>{{ t('settings.page.subtitle') }}</p>
+      </div>
+      <div class="app-settings-page-meta">
+        <span class="app-settings-count">{{ t('settings.page.sectionCount', { count: String(settingsNavItems.length) }) }}</span>
+        <span class="app-settings-global-state" :data-tone="saveTone">
+          <span aria-hidden="true" />
+          {{ unifiedSaveState }}
+        </span>
+      </div>
+    </header>
 
-    <div class="app-settings-content">
-    <section v-show="matchesSettings('about')" id="settings-about" class="app-settings-section">
-      <header class="app-settings-section-header">
-        <div>
-          <h2 class="app-settings-title">{{ t('settings.about.title') }}</h2>
-          <p class="app-settings-subtitle">{{ t('settings.about.subtitle') }}</p>
-        </div>
-      </header>
-      <dl class="app-version-details">
-        <div>
-          <dt>{{ t('settings.about.version') }}</dt>
-          <dd>{{ BUILD_INFO.version }}</dd>
-        </div>
-        <div>
-          <dt>{{ t('settings.about.buildId') }}</dt>
-          <dd>{{ BUILD_INFO.buildId }}</dd>
-        </div>
-        <div>
-          <dt>{{ t('settings.about.gitSha') }}</dt>
-          <dd>{{ BUILD_INFO.gitSha }}</dd>
-        </div>
-        <div>
-          <dt>{{ t('settings.about.builtAt') }}</dt>
-          <dd>{{ buildTimeLabel }}</dd>
-        </div>
-      </dl>
-    </section>
+    <div class="app-settings-workspace">
+      <aside class="app-settings-nav" :aria-label="t('settings.nav.aria')">
+        <label class="app-settings-search">
+          <span>{{ t('settings.search.label') }}</span>
+          <span class="app-settings-search-control">
+            <IconTablerSearch aria-hidden="true" />
+            <input v-model="settingsQuery" type="search" :placeholder="t('settings.search.placeholder')" />
+            <button v-if="settingsQuery" type="button" :aria-label="t('settings.search.clear')" @click="settingsQuery = ''">
+              <IconTablerX aria-hidden="true" />
+            </button>
+          </span>
+        </label>
 
-    <section v-show="matchesSettings('language')" id="settings-language" class="app-settings-section">
-      <header class="app-settings-section-header">
-        <div>
-          <h2 class="app-settings-title">{{ t('settings.language.title') }}</h2>
-          <p class="app-settings-subtitle">{{ t('settings.language.subtitle') }}</p>
-        </div>
-        <label class="app-settings-language-select">
-          <span>{{ t('settings.language.current') }}</span>
-          <select :value="locale" @change="onLocaleSelect">
-            <option v-for="option in localeOptions" :key="option.value" :value="option.value">
-              {{ option.value === 'zh-CN' ? t('settings.language.chinese') : t('settings.language.english') }}
-            </option>
+        <label class="app-settings-mobile-select">
+          <span>{{ t('settings.nav.mobileLabel') }}</span>
+          <select :value="activeSection" @change="onMobileSectionSelect">
+            <option v-for="item in visibleNavItems" :key="item.key" :value="item.key">{{ item.label }}</option>
           </select>
         </label>
-      </header>
-    </section>
 
-    <section v-show="matchesSettings('catalog')" id="settings-catalog" class="app-settings-section">
-      <header class="app-settings-section-header">
-        <div>
-          <h2 class="app-settings-title">{{ t('settings.catalog.title') }}</h2>
-          <p class="app-settings-subtitle">{{ t('settings.catalog.subtitle') }}</p>
-        </div>
-        <button class="catalog-sync-button" type="button" :disabled="isCatalogSyncing" @click="runCatalogSync">
-          {{ t('settings.catalog.syncNow') }}
-        </button>
-      </header>
-      <dl class="catalog-sync-status" :data-tone="catalogStatusTone">
-        <div>
-          <dt>{{ catalogStatusLabel }}</dt>
-          <dd>{{ catalogStatus?.lastError || catalogStatusError }}</dd>
-        </div>
-        <div>
-          <dt>{{ t('settings.catalog.lastSuccess') }}</dt>
-          <dd>{{ formatCatalogTime(catalogStatus?.lastSuccessAtIso) }}</dd>
-        </div>
-        <div>
-          <dt>{{ t('settings.catalog.nextRun') }}</dt>
-          <dd>{{ formatCatalogTime(catalogStatus?.nextRunAtIso) }}</dd>
-        </div>
-      </dl>
-    </section>
+        <nav class="app-settings-nav-groups">
+          <section v-for="group in visibleNavGroups" :key="group.key" class="app-settings-nav-group">
+            <h2>{{ group.label }}</h2>
+            <button
+              v-for="item in group.items"
+              :key="item.key"
+              type="button"
+              :data-section="item.key"
+              :class="{ 'is-active': activeSection === item.key }"
+              :aria-current="activeSection === item.key ? 'page' : undefined"
+              :aria-controls="`settings-${item.key}`"
+              @click="selectSettingsSection(item.key)"
+            >
+              <span class="app-settings-nav-icon"><component :is="item.icon" aria-hidden="true" /></span>
+              <span class="app-settings-nav-copy">
+                <strong>{{ item.label }}</strong>
+                <small>{{ item.hint }}</small>
+              </span>
+              <IconTablerChevronRight class="app-settings-nav-chevron" aria-hidden="true" />
+            </button>
+          </section>
+        </nav>
 
-    <section v-show="matchesSettings('feishu')" id="settings-feishu" class="app-settings-section">
-      <header class="app-settings-section-header">
-        <div>
-          <h2 class="app-settings-title">{{ t('settings.feishu.title') }}</h2>
-          <p class="app-settings-subtitle">{{ t('settings.feishu.subtitle') }}</p>
-        </div>
-      </header>
-      <FeishuBotPanel />
-    </section>
+        <p v-if="visibleNavItems.length === 0" class="app-settings-nav-empty">
+          {{ t('settings.search.noResults', { query: settingsQuery }) }}
+        </p>
+        <footer class="app-settings-nav-footer">
+          <span>{{ t('settings.page.version') }}</span>
+          <strong>{{ BUILD_INFO.version }}</strong>
+        </footer>
+      </aside>
 
-    <section v-show="matchesSettings('tasks')" id="settings-tasks" class="app-settings-section">
-      <header class="app-settings-section-header">
-        <div>
-          <h2 class="app-settings-title">{{ t('settings.tasks.title') }}</h2>
-          <p class="app-settings-subtitle">{{ t('settings.tasks.subtitle') }}</p>
-        </div>
-      </header>
-      <AgentTasksPanel :projects="projects" @select-thread="$emit('selectThread', $event)" />
-      <BackgroundTasksPanel />
-    </section>
+      <div v-if="activeNavItem && visibleNavItems.length > 0" id="settings-content" class="app-settings-content" tabindex="-1">
+        <header class="app-settings-content-header">
+          <span class="app-settings-content-icon"><component :is="activeNavItem.icon" aria-hidden="true" /></span>
+          <div>
+            <p>{{ activeGroupLabel }}</p>
+            <h2>{{ activeNavItem.title }}</h2>
+            <span>{{ activeNavItem.subtitle }}</span>
+          </div>
+        </header>
 
-    <section v-show="matchesSettings('appearance')" id="settings-appearance" class="app-settings-section">
-      <header class="app-settings-section-header">
-        <div>
-          <h2 class="app-settings-title">{{ t('settings.appearance.title') }}</h2>
-          <p class="app-settings-subtitle">{{ t('settings.appearance.subtitle') }}</p>
-        </div>
-      </header>
-      <WorkspaceThemePanel />
-    </section>
+        <section v-if="activeSection === 'about'" id="settings-about" class="app-settings-section">
+          <dl class="app-version-details">
+            <div>
+              <dt>{{ t('settings.about.version') }}</dt>
+              <dd>{{ BUILD_INFO.version }}</dd>
+            </div>
+            <div>
+              <dt>{{ t('settings.about.buildId') }}</dt>
+              <dd>{{ BUILD_INFO.buildId }}</dd>
+            </div>
+            <div>
+              <dt>{{ t('settings.about.gitSha') }}</dt>
+              <dd>{{ BUILD_INFO.gitSha }}</dd>
+            </div>
+            <div>
+              <dt>{{ t('settings.about.builtAt') }}</dt>
+              <dd>{{ buildTimeLabel }}</dd>
+            </div>
+          </dl>
+        </section>
 
-    <section v-show="matchesSettings('usage')" id="settings-usage" class="app-settings-section">
-      <header class="app-settings-section-header">
-        <div>
-          <h2 class="app-settings-title">{{ t('settings.tokenFlame.title') }}</h2>
-          <p class="app-settings-subtitle">{{ t('settings.tokenFlame.subtitle') }}</p>
-        </div>
-        <label class="app-settings-switch">
-          <input v-model="flameSettings.enabled" type="checkbox" />
-          <span>{{ flameSettings.enabled ? t('settings.tokenFlame.enabled') : t('settings.tokenFlame.disabled') }}</span>
-        </label>
-      </header>
-
-      <div class="flame-settings-card">
-        <div class="flame-preview" :data-level="previewLevel">
-          <span class="flame-preview-ember" />
-          <span class="flame-preview-core" />
-          <span class="flame-preview-tip" />
-        </div>
-
-        <div class="flame-settings-copy">
-          <h3>{{ t('settings.tokenFlame.firepowerTitle') }}</h3>
-          <p>{{ t('settings.tokenFlame.firepowerBody') }}</p>
-          <div class="flame-settings-controls">
-            <label>
-              <span>{{ t('settings.tokenFlame.defaultPosition') }}</span>
-              <select v-model="flameSettings.defaultCorner">
-                <option value="bottom-right">{{ t('settings.tokenFlame.bottomRight') }}</option>
-                <option value="bottom-left">{{ t('settings.tokenFlame.bottomLeft') }}</option>
-                <option value="top-right">{{ t('settings.tokenFlame.topRight') }}</option>
-                <option value="top-left">{{ t('settings.tokenFlame.topLeft') }}</option>
+        <section v-else-if="activeSection === 'language'" id="settings-language" class="app-settings-section app-settings-form-section">
+          <div class="app-settings-control-row">
+            <div>
+              <strong>{{ t('settings.language.current') }}</strong>
+              <span>{{ t('settings.language.subtitle') }}</span>
+            </div>
+            <label class="app-settings-language-select">
+              <span class="sr-only">{{ t('settings.language.current') }}</span>
+              <select :value="locale" @change="onLocaleSelect">
+                <option v-for="option in localeOptions" :key="option.value" :value="option.value">
+                  {{ option.value === 'zh-CN' ? t('settings.language.chinese') : t('settings.language.english') }}
+                </option>
               </select>
             </label>
-            <label class="flame-settings-checkbox">
-              <input v-model="flameSettings.reducedMotion" type="checkbox" />
-              <span>{{ t('settings.tokenFlame.calmAnimation') }}</span>
-            </label>
-            <button class="flame-settings-reset-position" type="button" @click="resetFlamePosition">
-              {{ t('settings.tokenFlame.resetPosition') }}
+          </div>
+        </section>
+
+        <section v-else-if="activeSection === 'catalog'" id="settings-catalog" class="app-settings-section">
+          <div class="app-settings-section-toolbar">
+            <div>
+              <strong>{{ catalogStatusLabel }}</strong>
+              <span>{{ t('settings.catalog.subtitle') }}</span>
+            </div>
+            <button class="catalog-sync-button" type="button" :disabled="isCatalogSyncing" @click="runCatalogSync">
+              <IconTablerRefresh :class="{ 'is-spinning': isCatalogSyncing }" aria-hidden="true" />
+              {{ t('settings.catalog.syncNow') }}
             </button>
           </div>
-          <p v-if="saveMessage" class="flame-settings-message" :data-tone="saveTone">{{ saveMessage }}</p>
-        </div>
+          <dl class="catalog-sync-status" :data-tone="catalogStatusTone">
+            <div>
+              <dt>{{ catalogStatusLabel }}</dt>
+              <dd>{{ catalogStatus?.lastError || catalogStatusError || '—' }}</dd>
+            </div>
+            <div>
+              <dt>{{ t('settings.catalog.lastSuccess') }}</dt>
+              <dd>{{ formatCatalogTime(catalogStatus?.lastSuccessAtIso) }}</dd>
+            </div>
+            <div>
+              <dt>{{ t('settings.catalog.nextRun') }}</dt>
+              <dd>{{ formatCatalogTime(catalogStatus?.nextRunAtIso) }}</dd>
+            </div>
+          </dl>
+        </section>
+
+        <section v-else-if="activeSection === 'feishu'" id="settings-feishu" class="app-settings-section app-settings-section-embedded">
+          <FeishuBotPanel />
+        </section>
+
+        <section v-else-if="activeSection === 'tasks'" id="settings-tasks" class="app-settings-section app-settings-section-embedded app-settings-stack">
+          <AgentTasksPanel :projects="projects" @select-thread="$emit('selectThread', $event)" />
+          <BackgroundTasksPanel />
+        </section>
+
+        <section v-else-if="activeSection === 'appearance'" id="settings-appearance" class="app-settings-section app-settings-section-embedded">
+          <WorkspaceThemePanel />
+        </section>
+
+        <section v-else id="settings-usage" class="app-settings-section">
+          <div class="app-settings-control-row app-settings-control-row-top">
+            <div>
+              <strong>{{ t('settings.tokenFlame.firepowerTitle') }}</strong>
+              <span>{{ t('settings.tokenFlame.firepowerBody') }}</span>
+            </div>
+            <label class="app-settings-switch">
+              <input v-model="flameSettings.enabled" type="checkbox" />
+              <span>{{ flameSettings.enabled ? t('settings.tokenFlame.enabled') : t('settings.tokenFlame.disabled') }}</span>
+            </label>
+          </div>
+
+          <div class="flame-settings-card">
+            <div class="flame-preview" :data-level="previewLevel">
+              <span class="flame-preview-ember" />
+              <span class="flame-preview-core" />
+              <span class="flame-preview-tip" />
+            </div>
+
+            <div class="flame-settings-copy">
+              <h3>{{ t('settings.tokenFlame.firepowerTitle') }}</h3>
+              <p>{{ t('settings.tokenFlame.firepowerBody') }}</p>
+              <div class="flame-settings-controls">
+                <label>
+                  <span>{{ t('settings.tokenFlame.defaultPosition') }}</span>
+                  <select v-model="flameSettings.defaultCorner">
+                    <option value="bottom-right">{{ t('settings.tokenFlame.bottomRight') }}</option>
+                    <option value="bottom-left">{{ t('settings.tokenFlame.bottomLeft') }}</option>
+                    <option value="top-right">{{ t('settings.tokenFlame.topRight') }}</option>
+                    <option value="top-left">{{ t('settings.tokenFlame.topLeft') }}</option>
+                  </select>
+                </label>
+                <label class="flame-settings-checkbox">
+                  <input v-model="flameSettings.reducedMotion" type="checkbox" />
+                  <span>{{ t('settings.tokenFlame.calmAnimation') }}</span>
+                </label>
+                <button class="flame-settings-reset-position" type="button" @click="resetFlamePosition">
+                  {{ t('settings.tokenFlame.resetPosition') }}
+                </button>
+              </div>
+              <p v-if="saveMessage" class="flame-settings-message" :data-tone="saveTone">{{ saveMessage }}</p>
+            </div>
+          </div>
+
+          <ol class="flame-level-list" :aria-label="t('settings.tokenFlame.levelsAria')">
+            <li v-for="level in flameLevels" :key="level.name">
+              <span class="flame-level-dot" :data-level="level.level" />
+              <span class="flame-level-name">{{ level.name }}</span>
+              <span class="flame-level-range">{{ level.range }}</span>
+            </li>
+          </ol>
+        </section>
       </div>
 
-      <ol class="flame-level-list" :aria-label="t('settings.tokenFlame.levelsAria')">
-        <li v-for="level in flameLevels" :key="level.name">
-          <span class="flame-level-dot" :data-level="level.level" />
-          <span class="flame-level-name">{{ level.name }}</span>
-          <span class="flame-level-range">{{ level.range }}</span>
-        </li>
-      </ol>
-    </section>
-    <p v-if="visibleNavItems.length === 0" class="app-settings-no-results">{{ t('settings.search.noResults', { query: settingsQuery }) }}</p>
+      <section v-else class="app-settings-no-results">
+        <IconTablerSearch aria-hidden="true" />
+        <h2>{{ t('settings.search.emptyTitle') }}</h2>
+        <p>{{ t('settings.search.noResults', { query: settingsQuery }) }}</p>
+        <button type="button" @click="settingsQuery = ''">{{ t('settings.search.clear') }}</button>
+      </section>
     </div>
   </main>
 </template>
 
 <script setup lang="ts">
-import { computed, defineAsyncComponent, onMounted, ref, watch } from 'vue'
+import { computed, defineAsyncComponent, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { fetchUserSetting, writeUserSetting } from '../../api/codexSettingsClient'
 import { fetchCatalogStatus, syncCatalogNow, type CatalogSyncStatus } from '../../api/codexCatalogClient'
 import { DESKTOP_SETTING_KEYS } from '../../composables/desktopSettingsKeys'
 import { useLocale, type AppLocale } from '../../composables/useLocale'
 import { BUILD_INFO } from '../../buildInfo'
+import IconTablerBell from '../icons/IconTablerBell.vue'
+import IconTablerChevronRight from '../icons/IconTablerChevronRight.vue'
+import IconTablerClipboardList from '../icons/IconTablerClipboardList.vue'
+import IconTablerFolder from '../icons/IconTablerFolder.vue'
+import IconTablerPhoto from '../icons/IconTablerPhoto.vue'
+import IconTablerRefresh from '../icons/IconTablerRefresh.vue'
+import IconTablerSearch from '../icons/IconTablerSearch.vue'
+import IconTablerSettings from '../icons/IconTablerSettings.vue'
+import IconTablerSun from '../icons/IconTablerSun.vue'
+import IconTablerX from '../icons/IconTablerX.vue'
 const WorkspaceThemePanel = defineAsyncComponent(() => import('./WorkspaceThemePanel.vue'))
 const BackgroundTasksPanel = defineAsyncComponent(() => import('./BackgroundTasksPanel.vue'))
 const AgentTasksPanel = defineAsyncComponent(() => import('./AgentTasksPanel.vue'))
@@ -186,6 +245,16 @@ withDefaults(defineProps<{ projects?: Array<{ cwd: string; label: string }> }>()
 defineEmits<{ selectThread: [threadId: string] }>()
 
 type FlameCorner = 'bottom-right' | 'bottom-left' | 'top-right' | 'top-left'
+type SettingsSection = 'appearance' | 'language' | 'catalog' | 'tasks' | 'feishu' | 'usage' | 'about'
+type SettingsGroup = 'general' | 'workspace' | 'integrations' | 'system'
+
+const SETTINGS_SECTIONS: SettingsSection[] = ['appearance', 'language', 'catalog', 'tasks', 'feishu', 'usage', 'about']
+
+function sectionFromHash(): SettingsSection | null {
+  if (typeof window === 'undefined') return null
+  const key = window.location.hash.replace(/^#settings-/u, '')
+  return SETTINGS_SECTIONS.includes(key as SettingsSection) ? key as SettingsSection : null
+}
 
 type FlameSettings = {
   enabled: boolean
@@ -214,16 +283,25 @@ const saveMessage = ref('')
 const saveTone = ref<'success' | 'danger'>('success')
 const hasHydrated = ref(false)
 const settingsQuery = ref('')
+const activeSection = ref<SettingsSection>(sectionFromHash() ?? 'feishu')
 const settingsNavItems = computed(() => [
-  { id: 'settings-about', key: 'about', label: t('settings.nav.about'), terms: 'about version build git sha commit 关于 版本 构建 提交' },
-  { id: 'settings-language', key: 'language', label: t('settings.nav.language'), terms: 'language locale chinese english 语言 中文 英文' },
-  { id: 'settings-catalog', key: 'catalog', label: t('settings.nav.catalog'), terms: 'catalog sync projects conversations 目录 同步 项目 会话' },
-  { id: 'settings-feishu', key: 'feishu', label: t('settings.nav.feishu'), terms: 'feishu lark bot app id secret bindings sessions 飞书 机器人 凭据 会话 绑定' },
-  { id: 'settings-tasks', key: 'tasks', label: t('settings.nav.tasks'), terms: 'background tasks sync token diagnostics jobs 后台 任务 校准' },
-  { id: 'settings-appearance', key: 'appearance', label: t('settings.nav.appearance'), terms: 'appearance theme skin layout density accent 外观 主题' },
-  { id: 'settings-usage', key: 'usage', label: t('settings.nav.usage'), terms: 'usage token flame position motion 用量 火焰' },
-] as const)
+  { key: 'appearance' as const, group: 'general' as const, label: t('settings.nav.appearance'), hint: t('settings.nav.appearanceHint'), title: t('settings.appearance.title'), subtitle: t('settings.appearance.subtitle'), terms: 'appearance theme skin layout density accent 外观 主题', icon: IconTablerSun },
+  { key: 'language' as const, group: 'general' as const, label: t('settings.nav.language'), hint: t('settings.nav.languageHint'), title: t('settings.language.title'), subtitle: t('settings.language.subtitle'), terms: 'language locale chinese english 语言 中文 英文', icon: IconTablerSettings },
+  { key: 'catalog' as const, group: 'workspace' as const, label: t('settings.nav.catalog'), hint: t('settings.nav.catalogHint'), title: t('settings.catalog.title'), subtitle: t('settings.catalog.subtitle'), terms: 'catalog sync projects conversations 目录 同步 项目 会话', icon: IconTablerFolder },
+  { key: 'tasks' as const, group: 'workspace' as const, label: t('settings.nav.tasks'), hint: t('settings.nav.tasksHint'), title: t('settings.tasks.title'), subtitle: t('settings.tasks.subtitle'), terms: 'background tasks sync token diagnostics jobs 后台 任务 校准', icon: IconTablerRefresh },
+  { key: 'feishu' as const, group: 'integrations' as const, label: t('settings.nav.feishu'), hint: t('settings.nav.feishuHint'), title: t('settings.feishu.title'), subtitle: t('settings.feishu.subtitle'), terms: 'feishu lark bot app id secret bindings sessions 飞书 机器人 凭据 会话 绑定', icon: IconTablerBell },
+  { key: 'usage' as const, group: 'system' as const, label: t('settings.nav.usage'), hint: t('settings.nav.usageHint'), title: t('settings.tokenFlame.title'), subtitle: t('settings.tokenFlame.subtitle'), terms: 'usage token flame position motion 用量 火焰', icon: IconTablerPhoto },
+  { key: 'about' as const, group: 'system' as const, label: t('settings.nav.about'), hint: t('settings.nav.aboutHint'), title: t('settings.about.title'), subtitle: t('settings.about.subtitle'), terms: 'about version build git sha commit 关于 版本 构建 提交', icon: IconTablerClipboardList },
+])
 const visibleNavItems = computed(() => settingsNavItems.value.filter((item) => matchesSettings(item.key)))
+const navGroupOrder: SettingsGroup[] = ['general', 'workspace', 'integrations', 'system']
+const visibleNavGroups = computed(() => navGroupOrder.map((key) => ({
+  key,
+  label: t(`settings.nav.group.${key}`),
+  items: visibleNavItems.value.filter((item) => item.group === key),
+})).filter((group) => group.items.length > 0))
+const activeNavItem = computed(() => settingsNavItems.value.find((item) => item.key === activeSection.value) ?? null)
+const activeGroupLabel = computed(() => activeNavItem.value ? t(`settings.nav.group.${activeNavItem.value.group}`) : '')
 const unifiedSaveState = computed(() => {
   if (!hasHydrated.value) return t('settings.save.loading')
   if (saveTone.value === 'danger') return t('settings.save.failed')
@@ -251,11 +329,28 @@ const catalogStatusLabel = computed(() => {
 })
 const buildTimeLabel = computed(() => formatCatalogTime(BUILD_INFO.builtAt))
 
-function matchesSettings(key: string): boolean {
+function matchesSettings(key: SettingsSection): boolean {
   const query = settingsQuery.value.trim().toLowerCase()
   if (!query) return true
   const item = settingsNavItems.value.find((candidate) => candidate.key === key)
   return Boolean(item && `${item.label} ${item.terms}`.toLowerCase().includes(query))
+}
+
+function selectSettingsSection(key: SettingsSection, updateHash = true): void {
+  activeSection.value = key
+  if (updateHash && typeof window !== 'undefined') {
+    window.history.replaceState(window.history.state, '', `#settings-${key}`)
+  }
+  void nextTick(() => document.querySelector<HTMLElement>('#settings-content')?.focus({ preventScroll: true }))
+}
+
+function onMobileSectionSelect(event: Event): void {
+  selectSettingsSection((event.target as HTMLSelectElement).value as SettingsSection)
+}
+
+function onSettingsHashChange(): void {
+  const section = sectionFromHash()
+  if (section) selectSettingsSection(section, false)
 }
 
 function formatCatalogTime(value: string | null | undefined): string {
@@ -358,137 +453,398 @@ watch(flameSettings, (nextSettings) => {
     })
 }, { deep: true })
 
+watch(visibleNavItems, (items) => {
+  if (items.length > 0 && !items.some((item) => item.key === activeSection.value)) {
+    selectSettingsSection(items[0].key, false)
+  }
+})
+
 onMounted(() => {
   void loadFlameSettings()
   void loadCatalogStatus()
+  window.addEventListener('hashchange', onSettingsHashChange)
 })
+
+onBeforeUnmount(() => window.removeEventListener('hashchange', onSettingsHashChange))
 </script>
 
 <style scoped>
 @reference "../../style.css";
 
 .app-settings-page {
-  @apply mx-auto grid h-full min-h-0 w-full gap-5 overflow-y-auto px-6 pb-8 pt-4;
-  grid-template-columns: 13rem minmax(0, 1fr);
+  @apply h-full min-h-0 w-full overflow-y-auto px-6 pb-10 pt-5;
   background: var(--color-background);
   color: var(--color-text);
 }
 
+.app-settings-page-header {
+  @apply mx-auto mb-5 flex w-full max-w-[92rem] items-end justify-between gap-6;
+  padding-inline: 0.2rem;
+}
+
+.app-settings-page-header h1 {
+  @apply m-0 text-2xl font-semibold tracking-tight;
+  color: var(--color-text);
+}
+
+.app-settings-page-header > div > p:last-child {
+  @apply m-0 mt-1 max-w-3xl text-sm leading-6;
+  color: var(--color-text-muted);
+}
+
+.app-settings-eyebrow {
+  @apply m-0 mb-1;
+  color: var(--color-accent);
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.app-settings-page-meta {
+  @apply flex shrink-0 flex-col items-end gap-2;
+}
+
+.app-settings-count {
+  @apply text-xs;
+  color: var(--color-text-muted);
+}
+
+.app-settings-global-state {
+  @apply inline-flex min-h-8 items-center gap-2 rounded-full border px-3 text-xs font-medium;
+  border-color: color-mix(in srgb, var(--color-success) 34%, var(--color-border));
+  background: color-mix(in srgb, var(--color-success) 9%, var(--color-panel));
+  color: color-mix(in srgb, var(--color-success) 55%, var(--color-text));
+}
+
+.app-settings-global-state > span {
+  @apply h-2 w-2 rounded-full;
+  background: var(--color-success);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-success) 14%, transparent);
+}
+
+.app-settings-global-state[data-tone='danger'] {
+  border-color: color-mix(in srgb, var(--color-danger) 36%, var(--color-border));
+  background: color-mix(in srgb, var(--color-danger) 9%, var(--color-panel));
+  color: var(--color-danger);
+}
+
+.app-settings-global-state[data-tone='danger'] > span {
+  background: var(--color-danger);
+}
+
+.app-settings-workspace {
+  @apply mx-auto grid w-full max-w-[92rem] items-start gap-5;
+  grid-template-columns: 17rem minmax(0, 1fr);
+}
+
 .app-settings-nav {
-  position: sticky;
-  top: 0;
-  align-self: start;
-  display: grid;
-  gap: 0.9rem;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-lg);
-  background: var(--color-panel);
-  padding: 0.8rem;
+  @apply sticky top-4 grid gap-4 rounded-xl border p-3;
+  border-color: var(--color-border);
+  background: color-mix(in srgb, var(--color-panel) 94%, transparent);
   box-shadow: var(--shadow-panel);
 }
 
 .app-settings-search {
-  display: grid;
-  gap: 0.35rem;
+  @apply grid gap-1.5 px-1;
 }
 
-.app-settings-search span {
+.app-settings-search > span:first-child,
+.app-settings-mobile-select > span {
   color: var(--color-text-muted);
   font-family: var(--font-mono);
-  font-size: 0.63rem;
-  font-weight: 650;
+  font-size: 0.65rem;
+  font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
 
-.app-settings-search input {
-  min-width: 0;
-  width: 100%;
+.app-settings-search-control {
+  @apply flex min-h-10 items-center gap-2 rounded-lg border px-2.5 transition;
   border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
   background: var(--color-elevated);
-  padding: 0.55rem 0.65rem;
-  color: var(--color-text);
-  font-size: 0.78rem;
 }
 
-.app-settings-nav nav {
-  display: grid;
-  gap: 0.2rem;
+.app-settings-search-control:focus-within {
+  border-color: color-mix(in srgb, var(--color-accent) 65%, var(--color-border));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-accent) 12%, transparent);
 }
 
-.app-settings-nav a {
-  border-radius: var(--radius-sm);
-  padding: 0.5rem 0.6rem;
+.app-settings-search-control > svg {
+  @apply h-4 w-4 shrink-0;
   color: var(--color-text-muted);
-  font-size: 0.82rem;
-  text-decoration: none;
 }
 
-.app-settings-nav a:hover {
-  background: var(--color-elevated);
+.app-settings-search input {
+  @apply min-w-0 flex-1 border-0 bg-transparent p-0 text-sm outline-none;
   color: var(--color-text);
 }
 
-.app-settings-save-state {
-  margin: 0;
-  border-top: 1px solid var(--color-border);
-  padding: 0.7rem 0.25rem 0;
-  color: var(--color-text-muted);
-  font-size: 0.7rem;
-  line-height: 1.4;
+.app-settings-search input::-webkit-search-cancel-button {
+  appearance: none;
 }
 
-.app-settings-save-state[data-tone='danger'] {
-  color: var(--color-danger);
+.app-settings-search-control button {
+  @apply inline-flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-md border-0 bg-transparent transition;
+  color: var(--color-text-muted);
+}
+
+.app-settings-search-control button:hover {
+  background: var(--color-surface);
+  color: var(--color-text);
+}
+
+.app-settings-search-control button svg {
+  @apply h-3.5 w-3.5;
+}
+
+.app-settings-mobile-select {
+  display: none;
+}
+
+.app-settings-nav-groups {
+  @apply grid gap-4;
+}
+
+.app-settings-nav-group {
+  @apply grid gap-1;
+}
+
+.app-settings-nav-group h2 {
+  @apply m-0 px-2 pb-1 text-[0.65rem] font-semibold uppercase tracking-[0.12em];
+  color: var(--color-text-muted);
+}
+
+.app-settings-nav-group button {
+  @apply grid min-h-14 w-full cursor-pointer grid-cols-[2rem_minmax(0,1fr)_1rem] items-center gap-2 rounded-lg border border-transparent bg-transparent px-2 py-2 text-left transition duration-200;
+  color: var(--color-text-muted);
+}
+
+.app-settings-nav-group button:hover {
+  background: var(--color-elevated);
+  color: var(--color-text);
+}
+
+.app-settings-nav-group button.is-active {
+  border-color: color-mix(in srgb, var(--color-accent) 30%, var(--color-border));
+  background: linear-gradient(100deg, color-mix(in srgb, var(--color-accent) 13%, var(--color-elevated)), var(--color-elevated));
+  color: var(--color-text);
+  box-shadow: inset 3px 0 0 var(--color-accent);
+}
+
+.app-settings-nav-group button:focus-visible,
+.app-settings-no-results button:focus-visible,
+.catalog-sync-button:focus-visible,
+.flame-settings-reset-position:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+.app-settings-nav-icon,
+.app-settings-content-icon {
+  @apply inline-flex items-center justify-center rounded-md border;
+  border-color: var(--color-border);
+  background: var(--color-surface);
+}
+
+.app-settings-nav-icon {
+  @apply h-8 w-8;
+}
+
+.app-settings-nav-icon svg {
+  @apply h-4 w-4;
+}
+
+.app-settings-nav-group button.is-active .app-settings-nav-icon {
+  border-color: color-mix(in srgb, var(--color-accent) 38%, var(--color-border));
+  color: var(--color-accent);
+}
+
+.app-settings-nav-copy {
+  @apply grid min-w-0 gap-0.5;
+}
+
+.app-settings-nav-copy strong {
+  @apply truncate text-sm font-semibold;
+}
+
+.app-settings-nav-copy small {
+  @apply truncate text-[0.68rem] font-normal;
+  color: var(--color-text-muted);
+}
+
+.app-settings-nav-chevron {
+  @apply h-4 w-4 opacity-0 transition;
+}
+
+.app-settings-nav-group button:hover .app-settings-nav-chevron,
+.app-settings-nav-group button.is-active .app-settings-nav-chevron {
+  opacity: 1;
+}
+
+.app-settings-nav-empty {
+  @apply m-0 rounded-lg border border-dashed p-3 text-xs leading-5;
+  border-color: var(--color-border);
+  color: var(--color-text-muted);
+}
+
+.app-settings-nav-footer {
+  @apply flex items-center justify-between gap-3 border-t px-2 pt-3 text-[0.68rem];
+  border-color: var(--color-border);
+  color: var(--color-text-muted);
+}
+
+.app-settings-nav-footer strong {
+  font-family: var(--font-mono);
+  color: var(--color-text);
 }
 
 .app-settings-content {
-  display: flex;
-  min-width: 0;
-  flex-direction: column;
-  gap: 1rem;
+  @apply flex min-w-0 flex-col gap-4 outline-none;
+}
+
+.app-settings-content-header {
+  @apply flex min-h-[7.25rem] items-center gap-4 overflow-hidden rounded-xl border px-5 py-4;
+  border-color: var(--color-border);
+  background:
+    radial-gradient(circle at 100% 0%, color-mix(in srgb, var(--color-accent) 12%, transparent), transparent 40%),
+    var(--color-panel);
+  box-shadow: var(--shadow-panel);
+}
+
+.app-settings-content-icon {
+  @apply h-12 w-12 shrink-0;
+  border-color: color-mix(in srgb, var(--color-accent) 32%, var(--color-border));
+  background: color-mix(in srgb, var(--color-accent) 10%, var(--color-surface));
+  color: var(--color-accent);
+}
+
+.app-settings-content-icon svg {
+  @apply h-6 w-6;
+}
+
+.app-settings-content-header p {
+  @apply m-0 text-[0.68rem] font-semibold uppercase tracking-[0.12em];
+  color: var(--color-accent);
+}
+
+.app-settings-content-header h2 {
+  @apply m-0 mt-1 text-xl font-semibold tracking-tight;
+  color: var(--color-text);
+}
+
+.app-settings-content-header div > span {
+  @apply mt-1 block max-w-3xl text-sm leading-5;
+  color: var(--color-text-muted);
 }
 
 .app-settings-no-results {
-  margin: 0;
-  border: 1px dashed var(--color-border);
-  border-radius: var(--radius-lg);
-  padding: 2rem;
+  @apply flex min-h-72 flex-col items-center justify-center rounded-xl border border-dashed p-8 text-center;
+  border-color: var(--color-border);
+  background: var(--color-panel);
   color: var(--color-text-muted);
-  text-align: center;
+}
+
+.app-settings-no-results > svg {
+  @apply h-8 w-8;
+}
+
+.app-settings-no-results h2 {
+  @apply m-0 mt-3 text-base font-semibold;
+  color: var(--color-text);
+}
+
+.app-settings-no-results p {
+  @apply m-0 mt-1 text-sm;
+}
+
+.app-settings-no-results button {
+  @apply mt-4 min-h-10 cursor-pointer rounded-lg border px-4 text-sm font-medium transition;
+  border-color: var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-text);
 }
 
 .app-settings-section {
-  @apply rounded-lg border theme-border theme-bg-subtle p-4;
+  @apply min-w-0 rounded-xl border p-5;
   background: var(--color-panel);
   border-color: var(--color-border);
   box-shadow: var(--shadow-panel);
 }
 
-.app-settings-section-header {
-  @apply mb-3 flex items-start justify-between gap-4;
+.app-settings-section-embedded {
+  @apply border-0 bg-transparent p-0 shadow-none;
+}
+
+.app-settings-stack {
+  @apply grid gap-4;
+}
+
+.app-settings-section-toolbar,
+.app-settings-control-row {
+  @apply flex items-center justify-between gap-5;
+}
+
+.app-settings-section-toolbar {
+  @apply mb-4;
+}
+
+.app-settings-control-row-top {
+  @apply mb-4 border-b pb-4;
+  border-color: var(--color-border);
+}
+
+.app-settings-section-toolbar > div,
+.app-settings-control-row > div {
+  @apply grid min-w-0 gap-1;
+}
+
+.app-settings-section-toolbar strong,
+.app-settings-control-row strong {
+  @apply text-sm font-semibold;
+  color: var(--color-text);
+}
+
+.app-settings-section-toolbar span,
+.app-settings-control-row > div > span {
+  @apply text-xs leading-5;
+  color: var(--color-text-muted);
 }
 
 .catalog-sync-button {
-  @apply inline-flex h-9 shrink-0 items-center justify-center rounded-md border theme-border theme-bg-panel px-3 text-sm font-medium theme-muted transition hover:theme-bg-control disabled:cursor-wait disabled:opacity-60;
+  @apply inline-flex min-h-10 shrink-0 cursor-pointer items-center justify-center gap-2 rounded-lg border px-3 text-sm font-medium transition disabled:cursor-wait disabled:opacity-60;
   background: var(--color-surface);
   border-color: var(--color-border);
   color: var(--color-text);
 }
 
+.catalog-sync-button:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--color-accent) 38%, var(--color-border));
+  background: var(--color-elevated);
+}
+
+.catalog-sync-button svg {
+  @apply h-4 w-4;
+}
+
+.catalog-sync-button svg.is-spinning {
+  animation: settings-spin 0.9s linear infinite;
+}
+
 .catalog-sync-status {
-  @apply m-0 grid grid-cols-3 gap-3 border-t theme-border pt-3;
-  border-color: var(--color-border);
+  @apply m-0 grid grid-cols-3 gap-3;
 }
 
 .app-version-details {
-  @apply m-0 grid gap-3 border-t theme-border pt-3 md:grid-cols-3;
-  border-color: var(--color-border);
+  @apply m-0 grid gap-3 md:grid-cols-2 xl:grid-cols-4;
 }
 
-.app-version-details div {
-  @apply min-w-0;
+.app-version-details div,
+.catalog-sync-status div {
+  @apply min-w-0 rounded-lg border p-3;
+  border-color: var(--color-border);
+  background: var(--color-surface);
 }
 
 .app-version-details dt {
@@ -499,10 +855,6 @@ onMounted(() => {
 .app-version-details dd {
   @apply m-0 mt-1 truncate font-mono text-sm theme-text;
   color: var(--color-text);
-}
-
-.catalog-sync-status div {
-  @apply min-w-0;
 }
 
 .catalog-sync-status dt {
@@ -520,18 +872,8 @@ onMounted(() => {
   color: var(--color-danger);
 }
 
-.app-settings-title {
-  @apply m-0 text-base font-semibold theme-text;
-  color: var(--color-text);
-}
-
-.app-settings-subtitle {
-  @apply m-0 mt-1 text-sm theme-muted;
-  color: var(--color-text-muted);
-}
-
 .app-settings-switch {
-  @apply inline-flex shrink-0 items-center gap-2 rounded-md border theme-border theme-bg-panel px-3 py-2 text-sm font-medium theme-muted;
+  @apply inline-flex min-h-10 shrink-0 cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium;
   background: var(--color-surface);
   border-color: var(--color-border);
   color: var(--color-text);
@@ -552,10 +894,16 @@ onMounted(() => {
 }
 
 .app-settings-language-select select {
-  @apply h-9 min-w-40 rounded-md border theme-border theme-bg-panel px-2 text-sm theme-text outline-none transition focus:theme-border-info;
+  @apply min-h-10 min-w-48 cursor-pointer rounded-lg border px-3 text-sm outline-none transition;
   background: var(--color-surface);
   border-color: var(--color-border);
   color: var(--color-text);
+}
+
+.app-settings-language-select select:focus-visible,
+.flame-settings-controls select:focus-visible {
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-accent) 12%, transparent);
 }
 
 .flame-settings-card {
@@ -639,10 +987,14 @@ onMounted(() => {
 }
 
 .flame-settings-reset-position {
-  @apply h-9 rounded-md border theme-border theme-bg-panel px-3 text-sm font-medium theme-muted transition hover:theme-bg-subtle;
+  @apply min-h-10 cursor-pointer rounded-lg border px-3 text-sm font-medium transition;
   background: var(--color-surface);
   border-color: var(--color-border);
   color: var(--color-text);
+}
+
+.flame-settings-reset-position:hover {
+  background: var(--color-elevated);
 }
 
 .flame-settings-message {
@@ -705,38 +1057,53 @@ onMounted(() => {
   color: var(--color-text-muted);
 }
 
+@keyframes settings-spin {
+  to { transform: rotate(360deg); }
+}
+
 @media (max-width: 1000px) {
   .app-settings-page {
-    grid-template-columns: minmax(0, 1fr);
     padding-inline: 0.75rem;
+  }
+
+  .app-settings-page-header {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  .app-settings-page-meta {
+    align-items: center;
+    flex-direction: row;
+  }
+
+  .app-settings-workspace {
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .app-settings-nav {
     position: relative;
+    top: auto;
   }
 
-  .app-settings-nav nav {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-  }
-
-  .app-settings-save-state {
+  .app-settings-nav-groups,
+  .app-settings-nav-footer {
     display: none;
   }
 
-  .app-settings-nav a {
-    text-align: center;
+  .app-settings-mobile-select {
+    @apply grid gap-1.5 px-1;
   }
 
-  .app-settings-section-header {
-    flex-wrap: wrap;
+  .app-settings-mobile-select select {
+    @apply min-h-11 w-full cursor-pointer rounded-lg border px-3 text-sm outline-none;
+    border-color: var(--color-border);
+    background: var(--color-elevated);
+    color: var(--color-text);
   }
 
-  .app-settings-language-select {
-    width: 100%;
-  }
-
-  .app-settings-language-select select {
-    width: 100%;
+  .app-settings-content-header {
+    min-height: 6.5rem;
   }
 
   .catalog-sync-status {
@@ -744,9 +1111,87 @@ onMounted(() => {
   }
 }
 
-@media (max-width: 520px) {
-  .app-settings-nav nav {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+@media (max-width: 640px) {
+  .app-settings-page {
+    padding-bottom: 2rem;
+    padding-top: 0.75rem;
+  }
+
+  .app-settings-page-header h1 {
+    @apply text-xl;
+  }
+
+  .app-settings-search input,
+  .app-settings-mobile-select select,
+  .app-settings-language-select select,
+  .flame-settings-controls select {
+    font-size: 1rem;
+  }
+
+  .app-settings-count {
+    display: none;
+  }
+
+  .app-settings-content-header {
+    @apply items-start px-4;
+  }
+
+  .app-settings-content-icon {
+    @apply h-10 w-10;
+  }
+
+  .app-settings-section {
+    @apply p-4;
+  }
+
+  .app-settings-section-embedded {
+    padding: 0;
+  }
+
+  .app-settings-section-toolbar,
+  .app-settings-control-row {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .catalog-sync-button,
+  .app-settings-switch,
+  .app-settings-language-select,
+  .app-settings-language-select select {
+    width: 100%;
+  }
+
+  .flame-settings-card {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .flame-preview {
+    display: none;
+  }
+
+  .flame-settings-controls {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .flame-settings-controls select,
+  .flame-settings-reset-position {
+    width: 100%;
+  }
+
+  .flame-level-list {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-settings-page *,
+  .app-settings-page *::before,
+  .app-settings-page *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
   }
 }
 </style>
