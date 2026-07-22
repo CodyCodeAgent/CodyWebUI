@@ -283,10 +283,19 @@ describe('FeishuBotService', () => {
     expect((transport as unknown as { client: { domain: string } }).client.domain).toBe('https://open.larksuite.com')
   })
 
-  it('normalizes group topic routing and removes the bot mention', () => {
-    const normalized = normalizeFeishuInbound(bot, inbound({ root_id: 'om_root' }))
+  it('keeps an ordinary group reply chat-scoped when it only has root_id', () => {
+    const normalized = normalizeFeishuInbound(bot, inbound({ message_id: 'om_reply', root_id: 'om_root' }))
+    expect(normalized).toMatchObject({
+      bindingKey: 'bot-1:group:oc_1:oc_1', rootId: '', prompt: 'hello', explicitlyMentioned: true,
+      topLevel: true,
+    })
+  })
+
+  it('normalizes real group topic routing and removes the bot mention', () => {
+    const normalized = normalizeFeishuInbound(bot, inbound({ root_id: 'om_root', thread_id: 'omt_thread' }))
     expect(normalized).toMatchObject({
       bindingKey: 'bot-1:group:oc_1:om_root', rootId: 'om_root', prompt: 'hello', explicitlyMentioned: true,
+      topLevel: false,
     })
   })
 
@@ -729,6 +738,21 @@ describe('FeishuBotService', () => {
     service.handleAppServerNotification({ method: 'item/agentMessage/delta', params: { threadId: 'thread-1', turnId: 'turn-1', delta: 'world' } })
     service.handleAppServerNotification({ method: 'turn/completed', params: { threadId: 'thread-1', turn: { id: 'turn-1', status: 'completed' } } })
     await vi.waitFor(() => expect(transport.cards.some((row) => row.kind === 'patch' && JSON.stringify(row.card).includes('Hello world'))).toBe(true))
+    await service.stop()
+  })
+
+  it('does not turn an ordinary group reply into a topic after the group is bound', async () => {
+    const existing: FeishuSessionBinding = {
+      botId: 'bot-1', bindingKey: 'bot-1:group:oc_1:oc_1', chatId: 'oc_1', rootId: '', chatType: 'group',
+      senderOpenId: 'ou_user', projectKey: '/repo', projectLabel: 'Repo', cwd: '/repo',
+      threadId: 'thread-1', threadTitle: 'Existing thread',
+    }
+    const { service, transport, startTurn } = harness(existing)
+    await service.start()
+    transport.handlers?.onMessage(inbound({ message_id: 'om_reply', root_id: 'om_original' }))
+    await vi.waitFor(() => expect(startTurn).toHaveBeenCalledOnce())
+    expect(startTurn).toHaveBeenCalledWith(expect.objectContaining({ threadId: 'thread-1', prompt: 'hello' }))
+    expect(transport.repliesInThread[0]).toBe(false)
     await service.stop()
   })
 
@@ -1482,7 +1506,7 @@ describe('FeishuBotService', () => {
     const topicBinding = { ...binding(), bindingKey: 'bot-1:group:oc_1:om_root', rootId: 'om_root' }
     const topic = harness(topicBinding, { bot: { ...bot, groupMentionMode: 'topic' } })
     await topic.service.start()
-    topic.transport.handlers?.onMessage(inbound({ root_id: 'om_root', content: JSON.stringify({ text: 'continue topic' }), mentions: [] }))
+    topic.transport.handlers?.onMessage(inbound({ root_id: 'om_root', thread_id: 'omt_topic', content: JSON.stringify({ text: 'continue topic' }), mentions: [] }))
     await vi.waitFor(() => expect(topic.startTurn).toHaveBeenCalledOnce())
     await topic.service.stop()
 
@@ -1582,7 +1606,7 @@ describe('FeishuBotService', () => {
   })
 
   it('downloads resources from a quoted message using the quoted message id', async () => {
-    const quotedBinding = { ...binding(), bindingKey: 'bot-1:group:oc_1:om_root', rootId: 'om_root' }
+    const quotedBinding = binding()
     const { service, transport, startTurn } = harness(quotedBinding)
     transport.getMessage = vi.fn(async (messageId) => ({ data: { items: [{
       message_id: messageId, msg_type: 'image', body: { content: JSON.stringify({ image_key: 'img_quote' }) },

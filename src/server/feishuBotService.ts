@@ -406,12 +406,12 @@ export function normalizeFeishuInbound(bot: FeishuBotDefinition, payload: unknow
     : resource)
   const rawRootId = readString(message.root_id || message.rootId)
   const rawThreadId = readString(message.thread_id || message.threadId)
-  // Feishu quote replies may expose root_id without actually being inside a
-  // topic. Only the root_id + thread_id pair is a reliable topic signal.
+  // Feishu ordinary replies may expose root_id without actually being inside
+  // a topic. Only the root_id + thread_id pair is a reliable topic signal.
   const isThreadReply = Boolean(rawRootId && rawThreadId)
   const rootId = chatType === 'p2p'
     ? (bot.p2pMode === 'chat' ? '' : isThreadReply ? rawRootId : messageId)
-    : rawRootId || rawThreadId || ''
+    : isThreadReply ? rawRootId : ''
   const anchor = rootId || (chatType === 'group' ? chatId : '')
   const eventId = readString(envelope?.event_id || envelope?.eventId || nestedRecord(envelope, 'header')?.event_id)
   const hasNonBotMention = parsedMessage.mentions.some((mention) => {
