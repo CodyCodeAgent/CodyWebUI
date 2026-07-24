@@ -34,7 +34,6 @@
       :models="availableModelIds" :selected-model="selectedModelId" :selected-reasoning-effort="selectedReasoningEffort"
       :collaboration-modes="collaborationModeOptions" :selected-collaboration-mode="selectedCollaborationModeName"
       :selected-permission-mode="selectedPermissionMode" :busy-label="threadComposerBusyLabel" :cwd="selectedThread?.cwd ?? ''"
-      :context-usage="selectedThreadContextUsage"
       :is-turn-in-progress="isSelectedThreadInProgress" :is-interrupting-turn="isInterruptingTurn"
       @submit="emit('submitMessage', $event)" @update:selected-model="emit('selectModel', $event)"
       @update:selected-reasoning-effort="emit('selectReasoningEffort', $event)"
@@ -47,7 +46,7 @@
 import { defineAsyncComponent } from 'vue'
 import type { PromptInsertion } from '../../composables/promptLibraryRules'
 import { useLocale } from '../../composables/useLocale'
-import type { ReasoningEffort, ThreadScrollState, UiCollaborationModeOption, UiComposerPermissionMode, UiComposerSubmitPayload, UiLiveOverlay, UiMessage, UiServerRequest, UiServerRequestReply, UiThread, UiThreadContextUsage } from '../../types/codex'
+import type { ReasoningEffort, ThreadScrollState, UiCollaborationModeOption, UiComposerPermissionMode, UiComposerSubmitPayload, UiLiveOverlay, UiMessage, UiServerRequest, UiServerRequestReply, UiThread } from '../../types/codex'
 import ComposerDropdown from '../content/ComposerDropdown.vue'
 import ThreadComposer from '../content/ThreadComposer.vue'
 import ThreadConversation from '../content/ThreadConversation.vue'
@@ -64,7 +63,6 @@ defineProps<{
   selectedCollaborationModeName: string; selectedPermissionMode: UiComposerPermissionMode; homeComposerBusyLabel: string
   filteredMessages: UiMessage[]; isLoadingMessages: boolean; selectedThread: UiThread | null; selectedMessageLoadError: string
   selectedThreadScrollState: ThreadScrollState | null; liveOverlay: UiLiveOverlay | null; selectedThreadServerRequests: UiServerRequest[]
-  selectedThreadContextUsage: UiThreadContextUsage | null
   threadComposerBusyLabel: string; isSelectedThreadInProgress: boolean; isInterruptingTurn: boolean
 }>()
 const emit = defineEmits<{

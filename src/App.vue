@@ -228,6 +228,10 @@
             {{ activeWorkspaceSkillCount === null ? t('skills.title') : t('skills.count', { count: String(activeWorkspaceSkillCount) }) }}
           </button>
         </div>
+        <ThreadContextUsageBar
+          v-if="!isHomeRoute && !isSettingsRoute && !isSkillsRoute"
+          :usage="selectedThreadContextUsage"
+        />
 
         <RateLimitFloatingStatus
           :snapshot="rateLimitSnapshot"
@@ -259,7 +263,7 @@
             promptInsertion, availableModelIds, selectedModelId, selectedReasoningEffort, collaborationModeOptions,
             selectedCollaborationModeName, selectedPermissionMode, homeComposerBusyLabel, filteredMessages,
             isLoadingMessages, selectedThread, selectedMessageLoadError, selectedThreadScrollState, liveOverlay,
-            selectedThreadServerRequests, selectedThreadContextUsage, threadComposerBusyLabel,
+            selectedThreadServerRequests, threadComposerBusyLabel,
             isSelectedThreadInProgress, isInterruptingTurn }"
           @select-thread="onSelectThread" @respond-server-request="onRespondServerRequest"
           @select-new-thread-folder="onSelectNewThreadFolder" @submit-message="onSubmitThreadMessage"
@@ -300,6 +304,7 @@ import DesktopLayout from './components/layout/DesktopLayout.vue'
 import SidebarThreadTree from './components/sidebar/SidebarThreadTree.vue'
 import ContentHeader from './components/content/ContentHeader.vue'
 import ThreadActivityPanel from './components/content/ThreadActivityPanel.vue'
+import ThreadContextUsageBar from './components/content/ThreadContextUsageBar.vue'
 import DirectoryPickerModal from './components/content/DirectoryPickerModal.vue'
 import NewThreadSetupModal, { type NewThreadProjectOption } from './components/content/NewThreadSetupModal.vue'
 import RateLimitFloatingStatus from './components/content/RateLimitFloatingStatus.vue'

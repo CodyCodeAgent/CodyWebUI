@@ -68,43 +68,6 @@
         @keydown="onDraftKeydown"
       />
 
-      <div
-        v-if="contextUsagePresentation"
-        class="thread-context-usage"
-        data-testid="thread-context-usage"
-        :data-tone="contextUsagePresentation.tone"
-        role="status"
-        aria-live="polite"
-      >
-        <div class="thread-context-usage-copy">
-          <span class="thread-context-usage-label">{{ t('composer.contextUsage.label') }}</span>
-          <strong>{{ contextUsageStatus }}</strong>
-          <span
-            v-if="contextUsagePresentation.tone !== 'compacting' && contextUsagePresentation.tone !== 'compacted'"
-            class="thread-context-usage-count"
-          >
-            {{ contextUsagePresentation.usedLabel }}
-          </span>
-        </div>
-        <div
-          v-if="contextUsagePresentation.usedPercent !== null"
-          class="thread-context-usage-track"
-          role="progressbar"
-          :aria-label="t('composer.contextUsage.aria')"
-          aria-valuemin="0"
-          aria-valuemax="100"
-          :aria-valuenow="contextUsagePresentation.usedPercent"
-        >
-          <span class="thread-context-usage-fill" :style="{ width: `${String(contextUsagePresentation.usedPercent)}%` }" />
-          <span
-            v-if="contextUsagePresentation.autoCompactPercent !== null"
-            class="thread-context-usage-threshold"
-            :style="{ left: `${String(contextUsagePresentation.autoCompactPercent)}%` }"
-            :title="t('composer.contextUsage.threshold')"
-          />
-        </div>
-      </div>
-
       <div v-if="isSkillMenuOpen" class="thread-composer-skill-menu">
         <p v-if="isLoadingSkills" class="thread-composer-skill-status">{{ t('composer.skills.loading') }}</p>
         <p v-else-if="skillError" class="thread-composer-skill-status thread-composer-skill-status-error">
@@ -314,7 +277,6 @@ import type {
   UiComposerPermissionMode,
   UiComposerSkill,
   UiComposerSubmitPayload,
-  UiThreadContextUsage,
 } from '../../types/codex'
 import IconTablerArrowUp from '../icons/IconTablerArrowUp.vue'
 import IconTablerPhoto from '../icons/IconTablerPhoto.vue'
@@ -323,7 +285,6 @@ import IconTablerX from '../icons/IconTablerX.vue'
 import ComposerDropdown from './ComposerDropdown.vue'
 import { insertPromptIntoDraft, type PromptInsertion } from '../../composables/promptLibraryRules'
 import { useLocale } from '../../composables/useLocale'
-import { buildThreadContextUsagePresentation } from '../../composables/threadContextUsageRules'
 
 const props = defineProps<{
   activeThreadId: string
@@ -338,7 +299,6 @@ const props = defineProps<{
   isInterruptingTurn?: boolean
   disabled?: boolean
   busyLabel?: string
-  contextUsage?: UiThreadContextUsage | null
   promptInsertion?: PromptInsertion | null
 }>()
 
@@ -404,22 +364,6 @@ const collaborationModeOptions = computed(() =>
   props.collaborationModes.map((mode) => ({ value: mode.name, label: mode.label })),
 )
 const permissionModeOptions = COMPOSER_PERMISSION_MODE_OPTIONS
-const contextUsagePresentation = computed(() =>
-  props.contextUsage ? buildThreadContextUsagePresentation(props.contextUsage) : null,
-)
-const contextUsageStatus = computed(() => {
-  const presentation = contextUsagePresentation.value
-  if (!presentation) return ''
-  if (presentation.tone === 'compacting') return t('composer.contextUsage.compacting')
-  if (presentation.tone === 'compacted') return t('composer.contextUsage.compacted')
-  const replacements = { percent: String(presentation.usedPercent ?? 0) }
-  if (presentation.tone === 'critical') return t('composer.contextUsage.critical', replacements)
-  if (presentation.tone === 'warning') return t('composer.contextUsage.warning', replacements)
-  return presentation.usedPercent === null
-    ? t('composer.contextUsage.current')
-    : t('composer.contextUsage.percent', replacements)
-})
-
 const canSubmit = computed(() => {
   if (props.disabled) return false
   if (!props.activeThreadId) return false
@@ -724,75 +668,6 @@ watch(
 
 .thread-composer-input:disabled {
   @apply theme-bg-control theme-muted cursor-not-allowed;
-}
-
-.thread-context-usage {
-  @apply mb-1.5 grid gap-1.5 rounded-lg border theme-border theme-bg-subtle px-2.5 py-2;
-  transition: border-color 180ms ease, background-color 180ms ease;
-}
-
-.thread-context-usage-copy {
-  @apply flex min-w-0 items-baseline gap-2 text-[0.68rem] leading-4;
-}
-
-.thread-context-usage-label {
-  @apply shrink-0 font-semibold uppercase tracking-[0.12em] theme-muted;
-}
-
-.thread-context-usage-copy strong {
-  @apply min-w-0 flex-1 truncate font-medium theme-text;
-}
-
-.thread-context-usage-count {
-  @apply shrink-0 font-mono theme-muted;
-}
-
-.thread-context-usage-track {
-  @apply relative h-1 overflow-hidden rounded-full theme-bg-control;
-}
-
-.thread-context-usage-fill {
-  @apply absolute inset-y-0 left-0 rounded-full theme-bg-success;
-  min-width: 2px;
-  transition: width 220ms ease, background-color 180ms ease;
-}
-
-.thread-context-usage-threshold {
-  @apply absolute inset-y-[-2px] w-px bg-slate-400;
-}
-
-.thread-context-usage[data-tone='warning'] {
-  @apply theme-border-warning theme-bg-warning-soft;
-}
-
-.thread-context-usage[data-tone='warning'] .thread-context-usage-fill {
-  @apply theme-bg-warning;
-}
-
-.thread-context-usage[data-tone='critical'] {
-  @apply theme-border-danger theme-bg-danger-soft;
-}
-
-.thread-context-usage[data-tone='critical'] .thread-context-usage-fill {
-  @apply theme-bg-danger;
-}
-
-.thread-context-usage[data-tone='compacting'] {
-  @apply theme-border-info theme-bg-info-soft;
-}
-
-.thread-context-usage[data-tone='compacting'] .thread-context-usage-fill {
-  @apply theme-bg-info;
-  animation: thread-context-usage-pulse 1.1s ease-in-out infinite;
-}
-
-.thread-context-usage[data-tone='compacted'] {
-  @apply theme-border-success theme-bg-success-soft;
-}
-
-@keyframes thread-context-usage-pulse {
-  0%, 100% { opacity: 0.45; }
-  50% { opacity: 1; }
 }
 
 .thread-composer-skill-menu {
