@@ -16,7 +16,12 @@ const codexApiMock = vi.hoisted(() => {
     getAccountRateLimits: vi.fn(async (): Promise<UiRateLimitSnapshot | null> => null),
     getAvailableModelIds: vi.fn(async (): Promise<string[]> => []),
     getCollaborationModes: vi.fn(async () => []),
-    getCurrentModelConfig: vi.fn(async () => ({ model: '', reasoningEffort: '' })),
+    getCurrentModelConfig: vi.fn(async () => ({
+      model: '',
+      reasoningEffort: '',
+      modelContextWindow: 200_000,
+      autoCompactTokenLimit: 180_000,
+    })),
     fetchUserSetting: vi.fn(async (): Promise<unknown> => null),
     writeUserSetting: vi.fn(async (key: string, value: unknown) => ({
       key,
@@ -181,6 +186,49 @@ afterEach(() => {
 })
 
 describe('useDesktopState realtime messages', () => {
+  it('tracks context usage and exposes manual compaction lifecycle immediately', async () => {
+    installBrowserGlobals('thread-1')
+    const state = useDesktopState()
+    state.startRealtimeSync()
+    await flushPromises()
+
+    codexApiMock.getNotificationListener()?.({
+      method: 'thread/tokenUsage/updated',
+      params: {
+        threadId: 'thread-1',
+        turnId: 'turn-1',
+        tokenUsage: {
+          last: { inputTokens: 145_000, totalTokens: 150_000 },
+          modelContextWindow: 200_000,
+        },
+      },
+      atIso: '2026-07-24T10:00:00.000Z',
+    })
+
+    expect(state.selectedThreadContextUsage.value).toMatchObject({
+      threadId: 'thread-1',
+      usedTokens: 150_000,
+      contextWindow: 200_000,
+      autoCompactTokenLimit: null,
+      compactionState: 'idle',
+    })
+
+    const pendingCompact = deferred<void>()
+    codexApiMock.compactThread.mockReturnValueOnce(pendingCompact.promise)
+    const compactPromise = state.compactThreadById('thread-1')
+    expect(state.selectedThreadContextUsage.value?.compactionState).toBe('compacting')
+
+    codexApiMock.getNotificationListener()?.({
+      method: 'thread/compacted',
+      params: { threadId: 'thread-1' },
+      atIso: '2026-07-24T10:00:02.000Z',
+    })
+    expect(state.selectedThreadContextUsage.value?.compactionState).toBe('compacted')
+    pendingCompact.resolve()
+    await compactPromise
+    state.stopRealtimeSync()
+  })
+
   it('keeps the authoritative rate limit snapshot while a realtime invalidation refreshes it', async () => {
     installBrowserGlobals()
     const initialSnapshot = {

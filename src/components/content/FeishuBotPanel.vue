@@ -72,36 +72,6 @@
         </button>
       </section>
 
-      <section class="feishu-setup-history" :aria-label="t('settings.feishu.setupHistory.aria')">
-        <header>
-          <div>
-            <strong>{{ t('settings.feishu.setupHistory.title') }}</strong>
-            <span>{{ t('settings.feishu.setupHistory.hint') }}</span>
-          </div>
-          <span>{{ setupJobs.length }}</span>
-        </header>
-        <p v-if="setupJobs.length === 0">{{ t('settings.feishu.setupHistory.empty') }}</p>
-        <ul v-else>
-          <li v-for="job in setupJobs.slice(0, 10)" :key="job.id">
-            <div>
-              <span><strong>{{ job.name }}</strong><small>{{ qrStatusLabel(job.status) }}</small></span>
-              <time :datetime="job.updatedAtIso">{{ formatTime(job.updatedAtIso) }}</time>
-              <small v-if="job.account">{{ job.account.userName }} · {{ job.account.tenantName }}</small>
-              <code v-if="job.error">{{ job.error }}</code>
-            </div>
-            <button
-              v-if="isActiveQrStatus(job.status) || job.canRetry || job.bot"
-              class="feishu-secondary-button"
-              type="button"
-              :disabled="isQrSetupActive && qrSetupJob?.id !== job.id"
-              @click="openSetupJob(job)"
-            >
-              {{ job.bot && job.status === 'completed' ? t('settings.feishu.setupHistory.openBot') : t('settings.feishu.setupHistory.continue') }}
-            </button>
-          </li>
-        </ul>
-      </section>
-
       <div v-if="bots.length === 0 && !isCreating" class="feishu-empty">
         <strong>{{ t('settings.feishu.emptyBotsTitle') }}</strong>
         <p>{{ t('settings.feishu.emptyBotsBody') }}</p>
@@ -289,7 +259,6 @@
                 </button>
                 <button v-if="qrSetupJob?.canCancel" class="feishu-danger-button" type="button" @click="cancelQrSetup">{{ t('settings.feishu.qr.cancel') }}</button>
                 <button v-if="qrSetupJob?.canRetry" class="feishu-primary-button" type="button" @click="retryQrSetup">{{ t('settings.feishu.qr.retryConfig') }}</button>
-                <button v-if="qrSetupJob?.bot && ['completed', 'failed'].includes(qrSetupJob.status)" class="feishu-primary-button" type="button" @click="finishQrSetup">{{ t('settings.feishu.qr.openBot') }}</button>
                 <button v-if="!qrSetupJob || ['expired', 'cancelled'].includes(qrSetupJob.status) || (qrSetupJob.status === 'failed' && !qrSetupJob.canRetry)" class="feishu-primary-button" type="submit" :disabled="isSaving">
                   {{ isSaving ? t('settings.feishu.qr.starting') : t('settings.feishu.qr.start') }}
                 </button>
@@ -671,7 +640,6 @@ const createMode = ref<'qr' | 'manual'>('qr')
 const qrSetupJob = ref<FeishuQrSetupJob | null>(null)
 const platformSession = ref<FeishuOpenPlatformSession | null>(null)
 const existingApps = ref<FeishuOpenPlatformApp[]>([])
-const setupJobs = ref<FeishuQrSetupJob[]>([])
 const isLoading = ref(true)
 const isSaving = ref(false)
 const isDeleting = ref(false)
@@ -778,22 +746,11 @@ function replaceBot(bot: FeishuBot): void {
   else bots.value.push(bot)
 }
 
-function replaceSetupJob(job: FeishuQrSetupJob): void {
-  const index = setupJobs.value.findIndex((item) => item.id === job.id)
-  if (index >= 0) setupJobs.value.splice(index, 1, job)
-  else setupJobs.value.unshift(job)
-  setupJobs.value.sort((a, b) => b.updatedAtIso.localeCompare(a.updatedAtIso))
-}
-
-async function openSetupJob(job: FeishuQrSetupJob): Promise<void> {
-  if (job.bot && job.status === 'completed') {
-    replaceBot(job.bot)
-    selectBot(job.bot)
-    return
-  }
+function restoreSetupJob(job: FeishuQrSetupJob): void {
   isCreating.value = true
   createMode.value = 'qr'
   selectedBotId.value = ''
+  setDraft(emptyDraft())
   draft.name = job.name
   qrSetupJob.value = job
   actionError.value = ''
@@ -831,14 +788,12 @@ async function startCreate(): Promise<void> {
   connectivityReport.value = null
   connectivityError.value = ''
   try {
-    const resumable = (await fetchFeishuQrSetups()).find((job) => isActiveQrStatus(job.status) || job.canRetry)
+    const resumable = (await fetchFeishuQrSetups()).find((job) => isActiveQrStatus(job.status) || job.status === 'failed')
     if (resumable) {
-      qrSetupJob.value = resumable
-      draft.name = resumable.name
-      if (isActiveQrStatus(resumable.status)) scheduleQrSetupPoll()
+      restoreSetupJob(resumable)
     }
   } catch {
-    // Setup history is recovery assistance; a fresh QR flow remains available.
+    // Recovery is best-effort; a fresh QR flow remains available.
   }
   await nextTick()
   nameInput.value?.focus()
@@ -888,8 +843,7 @@ async function beginQrSetup(): Promise<void> {
       p2pMode: draft.p2pMode,
       availability: { mode: draft.availabilityMode, memberIds, groupIds },
     })
-    replaceSetupJob(qrSetupJob.value)
-    scheduleQrSetupPoll()
+    handleQrSetupUpdate(qrSetupJob.value)
   } catch (error) {
     actionError.value = errorMessage(error)
   } finally {
@@ -933,8 +887,7 @@ async function adoptExistingApp(app: FeishuOpenPlatformApp): Promise<void> {
       p2pMode: draft.p2pMode,
       availability: { mode: draft.availabilityMode, memberIds, groupIds },
     })
-    replaceSetupJob(qrSetupJob.value)
-    scheduleQrSetupPoll()
+    handleQrSetupUpdate(qrSetupJob.value)
   } catch (error) {
     actionError.value = errorMessage(error)
   } finally {
@@ -962,14 +915,7 @@ function scheduleQrSetupPoll(): void {
   if (!job || !isQrSetupActive.value) return
   qrSetupPollTimer = setTimeout(() => {
     void fetchFeishuQrSetup(job.id).then((next) => {
-      qrSetupJob.value = next
-      replaceSetupJob(next)
-      if (next.status === 'completed' && next.bot) {
-        replaceBot(next.bot)
-        stopQrSetupPolling()
-        return
-      }
-      scheduleQrSetupPoll()
+      handleQrSetupUpdate(next)
     }).catch((error) => {
       actionError.value = errorMessage(error)
       scheduleQrSetupPoll()
@@ -981,9 +927,20 @@ function isActiveQrStatus(status: FeishuQrSetupJob['status']): boolean {
   return ['starting', 'awaiting_scan', 'authorizing', 'confirming_identity', 'creating_app', 'configuring', 'connecting'].includes(status)
 }
 
-function finishQrSetup(): void {
-  const bot = qrSetupJob.value?.bot
+function handleQrSetupUpdate(job: FeishuQrSetupJob): void {
+  qrSetupJob.value = job
+  if (job.status === 'completed' && job.bot) {
+    finishQrSetup(job.bot)
+    return
+  }
+  if (isActiveQrStatus(job.status)) scheduleQrSetupPoll()
+  else stopQrSetupPolling()
+}
+
+function finishQrSetup(bot: FeishuBot): void {
   if (!bot) return
+  stopQrSetupPolling()
+  qrSetupJob.value = null
   replaceBot(bot)
   selectBot(bot)
   successMessage.value = t('settings.feishu.qr.completed')
@@ -995,7 +952,6 @@ async function cancelQrSetup(): Promise<void> {
   if (!job) return
   try {
     qrSetupJob.value = await cancelFeishuQrSetup(job.id)
-    replaceSetupJob(qrSetupJob.value)
     stopQrSetupPolling()
   } catch (error) {
     actionError.value = errorMessage(error)
@@ -1008,8 +964,7 @@ async function retryQrSetup(): Promise<void> {
   actionError.value = ''
   try {
     qrSetupJob.value = await retryFeishuQrSetup(job.id)
-    replaceSetupJob(qrSetupJob.value)
-    scheduleQrSetupPoll()
+    handleQrSetupUpdate(qrSetupJob.value)
   } catch (error) {
     actionError.value = errorMessage(error)
   }
@@ -1022,8 +977,7 @@ async function confirmQrIdentity(): Promise<void> {
   actionError.value = ''
   try {
     qrSetupJob.value = await confirmFeishuQrSetupIdentity(job.id)
-    replaceSetupJob(qrSetupJob.value)
-    scheduleQrSetupPoll()
+    handleQrSetupUpdate(qrSetupJob.value)
   } catch (error) {
     actionError.value = errorMessage(error)
   } finally {
@@ -1039,10 +993,15 @@ async function loadData(): Promise<void> {
   isLoading.value = true
   loadError.value = ''
   try {
-    const [nextBots, nextBindings, nextSetups] = await Promise.all([fetchFeishuBots(), fetchFeishuBindings(), fetchFeishuQrSetups()])
+    const [nextBots, nextBindings] = await Promise.all([fetchFeishuBots(), fetchFeishuBindings()])
     bots.value = nextBots
     bindings.value = nextBindings
-    setupJobs.value = nextSetups
+    const nextSetups = await fetchFeishuQrSetups().catch(() => [])
+    const resumable = nextSetups.find((job) => isActiveQrStatus(job.status) || job.status === 'failed')
+    if (resumable && !isCreating.value) {
+      restoreSetupJob(resumable)
+      return
+    }
     const current = nextBots.find((bot) => bot.id === selectedBotId.value) ?? nextBots[0]
     if (current && !isCreating.value) selectBot(current)
   } catch (error) {
@@ -1346,16 +1305,6 @@ onBeforeUnmount(() => {
 .feishu-platform-session strong { color: var(--color-text); font-size: 0.74rem; }
 .feishu-platform-session span, .feishu-platform-session small { overflow-wrap: anywhere; color: var(--color-text-muted); font-size: 0.68rem; line-height: 1.45; }
 .feishu-platform-session small { color: var(--color-danger); }
-.feishu-setup-history { display: grid; gap: 0.7rem; margin-bottom: 0.75rem; border: 1px solid var(--color-border); border-radius: var(--radius-md); background: var(--color-surface); padding: 0.75rem; }
-.feishu-setup-history > header { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
-.feishu-setup-history > header > div { display: grid; gap: 0.15rem; }
-.feishu-setup-history > header span, .feishu-setup-history > p { color: var(--color-text-muted); font-size: 0.7rem; }
-.feishu-setup-history ul { display: grid; gap: 0.5rem; margin: 0; padding: 0; list-style: none; }
-.feishu-setup-history li { display: flex; align-items: center; justify-content: space-between; gap: 0.8rem; padding: 0.65rem; border: 1px solid var(--color-border); border-radius: var(--radius-md); }
-.feishu-setup-history li > div { display: grid; min-width: 0; gap: 0.2rem; }
-.feishu-setup-history li > div > span { display: flex; flex-wrap: wrap; gap: 0.45rem; align-items: baseline; }
-.feishu-setup-history li small, .feishu-setup-history time { color: var(--color-text-muted); font-size: 0.68rem; }
-.feishu-setup-history li code { overflow-wrap: anywhere; color: var(--color-danger); font-size: 0.68rem; }
 .feishu-layout { display: grid; min-width: 0; grid-template-columns: minmax(10rem, 0.32fr) minmax(0, 1fr); gap: 0.75rem; }
 .feishu-bot-list { display: flex; min-width: 0; flex-direction: column; gap: 0.4rem; }
 .feishu-bot-card { display: grid; width: 100%; min-height: 4.2rem; cursor: pointer; gap: 0.25rem; border: 1px solid var(--color-border); border-radius: var(--radius-md); background: var(--color-surface); padding: 0.65rem; color: var(--color-text); text-align: left; transition: border-color 180ms ease, background 180ms ease; }
@@ -1572,7 +1521,7 @@ button:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2
 }
 @media (max-width: 520px) {
   .feishu-setup-proofs ul { grid-template-columns: 1fr; }
-  .feishu-toolbar, .feishu-platform-session, .feishu-setup-history li, .feishu-detail-header, .feishu-bindings li, .feishu-diagnostics > header { align-items: stretch; flex-direction: column; }
+  .feishu-toolbar, .feishu-platform-session, .feishu-detail-header, .feishu-bindings li, .feishu-diagnostics > header { align-items: stretch; flex-direction: column; }
   .feishu-create-modes { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .feishu-toolbar-actions { width: 100%; }
   .feishu-toolbar-actions > button { flex: 1; }

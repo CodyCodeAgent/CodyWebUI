@@ -72,4 +72,52 @@ describe('SidebarThreadTree', () => {
     await wrapper.findAll('.project-skills-entry')[0]?.trigger('click')
     expect(wrapper.emitted('open-project-skills')?.[0]).toEqual([{ cwd: '/repo/app', projectName: '/repo/app' }])
   })
+
+  it('selects a thread from the full row while keeping pinning as a separate action', async () => {
+    const wrapper = mount(SidebarThreadTree, {
+      props: {
+        groups,
+        projectDisplayNameById: {},
+        selectedThreadId: '',
+        isLoading: false,
+        searchQuery: '',
+        isHiddenView: false,
+      },
+    })
+
+    await wrapper.findAll('.project-header-row')[0]?.trigger('click')
+    await wrapper.get('.thread-row').trigger('click')
+    expect(wrapper.emitted('select')).toEqual([['thread-1']])
+
+    await wrapper.get('.thread-pin-button').trigger('click')
+    expect(wrapper.emitted('select')).toEqual([['thread-1']])
+  })
+
+  it('collapses every project when the toolbar requests it', async () => {
+    const wrapper = mount(SidebarThreadTree, {
+      props: {
+        groups,
+        projectDisplayNameById: {},
+        selectedThreadId: '',
+        isLoading: false,
+        searchQuery: '',
+        isHiddenView: false,
+        collapseAllRequest: 0,
+      },
+    })
+
+    await wrapper.findAll('.project-header-row')[0]?.trigger('click')
+    expect(wrapper.findAll('.project-group')[0]?.attributes('data-expanded')).toBe('true')
+    expect(wrapper.emitted('collapse-state-change')?.at(-1)).toEqual([false])
+
+    await wrapper.setProps({ collapseAllRequest: 1 })
+
+    expect(wrapper.findAll('.project-group').every((project) => project.attributes('data-expanded') === 'false')).toBe(true)
+    expect(wrapper.emitted('collapse-state-change')?.at(-1)).toEqual([true])
+    expect(JSON.parse(window.localStorage.getItem('cody-web-ui.collapsed-projects.v1') ?? '{}')).toMatchObject({
+      '/repo/app': true,
+      '/repo/next': true,
+    })
+    wrapper.unmount()
+  })
 })

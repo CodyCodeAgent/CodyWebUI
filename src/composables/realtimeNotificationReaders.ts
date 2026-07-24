@@ -1,5 +1,5 @@
 import type { RpcNotification } from '../api/codexRealtimeClient'
-import type { UiMessage, UiThread } from '../types/codex'
+import type { UiMessage, UiThread, UiThreadContextUsage } from '../types/codex'
 import { buildUserMessageContentMessages } from '../api/normalizers/userMessageContent'
 import {
   asRecord,
@@ -45,6 +45,42 @@ function formatPlanStepStatus(value: string): string {
 
 function readProtocolId(record: Record<string, unknown> | null | undefined, camelKey: string, snakeKey: string): string {
   return readString(record?.[camelKey]) || readString(record?.[snakeKey])
+}
+
+function readTokenCount(value: unknown): number | null {
+  if (typeof value === 'bigint') {
+    const numeric = Number(value)
+    return Number.isSafeInteger(numeric) && numeric >= 0 ? numeric : null
+  }
+  if (typeof value === 'string' && /^\d+$/u.test(value.trim())) {
+    const numeric = Number(value)
+    return Number.isSafeInteger(numeric) ? numeric : null
+  }
+  const numeric = readNumber(value)
+  return numeric !== null && numeric >= 0 ? numeric : null
+}
+
+export function readThreadContextUsageUpdate(notification: RpcNotification): UiThreadContextUsage | null {
+  if (notification.method !== 'thread/tokenUsage/updated') return null
+  const params = asRecord(notification.params)
+  const tokenUsage = asRecord(params?.tokenUsage) ?? asRecord(params?.token_usage)
+  const last = asRecord(tokenUsage?.last)
+  const threadId = extractThreadIdFromNotification(notification)
+  const usedTokens = readTokenCount(last?.totalTokens) ?? readTokenCount(last?.total_tokens)
+  if (!threadId || usedTokens === null) return null
+
+  return {
+    threadId,
+    turnId: readProtocolId(params, 'turnId', 'turn_id'),
+    usedTokens,
+    inputTokens: readTokenCount(last?.inputTokens) ?? readTokenCount(last?.input_tokens) ?? 0,
+    contextWindow:
+      readTokenCount(tokenUsage?.modelContextWindow) ??
+      readTokenCount(tokenUsage?.model_context_window),
+    autoCompactTokenLimit: null,
+    updatedAtIso: readIsoTimestampString(notification.atIso) || new Date().toISOString(),
+    compactionState: 'idle',
+  }
 }
 
 export function extractTurnIdFromNotification(notification: RpcNotification): string {

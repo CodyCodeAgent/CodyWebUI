@@ -23,6 +23,16 @@
           <button
             class="sidebar-search-toggle toolbar-secondary"
             type="button"
+            :disabled="areSidebarProjectsCollapsed || projectGroups.length === 0"
+            :aria-label="t('app.collapseAllProjects')"
+            :title="t('app.collapseAllProjects')"
+            @click="collapseAllSidebarProjects"
+          >
+            <IconTablerChevronsUp class="sidebar-search-toggle-icon" />
+          </button>
+          <button
+            class="sidebar-search-toggle toolbar-secondary"
+            type="button"
             data-theme-toggle="true"
             :aria-pressed="isDarkMode"
             :aria-label="isDarkMode ? t('app.theme.light') : t('app.theme.dark')"
@@ -90,11 +100,13 @@
           :selected-thread-id="selectedThreadId" :is-loading="isLoadingThreads"
           :selected-project-name="selectedSidebarProjectName"
           :search-query="sidebarSearchQuery" :is-hidden-view="isHiddenView"
+          :collapse-all-request="sidebarCollapseAllRequest"
           @select="onSelectThread"
           @hide="onHideThread" @restore="onRestoreThread" @fork="onForkThread"
           @compact="onCompactThread" @toggle-hidden-view="onToggleHiddenView"
           @rename-thread="onRenameThread" @select-project="onSelectProject" @start-new-thread="onStartNewThread" @rename-project="onRenameProject"
           @hide-project="onHideProject" @restore-project="onRestoreProject" @reorder-project="onReorderProject"
+          @collapse-state-change="areSidebarProjectsCollapsed = $event"
           @open-project-skills="onOpenProjectSkills" />
       </section>
     </template>
@@ -215,9 +227,6 @@
             <IconTablerClipboardList aria-hidden="true" />
             {{ activeWorkspaceSkillCount === null ? t('skills.title') : t('skills.count', { count: String(activeWorkspaceSkillCount) }) }}
           </button>
-          <button v-if="isHomeRoute" type="button" @click="homeSurface = homeSurface === 'brief' ? 'console' : 'brief'">
-            {{ homeSurface === 'brief' ? t('app.openWorkspaceConsole') : t('app.backToBrief') }}
-          </button>
         </div>
 
         <RateLimitFloatingStatus
@@ -226,7 +235,7 @@
           @refresh="refreshRateLimits"
         />
         <TokenFlameWidget
-          v-if="!isSettingsRoute && !isSkillsRoute && (!isHomeRoute || homeSurface === 'brief')"
+          v-if="!isSettingsRoute && !isSkillsRoute"
           :cwd="tokenFlameCwd"
         />
         <MissionChecklist
@@ -246,12 +255,12 @@
 
         <section class="content-body"><AppRouteContent
           v-bind="{ isSettingsRoute, isSkillsRoute, isHomeRoute, newThreadProjectOptions, skillsCwd, skillsProjectLabel,
-            missionStages, activeMissionStage, homeSurface, newThreadCwd, newThreadProjectLabel, allThreads,
-            allPendingServerRequests, rateLimitSnapshot, newThreadFolderOptions, composerThreadContextId, isSendingMessage,
+            newThreadCwd, newThreadFolderOptions, composerThreadContextId, isSendingMessage,
             promptInsertion, availableModelIds, selectedModelId, selectedReasoningEffort, collaborationModeOptions,
             selectedCollaborationModeName, selectedPermissionMode, homeComposerBusyLabel, filteredMessages,
             isLoadingMessages, selectedThread, selectedMessageLoadError, selectedThreadScrollState, liveOverlay,
-            selectedThreadServerRequests, threadComposerBusyLabel, isSelectedThreadInProgress, isInterruptingTurn }"
+            selectedThreadServerRequests, selectedThreadContextUsage, threadComposerBusyLabel,
+            isSelectedThreadInProgress, isInterruptingTurn }"
           @select-thread="onSelectThread" @respond-server-request="onRespondServerRequest"
           @select-new-thread-folder="onSelectNewThreadFolder" @submit-message="onSubmitThreadMessage"
           @select-model="onSelectModel" @select-reasoning-effort="onSelectReasoningEffort"
@@ -302,6 +311,7 @@ import SidebarThreadControls from './components/sidebar/SidebarThreadControls.vu
 import AppRouteContent from './components/layout/AppRouteContent.vue'
 import IconTablerFolder from './components/icons/IconTablerFolder.vue'
 import IconTablerClipboardList from './components/icons/IconTablerClipboardList.vue'
+import IconTablerChevronsUp from './components/icons/IconTablerChevronsUp.vue'
 import IconTablerMoon from './components/icons/IconTablerMoon.vue'
 import IconTablerSearch from './components/icons/IconTablerSearch.vue'
 import IconTablerSettings from './components/icons/IconTablerSettings.vue'
@@ -351,6 +361,7 @@ const {
   selectedThread,
   selectedThreadScrollState,
   selectedThreadServerRequests,
+  selectedThreadContextUsage,
   allPendingServerRequests,
   selectedLiveOverlay,
   selectedStructuredPlan,
@@ -367,6 +378,7 @@ const {
   messages,
   isLoadingThreads,
   isLoadingMessages,
+  hasLoadedSelectedMessages,
   isSendingMessage,
   isInterruptingTurn,
   isLoadingRateLimits,
@@ -414,7 +426,6 @@ const { t } = useLocale()
 
 const route = useRoute()
 const router = useRouter()
-const isRouteSyncInProgress = ref(false)
 const hasInitialized = ref(false)
 const newThreadCwd = ref(loadDefaultNewThreadCwd())
 const pendingNewThreadName = ref('')
@@ -427,9 +438,14 @@ const isSidebarCollapsed = ref(loadSidebarCollapsed())
 const isMobileViewport = ref(false)
 const sidebarSearchQuery = ref('')
 const isSidebarSearchVisible = ref(false)
-const homeSurface = ref<'brief' | 'console'>('brief')
+const sidebarCollapseAllRequest = ref(0)
+const areSidebarProjectsCollapsed = ref(false)
 const skillCountsByCwd = ref<Record<string, number>>({})
 const sidebarSearchInputRef = ref<HTMLInputElement | null>(null)
+
+function collapseAllSidebarProjects(): void {
+  sidebarCollapseAllRequest.value += 1
+}
 
 const {
   routeThreadId,
@@ -492,20 +508,6 @@ const newThreadFolderOptions = computed(() => buildNewThreadFolderOptions({
 const newThreadWorkspaceGroup = computed(() =>
   findNewThreadWorkspaceGroup(projectGroups.value, newThreadCwd.value)
 )
-const allThreads = computed(() => projectGroups.value.flatMap((group) => group.threads))
-const missionStages = computed(() => [
-  { id: 'brief', label: t('app.stage.brief'), hint: t('app.stage.briefHint') },
-  { id: 'plan', label: t('app.stage.plan'), hint: t('app.stage.planHint') },
-  { id: 'build', label: t('app.stage.build'), hint: t('app.stage.buildHint') },
-  { id: 'validate', label: t('app.stage.validate'), hint: t('app.stage.validateHint') },
-  { id: 'review', label: t('app.stage.review'), hint: t('app.stage.reviewHint') },
-  { id: 'deliver', label: t('app.stage.deliver'), hint: t('app.stage.deliverHint') },
-] as const)
-const activeMissionStage = computed(() => {
-  if (allPendingServerRequests.value.length > 0) return 'review'
-  if (isSendingMessage.value) return 'build'
-  return 'brief'
-})
 const selectedSidebarProjectName = computed(() =>
   selectedThread.value?.projectName || newThreadWorkspaceGroup.value?.projectName || newThreadCwd.value,
 )
@@ -934,44 +936,37 @@ async function ensureNewThreadWorkspace(): Promise<void> {
 }
 
 async function syncThreadSelectionWithRoute(): Promise<void> {
-  if (isRouteSyncInProgress.value) return
-  isRouteSyncInProgress.value = true
+  if (route.name === 'home' || route.name === 'settings' || route.name === 'skills') {
+    if (selectedThreadId.value !== '') {
+      void selectThread('')
+    }
+    return
+  }
 
-  try {
-    if (route.name === 'home' || route.name === 'settings' || route.name === 'skills') {
-      if (selectedThreadId.value !== '') {
-        await selectThread('')
-      }
+  if (route.name === 'thread') {
+    const threadId = routeThreadId.value
+    if (!threadId) return
+
+    if (!knownThreadIdSet.value.has(threadId)) {
+      await router.replace({ name: 'home' })
       return
     }
 
-    if (route.name === 'thread') {
-      const threadId = routeThreadId.value
-      if (!threadId) return
-
-      if (!knownThreadIdSet.value.has(threadId)) {
-        await router.replace({ name: 'home' })
-        return
-      }
-
-      await selectThread(threadId)
+    if (
+      selectedThreadId.value === threadId &&
+      (isLoadingMessages.value || hasLoadedSelectedMessages.value)
+    ) {
       return
     }
 
-  } finally {
-    isRouteSyncInProgress.value = false
+    // Selection is synchronous; message hydration continues in the background.
+    // This keeps route changes latest-wins when users move through threads quickly.
+    void selectThread(threadId)
   }
 }
 
 watch(
-  () =>
-    [
-      route.name,
-      routeThreadId.value,
-      isLoadingThreads.value,
-      knownThreadIdSet.value.has(routeThreadId.value),
-      selectedThreadId.value,
-    ] as const,
+  () => [route.name, routeThreadId.value] as const,
   async () => {
     if (!hasInitialized.value) return
     await syncThreadSelectionWithRoute()
@@ -982,7 +977,6 @@ watch(
   () => selectedThreadId.value,
   async (threadId) => {
     if (!hasInitialized.value) return
-    if (isRouteSyncInProgress.value) return
     if (isHomeRoute.value || isSettingsRoute.value || isSkillsRoute.value) return
 
     if (!threadId) {
@@ -1075,6 +1069,15 @@ async function submitFirstMessageForNewThread(payload: UiComposerSubmitPayload):
 
 .sidebar-search-toggle[aria-pressed='true']:not([data-theme-toggle='true']) {
   @apply theme-border theme-bg-control theme-muted;
+}
+
+#app .sidebar-search-toggle:disabled,
+#app .sidebar-search-toggle:disabled:hover {
+  cursor: not-allowed;
+  opacity: 0.42;
+  transform: none;
+  border-color: transparent;
+  background: transparent;
 }
 
 .sidebar-search-toggle-icon {
@@ -1180,46 +1183,6 @@ async function submitFirstMessageForNewThread(payload: UiComposerSubmitPayload):
   font-size: 0.7rem;
 }
 
-.mission-stage-nav {
-  display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
-  gap: 1px;
-  margin: 0 var(--ui-content-gutter) 0.4rem;
-  overflow: hidden;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  background: var(--color-border);
-}
-
-.mission-stage-nav button {
-  display: grid;
-  min-width: 0;
-  gap: 0.12rem;
-  border: 0;
-  background: var(--color-panel);
-  padding: 0.48rem 0.65rem;
-  color: var(--color-text-muted);
-  text-align: left;
-}
-
-.mission-stage-nav button[data-active='true'] {
-  background: color-mix(in srgb, var(--color-accent) 10%, var(--color-elevated));
-  color: var(--color-text);
-  box-shadow: inset 0 2px 0 var(--color-accent);
-}
-
-.mission-stage-nav span {
-  font-size: 0.7rem;
-  font-weight: 650;
-}
-
-.mission-stage-nav small {
-  overflow: hidden;
-  font-size: 0.58rem;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 @media (max-width: 700px) {
   .toolbar-secondary {
     display: none;
@@ -1229,15 +1192,6 @@ async function submitFirstMessageForNewThread(payload: UiComposerSubmitPayload):
     display: none;
   }
 
-  .mission-stage-nav {
-    display: flex;
-    overflow-x: auto;
-    scrollbar-width: none;
-  }
-
-  .mission-stage-nav button {
-    min-width: 6.5rem;
-  }
 }
 
 .content-body {

@@ -149,6 +149,7 @@
                 :data-active="thread.id === selectedThreadId"
                 :data-pinned="isPinned(thread.id)"
                 :force-right-hover="isThreadMenuOpen(thread.id)"
+                @click="onSelect(thread.id)"
                 @mouseleave="onThreadRowLeave(thread.id)"
               >
                 <template #left>
@@ -158,7 +159,7 @@
                       class="thread-status-indicator"
                       :data-state="getThreadState(thread)"
                     />
-                    <button class="thread-pin-button" type="button" title="pin" @click="togglePin(thread.id)">
+                    <button class="thread-pin-button" type="button" title="pin" @click.stop="togglePin(thread.id)">
                       <IconTablerPin class="thread-icon" />
                     </button>
                   </span>
@@ -175,7 +176,7 @@
                   @keydown.enter.prevent="submitThreadRename(thread)"
                   @keydown.esc.stop.prevent="cancelThreadRename"
                 />
-                <button v-else class="thread-main-button" type="button" @click="onSelect(thread.id)">
+                <button v-else class="thread-main-button" type="button" @click.stop="onSelect(thread.id)">
                   <span class="thread-row-title">{{ thread.title }}</span>
                 </button>
                 <template #right>
@@ -232,6 +233,7 @@
             :data-active="thread.id === selectedThreadId"
             :data-pinned="isPinned(thread.id)"
             :force-right-hover="isThreadMenuOpen(thread.id)"
+            @click="onSelect(thread.id)"
             @mouseleave="onThreadRowLeave(thread.id)"
           >
             <template #left>
@@ -241,7 +243,7 @@
                   class="thread-status-indicator"
                   :data-state="getThreadState(thread)"
                 />
-                <button class="thread-pin-button" type="button" title="pin" @click="togglePin(thread.id)">
+                <button class="thread-pin-button" type="button" title="pin" @click.stop="togglePin(thread.id)">
                   <IconTablerPin class="thread-icon" />
                 </button>
               </span>
@@ -258,7 +260,7 @@
               @keydown.enter.prevent="submitThreadRename(thread)"
               @keydown.esc.stop.prevent="cancelThreadRename"
             />
-            <button v-else class="thread-main-button" type="button" @click="onSelect(thread.id)">
+            <button v-else class="thread-main-button" type="button" @click.stop="onSelect(thread.id)">
               <span class="thread-row-title">{{ thread.title }}</span>
             </button>
             <template #right>
@@ -353,6 +355,7 @@ const props = defineProps<{
   searchQuery: string
   isHiddenView: boolean
   skillCountsByCwd?: Record<string, number>
+  collapseAllRequest?: number
 }>()
 
 const emit = defineEmits<{
@@ -370,6 +373,7 @@ const emit = defineEmits<{
   'restore-project': [projectName: string]
   'reorder-project': [payload: { projectName: string; toIndex: number }]
   'open-project-skills': [payload: { cwd: string; projectName: string }]
+  'collapse-state-change': [allCollapsed: boolean]
 }>()
 
 const { t } = useLocale()
@@ -487,6 +491,15 @@ const conversationRows = computed(() => [
 const hasNoSearchResults = computed(() =>
   isSearchActive.value && filteredProjects.value.length === 0 && conversationRows.value.length === 0,
 )
+const allProjectsCollapsed = computed(() =>
+  projectGroups.value.length === 0 || projectGroups.value.every((group) => isCollapsed(group.projectName)),
+)
+
+watch(allProjectsCollapsed, (value) => emit('collapse-state-change', value), { immediate: true })
+watch(() => props.collapseAllRequest, (request, previousRequest) => {
+  if (request === previousRequest) return
+  collapseAllProjects()
+})
 
 const projectedDropProjectIndex = computed<number | null>(() => {
   return sidebarProjectedDropProjectIndex({
@@ -688,6 +701,15 @@ function onProjectSelect(projectName: string): void {
   suppressNextProjectToggleId.value = result.suppressProjectName
   if (shouldSuppressSelect) return
   emit('select-project', projectName)
+}
+
+function collapseAllProjects(): void {
+  collapsedProjects.value = {
+    ...collapsedProjects.value,
+    ...Object.fromEntries(projectGroups.value.map((group) => [group.projectName, true])),
+  }
+  closeProjectMenu()
+  closeThreadMenu()
 }
 
 function onThreadRowLeave(threadId: string): void {
@@ -1376,7 +1398,11 @@ onBeforeUnmount(() => {
 }
 
 .thread-row {
-  @apply hover:bg-zinc-200;
+  @apply cursor-pointer hover:bg-zinc-200;
+}
+
+.thread-row:focus-within {
+  @apply outline-none ring-2 ring-emerald-400/50;
 }
 
 .thread-left-stack {
@@ -1388,7 +1414,7 @@ onBeforeUnmount(() => {
 }
 
 .thread-main-button {
-  @apply min-w-0 w-full text-left rounded px-0 py-0 flex items-center min-h-5;
+  @apply min-w-0 w-full cursor-pointer text-left rounded px-0 py-0 flex items-center min-h-5 focus-visible:outline-none;
 }
 
 .thread-row-title {

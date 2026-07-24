@@ -32,6 +32,7 @@ function mountConversation(input: {
       isLoading: input.isLoading ?? false,
       loadError: '',
       activeThreadId: 'thread-1',
+      threadTitle: 'Loading state test',
       scrollState: input.scrollState ?? null,
     },
   })
@@ -44,6 +45,40 @@ function waitForAnimationFrame(): Promise<void> {
 }
 
 describe('ThreadConversation', () => {
+  it('renders a dedicated accessible loading page before the first message snapshot arrives', () => {
+    const wrapper = mountConversation({ isLoading: true })
+    const loadingPage = wrapper.get('[data-testid="conversation-loading-page"]')
+
+    expect(loadingPage.attributes('role')).toBe('status')
+    expect(loadingPage.attributes('aria-busy')).toBe('true')
+    expect(loadingPage.text()).toContain('Loading conversation')
+    expect(loadingPage.text()).toContain('Loading state test')
+    expect(wrapper.find('[data-testid="conversation-list"]').exists()).toBe(false)
+  })
+
+  it('renders context compaction history as a clear session divider', () => {
+    const wrapper = mountConversation({
+      messages: [
+        message(1, {
+          messageType: 'contextCompaction',
+          tool: {
+            kind: 'context',
+            title: 'Context compaction',
+            status: 'recorded',
+            summary: 'Context was compacted',
+            details: [],
+          },
+        }),
+      ],
+    })
+
+    const divider = wrapper.get('[data-testid="context-compaction-divider"]')
+    expect(divider.attributes('role')).toBe('status')
+    expect(divider.text()).toContain('Context compacted')
+    expect(divider.text()).toContain('Older context was summarized')
+    expect(wrapper.find('.tool-timeline-card').exists()).toBe(false)
+  })
+
   it('renders long threads in a recent-message window and expands earlier rows on demand', async () => {
     const messages = Array.from({ length: 120 }, (_, index) => message(index + 1))
     const wrapper = mountConversation({ messages })

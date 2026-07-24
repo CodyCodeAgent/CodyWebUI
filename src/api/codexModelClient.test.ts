@@ -5,6 +5,7 @@ import {
   getCurrentModelConfig,
   normalizeCollaborationModeOption,
   normalizeReasoningEffort,
+  normalizeTokenLimit,
   setDefaultModel,
 } from './codexModelClient'
 
@@ -45,6 +46,13 @@ describe('codex model client', () => {
       reasoning_effort: null,
       developer_instructions: null,
     })).toBeNull()
+  })
+
+  it('normalizes numeric token limits from app-server payloads', () => {
+    expect(normalizeTokenLimit(200_000)).toBe(200_000)
+    expect(normalizeTokenLimit('180000')).toBe(180_000)
+    expect(normalizeTokenLimit(0)).toBeNull()
+    expect(normalizeTokenLimit('unknown')).toBeNull()
   })
 
   it('loads collaboration modes while dropping invalid and duplicate names', async () => {
@@ -106,12 +114,16 @@ describe('codex model client', () => {
       config: {
         model: 'gpt-5',
         model_reasoning_effort: 'xhigh',
+        model_context_window: '200000',
+        model_auto_compact_token_limit: 180000,
       },
     })
 
     await expect(getCurrentModelConfig()).resolves.toEqual({
       model: 'gpt-5',
       reasoningEffort: 'xhigh',
+      modelContextWindow: 200000,
+      autoCompactTokenLimit: 180000,
     })
   })
 

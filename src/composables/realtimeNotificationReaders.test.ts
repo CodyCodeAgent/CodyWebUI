@@ -10,6 +10,7 @@ import {
   readRateLimitSnapshotPayload,
   readReasoningDelta,
   readStartedThread,
+  readThreadContextUsageUpdate,
   readTurnActivity,
   readTurnCompletedInfo,
   readTurnDurationHints,
@@ -92,6 +93,39 @@ describe('realtime notification readers', () => {
       rateLimits,
     }))).toBe(rateLimits)
     expect(readRateLimitSnapshotPayload(notification('turn/started', {}))).toBeNull()
+  })
+
+  it('reads current thread context usage and model window from token notifications', () => {
+    expect(readThreadContextUsageUpdate(notification('thread/tokenUsage/updated', {
+      threadId: 'thread-1',
+      turnId: 'turn-1',
+      tokenUsage: {
+        last: {
+          inputTokens: 118_000,
+          totalTokens: 120_000,
+        },
+        modelContextWindow: 200_000,
+      },
+    }))).toMatchObject({
+      threadId: 'thread-1',
+      turnId: 'turn-1',
+      inputTokens: 118_000,
+      usedTokens: 120_000,
+      contextWindow: 200_000,
+      compactionState: 'idle',
+    })
+
+    expect(readThreadContextUsageUpdate(notification('thread/tokenUsage/updated', {
+      thread_id: 'thread-2',
+      token_usage: {
+        last: { input_tokens: '99000', total_tokens: '100000' },
+        model_context_window: '128000',
+      },
+    }))).toMatchObject({
+      threadId: 'thread-2',
+      usedTokens: 100_000,
+      contextWindow: 128_000,
+    })
   })
 
   it('reads started thread notifications for immediate sidebar updates', () => {

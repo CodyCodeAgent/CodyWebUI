@@ -24,6 +24,8 @@ export function useDesktopComposerState() {
   const selectedModelId = ref(initial.modelId)
   const selectedReasoningEffort = ref<ReasoningEffort | ''>(initial.reasoningEffort)
   const selectedPermissionMode = ref<UiComposerPermissionMode>(initial.permissionMode)
+  const modelContextWindow = ref<number | null>(null)
+  const autoCompactTokenLimit = ref<number | null>(null)
   const collaborationModeOptions = ref<UiCollaborationModeOption[]>([DEFAULT_COLLABORATION_MODE, FALLBACK_PLAN_COLLABORATION_MODE])
   const selectedCollaborationModeName = ref(initial.collaborationModeName)
   const selectedCollaborationMode = computed(() => collaborationModeOptions.value.find((option) => option.name === selectedCollaborationModeName.value) ?? DEFAULT_COLLABORATION_MODE)
@@ -58,12 +60,23 @@ export function useDesktopComposerState() {
     selectedCollaborationModeName.value = reconcileSelectedCollaborationModeName(selectedCollaborationModeName.value, collaborationModeOptions.value); persist()
   }
   async function refreshModelPreferences(): Promise<void> {
-    let ids: string[] = []; let config: CurrentModelPreference = { model: '', reasoningEffort: '' }
+    let ids: string[] = []
+    let config: CurrentModelPreference & { modelContextWindow: number | null; autoCompactTokenLimit: number | null } = {
+      model: '',
+      reasoningEffort: '',
+      modelContextWindow: null,
+      autoCompactTokenLimit: null,
+    }
     try { ids = await getAvailableModelIds() } catch { ids = [] }
-    try { config = await getCurrentModelConfig() } catch { config = { model: '', reasoningEffort: '' } }
+    try { config = await getCurrentModelConfig() } catch {
+      config = { model: '', reasoningEffort: '', modelContextWindow: null, autoCompactTokenLimit: null }
+    }
     availableModelIds.value = mergeAvailableModelsWithCurrent(ids, config.model)
     selectedModelId.value = selectModelId(selectedModelId.value, availableModelIds.value, config.model)
-    selectedReasoningEffort.value = selectReasoningEffortFromPreference(selectedReasoningEffort.value, config); persist()
+    selectedReasoningEffort.value = selectReasoningEffortFromPreference(selectedReasoningEffort.value, config)
+    modelContextWindow.value = config.modelContextWindow ?? null
+    autoCompactTokenLimit.value = config.autoCompactTokenLimit ?? null
+    persist()
   }
-  return { availableModelIds, selectedModelId, selectedReasoningEffort, selectedPermissionMode, collaborationModeOptions, selectedCollaborationModeName, selectedCollaborationMode, hydrate, refreshCollaborationModes, refreshModelPreferences, setSelectedModelId, setSelectedReasoningEffort, setSelectedCollaborationModeName, setSelectedPermissionMode }
+  return { availableModelIds, selectedModelId, selectedReasoningEffort, selectedPermissionMode, modelContextWindow, autoCompactTokenLimit, collaborationModeOptions, selectedCollaborationModeName, selectedCollaborationMode, hydrate, refreshCollaborationModes, refreshModelPreferences, setSelectedModelId, setSelectedReasoningEffort, setSelectedCollaborationModeName, setSelectedPermissionMode }
 }

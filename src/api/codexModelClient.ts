@@ -11,6 +11,8 @@ import type { UiCollaborationModeOption } from '../types/codex'
 export type CurrentModelConfig = {
   model: string
   reasoningEffort: ReasoningEffort | ''
+  modelContextWindow: number | null
+  autoCompactTokenLimit: number | null
 }
 
 async function callRpc<T>(method: string, params?: unknown): Promise<T> {
@@ -26,6 +28,18 @@ export function normalizeReasoningEffort(value: unknown): ReasoningEffort | '' {
   return typeof value === 'string' && allowed.includes(value as ReasoningEffort)
     ? (value as ReasoningEffort)
     : ''
+}
+
+export function normalizeTokenLimit(value: unknown): number | null {
+  if (typeof value === 'bigint') {
+    const numeric = Number(value)
+    return Number.isSafeInteger(numeric) && numeric > 0 ? numeric : null
+  }
+  if (typeof value === 'string' && /^\d+$/u.test(value.trim())) {
+    const numeric = Number(value)
+    return Number.isSafeInteger(numeric) && numeric > 0 ? numeric : null
+  }
+  return typeof value === 'number' && Number.isSafeInteger(value) && value > 0 ? value : null
 }
 
 function normalizeCollaborationModeLabel(name: string, mode: UiCollaborationModeOption['mode']): string {
@@ -89,5 +103,10 @@ export async function getCurrentModelConfig(): Promise<CurrentModelConfig> {
   const payload = await callRpc<ConfigReadResponse>('config/read', {})
   const model = payload.config.model ?? ''
   const reasoningEffort = normalizeReasoningEffort(payload.config.model_reasoning_effort)
-  return { model, reasoningEffort }
+  return {
+    model,
+    reasoningEffort,
+    modelContextWindow: normalizeTokenLimit(payload.config.model_context_window),
+    autoCompactTokenLimit: normalizeTokenLimit(payload.config.model_auto_compact_token_limit),
+  }
 }

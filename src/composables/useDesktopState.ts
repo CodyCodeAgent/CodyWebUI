@@ -35,6 +35,7 @@ import {
   readReasoningSectionBreakMessageId,
   readReasoningStartedItemId,
   readStartedThread,
+  readThreadContextUsageUpdate,
   readTurnActivity,
   readTurnCompletedInfo,
   readTurnDurationHints,
@@ -115,6 +116,7 @@ import {
   moveProjectInOrder,
   omitKey,
   orderGroupsByProjectOrder,
+  pruneThreadStateMap,
   reconcileOptimisticThreads,
   renameProjectDisplayName,
   renameThreadInGroups,
@@ -128,6 +130,7 @@ import type {
   UiMessage,
   UiServerRequestReply,
   UiThread,
+  UiThreadContextUsage,
   UiToolingRollbackFileResult,
 } from '../types/codex'
 
@@ -146,11 +149,13 @@ export function useDesktopState() {
   } = threadState
   const composerState = useDesktopComposerState()
   const { availableModelIds, selectedModelId, selectedReasoningEffort, selectedPermissionMode,
+    modelContextWindow, autoCompactTokenLimit,
     collaborationModeOptions, selectedCollaborationModeName, selectedCollaborationMode,
     hydrate: hydrateTurnPreferencesFromSettingsStore, refreshCollaborationModes, refreshModelPreferences,
     setSelectedModelId, setSelectedReasoningEffort, setSelectedCollaborationModeName, setSelectedPermissionMode } = composerState
   const turnSummaryByThreadId = ref<Record<string, TurnSummaryState>>({})
   const turnActivityByThreadId = ref<Record<string, TurnActivityState>>({})
+  const contextUsageByThreadId = ref<Record<string, UiThreadContextUsage>>({})
   const structuredPlanState = useStructuredPlanState(selectedThreadId)
   const turnErrorByThreadId = ref<Record<string, TurnErrorState>>({})
   const activeTurnIdByThreadId = ref<Record<string, string>>({})
@@ -186,6 +191,9 @@ export function useDesktopState() {
 
   const selectedThreadServerRequests = serverRequestState.selected
   const isLoadingMessages = computed(() => loadingMessagesByThreadId.value[selectedThreadId.value] === true)
+  const hasLoadedSelectedMessages = computed(
+    () => loadedMessagesByThreadId.value[selectedThreadId.value] === true,
+  )
   const allPendingServerRequests = serverRequestState.all
   const selectedLiveOverlay = computed(() =>
     buildLiveOverlay(
@@ -197,6 +205,15 @@ export function useDesktopState() {
   )
   const selectedStructuredPlan = structuredPlanState.selected
   const selectedMessageLoadError = computed(() => messageLoadErrorByThreadId.value[selectedThreadId.value] ?? '')
+  const selectedThreadContextUsage = computed<UiThreadContextUsage | null>(() => {
+    const usage = contextUsageByThreadId.value[selectedThreadId.value]
+    if (!usage) return null
+    return {
+      ...usage,
+      contextWindow: usage.contextWindow ?? modelContextWindow.value,
+      autoCompactTokenLimit: usage.autoCompactTokenLimit ?? autoCompactTokenLimit.value,
+    }
+  })
   const messages = computed<UiMessage[]>(() => {
     const threadId = selectedThreadId.value
     if (!threadId) return []
@@ -321,6 +338,7 @@ export function useDesktopState() {
     eventUnreadByThreadId.value = pruned.eventUnreadByThreadId
     inProgressById.value = pruned.inProgressById
     pendingServerRequestsByThreadId.value = pruned.pendingServerRequestsByThreadId
+    contextUsageByThreadId.value = pruneThreadStateMap(contextUsageByThreadId.value, activeThreadIds)
     loadingMessagesByThreadId.value = Object.fromEntries(
       Object.entries(loadingMessagesByThreadId.value).filter(([threadId]) => activeThreadIds.has(threadId)),
     )
@@ -598,6 +616,24 @@ export function useDesktopState() {
       return
     }
 
+    const contextUsageUpdate = readThreadContextUsageUpdate(notification)
+    if (contextUsageUpdate) {
+      const previous = contextUsageByThreadId.value[contextUsageUpdate.threadId]
+      contextUsageByThreadId.value = {
+        ...contextUsageByThreadId.value,
+        [contextUsageUpdate.threadId]: {
+          ...contextUsageUpdate,
+          contextWindow:
+            contextUsageUpdate.contextWindow ??
+            previous?.contextWindow ??
+            modelContextWindow.value,
+          autoCompactTokenLimit:
+            previous?.autoCompactTokenLimit ??
+            autoCompactTokenLimit.value,
+        },
+      }
+    }
+
     const turnActivity = readTurnActivity(notification)
     if (turnActivity) {
       setTurnActivityForThread(turnActivity.threadId, turnActivity.activity)
@@ -669,6 +705,22 @@ export function useDesktopState() {
     if (notification.method === 'thread/compacted') {
       const compactedThreadId = extractThreadIdFromNotification(notification)
       if (compactedThreadId) {
+        const previousUsage = contextUsageByThreadId.value[compactedThreadId]
+        contextUsageByThreadId.value = {
+          ...contextUsageByThreadId.value,
+          [compactedThreadId]: {
+            threadId: compactedThreadId,
+            turnId: previousUsage?.turnId ?? '',
+            usedTokens: previousUsage?.usedTokens ?? 0,
+            inputTokens: previousUsage?.inputTokens ?? 0,
+            contextWindow: previousUsage?.contextWindow ?? modelContextWindow.value,
+            autoCompactTokenLimit:
+              previousUsage?.autoCompactTokenLimit ??
+              autoCompactTokenLimit.value,
+            updatedAtIso: notification.atIso || new Date().toISOString(),
+            compactionState: 'compacted',
+          },
+        }
         setThreadInProgress(compactedThreadId, false)
         setTurnActivityForThread(compactedThreadId, null)
         setTurnErrorForThread(compactedThreadId, null)
@@ -1001,6 +1053,22 @@ export function useDesktopState() {
 
   async function compactThreadById(threadId: string): Promise<void> {
     try {
+      const previousUsage = contextUsageByThreadId.value[threadId]
+      contextUsageByThreadId.value = {
+        ...contextUsageByThreadId.value,
+        [threadId]: {
+          threadId,
+          turnId: previousUsage?.turnId ?? '',
+          usedTokens: previousUsage?.usedTokens ?? 0,
+          inputTokens: previousUsage?.inputTokens ?? 0,
+          contextWindow: previousUsage?.contextWindow ?? modelContextWindow.value,
+          autoCompactTokenLimit:
+            previousUsage?.autoCompactTokenLimit ??
+            autoCompactTokenLimit.value,
+          updatedAtIso: new Date().toISOString(),
+          compactionState: 'compacting',
+        },
+      }
       setTurnSummaryForThread(threadId, null)
       setTurnActivityForThread(threadId, { label: 'Compacting context', details: [] })
       setTurnErrorForThread(threadId, null)
@@ -1009,6 +1077,13 @@ export function useDesktopState() {
       queueDesktopRealtimeSync(realtimeSyncQueue, threadId)
       await syncFromNotifications()
     } catch (unknownError) {
+      const previousUsage = contextUsageByThreadId.value[threadId]
+      if (previousUsage) {
+        contextUsageByThreadId.value = {
+          ...contextUsageByThreadId.value,
+          [threadId]: { ...previousUsage, compactionState: 'idle' },
+        }
+      }
       setThreadInProgress(threadId, false)
       setTurnActivityForThread(threadId, null)
       const errorMessage = unknownError instanceof Error ? unknownError.message : 'Failed to compact thread'
@@ -1465,6 +1540,7 @@ export function useDesktopState() {
     liveAgentMessagesByThreadId.value = {}
     liveReasoningTextByThreadId.value = {}
     turnActivityByThreadId.value = {}
+    contextUsageByThreadId.value = {}
     structuredPlanState.reset()
     turnSummaryByThreadId.value = {}
     turnErrorByThreadId.value = {}
@@ -1489,6 +1565,7 @@ export function useDesktopState() {
     selectedThread,
     selectedThreadScrollState,
     selectedThreadServerRequests,
+    selectedThreadContextUsage,
     allPendingServerRequests,
     selectedLiveOverlay,
     selectedStructuredPlan,
@@ -1505,6 +1582,7 @@ export function useDesktopState() {
     messages,
     isLoadingThreads,
     isLoadingMessages,
+    hasLoadedSelectedMessages,
     isSendingMessage,
     isInterruptingTurn,
     isLoadingRateLimits,

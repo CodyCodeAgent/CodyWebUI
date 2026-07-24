@@ -80,6 +80,7 @@ const connectivityReport = {
 
 afterEach(() => {
   vi.clearAllMocks()
+  vi.useRealTimers()
   transport.isRemotePlainHttpLocation.mockReturnValue(false)
   vi.unstubAllGlobals()
 })
@@ -122,7 +123,7 @@ describe('FeishuBotPanel', () => {
     wrapper.unmount()
   })
 
-  it('shows persisted setup failures and lets the operator continue recovery', async () => {
+  it('restores the current failed setup inline without exposing setup history', async () => {
     api.fetchFeishuBots.mockResolvedValue([])
     api.fetchFeishuBindings.mockResolvedValue([])
     api.fetchFeishuQrSetups.mockResolvedValueOnce([{
@@ -134,11 +135,9 @@ describe('FeishuBotPanel', () => {
     }] as never)
     const wrapper = mount(FeishuBotPanel)
     await flushPromises()
-    expect(wrapper.text()).toContain('Setup and recovery history')
     expect(wrapper.text()).toContain('Event callback is not active')
-    await wrapper.get('.feishu-setup-history button').trigger('click')
-    await flushPromises()
     expect(wrapper.text()).toContain('Retry automatic configuration')
+    expect(wrapper.find('.feishu-setup-history').exists()).toBe(false)
     expect(api.startFeishuQrSetup).not.toHaveBeenCalled()
     wrapper.unmount()
   })
@@ -296,8 +295,6 @@ describe('FeishuBotPanel', () => {
     api.fetchFeishuQrSetups.mockResolvedValueOnce([job] as never)
     const wrapper = mount(FeishuBotPanel)
     await flushPromises()
-    await wrapper.get('.feishu-setup-history button').trigger('click')
-    await flushPromises()
 
     expect(wrapper.text()).toContain('Verified setup evidence')
     expect(wrapper.text()).toContain('Live OpenAPI diagnostic')
@@ -350,8 +347,6 @@ describe('FeishuBotPanel', () => {
     })
     const wrapper = mount(FeishuBotPanel)
     await flushPromises()
-    await wrapper.get('.feishu-setup-history button').trigger('click')
-    await flushPromises()
     expect(wrapper.text()).toContain('Alice')
     expect(wrapper.text()).toContain('Example Enterprise')
     expect(wrapper.text()).toContain('Confirm the account and organization before creating the app')
@@ -361,6 +356,42 @@ describe('FeishuBotPanel', () => {
     await flushPromises()
     expect(api.confirmFeishuQrSetupIdentity).toHaveBeenCalledWith('job-confirm')
     expect(wrapper.text()).toContain('Creating application')
+    wrapper.unmount()
+  })
+
+  it('automatically opens the bot when QR setup completes', async () => {
+    vi.useFakeTimers()
+    api.fetchFeishuBots.mockResolvedValue([])
+    api.fetchFeishuBindings.mockResolvedValue([])
+    api.fetchFeishuQrSetups.mockResolvedValue([])
+    const waitingJob = {
+      id: 'job-complete', name: 'Ready bot', status: 'awaiting_scan', statusMessage: 'Please scan',
+      qrDataUrl: 'data:image/png;base64,qr', qrExpiresAtIso: null, account: null, bot: null,
+      warnings: [], error: null, canRetry: false, canCancel: true, canConfirmIdentity: false,
+      createdAtIso: '', updatedAtIso: '',
+    }
+    api.startFeishuQrSetup.mockResolvedValue(waitingJob)
+    api.fetchFeishuQrSetup.mockResolvedValue({
+      ...waitingJob,
+      status: 'completed',
+      statusMessage: 'Ready',
+      qrDataUrl: null,
+      bot: { ...bot, name: 'Ready bot' },
+      canCancel: false,
+    })
+    const wrapper = mount(FeishuBotPanel)
+    await flushPromises()
+    await wrapper.get('.feishu-empty .feishu-primary-button').trigger('click')
+    await wrapper.get('.feishu-qr-name-field input').setValue('Ready bot')
+    await wrapper.get('.feishu-form').trigger('submit')
+    await flushPromises()
+    await vi.advanceTimersByTimeAsync(1_000)
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('Ready bot')
+    expect(wrapper.text()).toContain('created automatically and is connecting')
+    expect(wrapper.find('.feishu-qr-progress').exists()).toBe(false)
+    expect(wrapper.find('.feishu-setup-history').exists()).toBe(false)
     wrapper.unmount()
   })
 

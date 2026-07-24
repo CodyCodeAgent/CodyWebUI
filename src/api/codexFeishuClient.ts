@@ -163,6 +163,19 @@ function optionalString(value: unknown): string | null {
   return typeof value === 'string' && value.trim() ? value : null
 }
 
+function readableError(value: unknown, depth = 0): string | null {
+  const direct = optionalString(value)
+  if (direct) return direct === '[object Object]' ? 'Unknown Feishu setup error' : direct
+  if (depth >= 3) return null
+  const row = asRecord(value)
+  if (!row) return null
+  for (const candidate of [row.message, row.msg, row.error_msg, row.error, row.reason]) {
+    const message = readableError(candidate, depth + 1)
+    if (message) return message
+  }
+  return null
+}
+
 function normalizeBot(value: unknown): FeishuBot | null {
   const row = asRecord(value)
   if (!row || typeof row.id !== 'string' || typeof row.name !== 'string' || typeof row.appId !== 'string') return null
@@ -239,7 +252,7 @@ function normalizeQrSetupJob(value: unknown): FeishuQrSetupJob | null {
     account: normalizedAccount,
     bot: normalizeBot(row.bot),
     warnings: Array.isArray(row.warnings) ? row.warnings.filter((item): item is string => typeof item === 'string') : [],
-    error: optionalString(row.error),
+    error: readableError(row.error),
     canRetry: row.canRetry === true,
     canCancel: row.canCancel === true,
     canConfirmIdentity: row.canConfirmIdentity === true,

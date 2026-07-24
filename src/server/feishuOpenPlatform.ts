@@ -12,6 +12,7 @@ import { deflateSync } from 'node:zlib';
 import * as Lark from '@larksuiteoapi/node-sdk';
 import QRCode from 'qrcode';
 import { credentialKeyFilePath, openCredential, sealCredential } from './credentialVault.js';
+import { safeFeishuErrorMessage } from './feishuErrorMessage.js';
 
 /**
  * All non-VC events (application identity) that the botmux dispatcher consumes.
@@ -2576,20 +2577,7 @@ function summarizeOpenPlatformPayload(payload: unknown): string {
   return JSON.stringify(summary).slice(0, 500);
 }
 
-function safeErrorMessage(err: unknown): string {
-  const message = err instanceof Error ? err.message : String(err);
-  const row = asRecord(err);
-  const responseData = asRecord(asRecord(row.response).data);
-  const detail = pickString(responseData, ['msg', 'message']);
-  const responseCode = responseData.code;
-  const code = typeof responseCode === 'number' || typeof responseCode === 'string'
-    ? String(responseCode)
-    : '';
-  const expanded = detail && !message.includes(detail)
-    ? `${message}${code ? `（飞书错误 ${code}` : '（飞书错误'}: ${detail}）`
-    : message;
-  return expanded.replace(/[A-Za-z0-9_=-]{24,}/g, '***');
-}
+const safeErrorMessage = safeFeishuErrorMessage;
 
 function markFinalResponseUrl(response: Response, finalUrl: string): void {
   try {

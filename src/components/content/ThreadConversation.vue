@@ -1,6 +1,48 @@
 <template>
   <section class="conversation-root">
-    <p v-if="showBlockingLoading" class="conversation-loading">Loading messages...</p>
+    <section
+      v-if="showBlockingLoading"
+      class="conversation-loading-page"
+      role="status"
+      aria-live="polite"
+      aria-busy="true"
+      data-testid="conversation-loading-page"
+    >
+      <div class="conversation-loading-panel">
+        <div class="conversation-loading-signal" aria-hidden="true">
+          <span />
+          <span />
+        </div>
+        <p class="conversation-loading-eyebrow">{{ t('conversation.loading.eyebrow') }}</p>
+        <h2>{{ t('conversation.loading.title') }}</h2>
+        <p class="conversation-loading-copy">
+          {{ t('conversation.loading.body', { thread: threadLoadingLabel }) }}
+        </p>
+        <ol class="conversation-loading-steps" aria-hidden="true">
+          <li data-state="complete">
+            <span class="conversation-loading-step-marker" />
+            <span>{{ t('conversation.loading.stage.selected') }}</span>
+          </li>
+          <li data-state="active">
+            <span class="conversation-loading-step-marker" />
+            <span>{{ t('conversation.loading.stage.syncing') }}</span>
+          </li>
+          <li data-state="pending">
+            <span class="conversation-loading-step-marker" />
+            <span>{{ t('conversation.loading.stage.rendering') }}</span>
+          </li>
+        </ol>
+      </div>
+
+      <div class="conversation-loading-skeleton" aria-hidden="true">
+        <article v-for="card in 2" :key="card" class="conversation-loading-skeleton-card">
+          <span class="conversation-loading-skeleton-meta" />
+          <span class="conversation-loading-skeleton-line" data-width="wide" />
+          <span class="conversation-loading-skeleton-line" data-width="medium" />
+          <span class="conversation-loading-skeleton-line" data-width="short" />
+        </article>
+      </div>
+    </section>
 
     <article v-else-if="showBlockingLoadError" class="conversation-load-error" role="alert">
       <p class="conversation-load-error-title">Could not load this thread.</p>
@@ -188,8 +230,22 @@
                 </li>
               </ul>
 
+              <div
+                v-if="message.tool?.kind === 'context'"
+                class="context-compaction-divider"
+                data-testid="context-compaction-divider"
+                role="status"
+              >
+                <span class="context-compaction-divider-line" aria-hidden="true" />
+                <span class="context-compaction-divider-copy">
+                  <strong>{{ t('conversation.contextCompacted') }}</strong>
+                  <small>{{ t('conversation.contextCompactedHint') }}</small>
+                </span>
+                <span class="context-compaction-divider-line" aria-hidden="true" />
+              </div>
+
               <details
-                v-if="message.tool"
+                v-else-if="message.tool"
                 class="tool-timeline-card"
                 :data-kind="message.tool.kind"
                 :data-tone="toolStatusTone(message.tool.status)"
@@ -399,9 +455,11 @@ import IconTablerChevronRight from '../icons/IconTablerChevronRight.vue'
 import IconTablerCopy from '../icons/IconTablerCopy.vue'
 import IconTablerX from '../icons/IconTablerX.vue'
 import MessageMarkdown from './MessageMarkdown.vue'
+import { useLocale } from '../../composables/useLocale'
 
 const props = defineProps<{
   cwd?: string
+  threadTitle?: string
   messages: UiMessage[]
   pendingRequests: UiServerRequest[]
   liveOverlay: UiLiveOverlay | null
@@ -417,6 +475,7 @@ const emit = defineEmits<{
   retryLoad: []
 }>()
 const approvalScopeOptions = APPROVAL_SCOPE_OPTIONS
+const { t } = useLocale()
 
 const conversationListRef = ref<HTMLElement | null>(null)
 const bottomAnchorRef = ref<HTMLElement | null>(null)
@@ -468,6 +527,9 @@ const showBlockingLoading = computed(() => shouldShowBlockingConversationLoading
   pendingRequestCount: props.pendingRequests.length,
   hasLiveOverlay: props.liveOverlay !== null,
 }))
+const threadLoadingLabel = computed(
+  () => props.threadTitle?.trim() || t('conversation.loading.threadFallback'),
+)
 const showRefreshStatus = computed(() => shouldShowConversationRefreshStatus({
   isLoading: props.isLoading,
   messageCount: props.messages.length,
@@ -956,8 +1018,131 @@ function turnReceiptDetails(message: UiMessage): TurnReceiptDetail[] {
   @apply relative h-full min-h-0 p-0 flex flex-col overflow-y-hidden overflow-x-visible bg-transparent border-none rounded-none;
 }
 
-.conversation-loading {
-  @apply m-0 px-6 text-sm theme-muted;
+.conversation-loading-page {
+  @apply relative flex-1 min-h-0 overflow-hidden px-6 py-8 flex flex-col items-center justify-center gap-6;
+}
+
+.conversation-loading-panel {
+  @apply relative z-10 w-full max-w-2xl rounded-xl border theme-border theme-bg-panel px-6 py-6 text-center shadow-sm;
+  background:
+    radial-gradient(circle at 50% 0%, color-mix(in srgb, var(--color-accent) 12%, transparent), transparent 48%),
+    var(--color-panel);
+}
+
+.conversation-loading-signal {
+  @apply relative mx-auto mb-4 h-11 w-11 rounded-full border flex items-center justify-center;
+  border-color: color-mix(in srgb, var(--color-accent) 38%, var(--color-border));
+  background: color-mix(in srgb, var(--color-accent) 8%, var(--color-surface));
+}
+
+.conversation-loading-signal span:first-child {
+  @apply h-3 w-3 rounded-full;
+  background: var(--color-accent);
+  box-shadow: 0 0 18px color-mix(in srgb, var(--color-accent) 58%, transparent);
+}
+
+.conversation-loading-signal span:last-child {
+  @apply absolute inset-1 rounded-full border;
+  border-color: color-mix(in srgb, var(--color-accent) 52%, transparent);
+  animation: conversation-loading-ring 1.4s ease-in-out infinite;
+}
+
+.conversation-loading-eyebrow {
+  @apply m-0 text-[0.65rem] font-semibold uppercase tracking-[0.16em] theme-muted;
+  font-family: var(--font-mono);
+}
+
+.conversation-loading-panel h2 {
+  @apply m-0 mt-2 text-xl font-semibold theme-text;
+}
+
+.conversation-loading-copy {
+  @apply mx-auto mb-0 mt-2 max-w-xl text-sm leading-6 theme-muted;
+}
+
+.conversation-loading-steps {
+  @apply mx-auto mt-5 mb-0 max-w-xl list-none p-0 grid grid-cols-3 gap-2;
+}
+
+.conversation-loading-steps li {
+  @apply min-w-0 rounded-md border theme-border px-2 py-2 text-left text-[0.68rem] theme-muted flex items-center gap-2;
+  background: color-mix(in srgb, var(--color-surface) 68%, transparent);
+}
+
+.conversation-loading-steps li[data-state='active'] {
+  color: var(--color-text);
+  border-color: color-mix(in srgb, var(--color-accent) 36%, var(--color-border));
+}
+
+.conversation-loading-step-marker {
+  @apply relative h-2.5 w-2.5 shrink-0 rounded-full border;
+  border-color: var(--color-border);
+}
+
+.conversation-loading-steps li[data-state='complete'] .conversation-loading-step-marker {
+  border-color: var(--color-accent);
+  background: var(--color-accent);
+}
+
+.conversation-loading-steps li[data-state='complete'] .conversation-loading-step-marker::after {
+  content: '';
+  position: absolute;
+  left: 3px;
+  top: 1px;
+  width: 3px;
+  height: 5px;
+  border: solid var(--color-panel);
+  border-width: 0 1.5px 1.5px 0;
+  transform: rotate(45deg);
+}
+
+.conversation-loading-steps li[data-state='active'] .conversation-loading-step-marker {
+  border-color: var(--color-accent);
+  background: color-mix(in srgb, var(--color-accent) 26%, transparent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-accent) 10%, transparent);
+  animation: conversation-loading-pulse 1.4s ease-in-out infinite;
+}
+
+.conversation-loading-skeleton {
+  @apply w-full max-w-2xl flex flex-col gap-3 opacity-65;
+}
+
+.conversation-loading-skeleton-card {
+  @apply rounded-xl border theme-border theme-bg-panel px-5 py-4 flex flex-col gap-2.5;
+}
+
+.conversation-loading-skeleton-meta,
+.conversation-loading-skeleton-line {
+  @apply block overflow-hidden rounded;
+  background:
+    linear-gradient(
+      90deg,
+      color-mix(in srgb, var(--color-elevated) 82%, transparent) 24%,
+      color-mix(in srgb, var(--color-accent) 9%, var(--color-surface)) 50%,
+      color-mix(in srgb, var(--color-elevated) 82%, transparent) 76%
+    );
+  background-size: 220% 100%;
+  animation: conversation-loading-shimmer 1.45s ease-in-out infinite;
+}
+
+.conversation-loading-skeleton-meta {
+  @apply h-2.5 w-24 mb-1;
+}
+
+.conversation-loading-skeleton-line {
+  @apply h-3;
+}
+
+.conversation-loading-skeleton-line[data-width='wide'] {
+  width: 92%;
+}
+
+.conversation-loading-skeleton-line[data-width='medium'] {
+  width: 72%;
+}
+
+.conversation-loading-skeleton-line[data-width='short'] {
+  width: 48%;
 }
 
 .conversation-empty {
@@ -993,6 +1178,44 @@ function turnReceiptDetails(message: UiMessage): TurnReceiptDetail[] {
 
 .conversation-load-error-retry:hover {
   background: color-mix(in srgb, var(--color-danger) 12%, var(--color-surface));
+}
+
+@keyframes conversation-loading-ring {
+  0%, 100% { opacity: 0.35; transform: scale(0.82); }
+  50% { opacity: 1; transform: scale(1); }
+}
+
+@keyframes conversation-loading-pulse {
+  0%, 100% { opacity: 0.55; }
+  50% { opacity: 1; }
+}
+
+@keyframes conversation-loading-shimmer {
+  from { background-position: 180% 0; }
+  to { background-position: -40% 0; }
+}
+
+@media (max-width: 640px) {
+  .conversation-loading-page {
+    @apply px-4 py-5 gap-4;
+  }
+
+  .conversation-loading-panel {
+    @apply px-4 py-5;
+  }
+
+  .conversation-loading-steps {
+    @apply grid-cols-1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .conversation-loading-signal span:last-child,
+  .conversation-loading-steps li[data-state='active'] .conversation-loading-step-marker,
+  .conversation-loading-skeleton-meta,
+  .conversation-loading-skeleton-line {
+    animation: none;
+  }
 }
 
 .conversation-list {
@@ -1252,6 +1475,26 @@ function turnReceiptDetails(message: UiMessage): TurnReceiptDetail[] {
 
 .message-image-preview {
   @apply block w-16 h-16 object-cover;
+}
+
+.context-compaction-divider {
+  @apply grid w-full max-w-[min(760px,100%)] grid-cols-[minmax(1rem,1fr)_auto_minmax(1rem,1fr)] items-center gap-3 py-2;
+}
+
+.context-compaction-divider-line {
+  @apply h-px theme-bg-success opacity-45;
+}
+
+.context-compaction-divider-copy {
+  @apply grid gap-0.5 text-center;
+}
+
+.context-compaction-divider-copy strong {
+  @apply text-[0.7rem] font-semibold uppercase tracking-[0.12em] theme-text-success;
+}
+
+.context-compaction-divider-copy small {
+  @apply max-w-100 text-[0.68rem] leading-4 theme-muted;
 }
 
 .tool-timeline-card {

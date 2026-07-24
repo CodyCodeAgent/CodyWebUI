@@ -20,6 +20,7 @@ import {
   type FeishuSetupChecks,
   type StoredFeishuQrSetupJob,
 } from './feishuQrSetupStore.js'
+import { safeFeishuErrorMessage } from './feishuErrorMessage.js'
 
 export type FeishuQrSetupStatus =
   | 'starting'
@@ -127,11 +128,6 @@ const OFFICIAL_REAUTHORIZATION_SCOPES = [
   'application:application:self_manage',
   'application:bot.basic_info:read',
 ] as const
-
-function safeErrorMessage(error: unknown): string {
-  const message = error instanceof Error ? error.message : String(error)
-  return message.replace(/[A-Za-z0-9_=-]{24,}/g, '***')
-}
 
 function publicJob(job: MutableJob): FeishuQrSetupJobDto {
   const {
@@ -590,7 +586,7 @@ export class FeishuQrSetupManager {
       await this.patchAndPersist(job, {
         status: 'failed',
         statusMessage: '扫码创建失败',
-        error: safeErrorMessage(error),
+        error: safeFeishuErrorMessage(error),
         qrDataUrl: null,
         qrExpiresAtIso: null,
         canRetry: Boolean(job.appId && job.bot),
@@ -650,7 +646,7 @@ export class FeishuQrSetupManager {
       await this.patchAndPersist(job, {
         status: 'failed',
         statusMessage: '接管已有飞书应用失败',
-        error: safeErrorMessage(error),
+        error: safeFeishuErrorMessage(error),
         canRetry: Boolean(job.bot && job.appId),
         canCancel: false,
         canConfirmIdentity: false,
@@ -770,13 +766,13 @@ export class FeishuQrSetupManager {
           job.bot = await this.deps.updateBot(job.bot.id, { enabled: false })
           job.botId = job.bot.id
         } catch (disableError) {
-          rollbackError = `；同时未能回滚本地启用状态: ${safeErrorMessage(disableError)}`
+          rollbackError = `；同时未能回滚本地启用状态: ${safeFeishuErrorMessage(disableError)}`
         }
       }
       await this.patchAndPersist(job, {
         status: 'failed',
         statusMessage: '应用已保存在 CodyWeb，但自动配置未完成',
-        error: `${safeErrorMessage(error)}${rollbackError}`,
+        error: `${safeFeishuErrorMessage(error)}${rollbackError}`,
         bot: job.bot,
         canRetry: true,
         canCancel: false,

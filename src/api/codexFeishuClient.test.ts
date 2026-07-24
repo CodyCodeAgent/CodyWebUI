@@ -115,6 +115,20 @@ describe('Feishu client', () => {
     await expect(fetchFeishuQrSetups()).resolves.toHaveLength(1)
   })
 
+  it('normalizes structured setup errors into readable text', async () => {
+    const job = {
+      id: 'job-error', name: 'Cody', status: 'failed', statusMessage: 'failed',
+      qrDataUrl: null, qrExpiresAtIso: null, account: null, bot: null,
+      warnings: [], error: { message: 'Permission is pending' },
+      canRetry: true, canCancel: false, canConfirmIdentity: false,
+      createdAtIso: '', updatedAtIso: '',
+    }
+    httpMock.fetchCodexResultRecord.mockResolvedValue({ result: { jobs: [job] }, status: 200 })
+    await expect(fetchFeishuQrSetups()).resolves.toMatchObject([
+      { id: 'job-error', error: 'Permission is pending' },
+    ])
+  })
+
   it('inspects and clears Open Platform authorization without exposing cookies', async () => {
     httpMock.fetchCodexResultRecord.mockResolvedValueOnce({ result: { session: {
       configured: true, valid: true,

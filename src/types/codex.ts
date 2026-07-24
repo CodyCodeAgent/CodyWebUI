@@ -71,6 +71,17 @@ export type UiThread = {
   inProgress: boolean
 }
 
+export type UiThreadContextUsage = {
+  threadId: string
+  turnId: string
+  usedTokens: number
+  inputTokens: number
+  contextWindow: number | null
+  autoCompactTokenLimit: number | null
+  updatedAtIso: string
+  compactionState: 'idle' | 'compacting' | 'compacted'
+}
+
 export type UiMessage = {
   id: string
   /** Parent Codex turn. Used to reconcile realtime items with history safely. */

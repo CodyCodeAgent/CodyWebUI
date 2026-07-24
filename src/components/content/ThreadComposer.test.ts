@@ -95,4 +95,45 @@ describe('ThreadComposer', () => {
     await wrapper.setProps({ promptInsertion: { id: 2, text: 'Replacement', mode: 'replace' } })
     expect((input.element as HTMLTextAreaElement).value).toBe('Replacement')
   })
+
+  it('shows accurate context usage and warns before automatic compaction', () => {
+    const wrapper = mountComposer({
+      contextUsage: {
+        threadId: 'thread-1',
+        turnId: 'turn-1',
+        usedTokens: 150_000,
+        inputTokens: 146_000,
+        contextWindow: 200_000,
+        autoCompactTokenLimit: 180_000,
+        updatedAtIso: '2026-07-24T00:00:00.000Z',
+        compactionState: 'idle',
+      },
+    })
+
+    const indicator = wrapper.get('[data-testid="thread-context-usage"]')
+    expect(indicator.attributes('data-tone')).toBe('warning')
+    expect(indicator.text()).toContain('75% used')
+    expect(indicator.text()).toContain('approaching auto-compaction')
+    expect(indicator.get('[role="progressbar"]').attributes('aria-valuenow')).toBe('75')
+  })
+
+  it('announces compaction progress without showing stale token counts', () => {
+    const wrapper = mountComposer({
+      contextUsage: {
+        threadId: 'thread-1',
+        turnId: 'turn-1',
+        usedTokens: 175_000,
+        inputTokens: 170_000,
+        contextWindow: 200_000,
+        autoCompactTokenLimit: 180_000,
+        updatedAtIso: '2026-07-24T00:00:00.000Z',
+        compactionState: 'compacting',
+      },
+    })
+
+    const indicator = wrapper.get('[data-testid="thread-context-usage"]')
+    expect(indicator.attributes('data-tone')).toBe('compacting')
+    expect(indicator.text()).toContain('Compacting context')
+    expect(indicator.text()).not.toContain('175K')
+  })
 })
